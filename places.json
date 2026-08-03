@@ -1,0 +1,42 @@
+{
+  "ELS": {
+    "name": "UPE",
+    "type": "depot"
+  },
+  "KBZ": {
+    "name": "UPK",
+    "type": "depot"
+  },
+  "CRB": {
+    "name": "UPC",
+    "type": "depot"
+  },
+  "ELSA": {
+    "name": "Elsau",
+    "type": "relief"
+  },
+  "ELME": {
+    "name": "Elmerforst",
+    "type": "relief"
+  },
+  "MOVE": {
+    "name": "Montagne Verte",
+    "type": "relief"
+  },
+  "GACE": {
+    "name": "Gare Centrale",
+    "type": "relief"
+  },
+  "REPU": {
+    "name": "République",
+    "type": "relief"
+  },
+  "HOHB": {
+    "name": "Hohberg",
+    "type": "relief"
+  },
+  "RORE": {
+    "name": "Rodolphe Reuss",
+    "type": "relief"
+  }
+}

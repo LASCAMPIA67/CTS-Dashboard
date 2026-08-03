@@ -1,0 +1,90 @@
+{
+  "SCHILTIGHEIM CAMPUS": {
+    "name": "Schiltigheim Campus"
+  },
+  "ILLKIRCH FORT UHRICH": {
+    "name": "Illkirch Fort Uhrich"
+  },
+  "ELMERFORST": {
+    "name": "Elmerforst"
+  },
+  "JARDIN DES DEUX RIVES": {
+    "name": "Jardin des Deux Rives"
+  },
+  "LINGOLSHEIM GARE": {
+    "name": "Lingolsheim Gare"
+  },
+  "MONTAGNE VERTE": {
+    "name": "Montagne Verte"
+  },
+  "NEUHOF GANZAU": {
+    "name": "Neuhof Ganzau"
+  },
+  "UNTERELSAU": {
+    "name": "Unterelsau"
+  },
+  "GARE CENTRALE": {
+    "name": "Gare Centrale"
+  },
+  "ELSAU": {
+    "name": "Elsau"
+  },
+  "PARLEMENT EUROPEEN": {
+    "name": "Parlement Européen"
+  },
+  "PLACE D'ISLANDE": {
+    "name": "Place d’Islande"
+  },
+  "OSTWALD HOTEL DE VILLE": {
+    "name": "Ostwald Hôtel de Ville"
+  },
+  "PLACE D'OSTWALD": {
+    "name": "Place d’Ostwald"
+  },
+  "LYCEE KLEBER": {
+    "name": "Lycée Kléber"
+  },
+  "LYCEE COUFFIGNAL": {
+    "name": "Lycée Couffignal"
+  },
+  "NEUHOF RODOLPHE REUSS": {
+    "name": "Rodolphe Reuss"
+  },
+  "CITE MEINAU": {
+    "name": "Cité Meinau"
+  },
+  "BAGGERSEE": {
+    "name": "Baggersee"
+  },
+  "NEUHOF LUCIE AUBRAC": {
+    "name": "Neuhof Lucie Aubrac"
+  },
+  "NEUHOF CORPS EUROPEENS": {
+    "name": "Neuhof Corps Européens"
+  },
+  "LORIENT": {
+    "name": "Lorient"
+  },
+  "LA ROCHELLE": {
+    "name": "La Rochelle"
+  },
+  "SAINT NAZAIRE": {
+    "name": "Saint-Nazaire"
+  },
+  "PORT AUTONOME SUD": {
+    "name": "Port Autonome Sud"
+  },
+  "ILLKIRCH MAIRIE": {
+    "name": "Illkirch Mairie",
+    "aliases": [
+      "ILLKIRCH MAIRIE DESCENTE",
+      "ILLKIRCH MAIRIE MONTEE"
+    ]
+  },
+  "DEPOT ELSAU": {
+    "name": "Dépôt Elsau"
+  },
+  "DEPOT KIBITZENAU": {
+    "name": "Dépôt Kibitzenau"
+  }
+}

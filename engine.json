@@ -1,0 +1,10 @@
+{
+  "engine": "PDF.js",
+  "version": "6.1.200",
+  "installedAt": "2026-08-03T18:39:31.558Z",
+  "loadingMode": "local-blob-module",
+  "files": {
+    "library": "pdf.min.mjs",
+    "worker": "pdf.worker.min.mjs"
+  }
+}
