@@ -1,7 +1,8 @@
 {
   "name": "CTS Dashboard",
-  "version": "1.0.0",
-  "minimumInstaller": "1.0.1",
+  "version": "1.1.0",
+  "installerVersion": "2.0.0",
+  "minimumInstaller": "2.0.0",
   "lastUpdate": "2026-08-03",
   "author": "Emilio IPPOLITO",
   "matricule": "6124",
@@ -11,7 +12,7 @@
     "branch": "main"
   },
   "entryPoint": "CTS Dashboard.js",
-  "files": [
+  "scripts": [
     "CTS Config.js",
     "CTS Dashboard.js",
     "CTS Database.js",
@@ -27,5 +28,30 @@
     "CTS Widget Engine.js",
     "CTS Widget Renderer.js",
     "CTS Widget Theme.js"
+  ],
+  "resources": [
+    {
+      "name": "lines.json",
+      "destination": "Database/lines.json"
+    },
+    {
+      "name": "stops.json",
+      "destination": "Database/stops.json"
+    },
+    {
+      "name": "places.json",
+      "destination": "Database/places.json"
+    },
+    {
+      "name": "pdf.min.mjs",
+      "destination": "Libraries/PDF/pdf.min.mjs"
+    },
+    {
+      "name": "pdf.worker.min.mjs",
+      "destination": "Libraries/PDF/pdf.worker.min.mjs"
+    }
+  ],
+  "protectedPaths": [
+    "Services"
   ]
 }
