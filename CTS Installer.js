@@ -2,505 +2,1373 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-// CTS Installer.js
-// Gestionnaire officiel d’installation, mise à jour,
-// réparation, informations et désinstallation de CTS Dashboard.
-
-const INSTALLER_VERSION = "2.0.0"
-
+const INSTALLER_VERSION = "3.0.0"
 const REPOSITORY = {
   owner: "LASCAMPIA67",
   name: "CTS-Dashboard",
   branch: "main"
 }
 
-const DOWNLOAD_TIMEOUT_SECONDS = 30
-const INSTALLATION_FILE = "installation.json"
+const INSTALLER_FILE = "CTS Installer.js"
+const METADATA_FILE = "installation.json"
+const TIMEOUT_SECONDS = 60
+const RETRY_COUNT = 2
+const MIN_SCRIPT_LENGTH = 80
 
 const fm = FileManager.iCloud()
-const documentsDirectory = fm.documentsDirectory()
-
-const root = fm.joinPath(
-  documentsDirectory,
-  "CTS Dashboard"
-)
+const documents = fm.documentsDirectory()
+const join = (a, b) => fm.joinPath(a, b)
+const root = join(documents, "CTS Dashboard")
 
 const paths = {
   root,
-  data: fm.joinPath(root, "Data"),
-  database: fm.joinPath(root, "Database"),
-  cache: fm.joinPath(root, "Cache"),
-  services: fm.joinPath(root, "Services"),
-  libraries: fm.joinPath(root, "Libraries")
+  data: join(root, "Data"),
+  database: join(root, "Database"),
+  cache: join(root, "Cache"),
+  services: join(root, "Services"),
+  archive: join(root, "Services/Archive"),
+  rejected: join(root, "Services/Rejected"),
+  serviceCache: join(root, "Cache/Services"),
+  textCache: join(root, "Cache/Services/Text"),
+  libraries: join(root, "Libraries"),
+  pdf: join(root, "Libraries/PDF"),
+  metadata: join(root, `Data/${METADATA_FILE}`)
 }
-
-const installationMetadataPath =
-  fm.joinPath(
-    paths.data,
-    INSTALLATION_FILE
-  )
 
 await main()
 Script.complete()
 
-// =====================================================
-// MENU PRINCIPAL
-// =====================================================
-
 async function main() {
   try {
-    const manifest =
-      await downloadManifest()
-
+    const manifest = await loadManifest()
     validateManifest(manifest)
 
-    const action =
-      await presentMainMenu(manifest)
+    if (!await handleInstallerUpdate(manifest)) return
 
-    switch (action) {
-      case 0:
-        await installOrUpdate(manifest)
-        break
+    const state = await inspectInstallation(manifest)
+    const action = await presentMenu(manifest, state)
 
-      case 1:
-        await repairInstallation(manifest)
-        break
-
-      case 2:
-        await showInformation(manifest)
-        break
-
-      case 3:
-        await uninstallDashboard(manifest)
-        break
-
-      default:
-        return
+    if (action === "install" || action === "update") {
+      await installOrUpdate(manifest, state)
+    } else if (action === "uninstall") {
+      await uninstallProject(manifest)
     }
   } catch (error) {
     await showError(error)
   }
 }
 
-async function presentMainMenu(manifest) {
-  const metadata =
-    await readInstallationMetadata()
+async function presentMenu(manifest, state) {
+  const alert = new Alert()
+  alert.title = "CTS Dashboard"
+
+  if (!state.present) {
+    alert.message = [
+      "CTS Dashboard n’est pas installé sur cet iPhone.",
+      "",
+      `Version disponible : ${manifest.version}`,
+      `Installateur : ${INSTALLER_VERSION}`,
+      "",
+      "Tous les fichiers et dossiers nécessaires seront installés automatiquement.",
+      "",
+      "Développé par Emilio IPPOLITO",
+      "Matricule 6124"
+    ].join("\n")
+
+    alert.addAction(`Installer la version ${manifest.version}`)
+    alert.addCancelAction("Fermer")
+
+    return await alert.presentSheet() === 0
+      ? "install"
+      : null
+  }
 
   const installedVersion =
-    metadata?.dashboardVersion ||
-    "Non installé"
+    state.installedVersion || "Non identifiée"
 
-  const alert = new Alert()
+  const versionUpdate =
+    Boolean(state.installedVersion) &&
+    compareVersions(
+      manifest.version,
+      state.installedVersion
+    ) > 0
 
-  alert.title =
-    "CTS Dashboard"
+  const issueNames = [
+    ...state.missing,
+    ...state.invalid
+  ]
 
   alert.message = [
-    `Version disponible : ${manifest.version}`,
-    `Version installée : ${installedVersion}`,
+    versionUpdate
+      ? `Mise à jour disponible : ${installedVersion} → ${manifest.version}`
+      : `Version installée : ${installedVersion}`,
     "",
-    "Développé par Emilio IPPOLITO",
-    "Matricule 6124"
+    state.complete
+      ? `${state.validCount}/${state.totalCount} fichiers valides`
+      : `Installation à réparer : ${state.validCount}/${state.totalCount} fichiers valides`,
+    issueNames.length
+      ? `\nFichiers concernés : ${issueNames.join(", ")}`
+      : "",
+    "",
+    versionUpdate
+      ? "Une nouvelle version est disponible sur GitHub."
+      : state.complete
+        ? "CTS Dashboard est entièrement à jour."
+        : "Les fichiers absents ou invalides seront réparés.",
+    "",
+    "Vos services PDF et leurs archives seront conservés."
   ].join("\n")
 
   alert.addAction(
-    "Installer ou mettre à jour"
+    versionUpdate
+      ? `Mettre à jour vers ${manifest.version}`
+      : state.complete
+        ? "Vérifier les fichiers"
+        : "Réparer l’installation"
   )
 
-  alert.addAction(
-    "Réparer l’installation"
-  )
+  alert.addDestructiveAction("Désinstaller")
+  alert.addCancelAction("Fermer")
 
-  alert.addAction(
-    "Informations"
-  )
+  const selection = await alert.presentSheet()
 
-  alert.addDestructiveAction(
-    "Désinstaller CTS Dashboard"
-  )
+  if (selection === 0) return "update"
+  if (selection === 1) return "uninstall"
 
-  alert.addCancelAction(
-    "Fermer"
-  )
-
-  return alert.presentSheet()
+  return null
 }
 
-// =====================================================
-// INSTALLATION / MISE À JOUR
-// =====================================================
+async function inspectInstallation(manifest) {
+  const metadata = await readMetadata()
+  const entries = manifestEntries(manifest)
 
-async function installOrUpdate(manifest) {
-  const confirmed =
-    await confirmAction(
-      "Installer ou mettre à jour",
-      [
+  let existingCount = 0
+  let validCount = 0
+
+  const invalid = []
+  const missing = []
+  const reasons = {}
+
+  for (const entry of entries) {
+    if (!fm.fileExists(entry.destination)) {
+      missing.push(entry.name)
+      reasons[entry.name] = "Fichier absent"
+      continue
+    }
+
+    existingCount++
+
+    const result = await validateLocalFile(
+      entry.destination,
+      entry.name
+    )
+
+    if (result.valid) {
+      validCount++
+    } else {
+      invalid.push(entry.name)
+      reasons[entry.name] = result.reason
+    }
+  }
+
+  const totalCount = entries.length
+
+  const present = Boolean(
+    metadata ||
+    existingCount ||
+    fm.fileExists(root)
+  )
+
+  const complete =
+    present &&
+    validCount === totalCount
+
+  const installedVersion =
+    typeof metadata?.dashboardVersion === "string"
+      ? metadata.dashboardVersion
+      : complete
+        ? manifest.version
+        : null
+
+  return {
+    present,
+    complete,
+    existingCount,
+    validCount,
+    totalCount,
+    installedVersion,
+    invalid,
+    missing,
+    reasons
+  }
+}
+
+async function installOrUpdate(manifest, previousState) {
+  const freshInstall = !previousState.present
+  const versionUpdate =
+    Boolean(previousState.installedVersion) &&
+    compareVersions(
+      manifest.version,
+      previousState.installedVersion
+    ) > 0
+
+  const title = freshInstall
+    ? "Installer CTS Dashboard"
+    : versionUpdate
+      ? "Mettre à jour CTS Dashboard"
+      : previousState.complete
+        ? "Vérifier CTS Dashboard"
+        : "Réparer CTS Dashboard"
+
+  const message = freshInstall
+    ? [
         `CTS Dashboard ${manifest.version} va être installé.`,
         "",
-        "Les PDF de service et les archives existantes seront conservés.",
+        "Tous les scripts, ressources et dossiers seront créés automatiquement.",
         "",
         "Une connexion Internet est nécessaire."
-      ].join("\n"),
-      "Continuer"
-    )
+      ].join("\n")
+    : [
+        `CTS Dashboard ${manifest.version} va être contrôlé.`,
+        "",
+        "Chaque fichier sera comparé avec la version officielle publiée sur GitHub.",
+        "",
+        "Les fichiers différents, absents ou invalides seront remplacés.",
+        "",
+        "Vos services PDF et leurs archives seront conservés."
+      ].join("\n")
 
-  if (!confirmed) {
-    return
-  }
+  if (!await confirm(title, message, "Continuer")) return
 
-  ensureProjectDirectories()
+  const entries = manifestEntries(manifest)
+
+  const progress = createProgressTable(
+    freshInstall
+      ? "Installation de CTS Dashboard"
+      : versionUpdate
+        ? "Mise à jour de CTS Dashboard"
+        : previousState.complete
+          ? "Vérification de CTS Dashboard"
+          : "Réparation de CTS Dashboard",
+    manifest.version,
+    entries
+  )
+
+  progress.present()
 
   const summary = {
     installed: [],
     updated: [],
-    preserved: []
+    unchanged: [],
+    repaired: [],
+    failed: []
   }
 
-  for (const fileName of manifest.scripts) {
-    const destinationPath =
-      fm.joinPath(
-        documentsDirectory,
-        fileName
+  const failures = []
+
+  try {
+    await progress.setSystem(
+      "github",
+      "running",
+      "Connexion en cours…"
+    )
+
+    await verifyRepository()
+
+    await progress.setSystem(
+      "github",
+      "success",
+      "Connexion établie"
+    )
+
+    await progress.setSystem(
+      "directories",
+      "running",
+      "Préparation de l’arborescence…"
+    )
+
+    ensureDirectories()
+
+    await progress.setSystem(
+      "directories",
+      "success",
+      "Arborescence prête"
+    )
+
+    for (let index = 0; index < entries.length; index++) {
+      const entry = entries[index]
+
+      await progress.setEntry(
+        index,
+        "running",
+        `Contrôle de ${entry.name}`
       )
 
-    const status =
-      await downloadAndInstall({
-        remoteName: fileName,
-        destinationPath,
-        preserveExisting: false
-      })
+      try {
+        const status = await synchronizeFile(entry)
 
-    addStatus(
-      summary,
-      status,
-      fileName
-    )
-  }
+        summary[status].push(entry.name)
 
-  for (const resource of manifest.resources) {
-    const destinationPath =
-      safeProjectPath(
-        resource.destination
-      )
+        await progress.setEntry(
+          index,
+          status === "unchanged"
+            ? "unchanged"
+            : "success",
+          statusLabel(status)
+        )
+      } catch (error) {
+        failures.push({
+          index,
+          entry,
+          reason: errorMessage(error)
+        })
 
-    ensureParentDirectory(
-      destinationPath
-    )
-
-    const status =
-      await downloadAndInstall({
-        remoteName: resource.name,
-        destinationPath,
-        preserveExisting:
-          resource.name.endsWith(".json")
-      })
-
-    addStatus(
-      summary,
-      status,
-      resource.name
-    )
-  }
-
-  await writeInstallationMetadata(
-    manifest,
-    summary,
-    "installation"
-  )
-
-  await showOperationSuccess(
-    "Installation terminée",
-    manifest,
-    summary
-  )
-}
-
-// =====================================================
-// RÉPARATION
-// =====================================================
-
-async function repairInstallation(manifest) {
-  const confirmed =
-    await confirmAction(
-      "Réparer CTS Dashboard",
-      [
-        "Tous les scripts et ressources seront vérifiés.",
-        "",
-        "Les fichiers absents, vides ou invalides seront remplacés.",
-        "",
-        "Les PDF de service seront conservés."
-      ].join("\n"),
-      "Réparer"
-    )
-
-  if (!confirmed) {
-    return
-  }
-
-  ensureProjectDirectories()
-
-  const summary = {
-    installed: [],
-    updated: [],
-    preserved: []
-  }
-
-  for (const fileName of manifest.scripts) {
-    const destinationPath =
-      fm.joinPath(
-        documentsDirectory,
-        fileName
-      )
-
-    const valid =
-      await isValidFile(
-        destinationPath,
-        fileName
-      )
-
-    if (valid) {
-      summary.preserved.push(fileName)
-      continue
-    }
-
-    const status =
-      await downloadAndInstall({
-        remoteName: fileName,
-        destinationPath,
-        preserveExisting: false
-      })
-
-    addStatus(
-      summary,
-      status,
-      fileName
-    )
-  }
-
-  for (const resource of manifest.resources) {
-    const destinationPath =
-      safeProjectPath(
-        resource.destination
-      )
-
-    ensureParentDirectory(
-      destinationPath
-    )
-
-    const valid =
-      await isValidFile(
-        destinationPath,
-        resource.name
-      )
-
-    if (valid) {
-      summary.preserved.push(
-        resource.name
-      )
-
-      continue
-    }
-
-    const status =
-      await downloadAndInstall({
-        remoteName: resource.name,
-        destinationPath,
-        preserveExisting: false
-      })
-
-    addStatus(
-      summary,
-      status,
-      resource.name
-    )
-  }
-
-  await writeInstallationMetadata(
-    manifest,
-    summary,
-    "repair"
-  )
-
-  await showOperationSuccess(
-    "Réparation terminée",
-    manifest,
-    summary
-  )
-}
-
-// =====================================================
-// INFORMATIONS
-// =====================================================
-
-async function showInformation(manifest) {
-  const metadata =
-    await readInstallationMetadata()
-
-  const installedScripts =
-    await countExistingScripts(
-      manifest.scripts
-    )
-
-  const installedResources =
-    await countExistingResources(
-      manifest.resources
-    )
-
-  const alert = new Alert()
-
-  alert.title =
-    "Informations"
-
-  alert.message = [
-    "CTS Dashboard",
-    "",
-    `Version disponible : ${manifest.version}`,
-    `Version installée : ${metadata?.dashboardVersion || "Non installée"}`,
-    `Installateur : ${INSTALLER_VERSION}`,
-    "",
-    `Scripts présents : ${installedScripts}/${manifest.scripts.length}`,
-    `Ressources présentes : ${installedResources}/${manifest.resources.length}`,
-    "",
-    `Dernière opération : ${formatDate(metadata?.updatedAt || metadata?.installedAt)}`,
-    "",
-    "Auteur : Emilio IPPOLITO",
-    "Matricule : 6124",
-    "",
-    "Dépôt GitHub :",
-    `${REPOSITORY.owner}/${REPOSITORY.name}`
-  ].join("\n")
-
-  alert.addAction("Fermer")
-
-  await alert.present()
-}
-
-// =====================================================
-// DÉSINSTALLATION
-// =====================================================
-
-async function uninstallDashboard(manifest) {
-  const firstConfirmation =
-    await confirmAction(
-      "Désinstaller CTS Dashboard",
-      [
-        "Cette action supprimera :",
-        "",
-        "• tous les scripts CTS Dashboard ;",
-        "• les bases de données ;",
-        "• les caches ;",
-        "• le moteur PDF ;",
-        "• les données générées.",
-        "",
-        "Le dossier Services, les PDF et les archives seront conservés.",
-        "",
-        "CTS Installer restera disponible."
-      ].join("\n"),
-      "Continuer",
-      true
-    )
-
-  if (!firstConfirmation) {
-    return
-  }
-
-  const finalConfirmation =
-    await confirmAction(
-      "Confirmation définitive",
-      "Voulez-vous vraiment désinstaller CTS Dashboard tout en conservant vos PDF de service ?",
-      "Désinstaller",
-      true
-    )
-
-  if (!finalConfirmation) {
-    return
-  }
-
-  const deleted = []
-  const failed = []
-
-  for (const fileName of manifest.scripts) {
-    if (fileName === "CTS Installer.js") {
-      continue
-    }
-
-    const path =
-      fm.joinPath(
-        documentsDirectory,
-        fileName
-      )
-
-    removeTracked(
-      path,
-      fileName,
-      deleted,
-      failed
-    )
-  }
-
-  const protectedNames =
-    normalizeProtectedPaths(
-      manifest.protectedPaths
-    )
-
-  if (fm.fileExists(root)) {
-    await ensureDownloaded(root)
-
-    for (const name of fm.listContents(root)) {
-      if (protectedNames.has(name)) {
-        continue
+        await progress.setEntry(
+          index,
+          "retry",
+          "Nouvelle tentative programmée"
+        )
       }
 
-      const path =
-        fm.joinPath(
-          root,
-          name
+      await progress.advance(
+        index + 1,
+        entries.length
+      )
+    }
+
+    if (failures.length) {
+      await progress.setSystem(
+        "retry",
+        "running",
+        `Nouvelle tentative sur ${failures.length} fichier(s)…`
+      )
+
+      for (const failure of failures) {
+        await progress.setEntry(
+          failure.index,
+          "running",
+          `Nouvelle tentative : ${failure.entry.name}`
         )
 
-      removeTracked(
-        path,
-        name,
-        deleted,
-        failed
+        try {
+          const status = await synchronizeFile(
+            failure.entry,
+            true
+          )
+
+          summary[status].push(
+            failure.entry.name
+          )
+
+          await progress.setEntry(
+            failure.index,
+            "success",
+            status === "unchanged"
+              ? "Validé"
+              : statusLabel(status)
+          )
+
+          failure.resolved = true
+        } catch (error) {
+          failure.reason = errorMessage(error)
+
+          summary.failed.push(
+            failure.entry.name
+          )
+
+          await progress.setEntry(
+            failure.index,
+            "error",
+            failure.reason
+          )
+        }
+      }
+
+      const unresolved =
+        failures.filter(item => !item.resolved)
+
+      await progress.setSystem(
+        "retry",
+        unresolved.length
+          ? "error"
+          : "success",
+        unresolved.length
+          ? `${unresolved.length} fichier(s) encore en erreur`
+          : "Toutes les erreurs ont été corrigées"
       )
+    } else {
+      await progress.setSystem(
+        "retry",
+        "success",
+        "Aucune nouvelle tentative nécessaire"
+      )
+    }
+
+    await progress.setSystem(
+      "verification",
+      "running",
+      "Contrôle final de l’installation…"
+    )
+
+    const verification =
+      await inspectInstallation(manifest)
+
+    if (!verification.complete) {
+      const issues = [
+        ...verification.missing.map(
+          name => `${name} — absent`
+        ),
+        ...verification.invalid.map(
+          name =>
+            `${name} — ${verification.reasons[name] || "invalide"}`
+        )
+      ]
+
+      await progress.setSystem(
+        "verification",
+        "error",
+        `${verification.validCount}/${verification.totalCount} fichiers valides`
+      )
+
+      await progress.finish({
+        success: false,
+        title: "Installation non validée",
+        message: [
+          `${verification.validCount}/${verification.totalCount} fichiers sont valides.`,
+          "",
+          issues.length
+            ? `Fichiers concernés :\n${issues.join("\n")}`
+            : "Une erreur inconnue empêche la validation."
+        ].join("\n"),
+        summary
+      })
+
+      return
+    }
+
+    await writeMetadata(
+      manifest,
+      summary
+    )
+
+    await progress.setSystem(
+      "verification",
+      "success",
+      `${verification.validCount}/${verification.totalCount} fichiers valides`
+    )
+
+    await progress.finish({
+      success: true,
+      title: freshInstall
+        ? "Installation terminée"
+        : versionUpdate
+          ? "Mise à jour terminée"
+          : previousState.complete
+            ? "Vérification terminée"
+            : "Réparation terminée",
+      message: [
+        `CTS Dashboard ${manifest.version} est prêt.`,
+        "",
+        "Tous les fichiers ont été contrôlés avec succès.",
+        "",
+        "Vous pouvez maintenant lancer CTS Dashboard."
+      ].join("\n"),
+      summary
+    })
+  } catch (error) {
+    await progress.setSystem(
+      "verification",
+      "error",
+      "Opération interrompue"
+    )
+
+    await progress.finish({
+      success: false,
+      title: "Opération interrompue",
+      message: errorMessage(error),
+      summary
+    })
+  }
+}
+
+async function synchronizeFile(entry, force = false) {
+  let remoteContent
+  let lastError
+
+  for (let attempt = 1; attempt <= RETRY_COUNT; attempt++) {
+    try {
+      remoteContent = await downloadText(
+        `${rawUrl(entry.name)}?t=${Date.now()}-${attempt}`,
+        entry.name
+      )
+
+      const remoteValidation =
+        validateTextContent(
+          remoteContent,
+          entry.name
+        )
+
+      if (!remoteValidation.valid) {
+        throw new Error(
+          `Version GitHub invalide : ${remoteValidation.reason}`
+        )
+      }
+
+      break
+    } catch (error) {
+      lastError = error
+
+      if (attempt < RETRY_COUNT) {
+        await sleep(400)
+      }
     }
   }
 
-  const alert = new Alert()
+  if (remoteContent === undefined) {
+    throw lastError ||
+      new Error(`${entry.name} impossible à télécharger.`)
+  }
 
-  alert.title =
-    failed.length
-      ? "Désinstallation partielle"
-      : "Désinstallation terminée"
+  const existed = fm.fileExists(entry.destination)
+  let localWasValid = false
 
-  alert.message = [
-    `${deleted.length} élément(s) supprimé(s).`,
-    `${failed.length} erreur(s).`,
-    "",
-    "Le dossier Services et vos PDF ont été conservés.",
-    "",
-    "CTS Installer reste disponible pour réinstaller le projet."
-  ].join("\n")
+  if (existed) {
+    const localValidation =
+      await validateLocalFile(
+        entry.destination,
+        entry.name
+      )
 
-  alert.addAction("Terminer")
+    localWasValid =
+      localValidation.valid
 
-  await alert.present()
+    if (
+      !force &&
+      localWasValid &&
+      await textMatchesFile(
+        entry.destination,
+        remoteContent
+      )
+    ) {
+      return "unchanged"
+    }
+  }
+
+  await writeTextSafely(
+    entry.destination,
+    remoteContent
+  )
+
+  const verification =
+    await validateLocalFile(
+      entry.destination,
+      entry.name
+    )
+
+  if (!verification.valid) {
+    throw new Error(
+      `${entry.name} invalide après écriture : ${verification.reason}`
+    )
+  }
+
+  if (!existed) return "installed"
+  if (!localWasValid) return "repaired"
+
+  return "updated"
 }
 
-// =====================================================
-// MANIFESTE GITHUB
-// =====================================================
+function validateTextContent(content, name) {
+  if (
+    typeof content !== "string" ||
+    !content.trim()
+  ) {
+    return {
+      valid: false,
+      reason: "contenu vide"
+    }
+  }
 
-async function downloadManifest() {
-  const content =
-    await downloadText(
-      rawUrl("version.json"),
+  const trimmed = content.trim()
+  const beginning =
+    trimmed.slice(0, 160).toLowerCase()
+
+  if (
+    trimmed === "404: Not Found" ||
+    beginning.startsWith("<!doctype html") ||
+    beginning.startsWith("<html")
+  ) {
+    return {
+      valid: false,
+      reason: "GitHub a renvoyé une page d’erreur"
+    }
+  }
+
+  if (name.endsWith(".json")) {
+    try {
+      const value = JSON.parse(content)
+
+      if (
+        value === null ||
+        typeof value !== "object"
+      ) {
+        return {
+          valid: false,
+          reason: "racine JSON invalide"
+        }
+      }
+    } catch (error) {
+      return {
+        valid: false,
+        reason: `JSON invalide : ${errorMessage(error)}`
+      }
+    }
+  }
+
+  if (
+    name.endsWith(".js") &&
+    !name.endsWith(".mjs") &&
+    trimmed.length < MIN_SCRIPT_LENGTH
+  ) {
+    return {
+      valid: false,
+      reason: "script anormalement court"
+    }
+  }
+
+  if (
+    name.endsWith(".mjs") &&
+    trimmed.length < MIN_SCRIPT_LENGTH
+  ) {
+    return {
+      valid: false,
+      reason: "bibliothèque anormalement courte"
+    }
+  }
+
+  return {
+    valid: true,
+    reason: ""
+  }
+}
+
+async function validateLocalFile(path, name) {
+  if (!fm.fileExists(path)) {
+    return {
+      valid: false,
+      reason: "fichier absent"
+    }
+  }
+
+  try {
+    await ensureDownloaded(path)
+
+    const content = fm.readString(path)
+    return validateTextContent(content, name)
+  } catch (error) {
+    return {
+      valid: false,
+      reason: errorMessage(error)
+    }
+  }
+}
+
+async function textMatchesFile(path, remoteContent) {
+  try {
+    await ensureDownloaded(path)
+
+    const localContent =
+      fm.readString(path)
+
+    return normalizeText(localContent) ===
+      normalizeText(remoteContent)
+  } catch (_) {
+    return false
+  }
+}
+
+function normalizeText(value) {
+  return String(value ?? "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+}
+
+async function writeTextSafely(destination, content) {
+  ensureParent(destination)
+
+  const temporary =
+    `${destination}.download`
+
+  removeQuietly(temporary)
+
+  try {
+    fm.writeString(
+      temporary,
+      content
+    )
+
+    if (!fm.fileExists(temporary)) {
+      throw new Error(
+        "Le fichier temporaire n’a pas été créé."
+      )
+    }
+
+    await sleep(80)
+
+    removeQuietly(destination)
+
+    fm.move(
+      temporary,
+      destination
+    )
+
+    await sleep(100)
+
+    if (!fm.fileExists(destination)) {
+      throw new Error(
+        "Le fichier final n’a pas été créé."
+      )
+    }
+
+    await ensureDownloaded(destination)
+  } catch (error) {
+    removeQuietly(temporary)
+    throw error
+  }
+}
+
+async function uninstallProject(manifest) {
+  if (!await confirm(
+    "Désinstaller CTS Dashboard",
+    [
+      "Cette opération supprimera :",
+      "",
+      "• les scripts CTS Dashboard ;",
+      "• les bases de données ;",
+      "• les caches ;",
+      "• le moteur PDF ;",
+      "• les données techniques.",
+      "",
+      "Le dossier Services, ses PDF et ses archives seront conservés.",
+      "",
+      "CTS Installer restera disponible."
+    ].join("\n"),
+    "Continuer",
+    true
+  )) return
+
+  if (!await confirm(
+    "Confirmation définitive",
+    "Confirmez-vous la désinstallation de CTS Dashboard ?",
+    "Désinstaller",
+    true
+  )) return
+
+  const entries = [
+    ...manifest.scripts
+      .filter(name => name !== INSTALLER_FILE)
+      .map(name => ({
+        name,
+        destination: join(documents, name),
+        type: "Script"
+      })),
+    ...fm.fileExists(root)
+      ? fm.listContents(root)
+          .filter(name => name !== "Services")
+          .map(name => ({
+            name,
+            destination: join(root, name),
+            type: "Dossier"
+          }))
+      : []
+  ]
+
+  const progress = createProgressTable(
+    "Désinstallation de CTS Dashboard",
+    manifest.version,
+    entries,
+    true
+  )
+
+  progress.present()
+
+  const summary = {
+    installed: [],
+    updated: [],
+    unchanged: [],
+    repaired: [],
+    failed: []
+  }
+
+  for (let index = 0; index < entries.length; index++) {
+    const entry = entries[index]
+
+    await progress.setEntry(
+      index,
+      "running",
+      `Suppression de ${entry.name}`
+    )
+
+    try {
+      if (fm.fileExists(entry.destination)) {
+        fm.remove(entry.destination)
+      }
+
+      summary.unchanged.push(entry.name)
+
+      await progress.setEntry(
+        index,
+        "success",
+        "Supprimé"
+      )
+    } catch (error) {
+      summary.failed.push(entry.name)
+
+      await progress.setEntry(
+        index,
+        "error",
+        errorMessage(error)
+      )
+    }
+
+    await progress.advance(
+      index + 1,
+      entries.length
+    )
+  }
+
+  await progress.finish({
+    success: summary.failed.length === 0,
+    title: summary.failed.length
+      ? "Désinstallation partielle"
+      : "Désinstallation terminée",
+    message: [
+      `${summary.unchanged.length} élément(s) supprimé(s).`,
+      `${summary.failed.length} erreur(s).`,
+      "",
+      "Le dossier Services et ses PDF ont été conservés."
+    ].join("\n"),
+    summary
+  })
+}
+
+function createProgressTable(
+  title,
+  version,
+  entries,
+  uninstall = false
+) {
+  const table = new UITable()
+  table.showSeparators = true
+
+  const state = {
+    completed: 0,
+    total: entries.length,
+    current: "Initialisation…",
+    uninstall,
+    systems: {
+      github: {
+        title: "Connexion à GitHub",
+        status: uninstall
+          ? "hidden"
+          : "pending",
+        detail: "En attente"
+      },
+      directories: {
+        title: "Création des dossiers",
+        status: uninstall
+          ? "hidden"
+          : "pending",
+        detail: "En attente"
+      },
+      retry: {
+        title: "Contrôle des erreurs",
+        status: uninstall
+          ? "hidden"
+          : "pending",
+        detail: "En attente"
+      },
+      verification: {
+        title: "Vérification finale",
+        status: uninstall
+          ? "hidden"
+          : "pending",
+        detail: "En attente"
+      }
+    },
+    entries: entries.map(entry => ({
+      ...entry,
+      status: "pending",
+      detail: `${entry.type} — En attente`
+    })),
+    result: null
+  }
+
+  const render = async () => {
+    table.removeAllRows()
+
+    const header = new UITableRow()
+    header.height = 78
+    header.isHeader = true
+
+    const headerText = header.addText(
+      title,
+      `Version ${version} · Installer ${INSTALLER_VERSION}`
+    )
+
+    headerText.titleFont =
+      Font.boldSystemFont(20)
+
+    headerText.subtitleFont =
+      Font.systemFont(12)
+
+    table.addRow(header)
+
+    const percentage = state.total
+      ? Math.round(
+          state.completed /
+          state.total *
+          100
+        )
+      : 100
+
+    const progressRow = new UITableRow()
+    progressRow.height = 62
+
+    const progressText = progressRow.addText(
+      `Progression : ${percentage} %`,
+      `${state.completed}/${state.total} · ${state.current}`
+    )
+
+    progressText.titleFont =
+      Font.semiboldSystemFont(16)
+
+    progressText.subtitleFont =
+      Font.systemFont(12)
+
+    table.addRow(progressRow)
+
+    const visibleSystems =
+      Object.values(state.systems)
+        .filter(item =>
+          item.status !== "hidden"
+        )
+
+    if (visibleSystems.length) {
+      addSection(
+        table,
+        "ÉTAPES SYSTÈME"
+      )
+
+      for (const item of visibleSystems) {
+        addStatusRow(
+          table,
+          item.title,
+          item.detail,
+          item.status
+        )
+      }
+    }
+
+    addSection(
+      table,
+      uninstall
+        ? "ÉLÉMENTS À SUPPRIMER"
+        : "FICHIERS DU PROJET"
+    )
+
+    for (const entry of state.entries) {
+      addStatusRow(
+        table,
+        entry.name,
+        entry.detail,
+        entry.status
+      )
+    }
+
+    if (state.result) {
+      addSection(
+        table,
+        state.result.success
+          ? "OPÉRATION TERMINÉE"
+          : "ERREUR"
+      )
+
+      const lines =
+        state.result.message
+          .split("\n").length
+
+      const resultRow =
+        new UITableRow()
+
+      resultRow.height =
+        Math.max(
+          95,
+          64 + lines * 17
+        )
+
+      const resultText =
+        resultRow.addText(
+          state.result.title,
+          state.result.message
+        )
+
+      resultText.titleFont =
+        Font.boldSystemFont(18)
+
+      resultText.subtitleFont =
+        Font.systemFont(12)
+
+      table.addRow(resultRow)
+
+      const summary =
+        state.result.summary
+
+      const summaryRow =
+        new UITableRow()
+
+      summaryRow.height = 82
+
+      const summaryText =
+        summaryRow.addText(
+          uninstall
+            ? [
+                `Supprimés : ${summary.unchanged.length}`,
+                `Erreurs : ${summary.failed.length}`
+              ].join("   ")
+            : [
+                `Installés : ${summary.installed.length}`,
+                `Mis à jour : ${summary.updated.length}`,
+                `Réparés : ${summary.repaired.length}`,
+                `Déjà à jour : ${summary.unchanged.length}`,
+                `Erreurs : ${summary.failed.length}`
+              ].join("   "),
+          "Les services PDF et leurs archives ont été conservés."
+        )
+
+      summaryText.titleFont =
+        Font.semiboldSystemFont(12)
+
+      summaryText.subtitleFont =
+        Font.systemFont(11)
+
+      table.addRow(summaryRow)
+    }
+
+    table.reload()
+    await sleep(30)
+  }
+
+  return {
+    present() {
+      table.present(true)
+    },
+
+    async setSystem(
+      key,
+      status,
+      detail
+    ) {
+      if (!state.systems[key]) return
+
+      state.systems[key].status = status
+      state.systems[key].detail = detail
+      state.current = detail
+
+      await render()
+    },
+
+    async setEntry(
+      index,
+      status,
+      detail
+    ) {
+      if (!state.entries[index]) return
+
+      state.entries[index].status =
+        status
+
+      state.entries[index].detail =
+        detail
+
+      state.current = detail
+
+      await render()
+    },
+
+    async advance(
+      completed,
+      total
+    ) {
+      state.completed = completed
+      state.total = total
+
+      await render()
+    },
+
+    async finish(result) {
+      state.result = result
+      state.current = result.success
+        ? "Opération terminée"
+        : "Une erreur est survenue"
+
+      if (result.success) {
+        state.completed = state.total
+      }
+
+      await render()
+    }
+  }
+}
+
+function addSection(table, title) {
+  const row = new UITableRow()
+  row.height = 32
+  row.isHeader = true
+
+  const text = row.addText(title)
+  text.titleFont =
+    Font.boldSystemFont(11)
+
+  table.addRow(row)
+}
+
+function addStatusRow(
+  table,
+  title,
+  detail,
+  status
+) {
+  const row = new UITableRow()
+  row.height = detail.length > 65
+    ? 70
+    : 56
+
+  const symbolName =
+    status === "running"
+      ? "arrow.triangle.2.circlepath"
+      : status === "success"
+        ? "checkmark.circle.fill"
+        : status === "unchanged"
+          ? "equal.circle.fill"
+          : status === "retry"
+            ? "arrow.clockwise.circle.fill"
+            : status === "error"
+              ? "exclamationmark.triangle.fill"
+              : "circle"
+
+  const icon =
+    SFSymbol.named(symbolName)
+
+  icon.applyFont(
+    Font.systemFont(17)
+  )
+
+  const image =
+    row.addImage(icon.image)
+
+  image.widthWeight = 12
+
+  const text =
+    row.addText(title, detail)
+
+  text.widthWeight = 88
+  text.titleFont =
+    Font.semiboldSystemFont(14)
+
+  text.subtitleFont =
+    Font.systemFont(11)
+
+  table.addRow(row)
+}
+
+function manifestEntries(manifest) {
+  return [
+    ...manifest.scripts.map(name => ({
+      name,
+      type: "Script",
+      destination: join(
+        documents,
+        name
+      )
+    })),
+    ...manifest.resources.map(
+      resource => ({
+        name: resource.name,
+        type: "Ressource",
+        destination: projectPath(
+          resource.destination
+        )
+      })
+    )
+  ]
+}
+
+function statusLabel(status) {
+  if (status === "installed") {
+    return "Installé"
+  }
+
+  if (status === "updated") {
+    return "Mis à jour"
+  }
+
+  if (status === "repaired") {
+    return "Réparé"
+  }
+
+  return "Déjà à jour"
+}
+
+async function verifyRepository() {
+  const content = await downloadText(
+    `${rawUrl("version.json")}?ping=${Date.now()}`,
+    "GitHub"
+  )
+
+  const validation =
+    validateTextContent(
+      content,
       "version.json"
     )
 
+  if (!validation.valid) {
+    throw new Error(
+      `Connexion GitHub invalide : ${validation.reason}`
+    )
+  }
+}
+
+async function handleInstallerUpdate(manifest) {
+  const availableVersion = String(
+    manifest.installerVersion ||
+    INSTALLER_VERSION
+  )
+
+  const minimumVersion = String(
+    manifest.minimumInstaller ||
+    "0.0.0"
+  )
+
+  const updateAvailable =
+    compareVersions(
+      availableVersion,
+      INSTALLER_VERSION
+    ) > 0
+
+  const updateRequired =
+    compareVersions(
+      minimumVersion,
+      INSTALLER_VERSION
+    ) > 0
+
+  if (!updateAvailable && !updateRequired) {
+    return true
+  }
+
+  const alert = new Alert()
+
+  alert.title = updateRequired
+    ? "Mise à jour obligatoire"
+    : "Nouvel installateur disponible"
+
+  alert.message = [
+    `Version actuelle : ${INSTALLER_VERSION}`,
+    `Version disponible : ${availableVersion}`,
+    "",
+    updateRequired
+      ? "Cette mise à jour est nécessaire pour continuer."
+      : "Une nouvelle version de CTS Installer est disponible.",
+    "",
+    "Après la mise à jour, relancez CTS Installer."
+  ].join("\n")
+
+  alert.addAction(
+    `Installer la version ${availableVersion}`
+  )
+
+  if (!updateRequired) {
+    alert.addAction(
+      "Continuer avec cette version"
+    )
+  }
+
+  alert.addCancelAction("Annuler")
+
+  const choice =
+    await alert.presentSheet()
+
+  if (choice === 0) {
+    await updateInstaller(
+      availableVersion
+    )
+
+    return false
+  }
+
+  return (
+    !updateRequired &&
+    choice === 1
+  )
+}
+
+async function updateInstaller(version) {
+  const content = await downloadText(
+    `${rawUrl(INSTALLER_FILE)}?t=${Date.now()}`,
+    INSTALLER_FILE
+  )
+
+  if (
+    !content.includes(
+      `INSTALLER_VERSION = "${version}"`
+    )
+  ) {
+    throw new Error(
+      "La version publiée de CTS Installer ne correspond pas au manifeste GitHub."
+    )
+  }
+
+  const currentPath = join(
+    documents,
+    `${Script.name()}.js`
+  )
+
+  const destination =
+    fm.fileExists(currentPath)
+      ? currentPath
+      : join(
+          documents,
+          INSTALLER_FILE
+        )
+
+  await writeTextSafely(
+    destination,
+    content
+  )
+
+  const alert = new Alert()
+
+  alert.title =
+    "CTS Installer mis à jour"
+
+  alert.message = [
+    `La version ${version} a été installée.`,
+    "",
+    "Relancez CTS Installer pour continuer."
+  ].join("\n")
+
+  alert.addAction("Terminer")
+  await alert.present()
+}
+
+async function loadManifest() {
+  const content = await downloadText(
+    `${rawUrl("version.json")}?t=${Date.now()}`,
+    "version.json"
+  )
+
   try {
     return JSON.parse(content)
-  } catch (error) {
+  } catch (_) {
     throw new Error(
       "Le fichier version.json publié sur GitHub est invalide."
     )
@@ -509,79 +1377,36 @@ async function downloadManifest() {
 
 function validateManifest(manifest) {
   if (
-    !manifest ||
-    typeof manifest !== "object" ||
-    Array.isArray(manifest)
-  ) {
-    throw new Error(
-      "Le manifeste de CTS Dashboard est invalide."
-    )
-  }
-
-  if (
+    !isRecord(manifest) ||
     typeof manifest.version !== "string" ||
-    !manifest.version.trim()
-  ) {
-    throw new Error(
-      "La version de CTS Dashboard est absente."
-    )
-  }
-
-  if (
     !Array.isArray(manifest.scripts) ||
-    manifest.scripts.length === 0
-  ) {
-    throw new Error(
-      "La liste des scripts est absente."
-    )
-  }
-
-  if (
+    !manifest.scripts.length ||
     !Array.isArray(manifest.resources)
   ) {
     throw new Error(
-      "La liste des ressources est absente."
+      "Le manifeste GitHub de CTS Dashboard est invalide."
     )
   }
 
-  const minimumInstaller =
-    String(
-      manifest.minimumInstaller ||
-      "0.0.0"
-    )
+  const names = new Set()
 
-  if (
-    compareVersions(
-      INSTALLER_VERSION,
-      minimumInstaller
-    ) < 0
-  ) {
-    throw new Error(
-      [
-        "CTS Installer est trop ancien.",
-        "",
-        `Version actuelle : ${INSTALLER_VERSION}`,
-        `Version minimale : ${minimumInstaller}`,
-        "",
-        "Téléchargez la nouvelle version de CTS Installer depuis GitHub."
-      ].join("\n")
-    )
-  }
-
-  for (const fileName of manifest.scripts) {
+  for (const name of manifest.scripts) {
     if (
-      typeof fileName !== "string" ||
-      !fileName.endsWith(".js")
+      typeof name !== "string" ||
+      !name.endsWith(".js") ||
+      names.has(name)
     ) {
       throw new Error(
-        "Un nom de script déclaré dans version.json est invalide."
+        "Un script déclaré dans version.json est invalide."
       )
     }
+
+    names.add(name)
   }
 
   for (const resource of manifest.resources) {
     if (
-      !resource ||
+      !isRecord(resource) ||
       typeof resource.name !== "string" ||
       typeof resource.destination !== "string"
     ) {
@@ -589,56 +1414,158 @@ function validateManifest(manifest) {
         "Une ressource déclarée dans version.json est invalide."
       )
     }
+
+    projectPath(
+      resource.destination
+    )
   }
 }
 
-// =====================================================
-// TÉLÉCHARGEMENT ET ÉCRITURE
-// =====================================================
-
-async function downloadAndInstall({
-  remoteName,
-  destinationPath,
-  preserveExisting
-}) {
-  if (
-    preserveExisting &&
-    await isValidFile(
-      destinationPath,
-      remoteName
-    )
-  ) {
-    return "preserved"
+async function readMetadata() {
+  if (!fm.fileExists(paths.metadata)) {
+    return null
   }
 
-  const data =
-    await downloadData(
-      rawUrl(remoteName),
-      remoteName
+  try {
+    await ensureDownloaded(
+      paths.metadata
     )
 
-  const existed =
-    fm.fileExists(destinationPath)
+    const value = JSON.parse(
+      fm.readString(
+        paths.metadata
+      )
+    )
 
-  writeDataSafely(
-    destinationPath,
-    data
+    return isRecord(value)
+      ? value
+      : null
+  } catch (_) {
+    return null
+  }
+}
+
+async function writeMetadata(
+  manifest,
+  summary
+) {
+  ensureDirectories()
+
+  const previous =
+    await readMetadata()
+
+  const now =
+    new Date().toISOString()
+
+  const metadata = {
+    dashboardVersion:
+      manifest.version,
+
+    installerVersion:
+      INSTALLER_VERSION,
+
+    installedAt:
+      previous?.installedAt ||
+      now,
+
+    updatedAt:
+      now,
+
+    repository:
+      REPOSITORY,
+
+    files: {
+      installed:
+        summary.installed,
+
+      updated:
+        summary.updated,
+
+      repaired:
+        summary.repaired,
+
+      unchanged:
+        summary.unchanged
+    }
+  }
+
+  await writeTextSafely(
+    paths.metadata,
+    JSON.stringify(
+      metadata,
+      null,
+      2
+    )
   )
+}
+
+function ensureDirectories() {
+  const directories = [
+    paths.root,
+    paths.data,
+    paths.database,
+    paths.cache,
+    paths.services,
+    paths.archive,
+    paths.rejected,
+    paths.serviceCache,
+    paths.textCache,
+    paths.libraries,
+    paths.pdf
+  ]
+
+  for (const path of directories) {
+    if (!fm.fileExists(path)) {
+      fm.createDirectory(
+        path,
+        true
+      )
+    }
+  }
+}
+
+function projectPath(relativePath) {
+  const parts =
+    String(relativePath || "")
+      .replace(/\\/g, "/")
+      .replace(/^\/+/, "")
+      .split("/")
+      .filter(Boolean)
 
   if (
-    !await isValidFile(
-      destinationPath,
-      remoteName
-    )
+    !parts.length ||
+    parts.includes("..") ||
+    parts.includes(".")
   ) {
     throw new Error(
-      `${remoteName} a été téléchargé, mais le fichier obtenu est invalide.`
+      "Un chemin déclaré dans version.json est invalide."
     )
   }
 
-  return existed
-    ? "updated"
-    : "installed"
+  let result = root
+
+  for (const part of parts) {
+    result = join(result, part)
+  }
+
+  return result
+}
+
+function ensureParent(path) {
+  const index =
+    path.lastIndexOf("/")
+
+  if (index <= 0) return
+
+  const parent =
+    path.slice(0, index)
+
+  if (!fm.fileExists(parent)) {
+    fm.createDirectory(
+      parent,
+      true
+    )
+  }
 }
 
 async function downloadText(
@@ -652,12 +1579,15 @@ async function downloadText(
     const content =
       await request.loadString()
 
-    validateHttpResponse(
+    validateResponse(
       request,
       label
     )
 
-    if (!content.trim()) {
+    if (
+      typeof content !== "string" ||
+      !content.trim()
+    ) {
       throw new Error(
         "Réponse vide."
       )
@@ -671,338 +1601,69 @@ async function downloadText(
   }
 }
 
-async function downloadData(
-  url,
+function createRequest(url) {
+  const request =
+    new Request(url)
+
+  request.timeoutInterval =
+    TIMEOUT_SECONDS
+
+  request.headers = {
+    "Cache-Control": "no-cache",
+    Pragma: "no-cache"
+  }
+
+  return request
+}
+
+function validateResponse(
+  request,
   label
 ) {
-  const request =
-    createRequest(url)
-
-  try {
-    const data =
-      await request.load()
-
-    validateHttpResponse(
-      request,
-      label
-    )
-
-    if (
-      !data ||
-      Number(data.length) <= 0
-    ) {
-      throw new Error(
-        "Réponse vide."
-      )
-    }
-
-    return data
-  } catch (error) {
-    throw new Error(
-      `${label} impossible à télécharger : ${errorMessage(error)}`
-    )
-  }
-}
-
-function writeDataSafely(
-  destinationPath,
-  data
-) {
-  ensureParentDirectory(
-    destinationPath
+  const status = Number(
+    request.response?.statusCode
   )
 
-  const temporaryPath =
-    `${destinationPath}.download`
-
-  removeQuietly(
-    temporaryPath
-  )
-
-  try {
-    fm.write(
-      temporaryPath,
-      data
-    )
-
-    if (!fm.fileExists(temporaryPath)) {
-      throw new Error(
-        "Le fichier temporaire n’a pas été créé."
-      )
-    }
-
-    removeQuietly(
-      destinationPath
-    )
-
-    fm.move(
-      temporaryPath,
-      destinationPath
-    )
-  } catch (error) {
-    removeQuietly(
-      temporaryPath
-    )
-
-    throw error
-  }
-}
-
-// =====================================================
-// VALIDATION DES FICHIERS
-// =====================================================
-
-async function isValidFile(
-  path,
-  fileName
-) {
-  if (!fm.fileExists(path)) {
-    return false
-  }
-
-  try {
-    await ensureDownloaded(path)
-
-    const size =
-      Number(
-        fm.fileSize(path)
-      )
-
-    if (
-      !Number.isFinite(size) ||
-      size <= 0
-    ) {
-      return false
-    }
-
-    if (fileName.endsWith(".json")) {
-      const parsed =
-        JSON.parse(
-          fm.readString(path)
-        )
-
-      return Boolean(
-        parsed &&
-        typeof parsed === "object" &&
-        !Array.isArray(parsed)
-      )
-    }
-
-    if (fileName.endsWith(".js")) {
-      const content =
-        fm.readString(path)
-
-      return (
-        typeof content === "string" &&
-        content.trim().length > 20
-      )
-    }
-
-    return true
-  } catch (error) {
-    return false
-  }
-}
-
-// =====================================================
-// DOSSIERS ET CHEMINS
-// =====================================================
-
-function ensureProjectDirectories() {
-  const directories = [
-    paths.root,
-    paths.data,
-    paths.database,
-    paths.cache,
-    paths.services,
-    fm.joinPath(
-      paths.services,
-      "Archive"
-    ),
-    fm.joinPath(
-      paths.services,
-      "Rejected"
-    ),
-    fm.joinPath(
-      paths.cache,
-      "Services"
-    ),
-    fm.joinPath(
-      fm.joinPath(
-        paths.cache,
-        "Services"
-      ),
-      "Text"
-    ),
-    paths.libraries,
-    fm.joinPath(
-      paths.libraries,
-      "PDF"
-    )
-  ]
-
-  for (const directory of directories) {
-    if (!fm.fileExists(directory)) {
-      fm.createDirectory(
-        directory,
-        true
-      )
-    }
-  }
-}
-
-function safeProjectPath(relativePath) {
-  const normalized =
-    String(relativePath || "")
-      .replace(/\\/g, "/")
-      .replace(/^\/+/, "")
-      .split("/")
-      .filter(
-        part =>
-          part &&
-          part !== "." &&
-          part !== ".."
-      )
-
-  if (!normalized.length) {
-    throw new Error(
-      "Un chemin de ressource est invalide."
-    )
-  }
-
-  let path = root
-
-  for (const part of normalized) {
-    path =
-      fm.joinPath(
-        path,
-        part
-      )
-  }
-
-  return path
-}
-
-function ensureParentDirectory(path) {
-  const lastSlash =
-    path.lastIndexOf("/")
-
-  if (lastSlash <= 0) {
-    return
-  }
-
-  const parent =
-    path.substring(
-      0,
-      lastSlash
-    )
-
-  if (!fm.fileExists(parent)) {
-    fm.createDirectory(
-      parent,
-      true
-    )
-  }
-}
-
-// =====================================================
-// MÉTADONNÉES
-// =====================================================
-
-async function writeInstallationMetadata(
-  manifest,
-  summary,
-  operation
-) {
-  ensureProjectDirectories()
-
-  const now =
-    new Date().toISOString()
-
-  const previous =
-    await readInstallationMetadata()
-
-  const metadata = {
-    installerVersion:
-      INSTALLER_VERSION,
-
-    dashboardVersion:
-      manifest.version,
-
-    installedAt:
-      previous?.installedAt ||
-      now,
-
-    updatedAt:
-      now,
-
-    lastOperation:
-      operation,
-
-    repository:
-      REPOSITORY,
-
-    installed:
-      summary.installed,
-
-    updated:
-      summary.updated,
-
-    preserved:
-      summary.preserved
-  }
-
-  fm.writeString(
-    installationMetadataPath,
-    JSON.stringify(
-      metadata,
-      null,
-      2
-    )
-  )
-}
-
-async function readInstallationMetadata() {
   if (
-    !fm.fileExists(
-      installationMetadataPath
+    Number.isFinite(status) &&
+    (
+      status < 200 ||
+      status >= 300
     )
   ) {
-    return null
-  }
-
-  try {
-    await ensureDownloaded(
-      installationMetadataPath
+    throw new Error(
+      `${label} : réponse HTTP ${status}.`
     )
-
-    const parsed =
-      JSON.parse(
-        fm.readString(
-          installationMetadataPath
-        )
-      )
-
-    return (
-      parsed &&
-      typeof parsed === "object" &&
-      !Array.isArray(parsed)
-    )
-      ? parsed
-      : null
-  } catch (error) {
-    return null
   }
 }
 
-// =====================================================
-// INTERFACE
-// =====================================================
+function rawUrl(name) {
+  return [
+    "https://raw.githubusercontent.com",
+    encodeURIComponent(
+      REPOSITORY.owner
+    ),
+    encodeURIComponent(
+      REPOSITORY.name
+    ),
+    encodeURIComponent(
+      REPOSITORY.branch
+    ),
+    encodePath(name)
+  ].join("/")
+}
 
-async function confirmAction(
+function encodePath(path) {
+  return String(path)
+    .split("/")
+    .map(encodeURIComponent)
+    .join("/")
+}
+
+async function confirm(
   title,
   message,
-  actionTitle,
+  action,
   destructive = false
 ) {
   const alert = new Alert()
@@ -1011,50 +1672,14 @@ async function confirmAction(
   alert.message = message
 
   if (destructive) {
-    alert.addDestructiveAction(
-      actionTitle
-    )
+    alert.addDestructiveAction(action)
   } else {
-    alert.addAction(
-      actionTitle
-    )
+    alert.addAction(action)
   }
 
-  alert.addCancelAction(
-    "Annuler"
-  )
+  alert.addCancelAction("Annuler")
 
-  return (
-    await alert.present()
-  ) === 0
-}
-
-async function showOperationSuccess(
-  title,
-  manifest,
-  summary
-) {
-  const alert = new Alert()
-
-  alert.title = title
-
-  alert.message = [
-    `CTS Dashboard ${manifest.version}`,
-    "",
-    `${summary.installed.length} fichier(s) installé(s)`,
-    `${summary.updated.length} fichier(s) mis à jour`,
-    `${summary.preserved.length} fichier(s) conservé(s)`,
-    "",
-    "Vos PDF de service ont été conservés.",
-    "",
-    "Vous pouvez maintenant lancer CTS Dashboard."
-  ].join("\n")
-
-  alert.addAction(
-    "Terminer"
-  )
-
-  await alert.present()
+  return await alert.present() === 0
 }
 
 async function showError(error) {
@@ -1074,177 +1699,6 @@ async function showError(error) {
   await alert.present()
 }
 
-// =====================================================
-// COMPTEURS ET OUTILS
-// =====================================================
-
-async function countExistingScripts(
-  scripts
-) {
-  let count = 0
-
-  for (const fileName of scripts) {
-    const path =
-      fm.joinPath(
-        documentsDirectory,
-        fileName
-      )
-
-    if (
-      await isValidFile(
-        path,
-        fileName
-      )
-    ) {
-      count++
-    }
-  }
-
-  return count
-}
-
-async function countExistingResources(
-  resources
-) {
-  let count = 0
-
-  for (const resource of resources) {
-    const path =
-      safeProjectPath(
-        resource.destination
-      )
-
-    if (
-      await isValidFile(
-        path,
-        resource.name
-      )
-    ) {
-      count++
-    }
-  }
-
-  return count
-}
-
-function addStatus(
-  summary,
-  status,
-  fileName
-) {
-  if (status === "installed") {
-    summary.installed.push(fileName)
-  } else if (status === "updated") {
-    summary.updated.push(fileName)
-  } else {
-    summary.preserved.push(fileName)
-  }
-}
-
-function normalizeProtectedPaths(
-  values
-) {
-  const result =
-    new Set()
-
-  for (
-    const value
-    of Array.isArray(values)
-      ? values
-      : []
-  ) {
-    const name =
-      String(value || "")
-        .replace(/\\/g, "/")
-        .split("/")
-        .filter(Boolean)[0]
-
-    if (name) {
-      result.add(name)
-    }
-  }
-
-  result.add("Services")
-
-  return result
-}
-
-function removeTracked(
-  path,
-  label,
-  deleted,
-  failed
-) {
-  if (!fm.fileExists(path)) {
-    return
-  }
-
-  try {
-    fm.remove(path)
-    deleted.push(label)
-  } catch (error) {
-    failed.push(label)
-  }
-}
-
-function createRequest(url) {
-  const request =
-    new Request(url)
-
-  request.timeoutInterval =
-    DOWNLOAD_TIMEOUT_SECONDS
-
-  return request
-}
-
-function validateHttpResponse(
-  request,
-  label
-) {
-  const statusCode =
-    Number(
-      request.response?.statusCode
-    )
-
-  if (
-    Number.isFinite(statusCode) &&
-    (
-      statusCode < 200 ||
-      statusCode >= 300
-    )
-  ) {
-    throw new Error(
-      `${label} : réponse HTTP ${statusCode}.`
-    )
-  }
-}
-
-function rawUrl(fileName) {
-  return [
-    "https://raw.githubusercontent.com",
-    encodeURIComponent(
-      REPOSITORY.owner
-    ),
-    encodeURIComponent(
-      REPOSITORY.name
-    ),
-    encodeURIComponent(
-      REPOSITORY.branch
-    ),
-    encodePath(fileName)
-  ].join("/")
-}
-
-function encodePath(path) {
-  return String(path)
-    .split("/")
-    .map(
-      part =>
-        encodeURIComponent(part)
-    )
-    .join("/")
-}
-
 async function ensureDownloaded(path) {
   if (
     fm.fileExists(path) &&
@@ -1256,36 +1710,20 @@ async function ensureDownloaded(path) {
   }
 }
 
-function formatDate(value) {
-  if (!value) {
-    return "Jamais"
-  }
-
-  const date =
-    new Date(value)
-
-  if (
-    !Number.isFinite(
-      date.getTime()
-    )
-  ) {
-    return "Inconnue"
-  }
-
-  return date.toLocaleString(
-    "fr-FR"
-  )
+function removeQuietly(path) {
+  try {
+    if (fm.fileExists(path)) {
+      fm.remove(path)
+    }
+  } catch (_) {}
 }
 
 function compareVersions(
   first,
   second
 ) {
-  const a =
-    versionParts(first)
-
-  const b =
-    versionParts(second)
+  const a = versionParts(first)
+  const b = versionParts(second)
 
   const length =
     Math.max(
@@ -1302,7 +1740,7 @@ function compareVersions(
       (a[index] || 0) -
       (b[index] || 0)
 
-    if (difference !== 0) {
+    if (difference) {
       return difference > 0
         ? 1
         : -1
@@ -1315,21 +1753,20 @@ function compareVersions(
 function versionParts(value) {
   return String(value || "")
     .split(".")
-    .map(
-      part =>
-        Number.parseInt(
-          part,
-          10
-        ) || 0
+    .map(part =>
+      Number.parseInt(
+        part,
+        10
+      ) || 0
     )
 }
 
-function removeQuietly(path) {
-  try {
-    if (fm.fileExists(path)) {
-      fm.remove(path)
-    }
-  } catch (error) {}
+function isRecord(value) {
+  return Boolean(
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value)
+  )
 }
 
 function errorMessage(error) {
@@ -1345,4 +1782,14 @@ function errorMessage(error) {
     error ||
     "Erreur inconnue."
   )
+}
+
+function sleep(milliseconds) {
+  return new Promise(resolve => {
+    Timer.schedule(
+      milliseconds / 1000,
+      false,
+      resolve
+    )
+  })
 }
