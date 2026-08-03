@@ -5,6 +5,27 @@
   "lastUpdate": "2026-08-03",
   "author": "Emilio IPPOLITO",
   "matricule": "6124",
-  "description": "Version officielle de CTS Dashboard",
-  "files": []
+  "repository": {
+    "owner": "LASCAMPIA67",
+    "name": "CTS-Dashboard",
+    "branch": "main"
+  },
+  "entryPoint": "CTS Dashboard.js",
+  "files": [
+    "CTS Config.js",
+    "CTS Dashboard.js",
+    "CTS Database.js",
+    "CTS Importer.js",
+    "CTS Parser.js",
+    "CTS PDF Engine.js",
+    "CTS Resources.js",
+    "CTS Service.js",
+    "CTS Services Cleaner.js",
+    "CTS Services Manager.js",
+    "CTS Storage.js",
+    "CTS Utils.js",
+    "CTS Widget Engine.js",
+    "CTS Widget Renderer.js",
+    "CTS Widget Theme.js"
+  ]
 }
