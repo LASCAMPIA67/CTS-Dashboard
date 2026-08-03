@@ -570,7 +570,7 @@ function addStatsSummary(widget, stats, density) {
   addStatCard(
     summary,
     UTILS.formatDuration(stats.work),
-    "Temps de conduite",
+    "Travail",
     {
       width: density.statWidth,
       height: density.statHeight
