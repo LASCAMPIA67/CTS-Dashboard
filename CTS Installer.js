@@ -5,7 +5,7 @@
 // CTS Installer.js
 // Installation et mise à jour automatiques de CTS Dashboard.
 
-const INSTALLER_VERSION = "1.0.0"
+const INSTALLER_VERSION = "1.0.1"
 
 const REPOSITORY = {
   owner: "LASCAMPIA67",
@@ -18,130 +18,140 @@ const DOWNLOAD_TIMEOUT_SECONDS = 30
 const fm = FileManager.iCloud()
 const documentsDirectory = fm.documentsDirectory()
 
-const dashboardRoot = fm.joinPath(
+const root = fm.joinPath(
   documentsDirectory,
   "CTS Dashboard"
 )
 
 const paths = {
-  root: dashboardRoot,
+  root,
 
-  data: fm.joinPath(
-    dashboardRoot,
-    "Data"
-  ),
-
-  database: fm.joinPath(
-    dashboardRoot,
-    "Database"
-  ),
-
-  cache: fm.joinPath(
-    dashboardRoot,
-    "Cache"
-  ),
-
-  services: fm.joinPath(
-    dashboardRoot,
-    "Services"
-  ),
-
-  archives: fm.joinPath(
+  data:
     fm.joinPath(
-      dashboardRoot,
-      "Services"
+      root,
+      "Data"
     ),
-    "Archive"
-  ),
 
-  rejected: fm.joinPath(
+  database:
     fm.joinPath(
-      dashboardRoot,
-      "Services"
+      root,
+      "Database"
     ),
-    "Rejected"
-  ),
 
-  servicesCache: fm.joinPath(
+  cache:
     fm.joinPath(
-      dashboardRoot,
+      root,
       "Cache"
     ),
-    "Services"
-  ),
 
-  servicesTextCache: fm.joinPath(
+  services:
+    fm.joinPath(
+      root,
+      "Services"
+    ),
+
+  servicesArchive:
     fm.joinPath(
       fm.joinPath(
-        dashboardRoot,
+        root,
+        "Services"
+      ),
+      "Archive"
+    ),
+
+  servicesRejected:
+    fm.joinPath(
+      fm.joinPath(
+        root,
+        "Services"
+      ),
+      "Rejected"
+    ),
+
+  servicesCache:
+    fm.joinPath(
+      fm.joinPath(
+        root,
         "Cache"
       ),
       "Services"
     ),
-    "Text"
-  ),
 
-  libraries: fm.joinPath(
-    dashboardRoot,
-    "Libraries"
-  ),
-
-  pdf: fm.joinPath(
+  servicesTextCache:
     fm.joinPath(
-      dashboardRoot,
+      fm.joinPath(
+        fm.joinPath(
+          root,
+          "Cache"
+        ),
+        "Services"
+      ),
+      "Text"
+    ),
+
+  libraries:
+    fm.joinPath(
+      root,
       "Libraries"
     ),
-    "PDF"
-  )
+
+  pdfEngine:
+    fm.joinPath(
+      fm.joinPath(
+        root,
+        "Libraries"
+      ),
+      "PDF"
+    )
 }
 
-const resourceDestinations = {
-  "lines.json": fm.joinPath(
-    paths.database,
-    "lines.json"
-  ),
+const RESOURCE_DESTINATIONS = {
+  "lines.json":
+    fm.joinPath(
+      paths.database,
+      "lines.json"
+    ),
 
-  "stops.json": fm.joinPath(
-    paths.database,
-    "stops.json"
-  ),
+  "stops.json":
+    fm.joinPath(
+      paths.database,
+      "stops.json"
+    ),
 
-  "places.json": fm.joinPath(
-    paths.database,
-    "places.json"
-  ),
+  "places.json":
+    fm.joinPath(
+      paths.database,
+      "places.json"
+    ),
 
-  "pdf.min.mjs": fm.joinPath(
-    paths.pdf,
-    "pdf.min.mjs"
-  ),
+  "pdf.min.mjs":
+    fm.joinPath(
+      paths.pdfEngine,
+      "pdf.min.mjs"
+    ),
 
-  "pdf.worker.min.mjs": fm.joinPath(
-    paths.pdf,
-    "pdf.worker.min.mjs"
-  )
+  "pdf.worker.min.mjs":
+    fm.joinPath(
+      paths.pdfEngine,
+      "pdf.worker.min.mjs"
+    )
 }
 
-await runInstaller()
+await main()
 Script.complete()
 
 // =====================================================
-// INSTALLATION PRINCIPALE
+// INSTALLATION
 // =====================================================
 
-async function runInstaller() {
+async function main() {
   try {
-    const confirmation =
-      await requestInstallationConfirmation()
+    const confirmed =
+      await requestConfirmation()
 
-    if (!confirmation) {
+    if (!confirmed) {
       return
     }
-
-    const progress =
-      createProgressAlert()
-
-    await progress.present()
 
     ensureDirectories()
 
@@ -157,34 +167,24 @@ async function runInstaller() {
 
     const resources =
       Object.keys(
-        resourceDestinations
+        RESOURCE_DESTINATIONS
       )
 
-    const totalFiles =
-      scripts.length +
-      resources.length
-
-    let completedFiles = 0
     const installed = []
     const updated = []
     const preserved = []
 
     for (const fileName of scripts) {
-      updateProgress(
-        progress,
-        fileName,
-        completedFiles,
-        totalFiles
-      )
-
       const result =
-        await installRemoteFile({
+        await installFile({
           fileName,
+
           destinationPath:
             fm.joinPath(
               documentsDirectory,
               fileName
             ),
+
           preserveExisting: false
         })
 
@@ -195,25 +195,18 @@ async function runInstaller() {
         updated,
         preserved
       )
-
-      completedFiles++
     }
 
     for (const fileName of resources) {
-      updateProgress(
-        progress,
-        fileName,
-        completedFiles,
-        totalFiles
-      )
-
       const result =
-        await installRemoteFile({
+        await installFile({
           fileName,
+
           destinationPath:
-            resourceDestinations[
+            RESOURCE_DESTINATIONS[
               fileName
             ],
+
           preserveExisting:
             fileName.endsWith(
               ".json"
@@ -227,65 +220,50 @@ async function runInstaller() {
         updated,
         preserved
       )
-
-      completedFiles++
     }
 
-    await writeInstallationMetadata(
+    await writeInstallationMetadata({
       manifest,
       installed,
       updated,
       preserved
-    )
+    })
 
-    await showSuccess(
+    await showSuccess({
       manifest,
       installed,
       updated,
       preserved
-    )
+    })
   } catch (error) {
     await showFailure(error)
   }
 }
 
 // =====================================================
-// MANIFESTE DISTANT
+// MANIFESTE
 // =====================================================
 
 async function downloadManifest() {
-  const url =
-    rawUrl(
-      "version.json"
-    )
-
   const content =
     await downloadText(
-      url,
+      rawUrl("version.json"),
       "version.json"
     )
 
-  let manifest
-
   try {
-    manifest =
-      JSON.parse(content)
+    return JSON.parse(content)
   } catch (error) {
     throw new Error(
       "Le fichier version.json publié sur GitHub est invalide."
     )
   }
-
-  return manifest
 }
 
-function validateManifest(
-  manifest
-) {
+function validateManifest(manifest) {
   if (
     !manifest ||
-    typeof manifest !==
-      "object" ||
+    typeof manifest !== "object" ||
     Array.isArray(manifest)
   ) {
     throw new Error(
@@ -294,8 +272,7 @@ function validateManifest(
   }
 
   if (
-    typeof manifest.version !==
-      "string" ||
+    typeof manifest.version !== "string" ||
     !manifest.version.trim()
   ) {
     throw new Error(
@@ -304,73 +281,69 @@ function validateManifest(
   }
 
   if (
-    !Array.isArray(
-      manifest.files
-    ) ||
-    !manifest.files.length
+    !Array.isArray(manifest.files) ||
+    manifest.files.length === 0
   ) {
     throw new Error(
       "La liste des scripts à installer est absente."
     )
   }
 
+  const minimumInstaller =
+    String(
+      manifest.minimumInstaller ||
+      "0.0.0"
+    )
+
   if (
     compareVersions(
       INSTALLER_VERSION,
-      manifest.minimumInstaller ||
-        "0.0.0"
+      minimumInstaller
     ) < 0
   ) {
     throw new Error(
       [
         "Cette version de CTS Installer est trop ancienne.",
         "",
-        `Installateur actuel : ${INSTALLER_VERSION}`,
-        `Version minimale : ${manifest.minimumInstaller}`
+        `Version actuelle : ${INSTALLER_VERSION}`,
+        `Version minimale : ${minimumInstaller}`
       ].join("\n")
     )
   }
 }
 
-function normalizeScriptList(
-  files
-) {
-  const unique = []
+function normalizeScriptList(files) {
+  const result = []
 
   for (const value of files) {
     const fileName =
-      String(value || "")
-        .trim()
+      String(value || "").trim()
 
     if (
-      !fileName ||
-      !fileName.endsWith(
-        ".js"
-      ) ||
-      fileName ===
-        "CTS Installer.js" ||
-      unique.includes(fileName)
+      !fileName.endsWith(".js") ||
+      fileName === "CTS Installer.js" ||
+      result.includes(fileName)
     ) {
       continue
     }
 
-    unique.push(fileName)
+    result.push(fileName)
   }
 
-  if (!unique.length) {
+  if (!result.length) {
     throw new Error(
       "Aucun script valide n’est déclaré dans version.json."
     )
   }
 
-  return unique
+  return result
 }
 
 // =====================================================
-// INSTALLATION DES FICHIERS
+// FICHIERS
 // =====================================================
 
-async function installRemoteFile({
+async function installFile({
   fileName,
   destinationPath,
   preserveExisting
@@ -382,9 +355,7 @@ async function installRemoteFile({
       fileName
     )
   ) {
-    return {
-      status: "preserved"
-    }
+    return "preserved"
   }
 
   const data =
@@ -393,27 +364,25 @@ async function installRemoteFile({
       fileName
     )
 
-  validateDownloadedData(
-    data,
-    fileName
-  )
+  if (!data) {
+    throw new Error(
+      `${fileName} : téléchargement vide.`
+    )
+  }
 
   const existed =
     fm.fileExists(
       destinationPath
     )
 
-  await writeDataSafely(
+  writeSafely(
     destinationPath,
     data
   )
 
-  return {
-    status:
-      existed
-        ? "updated"
-        : "installed"
-  }
+  return existed
+    ? "updated"
+    : "installed"
 }
 
 async function isValidExistingFile(
@@ -428,7 +397,9 @@ async function isValidExistingFile(
     await ensureDownloaded(path)
 
     const size =
-      fm.fileSize(path)
+      Number(
+        fm.fileSize(path)
+      )
 
     if (
       !Number.isFinite(size) ||
@@ -437,21 +408,15 @@ async function isValidExistingFile(
       return false
     }
 
-    if (
-      fileName.endsWith(
-        ".json"
-      )
-    ) {
-      const content =
-        fm.readString(path)
-
+    if (fileName.endsWith(".json")) {
       const parsed =
-        JSON.parse(content)
+        JSON.parse(
+          fm.readString(path)
+        )
 
       return Boolean(
         parsed &&
-        typeof parsed ===
-          "object" &&
+        typeof parsed === "object" &&
         !Array.isArray(parsed)
       )
     }
@@ -462,30 +427,7 @@ async function isValidExistingFile(
   }
 }
 
-function validateDownloadedData(
-  data,
-  fileName
-) {
-  if (!data) {
-    throw new Error(
-      `${fileName} : téléchargement vide.`
-    )
-  }
-
-  const length =
-    Number(data.length)
-
-  if (
-    Number.isFinite(length) &&
-    length <= 0
-  ) {
-    throw new Error(
-      `${fileName} : fichier téléchargé vide.`
-    )
-  }
-}
-
-async function writeDataSafely(
+function writeSafely(
   destinationPath,
   data
 ) {
@@ -502,11 +444,7 @@ async function writeDataSafely(
       data
     )
 
-    if (
-      !fm.fileExists(
-        temporaryPath
-      )
-    ) {
+    if (!fm.fileExists(temporaryPath)) {
       throw new Error(
         "Le fichier temporaire n’a pas été créé."
       )
@@ -530,24 +468,18 @@ async function writeDataSafely(
 }
 
 function recordResult(
-  result,
+  status,
   fileName,
   installed,
   updated,
   preserved
 ) {
-  switch (result.status) {
-    case "installed":
-      installed.push(fileName)
-      break
-
-    case "updated":
-      updated.push(fileName)
-      break
-
-    case "preserved":
-      preserved.push(fileName)
-      break
+  if (status === "installed") {
+    installed.push(fileName)
+  } else if (status === "updated") {
+    updated.push(fileName)
+  } else {
+    preserved.push(fileName)
   }
 }
 
@@ -566,7 +498,7 @@ async function downloadText(
     const content =
       await request.loadString()
 
-    validateHttpResponse(
+    validateResponse(
       request,
       label
     )
@@ -596,7 +528,7 @@ async function downloadData(
     const data =
       await request.load()
 
-    validateHttpResponse(
+    validateResponse(
       request,
       label
     )
@@ -619,25 +551,24 @@ function createRequest(url) {
   return request
 }
 
-function validateHttpResponse(
+function validateResponse(
   request,
   label
 ) {
-  const status =
+  const statusCode =
     Number(
-      request.response
-        ?.statusCode
+      request.response?.statusCode
     )
 
   if (
-    Number.isFinite(status) &&
+    Number.isFinite(statusCode) &&
     (
-      status < 200 ||
-      status >= 300
+      statusCode < 200 ||
+      statusCode >= 300
     )
   ) {
     throw new Error(
-      `${label} : réponse HTTP ${status}.`
+      `${label} : réponse HTTP ${statusCode}.`
     )
   }
 }
@@ -679,12 +610,12 @@ function ensureDirectories() {
     paths.database,
     paths.cache,
     paths.services,
-    paths.archives,
-    paths.rejected,
+    paths.servicesArchive,
+    paths.servicesRejected,
     paths.servicesCache,
     paths.servicesTextCache,
     paths.libraries,
-    paths.pdf
+    paths.pdfEngine
   ]
 
   for (const path of directories) {
@@ -698,15 +629,15 @@ function ensureDirectories() {
 }
 
 // =====================================================
-// MÉTADONNÉES LOCALES
+// MÉTADONNÉES
 // =====================================================
 
-async function writeInstallationMetadata(
+async function writeInstallationMetadata({
   manifest,
   installed,
   updated,
   preserved
-) {
+}) {
   const metadata = {
     installerVersion:
       INSTALLER_VERSION,
@@ -725,14 +656,12 @@ async function writeInstallationMetadata(
     preserved
   }
 
-  const path =
+  fm.writeString(
     fm.joinPath(
       paths.data,
       "installation.json"
-    )
+    ),
 
-  fm.writeString(
-    path,
     JSON.stringify(
       metadata,
       null,
@@ -745,19 +674,18 @@ async function writeInstallationMetadata(
 // INTERFACE
 // =====================================================
 
-async function requestInstallationConfirmation() {
-  const alert =
-    new Alert()
+async function requestConfirmation() {
+  const alert = new Alert()
 
   alert.title =
     "Installer CTS Dashboard"
 
   alert.message = [
-    "L’installateur va télécharger et configurer automatiquement CTS Dashboard.",
+    "L’installation et la mise à jour sont automatiques.",
     "",
     "Une connexion Internet est nécessaire.",
     "",
-    "Les services PDF et les données personnelles existantes ne seront pas supprimés."
+    "Les PDF de service et les données personnelles existantes seront conservés."
   ].join("\n")
 
   alert.addAction(
@@ -773,78 +701,34 @@ async function requestInstallationConfirmation() {
   ) === 0
 }
 
-function createProgressAlert() {
-  const alert =
-    new Alert()
-
-  alert.title =
-    "Installation en cours"
-
-  alert.message =
-    "Préparation de CTS Dashboard…"
-
-  return alert
-}
-
-function updateProgress(
-  alert,
-  fileName,
-  completed,
-  total
-) {
-  const percentage =
-    total > 0
-      ? Math.round(
-          completed /
-          total *
-          100
-        )
-      : 0
-
-  alert.message = [
-    `Progression : ${percentage} %`,
-    "",
-    `Téléchargement : ${fileName}`,
-    "",
-    "Ne fermez pas Scriptable."
-  ].join("\n")
-}
-
-async function showSuccess(
+async function showSuccess({
   manifest,
   installed,
   updated,
   preserved
-) {
-  const alert =
-    new Alert()
+}) {
+  const alert = new Alert()
 
   alert.title =
     "Installation terminée"
 
   alert.message = [
-    `CTS Dashboard ${manifest.version} est prêt.`,
+    `CTS Dashboard ${manifest.version} est installé.`,
     "",
     `${installed.length} fichier(s) installé(s)`,
     `${updated.length} fichier(s) mis à jour`,
     `${preserved.length} ressource(s) conservée(s)`,
     "",
-    "Prochaine étape :",
-    "1. Lancez CTS Dashboard une fois.",
-    "2. Déposez vos PDF dans le dossier Services.",
-    "3. Ajoutez le widget Scriptable à l’écran d’accueil."
+    "Vous pouvez maintenant lancer CTS Dashboard."
   ].join("\n")
 
-  alert.addAction(
-    "Terminer"
-  )
+  alert.addAction("Terminer")
 
   await alert.present()
 }
 
 async function showFailure(error) {
-  const alert =
-    new Alert()
+  const alert = new Alert()
 
   alert.title =
     "Installation impossible"
@@ -852,12 +736,10 @@ async function showFailure(error) {
   alert.message = [
     errorMessage(error),
     "",
-    "Vérifiez votre connexion Internet, puis relancez CTS Installer."
+    "Vérifiez votre connexion Internet puis relancez CTS Installer."
   ].join("\n")
 
-  alert.addAction(
-    "OK"
-  )
+  alert.addAction("OK")
 
   await alert.present()
 }
@@ -935,8 +817,7 @@ function removeQuietly(path) {
 function errorMessage(error) {
   if (
     error &&
-    typeof error.message ===
-      "string" &&
+    typeof error.message === "string" &&
     error.message.trim()
   ) {
     return error.message.trim()
