@@ -3,9 +3,10 @@
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
 // CTS Installer.js
-// Installation et mise à jour automatiques de CTS Dashboard.
+// Gestionnaire officiel d’installation, mise à jour,
+// réparation, informations et désinstallation de CTS Dashboard.
 
-const INSTALLER_VERSION = "1.0.1"
+const INSTALLER_VERSION = "2.0.0"
 
 const REPOSITORY = {
   owner: "LASCAMPIA67",
@@ -14,6 +15,7 @@ const REPOSITORY = {
 }
 
 const DOWNLOAD_TIMEOUT_SECONDS = 30
+const INSTALLATION_FILE = "installation.json"
 
 const fm = FileManager.iCloud()
 const documentsDirectory = fm.documentsDirectory()
@@ -25,223 +27,468 @@ const root = fm.joinPath(
 
 const paths = {
   root,
-
-  data:
-    fm.joinPath(
-      root,
-      "Data"
-    ),
-
-  database:
-    fm.joinPath(
-      root,
-      "Database"
-    ),
-
-  cache:
-    fm.joinPath(
-      root,
-      "Cache"
-    ),
-
-  services:
-    fm.joinPath(
-      root,
-      "Services"
-    ),
-
-  servicesArchive:
-    fm.joinPath(
-      fm.joinPath(
-        root,
-        "Services"
-      ),
-      "Archive"
-    ),
-
-  servicesRejected:
-    fm.joinPath(
-      fm.joinPath(
-        root,
-        "Services"
-      ),
-      "Rejected"
-    ),
-
-  servicesCache:
-    fm.joinPath(
-      fm.joinPath(
-        root,
-        "Cache"
-      ),
-      "Services"
-    ),
-
-  servicesTextCache:
-    fm.joinPath(
-      fm.joinPath(
-        fm.joinPath(
-          root,
-          "Cache"
-        ),
-        "Services"
-      ),
-      "Text"
-    ),
-
-  libraries:
-    fm.joinPath(
-      root,
-      "Libraries"
-    ),
-
-  pdfEngine:
-    fm.joinPath(
-      fm.joinPath(
-        root,
-        "Libraries"
-      ),
-      "PDF"
-    )
+  data: fm.joinPath(root, "Data"),
+  database: fm.joinPath(root, "Database"),
+  cache: fm.joinPath(root, "Cache"),
+  services: fm.joinPath(root, "Services"),
+  libraries: fm.joinPath(root, "Libraries")
 }
 
-const RESOURCE_DESTINATIONS = {
-  "lines.json":
-    fm.joinPath(
-      paths.database,
-      "lines.json"
-    ),
-
-  "stops.json":
-    fm.joinPath(
-      paths.database,
-      "stops.json"
-    ),
-
-  "places.json":
-    fm.joinPath(
-      paths.database,
-      "places.json"
-    ),
-
-  "pdf.min.mjs":
-    fm.joinPath(
-      paths.pdfEngine,
-      "pdf.min.mjs"
-    ),
-
-  "pdf.worker.min.mjs":
-    fm.joinPath(
-      paths.pdfEngine,
-      "pdf.worker.min.mjs"
-    )
-}
+const installationMetadataPath =
+  fm.joinPath(
+    paths.data,
+    INSTALLATION_FILE
+  )
 
 await main()
 Script.complete()
 
 // =====================================================
-// INSTALLATION
+// MENU PRINCIPAL
 // =====================================================
 
 async function main() {
   try {
-    const confirmed =
-      await requestConfirmation()
-
-    if (!confirmed) {
-      return
-    }
-
-    ensureDirectories()
-
     const manifest =
       await downloadManifest()
 
     validateManifest(manifest)
 
-    const scripts =
-      normalizeScriptList(
-        manifest.files
-      )
+    const action =
+      await presentMainMenu(manifest)
 
-    const resources =
-      Object.keys(
-        RESOURCE_DESTINATIONS
-      )
+    switch (action) {
+      case 0:
+        await installOrUpdate(manifest)
+        break
 
-    const installed = []
-    const updated = []
-    const preserved = []
+      case 1:
+        await repairInstallation(manifest)
+        break
 
-    for (const fileName of scripts) {
-      const result =
-        await installFile({
-          fileName,
+      case 2:
+        await showInformation(manifest)
+        break
 
-          destinationPath:
-            fm.joinPath(
-              documentsDirectory,
-              fileName
-            ),
+      case 3:
+        await uninstallDashboard(manifest)
+        break
 
-          preserveExisting: false
-        })
-
-      recordResult(
-        result,
-        fileName,
-        installed,
-        updated,
-        preserved
-      )
+      default:
+        return
     }
-
-    for (const fileName of resources) {
-      const result =
-        await installFile({
-          fileName,
-
-          destinationPath:
-            RESOURCE_DESTINATIONS[
-              fileName
-            ],
-
-          preserveExisting:
-            fileName.endsWith(
-              ".json"
-            )
-        })
-
-      recordResult(
-        result,
-        fileName,
-        installed,
-        updated,
-        preserved
-      )
-    }
-
-    await writeInstallationMetadata({
-      manifest,
-      installed,
-      updated,
-      preserved
-    })
-
-    await showSuccess({
-      manifest,
-      installed,
-      updated,
-      preserved
-    })
   } catch (error) {
-    await showFailure(error)
+    await showError(error)
   }
 }
 
+async function presentMainMenu(manifest) {
+  const metadata =
+    await readInstallationMetadata()
+
+  const installedVersion =
+    metadata?.dashboardVersion ||
+    "Non installé"
+
+  const alert = new Alert()
+
+  alert.title =
+    "CTS Dashboard"
+
+  alert.message = [
+    `Version disponible : ${manifest.version}`,
+    `Version installée : ${installedVersion}`,
+    "",
+    "Développé par Emilio IPPOLITO",
+    "Matricule 6124"
+  ].join("\n")
+
+  alert.addAction(
+    "Installer ou mettre à jour"
+  )
+
+  alert.addAction(
+    "Réparer l’installation"
+  )
+
+  alert.addAction(
+    "Informations"
+  )
+
+  alert.addDestructiveAction(
+    "Désinstaller CTS Dashboard"
+  )
+
+  alert.addCancelAction(
+    "Fermer"
+  )
+
+  return alert.presentSheet()
+}
+
 // =====================================================
-// MANIFESTE
+// INSTALLATION / MISE À JOUR
+// =====================================================
+
+async function installOrUpdate(manifest) {
+  const confirmed =
+    await confirmAction(
+      "Installer ou mettre à jour",
+      [
+        `CTS Dashboard ${manifest.version} va être installé.`,
+        "",
+        "Les PDF de service et les archives existantes seront conservés.",
+        "",
+        "Une connexion Internet est nécessaire."
+      ].join("\n"),
+      "Continuer"
+    )
+
+  if (!confirmed) {
+    return
+  }
+
+  ensureProjectDirectories()
+
+  const summary = {
+    installed: [],
+    updated: [],
+    preserved: []
+  }
+
+  for (const fileName of manifest.scripts) {
+    const destinationPath =
+      fm.joinPath(
+        documentsDirectory,
+        fileName
+      )
+
+    const status =
+      await downloadAndInstall({
+        remoteName: fileName,
+        destinationPath,
+        preserveExisting: false
+      })
+
+    addStatus(
+      summary,
+      status,
+      fileName
+    )
+  }
+
+  for (const resource of manifest.resources) {
+    const destinationPath =
+      safeProjectPath(
+        resource.destination
+      )
+
+    ensureParentDirectory(
+      destinationPath
+    )
+
+    const status =
+      await downloadAndInstall({
+        remoteName: resource.name,
+        destinationPath,
+        preserveExisting:
+          resource.name.endsWith(".json")
+      })
+
+    addStatus(
+      summary,
+      status,
+      resource.name
+    )
+  }
+
+  await writeInstallationMetadata(
+    manifest,
+    summary,
+    "installation"
+  )
+
+  await showOperationSuccess(
+    "Installation terminée",
+    manifest,
+    summary
+  )
+}
+
+// =====================================================
+// RÉPARATION
+// =====================================================
+
+async function repairInstallation(manifest) {
+  const confirmed =
+    await confirmAction(
+      "Réparer CTS Dashboard",
+      [
+        "Tous les scripts et ressources seront vérifiés.",
+        "",
+        "Les fichiers absents, vides ou invalides seront remplacés.",
+        "",
+        "Les PDF de service seront conservés."
+      ].join("\n"),
+      "Réparer"
+    )
+
+  if (!confirmed) {
+    return
+  }
+
+  ensureProjectDirectories()
+
+  const summary = {
+    installed: [],
+    updated: [],
+    preserved: []
+  }
+
+  for (const fileName of manifest.scripts) {
+    const destinationPath =
+      fm.joinPath(
+        documentsDirectory,
+        fileName
+      )
+
+    const valid =
+      await isValidFile(
+        destinationPath,
+        fileName
+      )
+
+    if (valid) {
+      summary.preserved.push(fileName)
+      continue
+    }
+
+    const status =
+      await downloadAndInstall({
+        remoteName: fileName,
+        destinationPath,
+        preserveExisting: false
+      })
+
+    addStatus(
+      summary,
+      status,
+      fileName
+    )
+  }
+
+  for (const resource of manifest.resources) {
+    const destinationPath =
+      safeProjectPath(
+        resource.destination
+      )
+
+    ensureParentDirectory(
+      destinationPath
+    )
+
+    const valid =
+      await isValidFile(
+        destinationPath,
+        resource.name
+      )
+
+    if (valid) {
+      summary.preserved.push(
+        resource.name
+      )
+
+      continue
+    }
+
+    const status =
+      await downloadAndInstall({
+        remoteName: resource.name,
+        destinationPath,
+        preserveExisting: false
+      })
+
+    addStatus(
+      summary,
+      status,
+      resource.name
+    )
+  }
+
+  await writeInstallationMetadata(
+    manifest,
+    summary,
+    "repair"
+  )
+
+  await showOperationSuccess(
+    "Réparation terminée",
+    manifest,
+    summary
+  )
+}
+
+// =====================================================
+// INFORMATIONS
+// =====================================================
+
+async function showInformation(manifest) {
+  const metadata =
+    await readInstallationMetadata()
+
+  const installedScripts =
+    await countExistingScripts(
+      manifest.scripts
+    )
+
+  const installedResources =
+    await countExistingResources(
+      manifest.resources
+    )
+
+  const alert = new Alert()
+
+  alert.title =
+    "Informations"
+
+  alert.message = [
+    "CTS Dashboard",
+    "",
+    `Version disponible : ${manifest.version}`,
+    `Version installée : ${metadata?.dashboardVersion || "Non installée"}`,
+    `Installateur : ${INSTALLER_VERSION}`,
+    "",
+    `Scripts présents : ${installedScripts}/${manifest.scripts.length}`,
+    `Ressources présentes : ${installedResources}/${manifest.resources.length}`,
+    "",
+    `Dernière opération : ${formatDate(metadata?.updatedAt || metadata?.installedAt)}`,
+    "",
+    "Auteur : Emilio IPPOLITO",
+    "Matricule : 6124",
+    "",
+    "Dépôt GitHub :",
+    `${REPOSITORY.owner}/${REPOSITORY.name}`
+  ].join("\n")
+
+  alert.addAction("Fermer")
+
+  await alert.present()
+}
+
+// =====================================================
+// DÉSINSTALLATION
+// =====================================================
+
+async function uninstallDashboard(manifest) {
+  const firstConfirmation =
+    await confirmAction(
+      "Désinstaller CTS Dashboard",
+      [
+        "Cette action supprimera :",
+        "",
+        "• tous les scripts CTS Dashboard ;",
+        "• les bases de données ;",
+        "• les caches ;",
+        "• le moteur PDF ;",
+        "• les données générées.",
+        "",
+        "Le dossier Services, les PDF et les archives seront conservés.",
+        "",
+        "CTS Installer restera disponible."
+      ].join("\n"),
+      "Continuer",
+      true
+    )
+
+  if (!firstConfirmation) {
+    return
+  }
+
+  const finalConfirmation =
+    await confirmAction(
+      "Confirmation définitive",
+      "Voulez-vous vraiment désinstaller CTS Dashboard tout en conservant vos PDF de service ?",
+      "Désinstaller",
+      true
+    )
+
+  if (!finalConfirmation) {
+    return
+  }
+
+  const deleted = []
+  const failed = []
+
+  for (const fileName of manifest.scripts) {
+    if (fileName === "CTS Installer.js") {
+      continue
+    }
+
+    const path =
+      fm.joinPath(
+        documentsDirectory,
+        fileName
+      )
+
+    removeTracked(
+      path,
+      fileName,
+      deleted,
+      failed
+    )
+  }
+
+  const protectedNames =
+    normalizeProtectedPaths(
+      manifest.protectedPaths
+    )
+
+  if (fm.fileExists(root)) {
+    await ensureDownloaded(root)
+
+    for (const name of fm.listContents(root)) {
+      if (protectedNames.has(name)) {
+        continue
+      }
+
+      const path =
+        fm.joinPath(
+          root,
+          name
+        )
+
+      removeTracked(
+        path,
+        name,
+        deleted,
+        failed
+      )
+    }
+  }
+
+  const alert = new Alert()
+
+  alert.title =
+    failed.length
+      ? "Désinstallation partielle"
+      : "Désinstallation terminée"
+
+  alert.message = [
+    `${deleted.length} élément(s) supprimé(s).`,
+    `${failed.length} erreur(s).`,
+    "",
+    "Le dossier Services et vos PDF ont été conservés.",
+    "",
+    "CTS Installer reste disponible pour réinstaller le projet."
+  ].join("\n")
+
+  alert.addAction("Terminer")
+
+  await alert.present()
+}
+
+// =====================================================
+// MANIFESTE GITHUB
 // =====================================================
 
 async function downloadManifest() {
@@ -281,11 +528,19 @@ function validateManifest(manifest) {
   }
 
   if (
-    !Array.isArray(manifest.files) ||
-    manifest.files.length === 0
+    !Array.isArray(manifest.scripts) ||
+    manifest.scripts.length === 0
   ) {
     throw new Error(
-      "La liste des scripts à installer est absente."
+      "La liste des scripts est absente."
+    )
+  }
+
+  if (
+    !Array.isArray(manifest.resources)
+  ) {
+    throw new Error(
+      "La liste des ressources est absente."
     )
   }
 
@@ -303,56 +558,54 @@ function validateManifest(manifest) {
   ) {
     throw new Error(
       [
-        "Cette version de CTS Installer est trop ancienne.",
+        "CTS Installer est trop ancien.",
         "",
         `Version actuelle : ${INSTALLER_VERSION}`,
-        `Version minimale : ${minimumInstaller}`
+        `Version minimale : ${minimumInstaller}`,
+        "",
+        "Téléchargez la nouvelle version de CTS Installer depuis GitHub."
       ].join("\n")
     )
   }
-}
 
-function normalizeScriptList(files) {
-  const result = []
-
-  for (const value of files) {
-    const fileName =
-      String(value || "").trim()
-
+  for (const fileName of manifest.scripts) {
     if (
-      !fileName.endsWith(".js") ||
-      fileName === "CTS Installer.js" ||
-      result.includes(fileName)
+      typeof fileName !== "string" ||
+      !fileName.endsWith(".js")
     ) {
-      continue
+      throw new Error(
+        "Un nom de script déclaré dans version.json est invalide."
+      )
     }
-
-    result.push(fileName)
   }
 
-  if (!result.length) {
-    throw new Error(
-      "Aucun script valide n’est déclaré dans version.json."
-    )
+  for (const resource of manifest.resources) {
+    if (
+      !resource ||
+      typeof resource.name !== "string" ||
+      typeof resource.destination !== "string"
+    ) {
+      throw new Error(
+        "Une ressource déclarée dans version.json est invalide."
+      )
+    }
   }
-
-  return result
 }
 
 // =====================================================
-// FICHIERS
+// TÉLÉCHARGEMENT ET ÉCRITURE
 // =====================================================
 
-async function installFile({
-  fileName,
+async function downloadAndInstall({
+  remoteName,
   destinationPath,
   preserveExisting
 }) {
   if (
     preserveExisting &&
-    await isValidExistingFile(
+    await isValidFile(
       destinationPath,
-      fileName
+      remoteName
     )
   ) {
     return "preserved"
@@ -360,77 +613,105 @@ async function installFile({
 
   const data =
     await downloadData(
-      rawUrl(fileName),
-      fileName
+      rawUrl(remoteName),
+      remoteName
     )
-
-  if (!data) {
-    throw new Error(
-      `${fileName} : téléchargement vide.`
-    )
-  }
 
   const existed =
-    fm.fileExists(
-      destinationPath
-    )
+    fm.fileExists(destinationPath)
 
-  writeSafely(
+  writeDataSafely(
     destinationPath,
     data
   )
+
+  if (
+    !await isValidFile(
+      destinationPath,
+      remoteName
+    )
+  ) {
+    throw new Error(
+      `${remoteName} a été téléchargé, mais le fichier obtenu est invalide.`
+    )
+  }
 
   return existed
     ? "updated"
     : "installed"
 }
 
-async function isValidExistingFile(
-  path,
-  fileName
+async function downloadText(
+  url,
+  label
 ) {
-  if (!fm.fileExists(path)) {
-    return false
-  }
+  const request =
+    createRequest(url)
 
   try {
-    await ensureDownloaded(path)
+    const content =
+      await request.loadString()
 
-    const size =
-      Number(
-        fm.fileSize(path)
-      )
+    validateHttpResponse(
+      request,
+      label
+    )
 
-    if (
-      !Number.isFinite(size) ||
-      size <= 0
-    ) {
-      return false
-    }
-
-    if (fileName.endsWith(".json")) {
-      const parsed =
-        JSON.parse(
-          fm.readString(path)
-        )
-
-      return Boolean(
-        parsed &&
-        typeof parsed === "object" &&
-        !Array.isArray(parsed)
+    if (!content.trim()) {
+      throw new Error(
+        "Réponse vide."
       )
     }
 
-    return true
+    return content
   } catch (error) {
-    return false
+    throw new Error(
+      `${label} impossible à télécharger : ${errorMessage(error)}`
+    )
   }
 }
 
-function writeSafely(
+async function downloadData(
+  url,
+  label
+) {
+  const request =
+    createRequest(url)
+
+  try {
+    const data =
+      await request.load()
+
+    validateHttpResponse(
+      request,
+      label
+    )
+
+    if (
+      !data ||
+      Number(data.length) <= 0
+    ) {
+      throw new Error(
+        "Réponse vide."
+      )
+    }
+
+    return data
+  } catch (error) {
+    throw new Error(
+      `${label} impossible à télécharger : ${errorMessage(error)}`
+    )
+  }
+}
+
+function writeDataSafely(
   destinationPath,
   data
 ) {
+  ensureParentDirectory(
+    destinationPath
+  )
+
   const temporaryPath =
     `${destinationPath}.download`
 
@@ -467,77 +748,442 @@ function writeSafely(
   }
 }
 
-function recordResult(
-  status,
-  fileName,
-  installed,
-  updated,
-  preserved
+// =====================================================
+// VALIDATION DES FICHIERS
+// =====================================================
+
+async function isValidFile(
+  path,
+  fileName
 ) {
-  if (status === "installed") {
-    installed.push(fileName)
-  } else if (status === "updated") {
-    updated.push(fileName)
-  } else {
-    preserved.push(fileName)
+  if (!fm.fileExists(path)) {
+    return false
   }
-}
-
-// =====================================================
-// TÉLÉCHARGEMENTS
-// =====================================================
-
-async function downloadText(
-  url,
-  label
-) {
-  const request =
-    createRequest(url)
 
   try {
-    const content =
-      await request.loadString()
+    await ensureDownloaded(path)
 
-    validateResponse(
-      request,
-      label
-    )
+    const size =
+      Number(
+        fm.fileSize(path)
+      )
 
-    if (!content.trim()) {
-      throw new Error(
-        "Réponse vide."
+    if (
+      !Number.isFinite(size) ||
+      size <= 0
+    ) {
+      return false
+    }
+
+    if (fileName.endsWith(".json")) {
+      const parsed =
+        JSON.parse(
+          fm.readString(path)
+        )
+
+      return Boolean(
+        parsed &&
+        typeof parsed === "object" &&
+        !Array.isArray(parsed)
       )
     }
 
-    return content
+    if (fileName.endsWith(".js")) {
+      const content =
+        fm.readString(path)
+
+      return (
+        typeof content === "string" &&
+        content.trim().length > 20
+      )
+    }
+
+    return true
   } catch (error) {
+    return false
+  }
+}
+
+// =====================================================
+// DOSSIERS ET CHEMINS
+// =====================================================
+
+function ensureProjectDirectories() {
+  const directories = [
+    paths.root,
+    paths.data,
+    paths.database,
+    paths.cache,
+    paths.services,
+    fm.joinPath(
+      paths.services,
+      "Archive"
+    ),
+    fm.joinPath(
+      paths.services,
+      "Rejected"
+    ),
+    fm.joinPath(
+      paths.cache,
+      "Services"
+    ),
+    fm.joinPath(
+      fm.joinPath(
+        paths.cache,
+        "Services"
+      ),
+      "Text"
+    ),
+    paths.libraries,
+    fm.joinPath(
+      paths.libraries,
+      "PDF"
+    )
+  ]
+
+  for (const directory of directories) {
+    if (!fm.fileExists(directory)) {
+      fm.createDirectory(
+        directory,
+        true
+      )
+    }
+  }
+}
+
+function safeProjectPath(relativePath) {
+  const normalized =
+    String(relativePath || "")
+      .replace(/\\/g, "/")
+      .replace(/^\/+/, "")
+      .split("/")
+      .filter(
+        part =>
+          part &&
+          part !== "." &&
+          part !== ".."
+      )
+
+  if (!normalized.length) {
     throw new Error(
-      `${label} impossible à télécharger : ${errorMessage(error)}`
+      "Un chemin de ressource est invalide."
+    )
+  }
+
+  let path = root
+
+  for (const part of normalized) {
+    path =
+      fm.joinPath(
+        path,
+        part
+      )
+  }
+
+  return path
+}
+
+function ensureParentDirectory(path) {
+  const lastSlash =
+    path.lastIndexOf("/")
+
+  if (lastSlash <= 0) {
+    return
+  }
+
+  const parent =
+    path.substring(
+      0,
+      lastSlash
+    )
+
+  if (!fm.fileExists(parent)) {
+    fm.createDirectory(
+      parent,
+      true
     )
   }
 }
 
-async function downloadData(
-  url,
-  label
+// =====================================================
+// MÉTADONNÉES
+// =====================================================
+
+async function writeInstallationMetadata(
+  manifest,
+  summary,
+  operation
 ) {
-  const request =
-    createRequest(url)
+  ensureProjectDirectories()
+
+  const now =
+    new Date().toISOString()
+
+  const previous =
+    await readInstallationMetadata()
+
+  const metadata = {
+    installerVersion:
+      INSTALLER_VERSION,
+
+    dashboardVersion:
+      manifest.version,
+
+    installedAt:
+      previous?.installedAt ||
+      now,
+
+    updatedAt:
+      now,
+
+    lastOperation:
+      operation,
+
+    repository:
+      REPOSITORY,
+
+    installed:
+      summary.installed,
+
+    updated:
+      summary.updated,
+
+    preserved:
+      summary.preserved
+  }
+
+  fm.writeString(
+    installationMetadataPath,
+    JSON.stringify(
+      metadata,
+      null,
+      2
+    )
+  )
+}
+
+async function readInstallationMetadata() {
+  if (
+    !fm.fileExists(
+      installationMetadataPath
+    )
+  ) {
+    return null
+  }
 
   try {
-    const data =
-      await request.load()
-
-    validateResponse(
-      request,
-      label
+    await ensureDownloaded(
+      installationMetadataPath
     )
 
-    return data
+    const parsed =
+      JSON.parse(
+        fm.readString(
+          installationMetadataPath
+        )
+      )
+
+    return (
+      parsed &&
+      typeof parsed === "object" &&
+      !Array.isArray(parsed)
+    )
+      ? parsed
+      : null
   } catch (error) {
-    throw new Error(
-      `${label} impossible à télécharger : ${errorMessage(error)}`
+    return null
+  }
+}
+
+// =====================================================
+// INTERFACE
+// =====================================================
+
+async function confirmAction(
+  title,
+  message,
+  actionTitle,
+  destructive = false
+) {
+  const alert = new Alert()
+
+  alert.title = title
+  alert.message = message
+
+  if (destructive) {
+    alert.addDestructiveAction(
+      actionTitle
     )
+  } else {
+    alert.addAction(
+      actionTitle
+    )
+  }
+
+  alert.addCancelAction(
+    "Annuler"
+  )
+
+  return (
+    await alert.present()
+  ) === 0
+}
+
+async function showOperationSuccess(
+  title,
+  manifest,
+  summary
+) {
+  const alert = new Alert()
+
+  alert.title = title
+
+  alert.message = [
+    `CTS Dashboard ${manifest.version}`,
+    "",
+    `${summary.installed.length} fichier(s) installé(s)`,
+    `${summary.updated.length} fichier(s) mis à jour`,
+    `${summary.preserved.length} fichier(s) conservé(s)`,
+    "",
+    "Vos PDF de service ont été conservés.",
+    "",
+    "Vous pouvez maintenant lancer CTS Dashboard."
+  ].join("\n")
+
+  alert.addAction(
+    "Terminer"
+  )
+
+  await alert.present()
+}
+
+async function showError(error) {
+  const alert = new Alert()
+
+  alert.title =
+    "Opération impossible"
+
+  alert.message = [
+    errorMessage(error),
+    "",
+    "Vérifiez votre connexion Internet puis relancez CTS Installer."
+  ].join("\n")
+
+  alert.addAction("OK")
+
+  await alert.present()
+}
+
+// =====================================================
+// COMPTEURS ET OUTILS
+// =====================================================
+
+async function countExistingScripts(
+  scripts
+) {
+  let count = 0
+
+  for (const fileName of scripts) {
+    const path =
+      fm.joinPath(
+        documentsDirectory,
+        fileName
+      )
+
+    if (
+      await isValidFile(
+        path,
+        fileName
+      )
+    ) {
+      count++
+    }
+  }
+
+  return count
+}
+
+async function countExistingResources(
+  resources
+) {
+  let count = 0
+
+  for (const resource of resources) {
+    const path =
+      safeProjectPath(
+        resource.destination
+      )
+
+    if (
+      await isValidFile(
+        path,
+        resource.name
+      )
+    ) {
+      count++
+    }
+  }
+
+  return count
+}
+
+function addStatus(
+  summary,
+  status,
+  fileName
+) {
+  if (status === "installed") {
+    summary.installed.push(fileName)
+  } else if (status === "updated") {
+    summary.updated.push(fileName)
+  } else {
+    summary.preserved.push(fileName)
+  }
+}
+
+function normalizeProtectedPaths(
+  values
+) {
+  const result =
+    new Set()
+
+  for (
+    const value
+    of Array.isArray(values)
+      ? values
+      : []
+  ) {
+    const name =
+      String(value || "")
+        .replace(/\\/g, "/")
+        .split("/")
+        .filter(Boolean)[0]
+
+    if (name) {
+      result.add(name)
+    }
+  }
+
+  result.add("Services")
+
+  return result
+}
+
+function removeTracked(
+  path,
+  label,
+  deleted,
+  failed
+) {
+  if (!fm.fileExists(path)) {
+    return
+  }
+
+  try {
+    fm.remove(path)
+    deleted.push(label)
+  } catch (error) {
+    failed.push(label)
   }
 }
 
@@ -551,7 +1197,7 @@ function createRequest(url) {
   return request
 }
 
-function validateResponse(
+function validateHttpResponse(
   request,
   label
 ) {
@@ -599,155 +1245,6 @@ function encodePath(path) {
     .join("/")
 }
 
-// =====================================================
-// DOSSIERS
-// =====================================================
-
-function ensureDirectories() {
-  const directories = [
-    paths.root,
-    paths.data,
-    paths.database,
-    paths.cache,
-    paths.services,
-    paths.servicesArchive,
-    paths.servicesRejected,
-    paths.servicesCache,
-    paths.servicesTextCache,
-    paths.libraries,
-    paths.pdfEngine
-  ]
-
-  for (const path of directories) {
-    if (!fm.fileExists(path)) {
-      fm.createDirectory(
-        path,
-        true
-      )
-    }
-  }
-}
-
-// =====================================================
-// MÉTADONNÉES
-// =====================================================
-
-async function writeInstallationMetadata({
-  manifest,
-  installed,
-  updated,
-  preserved
-}) {
-  const metadata = {
-    installerVersion:
-      INSTALLER_VERSION,
-
-    dashboardVersion:
-      manifest.version,
-
-    installedAt:
-      new Date().toISOString(),
-
-    repository:
-      REPOSITORY,
-
-    installed,
-    updated,
-    preserved
-  }
-
-  fm.writeString(
-    fm.joinPath(
-      paths.data,
-      "installation.json"
-    ),
-
-    JSON.stringify(
-      metadata,
-      null,
-      2
-    )
-  )
-}
-
-// =====================================================
-// INTERFACE
-// =====================================================
-
-async function requestConfirmation() {
-  const alert = new Alert()
-
-  alert.title =
-    "Installer CTS Dashboard"
-
-  alert.message = [
-    "L’installation et la mise à jour sont automatiques.",
-    "",
-    "Une connexion Internet est nécessaire.",
-    "",
-    "Les PDF de service et les données personnelles existantes seront conservés."
-  ].join("\n")
-
-  alert.addAction(
-    "Installer ou mettre à jour"
-  )
-
-  alert.addCancelAction(
-    "Annuler"
-  )
-
-  return (
-    await alert.present()
-  ) === 0
-}
-
-async function showSuccess({
-  manifest,
-  installed,
-  updated,
-  preserved
-}) {
-  const alert = new Alert()
-
-  alert.title =
-    "Installation terminée"
-
-  alert.message = [
-    `CTS Dashboard ${manifest.version} est installé.`,
-    "",
-    `${installed.length} fichier(s) installé(s)`,
-    `${updated.length} fichier(s) mis à jour`,
-    `${preserved.length} ressource(s) conservée(s)`,
-    "",
-    "Vous pouvez maintenant lancer CTS Dashboard."
-  ].join("\n")
-
-  alert.addAction("Terminer")
-
-  await alert.present()
-}
-
-async function showFailure(error) {
-  const alert = new Alert()
-
-  alert.title =
-    "Installation impossible"
-
-  alert.message = [
-    errorMessage(error),
-    "",
-    "Vérifiez votre connexion Internet puis relancez CTS Installer."
-  ].join("\n")
-
-  alert.addAction("OK")
-
-  await alert.present()
-}
-
-// =====================================================
-// OUTILS
-// =====================================================
-
 async function ensureDownloaded(path) {
   if (
     fm.fileExists(path) &&
@@ -757,6 +1254,27 @@ async function ensureDownloaded(path) {
       path
     )
   }
+}
+
+function formatDate(value) {
+  if (!value) {
+    return "Jamais"
+  }
+
+  const date =
+    new Date(value)
+
+  if (
+    !Number.isFinite(
+      date.getTime()
+    )
+  ) {
+    return "Inconnue"
+  }
+
+  return date.toLocaleString(
+    "fr-FR"
+  )
 }
 
 function compareVersions(
