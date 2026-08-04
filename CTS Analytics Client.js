@@ -1,99 +1,95 @@
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
-// icon-color: deep-blue; icon-glyph: magic;
-// Variables used by Scriptable.
-// These must be at the very top of the file. Do not edit.
 // icon-color: deep-blue; icon-glyph: chart.bar.xaxis;
 
 const API_URL =
   "https://cts-analytics.nameless-frog-624d.workers.dev"
 
 const REQUEST_TIMEOUT_SECONDS = 12
+const RETRY_DELAY_MS = 60 * 60 * 1000
 
-const KEYCHAIN_KEYS = {
+const KEYS = {
   installationId:
     "CTS_ANALYTICS_INSTALLATION_ID",
-
   clientToken:
     "CTS_ANALYTICS_CLIENT_TOKEN",
-
   adminApiKey:
-    "CTS_ANALYTICS_ADMIN_API_KEY"
+    "CTS_ANALYTICS_ADMIN_API_KEY",
+  lastActivityDay:
+    "CTS_ANALYTICS_LAST_ACTIVITY_DAY",
+  lastAttemptAt:
+    "CTS_ANALYTICS_LAST_ATTEMPT_AT"
 }
 
 function createInstallationId() {
-  return [
-    UUID.string(),
+  return (
+    UUID.string() +
     UUID.string()
-  ]
-    .join("")
-    .replace(/-/g, "")
+  ).replace(/-/g, "")
 }
 
 function getInstallationId() {
-  const key =
-    KEYCHAIN_KEYS.installationId
-
-  if (Keychain.contains(key)) {
-    return Keychain.get(key)
+  if (Keychain.contains(
+    KEYS.installationId
+  )) {
+    return Keychain.get(
+      KEYS.installationId
+    )
   }
 
-  const installationId =
+  const value =
     createInstallationId()
 
   Keychain.set(
-    key,
-    installationId
+    KEYS.installationId,
+    value
   )
 
-  return installationId
+  return value
 }
 
 function getIOSMajorVersion() {
-  const version =
-    String(
-      Device.systemVersion()
-    )
-
-  const major =
+  const value =
     Number.parseInt(
-      version.split(".")[0],
+      String(
+        Device.systemVersion()
+      ).split(".")[0],
       10
     )
 
-  return Number.isInteger(major)
-    ? major
+  return Number.isInteger(value)
+    ? value
     : null
 }
 
 function saveAdminApiKey(value) {
   saveSecret(
-    KEYCHAIN_KEYS.adminApiKey,
+    KEYS.adminApiKey,
     value
   )
 }
 
 function hasAdminApiKey() {
   return hasSecret(
-    KEYCHAIN_KEYS.adminApiKey
+    KEYS.adminApiKey
   )
 }
 
 function removeAdminApiKey() {
-  removeSecret(
-    KEYCHAIN_KEYS.adminApiKey
+  removeKey(
+    KEYS.adminApiKey
   )
 }
 
 function hasClientToken() {
   return hasSecret(
-    KEYCHAIN_KEYS.clientToken
+    KEYS.clientToken
   )
 }
 
 function removeClientToken() {
-  removeSecret(
-    KEYCHAIN_KEYS.clientToken
+  removeKey(
+    KEYS.clientToken
   )
 }
 
@@ -104,26 +100,22 @@ async function registerInstallation({
     await sendRequest({
       path: "/register",
       method: "POST",
-      body: {
-        installationId:
-          getInstallationId(),
-
-        dashboardVersion,
-
-        iosMajorVersion:
-          getIOSMajorVersion()
-      }
+      body: devicePayload(
+        dashboardVersion
+      )
     })
+
+  const token =
+    result.data?.clientToken
 
   if (
     result.ok &&
-    typeof result.data?.clientToken
-      === "string" &&
-    result.data.clientToken.trim()
+    typeof token === "string" &&
+    token.trim()
   ) {
     Keychain.set(
-      KEYCHAIN_KEYS.clientToken,
-      result.data.clientToken.trim()
+      KEYS.clientToken,
+      token.trim()
     )
   }
 
@@ -133,41 +125,145 @@ async function registerInstallation({
 async function registerActivity({
   dashboardVersion
 }) {
-  const clientToken =
-    readRequiredSecret(
-      KEYCHAIN_KEYS.clientToken,
-      "client_token_missing"
-    )
-
   return sendRequest({
     path: "/activity",
-    apiKey:
-      clientToken,
     method: "POST",
-    body: {
-      installationId:
-        getInstallationId(),
-
-      dashboardVersion,
-
-      iosMajorVersion:
-        getIOSMajorVersion()
-    }
+    apiKey:
+      readRequiredSecret(
+        KEYS.clientToken,
+        "client_token_missing"
+      ),
+    body: devicePayload(
+      dashboardVersion
+    )
   })
 }
 
-async function getStatistics() {
-  const adminApiKey =
-    readRequiredSecret(
-      KEYCHAIN_KEYS.adminApiKey,
-      "admin_api_key_missing"
+async function registerDailyActivity({
+  dashboardVersion
+}) {
+  const version =
+    normalizeVersion(
+      dashboardVersion
     )
 
+  const today =
+    new Date()
+      .toISOString()
+      .slice(0, 10)
+
+  if (
+    readKey(
+      KEYS.lastActivityDay
+    ) === today
+  ) {
+    return {
+      ok: true,
+      skipped: true,
+      reason:
+        "already_registered_today"
+    }
+  }
+
+  const lastAttempt =
+    Number(
+      readKey(
+        KEYS.lastAttemptAt
+      )
+    ) || 0
+
+  if (
+    lastAttempt &&
+    Date.now() - lastAttempt <
+      RETRY_DELAY_MS
+  ) {
+    return {
+      ok: true,
+      skipped: true,
+      reason:
+        "retry_delayed"
+    }
+  }
+
+  Keychain.set(
+    KEYS.lastAttemptAt,
+    String(Date.now())
+  )
+
+  try {
+    if (!hasClientToken()) {
+      const registration =
+        await registerInstallation({
+          dashboardVersion:
+            version
+        })
+
+      if (!registration.ok) {
+        return registration
+      }
+    }
+
+    let activity =
+      await registerActivity({
+        dashboardVersion:
+          version
+      })
+
+    if (
+      !activity.ok &&
+      activity.statusCode === 401
+    ) {
+      removeClientToken()
+
+      const registration =
+        await registerInstallation({
+          dashboardVersion:
+            version
+        })
+
+      if (!registration.ok) {
+        return registration
+      }
+
+      activity =
+        await registerActivity({
+          dashboardVersion:
+            version
+        })
+    }
+
+    if (activity.ok) {
+      Keychain.set(
+        KEYS.lastActivityDay,
+        today
+      )
+
+      removeKey(
+        KEYS.lastAttemptAt
+      )
+    }
+
+    return activity
+  } catch (error) {
+    return {
+      ok: false,
+      statusCode: null,
+      error:
+        error?.message ||
+        String(error)
+    }
+  }
+}
+
+async function getStatistics() {
   return sendRequest({
     path: "/stats",
+    method: "GET",
     apiKey:
-      adminApiKey,
-    method: "GET"
+      readRequiredSecret(
+        KEYS.adminApiKey,
+        "admin_api_key_missing"
+      )
   })
 }
 
@@ -178,10 +274,37 @@ async function checkHealth() {
   })
 }
 
-function saveSecret(
-  key,
-  value
+function devicePayload(
+  dashboardVersion
 ) {
+  return {
+    installationId:
+      getInstallationId(),
+
+    dashboardVersion:
+      normalizeVersion(
+        dashboardVersion
+      ),
+
+    iosMajorVersion:
+      getIOSMajorVersion()
+  }
+}
+
+function normalizeVersion(value) {
+  const version =
+    String(value || "").trim()
+
+  if (!version) {
+    throw new Error(
+      "dashboard_version_missing"
+    )
+  }
+
+  return version
+}
+
+function saveSecret(key, value) {
   const secret =
     String(value || "").trim()
 
@@ -198,13 +321,8 @@ function saveSecret(
 }
 
 function hasSecret(key) {
-  return (
-    Keychain.contains(key) &&
-    Boolean(
-      String(
-        Keychain.get(key) || ""
-      ).trim()
-    )
+  return Boolean(
+    readKey(key)?.trim()
   )
 }
 
@@ -212,16 +330,25 @@ function readRequiredSecret(
   key,
   errorCode
 ) {
-  if (!hasSecret(key)) {
+  const value =
+    readKey(key)?.trim()
+
+  if (!value) {
     throw new Error(errorCode)
   }
 
-  return String(
-    Keychain.get(key)
-  ).trim()
+  return value
 }
 
-function removeSecret(key) {
+function readKey(key) {
+  return Keychain.contains(key)
+    ? String(
+        Keychain.get(key) || ""
+      )
+    : ""
+}
+
+function removeKey(key) {
   if (Keychain.contains(key)) {
     Keychain.remove(key)
   }
@@ -229,8 +356,8 @@ function removeSecret(key) {
 
 async function sendRequest({
   path,
-  apiKey = null,
   method,
+  apiKey = null,
   body = null
 }) {
   const request =
@@ -280,12 +407,10 @@ async function sendRequest({
     ) {
       return {
         ok: false,
-
         statusCode:
           Number.isFinite(statusCode)
             ? statusCode
             : null,
-
         error:
           response?.error ||
           "invalid_response"
@@ -300,12 +425,10 @@ async function sendRequest({
   } catch (error) {
     return {
       ok: false,
-
       statusCode:
         Number(
           request.response?.statusCode
         ) || null,
-
       error:
         error?.message ||
         String(error)
@@ -326,6 +449,8 @@ module.exports = {
 
   registerInstallation,
   registerActivity,
+  registerDailyActivity,
+
   getStatistics,
   checkHealth
 }
