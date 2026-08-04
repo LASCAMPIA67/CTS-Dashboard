@@ -1,15 +1,6 @@
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
-// icon-color: cyan; icon-glyph: magic;
-// Variables used by Scriptable.
-// These must be at the very top of the file. Do not edit.
-// icon-color: cyan; icon-glyph: magic;
-// Variables used by Scriptable.
-// These must be at the very top of the file. Do not edit.
 // icon-color: cyan; icon-glyph: bus.fill;
-
-// CTS Dashboard.js
-// Point d’entrée principal et installation automatique du projet.
 
 const CONFIG = importModule("CTS Config")
 const RESOURCES = importModule("CTS Resources")
@@ -18,110 +9,97 @@ const WIDGET_ENGINE = importModule("CTS Widget Engine")
 const RENDERER = importModule("CTS Widget Renderer")
 
 const ERROR_TITLE = "Erreur du Dashboard"
-const ERROR_MESSAGE =
-  "Le widget ne peut pas être affiché."
+const ERROR_MESSAGE = "Le widget ne peut pas être affiché."
+const ERROR_REFRESH_MS = 5 * 60 * 1000
 
-const ERROR_REFRESH_DELAY_MS =
-  5 * 60 * 1000
-
-const family =
-  WIDGET_ENGINE.getWidgetFamily()
-
+const family = WIDGET_ENGINE.getWidgetFamily()
 let context
 
 try {
   await initializeProject()
 
-  context =
-    await WIDGET_ENGINE.loadContext(
-      new Date()
-    )
+  const [loadedContext] = await Promise.all([
+    WIDGET_ENGINE.loadContext(new Date()),
+    registerAnalytics()
+  ])
+
+  context = loadedContext
 } catch (error) {
   context = {
     valid: false,
-
-    errorTitle:
-      ERROR_TITLE,
-
-    errorMessage:
-      getErrorMessage(error),
-
-    refreshAfterDate:
-      new Date(
-        Date.now() +
-        ERROR_REFRESH_DELAY_MS
-      )
+    errorTitle: ERROR_TITLE,
+    errorMessage: messageOf(error),
+    refreshAfterDate: new Date(
+      Date.now() + ERROR_REFRESH_MS
+    )
   }
 }
 
-const widget =
-  context.valid
-    ? RENDERER.createWidget(
-        family,
-        context
-      )
-    : RENDERER.createErrorWidget(
-        context.errorTitle ||
-          "Erreur",
+const widget = context.valid
+  ? RENDERER.createWidget(
+      family,
+      context
+    )
+  : RENDERER.createErrorWidget(
+      context.errorTitle || "Erreur",
+      context.errorMessage || ERROR_MESSAGE
+    )
 
-        context.errorMessage ||
-          ERROR_MESSAGE
-      )
-
-if (
-  isValidDate(
-    context.refreshAfterDate
-  )
-) {
+if (isValidDate(context.refreshAfterDate)) {
   widget.refreshAfterDate =
     context.refreshAfterDate
 }
 
-await displayWidget(
-  widget,
-  family
-)
-
-// =====================================================
-// INSTALLATION AUTOMATIQUE
-// =====================================================
+await displayWidget(widget, family)
 
 async function initializeProject() {
   CONFIG.ensureDirectories()
-
   await RESOURCES.ensureInstalled()
-
   await PDF_ENGINE.ensureReady()
 }
 
-// =====================================================
-// OUTILS
-// =====================================================
+async function registerAnalytics() {
+  try {
+    const analytics = importModule(
+      "CTS Analytics Client"
+    )
 
-function getErrorMessage(error) {
-  if (
-    error &&
-    typeof error.message ===
-      "string" &&
-    error.message.trim()
-  ) {
-    return error.message.trim()
+    const result =
+      await analytics.registerDailyActivity({
+        dashboardVersion:
+          CONFIG.dashboardVersion
+      })
+
+    if (!result?.ok) {
+      console.warn(
+        "[Analytics]",
+        result?.error ||
+          "Activité non enregistrée."
+      )
+    }
+  } catch (error) {
+    console.warn(
+      "[Analytics]",
+      messageOf(error)
+    )
   }
+}
 
-  return String(
-    error ||
-    "Erreur inconnue."
+function messageOf(error) {
+  return (
+    error?.message?.trim?.() ||
+    String(
+      error ||
+        "Erreur inconnue."
+    )
   )
 }
 
 function isValidDate(value) {
   return Boolean(
     value &&
-    typeof value.getTime ===
-      "function" &&
-    Number.isFinite(
-      value.getTime()
-    )
+    typeof value.getTime === "function" &&
+    Number.isFinite(value.getTime())
   )
 }
 
@@ -143,7 +121,6 @@ async function displayWidget(
 
       default:
         await widget.presentLarge()
-        break
     }
   }
 
