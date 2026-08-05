@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.0"
+const INSTALLER_VERSION = "1.0.1"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -14,6 +14,7 @@ const INSTALLER_FILE = "CTS Installer.js"
 const META_FILE = "installation.json"
 const TIMEOUT = 60
 const RETRIES = 2
+const ANALYTICS_MODULE = "CTS Analytics Client"
 
 const COLORS = {
   blue: new Color("#0A84FF"),
@@ -28,26 +29,6 @@ const COLORS = {
   primary: Color.dynamic(
     new Color("#111111"),
     new Color("#F5F5F7")
-  ),
-  blueSoft: Color.dynamic(
-    new Color("#EAF4FF"),
-    new Color("#10243A")
-  ),
-  greenSoft: Color.dynamic(
-    new Color("#EAF9EF"),
-    new Color("#102B1A")
-  ),
-  orangeSoft: Color.dynamic(
-    new Color("#FFF4E3"),
-    new Color("#33220B")
-  ),
-  redSoft: Color.dynamic(
-    new Color("#FFECEE"),
-    new Color("#351216")
-  ),
-  graySoft: Color.dynamic(
-    new Color("#F2F2F7"),
-    new Color("#1C1C1E")
   )
 }
 
@@ -179,16 +160,10 @@ async function menu(manifest, state) {
         : "Réparer l’installation"
   )
 
-  alert.addDestructiveAction(
-    "Désinstaller"
-  )
+  alert.addDestructiveAction("Désinstaller")
+  alert.addCancelAction("Fermer")
 
-  alert.addCancelAction(
-    "Fermer"
-  )
-
-  const choice =
-    await alert.presentSheet()
+  const choice = await alert.presentSheet()
 
   return choice === 0
     ? "install"
@@ -198,12 +173,8 @@ async function menu(manifest, state) {
 }
 
 async function inspect(manifest) {
-  const metadata =
-    await readMetadata()
-
-  const entries =
-    manifestEntries(manifest)
-
+  const metadata = await readMetadata()
+  const entries = manifestEntries(manifest)
   const missing = []
   const invalid = []
   const reasons = {}
@@ -220,23 +191,20 @@ async function inspect(manifest) {
 
     existing++
 
-    const result =
-      await validateLocal(
-        entry.destination,
-        entry.name
-      )
+    const result = await validateLocal(
+      entry.destination,
+      entry.name
+    )
 
     if (result.valid) {
       valid++
     } else {
       invalid.push(entry.name)
-      reasons[entry.name] =
-        result.reason
+      reasons[entry.name] = result.reason
     }
   }
 
-  const total =
-    entries.length
+  const total = entries.length
 
   const present = Boolean(
     metadata ||
@@ -268,12 +236,8 @@ async function inspect(manifest) {
   }
 }
 
-async function installOrUpdate(
-  manifest,
-  previous
-) {
-  const fresh =
-    !previous.present
+async function installOrUpdate(manifest, previous) {
+  const fresh = !previous.present
 
   const versionUpdate =
     Boolean(previous.installedVersion) &&
@@ -290,8 +254,7 @@ async function installOrUpdate(
         ? "verification"
         : "repair"
 
-  const title =
-    operationTitle(operation)
+  const title = operationTitle(operation)
 
   const message = fresh
     ? [
@@ -319,16 +282,14 @@ async function installOrUpdate(
     return
   }
 
-  const entries =
-    manifestEntries(manifest)
+  const entries = manifestEntries(manifest)
 
-  const progress =
-    progressTable({
-      title,
-      version: manifest.version,
-      entries,
-      operation
-    })
+  const progress = progressTable({
+    title,
+    version: manifest.version,
+    entries,
+    operation
+  })
 
   progress.present()
 
@@ -391,8 +352,7 @@ async function installOrUpdate(
       index < entries.length;
       index++
     ) {
-      const entry =
-        entries[index]
+      const entry = entries[index]
 
       await progress.entry(
         index,
@@ -401,12 +361,9 @@ async function installOrUpdate(
       )
 
       try {
-        const status =
-          await syncFile(entry)
+        const status = await syncFile(entry)
 
-        summary[status].push(
-          entry.name
-        )
+        summary[status].push(entry.name)
 
         await progress.entry(
           index,
@@ -448,11 +405,10 @@ async function installOrUpdate(
         )
 
         try {
-          const status =
-            await syncFile(
-              failure.entry,
-              true
-            )
+          const status = await syncFile(
+            failure.entry,
+            true
+          )
 
           summary[status].push(
             failure.entry.name
@@ -466,8 +422,7 @@ async function installOrUpdate(
             statusLabel(status)
           )
         } catch (error) {
-          failure.reason =
-            messageOf(error)
+          failure.reason = messageOf(error)
 
           summary.failed.push(
             failure.entry.name
@@ -481,10 +436,9 @@ async function installOrUpdate(
         }
       }
 
-      const unresolved =
-        failures.filter(
-          item => !item.resolved
-        )
+      const unresolved = failures.filter(
+        item => !item.resolved
+      )
 
       await progress.system(
         "retry",
@@ -509,8 +463,7 @@ async function installOrUpdate(
       "Contrôle final de l’installation…"
     )
 
-    const verification =
-      await inspect(manifest)
+    const verification = await inspect(manifest)
 
     if (!verification.complete) {
       const issues = [
@@ -540,8 +493,7 @@ async function installOrUpdate(
             : "Une erreur inconnue empêche la validation."
         ].join("\n"),
         summary,
-        duration:
-          Date.now() - startedAt
+        duration: Date.now() - startedAt
       })
 
       return
@@ -554,6 +506,10 @@ async function installOrUpdate(
 
     await preserveInstaller()
 
+    await registerAnalyticsInstallation(
+      manifest.version
+    )
+
     await progress.system(
       "verification",
       "success",
@@ -562,9 +518,7 @@ async function installOrUpdate(
 
     await progress.finish({
       success: true,
-      title: operationResultTitle(
-        operation
-      ),
+      title: operationResultTitle(operation),
       message: [
         `CTS Dashboard ${manifest.version} est prêt.`,
         "",
@@ -573,8 +527,7 @@ async function installOrUpdate(
         "CTS Installer a été conservé."
       ].join("\n"),
       summary,
-      duration:
-        Date.now() - startedAt
+      duration: Date.now() - startedAt
     })
   } catch (error) {
     await progress.system(
@@ -588,16 +541,12 @@ async function installOrUpdate(
       title: "Opération interrompue",
       message: messageOf(error),
       summary,
-      duration:
-        Date.now() - startedAt
+      duration: Date.now() - startedAt
     })
   }
 }
 
-async function syncFile(
-  entry,
-  force = false
-) {
+async function syncFile(entry, force = false) {
   let remote
   let lastError
 
@@ -612,11 +561,10 @@ async function syncFile(
         entry.name
       )
 
-      const validation =
-        validateText(
-          remote,
-          entry.name
-        )
+      const validation = validateText(
+        remote,
+        entry.name
+      )
 
       if (!validation.valid) {
         throw new Error(
@@ -641,22 +589,19 @@ async function syncFile(
       )
   }
 
-  const existed =
-    fm.fileExists(
-      entry.destination
-    )
+  const existed = fm.fileExists(
+    entry.destination
+  )
 
   let localValid = false
 
   if (existed) {
-    const check =
-      await validateLocal(
-        entry.destination,
-        entry.name
-      )
+    const check = await validateLocal(
+      entry.destination,
+      entry.name
+    )
 
-    localValid =
-      check.valid
+    localValid = check.valid
 
     if (
       !force &&
@@ -675,11 +620,10 @@ async function syncFile(
     remote
   )
 
-  const result =
-    await validateLocal(
-      entry.destination,
-      entry.name
-    )
+  const result = await validateLocal(
+    entry.destination,
+    entry.name
+  )
 
   if (!result.valid) {
     throw new Error(
@@ -699,65 +643,53 @@ async function syncFile(
 }
 
 async function preserveInstaller() {
-  if (
-    fm.fileExists(
+  const canonical =
+    await readInstallerCandidate(
       canonicalInstaller
     )
-  ) {
-    const existing =
-      await readText(
-        canonicalInstaller
-      )
 
-    if (
-      isInstallerSource(existing)
-    ) {
-      return
-    }
-  }
+  const current =
+    currentInstaller === canonicalInstaller
+      ? canonical
+      : await readInstallerCandidate(
+          currentInstaller
+        )
 
-  let source = null
+  let selected = selectInstallerCandidate(
+    canonical,
+    current
+  )
 
-  if (
-    fm.fileExists(
-      currentInstaller
+  if (!selected) {
+    const content = await downloadText(
+      `${rawUrl(INSTALLER_FILE)}?self=${Date.now()}`,
+      INSTALLER_FILE
     )
-  ) {
-    const current =
-      await readText(
-        currentInstaller
-      )
 
-    if (
-      isInstallerSource(current)
-    ) {
-      source = current
-    }
+    selected = createInstallerCandidate(
+      content
+    )
   }
 
-  if (!source) {
-    source =
-      await downloadText(
-        `${rawUrl(INSTALLER_FILE)}?self=${Date.now()}`,
-        INSTALLER_FILE
-      )
-  }
-
-  if (
-    !isInstallerSource(source)
-  ) {
+  if (!selected) {
     throw new Error(
       "La copie de CTS Installer est invalide."
     )
   }
 
-  await writeText(
-    canonicalInstaller,
-    source
-  )
+  if (
+    !canonical ||
+    normalize(canonical.content) !==
+      normalize(selected.content)
+  ) {
+    await writeText(
+      canonicalInstaller,
+      selected.content
+    )
+  }
 
   if (
-    !fm.fileExists(
+    !await readInstallerCandidate(
       canonicalInstaller
     )
   ) {
@@ -767,12 +699,66 @@ async function preserveInstaller() {
   }
 }
 
+async function readInstallerCandidate(path) {
+  if (
+    !path ||
+    !fm.fileExists(path)
+  ) {
+    return null
+  }
+
+  try {
+    return createInstallerCandidate(
+      await readText(path)
+    )
+  } catch (_) {
+    return null
+  }
+}
+
+function createInstallerCandidate(content) {
+  if (!isInstallerSource(content)) {
+    return null
+  }
+
+  return {
+    content,
+    version: installerVersion(content)
+  }
+}
+
+function selectInstallerCandidate(
+  canonical,
+  current
+) {
+  if (!canonical) {
+    return current
+  }
+
+  if (!current) {
+    return canonical
+  }
+
+  return compareVersions(
+    current.version,
+    canonical.version
+  ) >= 0
+    ? current
+    : canonical
+}
+
+function installerVersion(content) {
+  const match = String(content || "")
+    .match(
+      /const\s+INSTALLER_VERSION\s*=\s*"([^"]+)"/
+    )
+
+  return match?.[1]?.trim?.() || ""
+}
+
 function isInstallerSource(content) {
-  return (
-    typeof content === "string" &&
-    content.includes(
-      'const INSTALLER_VERSION = "'
-    ) &&
+  return Boolean(
+    installerVersion(content) &&
     content.includes(
       `const INSTALLER_FILE = "${INSTALLER_FILE}"`
     ) &&
@@ -809,35 +795,30 @@ async function uninstall(manifest) {
 
   const entries = [
     ...manifestEntries(manifest)
-      .filter(entry =>
-        entry.destination !== canonicalInstaller &&
-        entry.destination !== currentInstaller
+      .filter(
+        entry =>
+          entry.destination !== canonicalInstaller &&
+          entry.destination !== currentInstaller
       ),
     ...fm.fileExists(root)
       ? fm.listContents(root)
           .filter(
-            name =>
-              name !== "Services"
+            name => name !== "Services"
           )
           .map(name => ({
             name,
             type: "Dossier",
-            destination:
-              join(root, name)
+            destination: join(root, name)
           }))
       : []
   ]
 
-  const progress =
-    progressTable({
-      title:
-        "Désinstallation de CTS Dashboard",
-      version:
-        manifest.version,
-      entries,
-      operation:
-        "uninstall"
-    })
+  const progress = progressTable({
+    title: "Désinstallation de CTS Dashboard",
+    version: manifest.version,
+    entries,
+    operation: "uninstall"
+  })
 
   progress.present()
 
@@ -856,8 +837,7 @@ async function uninstall(manifest) {
     index < entries.length;
     index++
   ) {
-    const item =
-      entries[index]
+    const item = entries[index]
 
     await progress.entry(
       index,
@@ -866,19 +846,11 @@ async function uninstall(manifest) {
     )
 
     try {
-      if (
-        fm.fileExists(
-          item.destination
-        )
-      ) {
-        fm.remove(
-          item.destination
-        )
+      if (fm.fileExists(item.destination)) {
+        fm.remove(item.destination)
       }
 
-      summary.unchanged.push(
-        item.name
-      )
+      summary.unchanged.push(item.name)
 
       await progress.entry(
         index,
@@ -886,9 +858,7 @@ async function uninstall(manifest) {
         "Supprimé"
       )
     } catch (error) {
-      summary.failed.push(
-        item.name
-      )
+      summary.failed.push(item.name)
 
       await progress.entry(
         index,
@@ -906,12 +876,10 @@ async function uninstall(manifest) {
   await preserveInstaller()
 
   await progress.finish({
-    success:
-      summary.failed.length === 0,
-    title:
-      summary.failed.length
-        ? "Désinstallation partielle"
-        : "Désinstallation terminée",
+    success: summary.failed.length === 0,
+    title: summary.failed.length
+      ? "Désinstallation partielle"
+      : "Désinstallation terminée",
     message: [
       `${summary.unchanged.length} élément(s) supprimé(s).`,
       `${summary.failed.length} erreur(s).`,
@@ -919,8 +887,7 @@ async function uninstall(manifest) {
       "CTS Installer, le dossier Services et vos PDF ont été conservés."
     ].join("\n"),
     summary,
-    duration:
-      Date.now() - startedAt
+    duration: Date.now() - startedAt
   })
 }
 
@@ -930,8 +897,7 @@ function progressTable({
   entries,
   operation
 }) {
-  const table =
-    new UITable()
+  const table = new UITable()
 
   table.showSeparators = true
 
@@ -980,13 +946,11 @@ function progressTable({
         detail: "En attente"
       }
     },
-    entries:
-      entries.map(entry => ({
-        ...entry,
-        status: "pending",
-        detail:
-          `${entry.type} — En attente`
-      })),
+    entries: entries.map(entry => ({
+      ...entry,
+      status: "pending",
+      detail: `${entry.type} — En attente`
+    })),
     result: null
   }
 
@@ -1000,18 +964,13 @@ function progressTable({
       operation
     )
 
-    addProgress(
-      table,
-      state
-    )
+    addProgress(table, state)
 
-    const systems =
-      Object.values(
-        state.systems
-      ).filter(
-        item =>
-          item.status !== "hidden"
-      )
+    const systems = Object.values(
+      state.systems
+    ).filter(
+      item => item.status !== "hidden"
+    )
 
     if (systems.length) {
       addSection(
@@ -1020,9 +979,7 @@ function progressTable({
         COLORS.secondary
       )
 
-      for (
-        const item of systems
-      ) {
+      for (const item of systems) {
         addStatusRow(
           table,
           item.title,
@@ -1040,9 +997,7 @@ function progressTable({
       COLORS.secondary
     )
 
-    for (
-      const entry of state.entries
-    ) {
+    for (const entry of state.entries) {
       addStatusRow(
         table,
         entry.name,
@@ -1069,11 +1024,7 @@ function progressTable({
       table.present(true)
     },
 
-    async system(
-      key,
-      status,
-      detail
-    ) {
+    async system(key, status, detail) {
       if (!state.systems[key]) {
         return
       }
@@ -1091,11 +1042,7 @@ function progressTable({
       await render()
     },
 
-    async entry(
-      index,
-      status,
-      detail
-    ) {
+    async entry(index, status, detail) {
       if (!state.entries[index]) {
         return
       }
@@ -1113,31 +1060,22 @@ function progressTable({
       await render()
     },
 
-    async advance(
-      completed,
-      total
-    ) {
-      state.completed =
-        completed
-
-      state.total =
-        total
+    async advance(completed, total) {
+      state.completed = completed
+      state.total = total
 
       await render()
     },
 
     async finish(result) {
-      state.result =
-        result
+      state.result = result
 
-      state.current =
-        result.success
-          ? "Opération terminée"
-          : "Une erreur est survenue"
+      state.current = result.success
+        ? "Opération terminée"
+        : "Une erreur est survenue"
 
       if (result.success) {
-        state.completed =
-          state.total
+        state.completed = state.total
       }
 
       await render()
@@ -1151,74 +1089,57 @@ function addHeader(
   version,
   operation
 ) {
-  const row =
-    new UITableRow()
+  const row = new UITableRow()
 
   row.height = 92
   row.isHeader = true
 
-  const icon =
-    SFSymbol.named(
-      operationSymbol(operation)
-    )
+  const icon = SFSymbol.named(
+    operationSymbol(operation)
+  )
 
   icon.applyFont(
     Font.systemFont(28)
   )
 
-  const image =
-    row.addImage(icon.image)
+  const image = row.addImage(icon.image)
 
   image.widthWeight = 16
 
-  const text =
-    row.addText(
-      title,
-      [
-        `Dashboard ${version}`,
-        `Installer ${INSTALLER_VERSION}`
-      ].join("  ·  ")
-    )
+  const text = row.addText(
+    title,
+    [
+      `Dashboard ${version}`,
+      `Installer ${INSTALLER_VERSION}`
+    ].join("  ·  ")
+  )
 
   text.widthWeight = 84
-  text.titleFont =
-    Font.boldSystemFont(21)
-
-  text.subtitleFont =
-    Font.systemFont(12)
-
-  text.titleColor =
-    operationColor(operation)
-
-  text.subtitleColor =
-    COLORS.secondary
+  text.titleFont = Font.boldSystemFont(21)
+  text.subtitleFont = Font.systemFont(12)
+  text.titleColor = operationColor(operation)
+  text.subtitleColor = COLORS.secondary
 
   table.addRow(row)
 }
 
-function addProgress(
-  table,
-  state
-) {
-  const percentage =
-    state.total
-      ? Math.round(
-          state.completed /
-          state.total *
-          100
-        )
-      : 100
+function addProgress(table, state) {
+  const percentage = state.total
+    ? Math.round(
+        state.completed /
+        state.total *
+        100
+      )
+    : 100
 
-  const row =
-    new UITableRow()
+  const row = new UITableRow()
 
   row.height = 88
 
-  const progress =
-    row.addText(
-      `${progressBar(percentage)}  ${percentage} %`,
-      `${state.completed}/${state.total} fichiers · ${state.current}`
-    )
+  const progress = row.addText(
+    `${progressBar(percentage)}  ${percentage} %`,
+    `${state.completed}/${state.total} fichiers · ${state.current}`
+  )
 
   progress.titleFont =
     Font.boldMonospacedSystemFont(15)
@@ -1237,25 +1158,16 @@ function addProgress(
   table.addRow(row)
 }
 
-function addSection(
-  table,
-  title,
-  color
-) {
-  const row =
-    new UITableRow()
+function addSection(table, title, color) {
+  const row = new UITableRow()
 
   row.height = 34
   row.isHeader = true
 
-  const text =
-    row.addText(title)
+  const text = row.addText(title)
 
-  text.titleFont =
-    Font.boldSystemFont(11)
-
-  text.titleColor =
-    color
+  text.titleFont = Font.boldSystemFont(11)
+  text.titleColor = color
 
   table.addRow(row)
 }
@@ -1266,34 +1178,28 @@ function addStatusRow(
   detail,
   status
 ) {
-  const visual =
-    statusVisual(status)
-
-  const row =
-    new UITableRow()
+  const visual = statusVisual(status)
+  const row = new UITableRow()
 
   row.height =
     detail.length > 68
       ? 72
       : 58
 
-  const marker =
-    row.addText(
-      visual.marker
-    )
+  const marker = row.addText(
+    visual.marker
+  )
 
   marker.widthWeight = 10
   marker.titleFont =
     Font.boldSystemFont(19)
 
-  marker.titleColor =
-    visual.color
+  marker.titleColor = visual.color
 
-  const content =
-    row.addText(
-      title,
-      detail
-    )
+  const content = row.addText(
+    title,
+    detail
+  )
 
   content.widthWeight = 72
   content.titleFont =
@@ -1302,23 +1208,18 @@ function addStatusRow(
   content.subtitleFont =
     Font.systemFont(11)
 
-  content.titleColor =
-    COLORS.primary
+  content.titleColor = COLORS.primary
+  content.subtitleColor = visual.color
 
-  content.subtitleColor =
-    visual.color
-
-  const badge =
-    row.addText(
-      visual.label
-    )
+  const badge = row.addText(
+    visual.label
+  )
 
   badge.widthWeight = 18
   badge.titleFont =
     Font.semiboldSystemFont(10)
 
-  badge.titleColor =
-    visual.color
+  badge.titleColor = visual.color
 
   table.addRow(row)
 }
@@ -1328,8 +1229,7 @@ function addFinalResult(
   result,
   uninstalling
 ) {
-  const success =
-    result.success
+  const success = result.success
 
   addSection(
     table,
@@ -1341,46 +1241,39 @@ function addFinalResult(
       : COLORS.red
   )
 
-  const resultRow =
-    new UITableRow()
+  const resultRow = new UITableRow()
 
-  const lines =
-    result.message
-      .split("\n")
-      .length
+  const lines = result.message
+    .split("\n")
+    .length
 
-  resultRow.height =
-    Math.max(
-      110,
-      72 + lines * 17
-    )
+  resultRow.height = Math.max(
+    110,
+    72 + lines * 17
+  )
 
-  const symbol =
-    SFSymbol.named(
-      success
-        ? "checkmark.seal.fill"
-        : "exclamationmark.triangle.fill"
-    )
+  const symbol = SFSymbol.named(
+    success
+      ? "checkmark.seal.fill"
+      : "exclamationmark.triangle.fill"
+  )
 
   symbol.applyFont(
     Font.systemFont(27)
   )
 
-  const image =
-    resultRow.addImage(
-      symbol.image
-    )
+  const image = resultRow.addImage(
+    symbol.image
+  )
 
   image.widthWeight = 15
 
-  const resultText =
-    resultRow.addText(
-      result.title,
-      result.message
-    )
+  const resultText = resultRow.addText(
+    result.title,
+    result.message
+  )
 
   resultText.widthWeight = 85
-
   resultText.titleFont =
     Font.boldSystemFont(19)
 
@@ -1409,106 +1302,73 @@ function addSummaryCards(
   result,
   uninstalling
 ) {
-  const summary =
-    result.summary
+  const summary = result.summary
 
-  const elapsed =
-    result.duration
-      ? formatDuration(
-          result.duration
-        )
-      : "—"
+  const elapsed = result.duration
+    ? formatDuration(result.duration)
+    : "—"
 
-  const values =
-    uninstalling
-      ? [
-          {
-            title:
-              summary.unchanged.length,
-            subtitle:
-              "SUPPRIMÉS",
-            color:
-              COLORS.green
-          },
-          {
-            title:
-              summary.failed.length,
-            subtitle:
-              "ERREURS",
-            color:
-              summary.failed.length
-                ? COLORS.red
-                : COLORS.green
-          },
-          {
-            title:
-              elapsed,
-            subtitle:
-              "DURÉE",
-            color:
-              COLORS.blue
-          }
-        ]
-      : [
-          {
-            title:
-              summary.installed.length,
-            subtitle:
-              "INSTALLÉS",
-            color:
-              COLORS.green
-          },
-          {
-            title:
-              summary.updated.length,
-            subtitle:
-              "MIS À JOUR",
-            color:
-              COLORS.orange
-          },
-          {
-            title:
-              summary.repaired.length,
-            subtitle:
-              "RÉPARÉS",
-            color:
-              COLORS.green
-          },
-          {
-            title:
-              summary.unchanged.length,
-            subtitle:
-              "DÉJÀ À JOUR",
-            color:
-              COLORS.blue
-          },
-          {
-            title:
-              summary.failed.length,
-            subtitle:
-              "ERREURS",
-            color:
-              summary.failed.length
-                ? COLORS.red
-                : COLORS.green
-          },
-          {
-            title:
-              elapsed,
-            subtitle:
-              "DURÉE",
-            color:
-              COLORS.blue
-          }
-        ]
+  const values = uninstalling
+    ? [
+        {
+          title: summary.unchanged.length,
+          subtitle: "SUPPRIMÉS",
+          color: COLORS.green
+        },
+        {
+          title: summary.failed.length,
+          subtitle: "ERREURS",
+          color: summary.failed.length
+            ? COLORS.red
+            : COLORS.green
+        },
+        {
+          title: elapsed,
+          subtitle: "DURÉE",
+          color: COLORS.blue
+        }
+      ]
+    : [
+        {
+          title: summary.installed.length,
+          subtitle: "INSTALLÉS",
+          color: COLORS.green
+        },
+        {
+          title: summary.updated.length,
+          subtitle: "MIS À JOUR",
+          color: COLORS.orange
+        },
+        {
+          title: summary.repaired.length,
+          subtitle: "RÉPARÉS",
+          color: COLORS.green
+        },
+        {
+          title: summary.unchanged.length,
+          subtitle: "DÉJÀ À JOUR",
+          color: COLORS.blue
+        },
+        {
+          title: summary.failed.length,
+          subtitle: "ERREURS",
+          color: summary.failed.length
+            ? COLORS.red
+            : COLORS.green
+        },
+        {
+          title: elapsed,
+          subtitle: "DURÉE",
+          color: COLORS.blue
+        }
+      ]
 
   for (
     let index = 0;
     index < values.length;
     index += 3
   ) {
-    const row =
-      new UITableRow()
+    const row = new UITableRow()
 
     row.height = 72
 
@@ -1518,11 +1378,10 @@ function addSummaryCards(
         index + 3
       )
     ) {
-      const cell =
-        row.addText(
-          String(item.title),
-          item.subtitle
-        )
+      const cell = row.addText(
+        String(item.title),
+        item.subtitle
+      )
 
       cell.titleFont =
         Font.boldSystemFont(18)
@@ -1530,9 +1389,7 @@ function addSummaryCards(
       cell.subtitleFont =
         Font.boldSystemFont(9)
 
-      cell.titleColor =
-        item.color
-
+      cell.titleColor = item.color
       cell.subtitleColor =
         COLORS.secondary
 
@@ -1569,26 +1426,23 @@ function addSummaryCards(
   protection.subtitleColor =
     COLORS.secondary
 
-  table.addRow(
-    protectionRow
-  )
+  table.addRow(protectionRow)
 }
 
 function progressBar(percentage) {
   const length = 14
 
-  const completed =
-    Math.max(
-      0,
-      Math.min(
-        length,
-        Math.round(
-          percentage /
-          100 *
-          length
-        )
+  const completed = Math.max(
+    0,
+    Math.min(
+      length,
+      Math.round(
+        percentage /
+        100 *
+        length
       )
     )
+  )
 
   return (
     "●".repeat(completed) +
@@ -1647,10 +1501,8 @@ function statusVisual(status) {
     }
   }
 
-  return (
-    values[status] ||
+  return values[status] ||
     values.pending
-  )
 }
 
 function operationTitle(operation) {
@@ -1701,16 +1553,11 @@ function operationSymbol(operation) {
 
 function operationColor(operation) {
   return {
-    installation:
-      COLORS.green,
-    update:
-      COLORS.orange,
-    verification:
-      COLORS.blue,
-    repair:
-      COLORS.orange,
-    uninstall:
-      COLORS.red
+    installation: COLORS.green,
+    update: COLORS.orange,
+    verification: COLORS.blue,
+    repair: COLORS.orange,
+    uninstall: COLORS.red
   }[operation] ||
     COLORS.blue
 }
@@ -1719,25 +1566,20 @@ function manifestEntries(manifest) {
   return [
     ...manifest.scripts
       .filter(
-        name =>
-          name !== INSTALLER_FILE
+        name => name !== INSTALLER_FILE
       )
       .map(name => ({
         name,
         type: "Script",
-        destination:
-          join(docs, name)
+        destination: join(docs, name)
       })),
     ...manifest.resources
       .map(resource => ({
-        name:
-          resource.name,
-        type:
-          "Ressource",
-        destination:
-          projectPath(
-            resource.destination
-          )
+        name: resource.name,
+        type: "Ressource",
+        destination: projectPath(
+          resource.destination
+        )
       }))
   ]
 }
@@ -1757,9 +1599,7 @@ function validateManifest(manifest) {
 
   const names = new Set()
 
-  for (
-    const name of manifest.scripts
-  ) {
+  for (const name of manifest.scripts) {
     if (
       typeof name !== "string" ||
       !name.endsWith(".js") ||
@@ -1774,9 +1614,7 @@ function validateManifest(manifest) {
     names.add(name)
   }
 
-  for (
-    const resource of manifest.resources
-  ) {
+  for (const resource of manifest.resources) {
     if (
       !isRecord(resource) ||
       typeof resource.name !== "string" ||
@@ -1787,26 +1625,20 @@ function validateManifest(manifest) {
       )
     }
 
-    projectPath(
-      resource.destination
-    )
+    projectPath(resource.destination)
   }
 }
 
-async function handleInstallerUpdate(
-  manifest
-) {
-  const available =
-    String(
-      manifest.installerVersion ||
-      INSTALLER_VERSION
-    )
+async function handleInstallerUpdate(manifest) {
+  const available = String(
+    manifest.installerVersion ||
+    INSTALLER_VERSION
+  )
 
-  const minimum =
-    String(
-      manifest.minimumInstaller ||
-      "0.0.0"
-    )
+  const minimum = String(
+    manifest.minimumInstaller ||
+    "0.0.0"
+  )
 
   const update =
     compareVersions(
@@ -1824,8 +1656,7 @@ async function handleInstallerUpdate(
     return true
   }
 
-  const alert =
-    new Alert()
+  const alert = new Alert()
 
   alert.title = required
     ? "Mise à jour obligatoire"
@@ -1852,18 +1683,12 @@ async function handleInstallerUpdate(
     )
   }
 
-  alert.addCancelAction(
-    "Annuler"
-  )
+  alert.addCancelAction("Annuler")
 
-  const choice =
-    await alert.presentSheet()
+  const choice = await alert.presentSheet()
 
   if (choice === 0) {
-    await updateInstaller(
-      available
-    )
-
+    await updateInstaller(available)
     return false
   }
 
@@ -1873,20 +1698,15 @@ async function handleInstallerUpdate(
   )
 }
 
-async function updateInstaller(
-  version
-) {
-  const content =
-    await downloadText(
-      `${rawUrl(INSTALLER_FILE)}?t=${Date.now()}`,
-      INSTALLER_FILE
-    )
+async function updateInstaller(version) {
+  const content = await downloadText(
+    `${rawUrl(INSTALLER_FILE)}?t=${Date.now()}`,
+    INSTALLER_FILE
+  )
 
-  if (
-    !content.includes(
-      `INSTALLER_VERSION = "${version}"`
-    )
-  ) {
+  if (!content.includes(
+    `INSTALLER_VERSION = "${version}"`
+  )) {
     throw new Error(
       "La version publiée de CTS Installer ne correspond pas au manifeste GitHub."
     )
@@ -1898,8 +1718,7 @@ async function updateInstaller(
   )
 
   if (
-    currentInstaller !==
-    canonicalInstaller
+    currentInstaller !== canonicalInstaller
   ) {
     await writeText(
       currentInstaller,
@@ -1907,8 +1726,7 @@ async function updateInstaller(
     )
   }
 
-  const alert =
-    new Alert()
+  const alert = new Alert()
 
   alert.title =
     "CTS Installer mis à jour"
@@ -1919,19 +1737,16 @@ async function updateInstaller(
     "Relancez CTS Installer pour continuer."
   ].join("\n")
 
-  alert.addAction(
-    "Terminer"
-  )
+  alert.addAction("Terminer")
 
   await alert.present()
 }
 
 async function loadManifest() {
-  const content =
-    await downloadText(
-      `${rawUrl("version.json")}?t=${Date.now()}`,
-      "version.json"
-    )
+  const content = await downloadText(
+    `${rawUrl("version.json")}?t=${Date.now()}`,
+    "version.json"
+  )
 
   try {
     return JSON.parse(content)
@@ -1943,17 +1758,15 @@ async function loadManifest() {
 }
 
 async function verifyRepository() {
-  const content =
-    await downloadText(
-      `${rawUrl("version.json")}?ping=${Date.now()}`,
-      "GitHub"
-    )
+  const content = await downloadText(
+    `${rawUrl("version.json")}?ping=${Date.now()}`,
+    "GitHub"
+  )
 
-  const result =
-    validateText(
-      content,
-      "version.json"
-    )
+  const result = validateText(
+    content,
+    "version.json"
+  )
 
   if (!result.valid) {
     throw new Error(
@@ -1962,10 +1775,7 @@ async function verifyRepository() {
   }
 }
 
-function validateText(
-  content,
-  name
-) {
+function validateText(content, name) {
   if (
     typeof content !== "string" ||
     !content.trim()
@@ -1976,22 +1786,16 @@ function validateText(
     }
   }
 
-  const trimmed =
-    content.trim()
+  const trimmed = content.trim()
 
-  const start =
-    trimmed
-      .slice(0, 160)
-      .toLowerCase()
+  const start = trimmed
+    .slice(0, 160)
+    .toLowerCase()
 
   if (
     trimmed === "404: Not Found" ||
-    start.startsWith(
-      "<!doctype html"
-    ) ||
-    start.startsWith(
-      "<html"
-    )
+    start.startsWith("<!doctype html") ||
+    start.startsWith("<html")
   ) {
     return {
       valid: false,
@@ -2000,12 +1804,9 @@ function validateText(
     }
   }
 
-  if (
-    name.endsWith(".json")
-  ) {
+  if (name.endsWith(".json")) {
     try {
-      const value =
-        JSON.parse(content)
+      const value = JSON.parse(content)
 
       if (
         value === null ||
@@ -2013,8 +1814,7 @@ function validateText(
       ) {
         return {
           valid: false,
-          reason:
-            "racine JSON invalide"
+          reason: "racine JSON invalide"
         }
       }
     } catch (error) {
@@ -2046,10 +1846,7 @@ function validateText(
   }
 }
 
-async function validateLocal(
-  path,
-  name
-) {
+async function validateLocal(path, name) {
   if (!fm.fileExists(path)) {
     return {
       valid: false,
@@ -2058,8 +1855,7 @@ async function validateLocal(
   }
 
   try {
-    const content =
-      await readText(path)
+    const content = await readText(path)
 
     return validateText(
       content,
@@ -2073,12 +1869,8 @@ async function validateLocal(
   }
 }
 
-async function textMatches(
-  path,
-  remote
-) {
-  const local =
-    await readText(path)
+async function textMatches(path, remote) {
+  const local = await readText(path)
 
   return (
     normalize(local) ===
@@ -2109,11 +1901,7 @@ async function writeText(
       content
     )
 
-    if (
-      !fm.fileExists(
-        temporary
-      )
-    ) {
+    if (!fm.fileExists(temporary)) {
       throw new Error(
         "Le fichier temporaire n’a pas été créé."
       )
@@ -2130,19 +1918,13 @@ async function writeText(
 
     await sleep(100)
 
-    if (
-      !fm.fileExists(
-        destination
-      )
-    ) {
+    if (!fm.fileExists(destination)) {
       throw new Error(
         "Le fichier final n’a pas été créé."
       )
     }
 
-    await ensureDownloaded(
-      destination
-    )
+    await ensureDownloaded(destination)
   } catch (error) {
     removeQuietly(temporary)
     throw error
@@ -2150,21 +1932,14 @@ async function writeText(
 }
 
 async function readMetadata() {
-  if (
-    !fm.fileExists(
-      paths.metadata
-    )
-  ) {
+  if (!fm.fileExists(paths.metadata)) {
     return null
   }
 
   try {
-    const value =
-      JSON.parse(
-        await readText(
-          paths.metadata
-        )
-      )
+    const value = JSON.parse(
+      await readText(paths.metadata)
+    )
 
     return isRecord(value)
       ? value
@@ -2180,11 +1955,8 @@ async function writeMetadata(
 ) {
   ensureDirectories()
 
-  const previous =
-    await readMetadata()
-
-  const now =
-    new Date().toISOString()
+  const previous = await readMetadata()
+  const now = new Date().toISOString()
 
   await writeText(
     paths.metadata,
@@ -2197,12 +1969,9 @@ async function writeMetadata(
         installedAt:
           previous?.installedAt ||
           now,
-        updatedAt:
-          now,
-        repository:
-          REPO,
-        files:
-          summary
+        updatedAt: now,
+        repository: REPO,
+        files: summary
       },
       null,
       2
@@ -2211,20 +1980,12 @@ async function writeMetadata(
 }
 
 function ensureDirectories() {
-  for (
-    const path of Object.values(
-      paths
-    )
-  ) {
-    if (
-      path === paths.metadata
-    ) {
+  for (const path of Object.values(paths)) {
+    if (path === paths.metadata) {
       continue
     }
 
-    if (
-      !fm.fileExists(path)
-    ) {
+    if (!fm.fileExists(path)) {
       fm.createDirectory(
         path,
         true
@@ -2234,12 +1995,11 @@ function ensureDirectories() {
 }
 
 function projectPath(relative) {
-  const parts =
-    String(relative || "")
-      .replace(/\\/g, "/")
-      .replace(/^\/+/, "")
-      .split("/")
-      .filter(Boolean)
+  const parts = String(relative || "")
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "")
+    .split("/")
+    .filter(Boolean)
 
   if (
     !parts.length ||
@@ -2259,19 +2019,15 @@ function projectPath(relative) {
 }
 
 function ensureParent(path) {
-  const index =
-    path.lastIndexOf("/")
+  const index = path.lastIndexOf("/")
 
   if (index <= 0) {
     return
   }
 
-  const parent =
-    path.slice(0, index)
+  const parent = path.slice(0, index)
 
-  if (
-    !fm.fileExists(parent)
-  ) {
+  if (!fm.fileExists(parent)) {
     fm.createDirectory(
       parent,
       true
@@ -2279,15 +2035,10 @@ function ensureParent(path) {
   }
 }
 
-async function downloadText(
-  url,
-  label
-) {
-  const request =
-    new Request(url)
+async function downloadText(url, label) {
+  const request = new Request(url)
 
-  request.timeoutInterval =
-    TIMEOUT
+  request.timeoutInterval = TIMEOUT
 
   request.headers = {
     "Cache-Control": "no-cache",
@@ -2298,10 +2049,9 @@ async function downloadText(
     const content =
       await request.loadString()
 
-    const status =
-      Number(
-        request.response?.statusCode
-      )
+    const status = Number(
+      request.response?.statusCode
+    )
 
     if (
       Number.isFinite(status) &&
@@ -2335,20 +2085,12 @@ async function downloadText(
 function rawUrl(name) {
   return [
     "https://raw.githubusercontent.com",
-    encodeURIComponent(
-      REPO.owner
-    ),
-    encodeURIComponent(
-      REPO.name
-    ),
-    encodeURIComponent(
-      REPO.branch
-    ),
+    encodeURIComponent(REPO.owner),
+    encodeURIComponent(REPO.name),
+    encodeURIComponent(REPO.branch),
     String(name)
       .split("/")
-      .map(
-        encodeURIComponent
-      )
+      .map(encodeURIComponent)
       .join("/")
   ].join("/")
 }
@@ -2359,23 +2101,16 @@ async function confirm(
   action,
   destructive = false
 ) {
-  const alert =
-    new Alert()
+  const alert = new Alert()
 
   alert.title = title
   alert.message = message
 
   destructive
-    ? alert.addDestructiveAction(
-        action
-      )
-    : alert.addAction(
-        action
-      )
+    ? alert.addDestructiveAction(action)
+    : alert.addAction(action)
 
-  alert.addCancelAction(
-    "Annuler"
-  )
+  alert.addCancelAction("Annuler")
 
   return (
     await alert.present()
@@ -2383,8 +2118,7 @@ async function confirm(
 }
 
 async function errorAlert(error) {
-  const alert =
-    new Alert()
+  const alert = new Alert()
 
   alert.title =
     "Opération impossible"
@@ -2405,9 +2139,7 @@ async function ensureDownloaded(path) {
     fm.fileExists(path) &&
     !fm.isFileDownloaded(path)
   ) {
-    await fm.downloadFileFromiCloud(
-      path
-    )
+    await fm.downloadFileFromiCloud(path)
   }
 }
 
@@ -2435,21 +2167,14 @@ function normalize(value) {
     .replace(/\r/g, "\n")
 }
 
-function compareVersions(
-  first,
-  second
-) {
-  const a =
-    versionParts(first)
+function compareVersions(first, second) {
+  const a = versionParts(first)
+  const b = versionParts(second)
 
-  const b =
-    versionParts(second)
-
-  const length =
-    Math.max(
-      a.length,
-      b.length
-    )
+  const length = Math.max(
+    a.length,
+    b.length
+  )
 
   for (
     let index = 0;
@@ -2490,17 +2215,13 @@ function isRecord(value) {
   )
 }
 
-function formatDuration(
-  milliseconds
-) {
-  const seconds =
-    Math.max(
-      0,
-      Math.round(
-        milliseconds /
-        1000
-      )
+function formatDuration(milliseconds) {
+  const seconds = Math.max(
+    0,
+    Math.round(
+      milliseconds / 1000
     )
+  )
 
   return seconds < 60
     ? `${seconds} s`
@@ -2517,14 +2238,53 @@ function messageOf(error) {
   )
 }
 
-function sleep(milliseconds) {
-  return new Promise(
-    resolve => {
-      Timer.schedule(
-        milliseconds / 1000,
-        false,
-        resolve
+async function registerAnalyticsInstallation(
+  dashboardVersion
+) {
+  let analytics
+
+  try {
+    analytics = importModule(
+      ANALYTICS_MODULE
+    )
+  } catch (_) {
+    return
+  }
+
+  try {
+    if (analytics.hasClientToken?.()) {
+      return
+    }
+
+    const result =
+      await analytics.registerInstallation({
+        dashboardVersion:
+          String(
+            dashboardVersion || ""
+          ).trim()
+      })
+
+    if (!result?.ok) {
+      console.warn(
+        "[Analytics]",
+        result?.error ||
+        "Installation non enregistrée."
       )
     }
-  )
+  } catch (error) {
+    console.warn(
+      "[Analytics]",
+      messageOf(error)
+    )
+  }
+}
+
+function sleep(milliseconds) {
+  return new Promise(resolve => {
+    Timer.schedule(
+      milliseconds / 1000,
+      false,
+      resolve
+    )
+  })
 }
