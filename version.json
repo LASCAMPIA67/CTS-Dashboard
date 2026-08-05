@@ -1,9 +1,9 @@
 {
   "name": "CTS Dashboard",
-  "version": "1.0.0",
-  "installerVersion": "1.0.0",
-  "minimumInstaller": "1.0.0",
-  "lastUpdate": "2026-08-04",
+  "version": "1.0.1",
+  "installerVersion": "1.0.1",
+  "minimumInstaller": "1.0.1",
+  "lastUpdate": "2026-08-05",
   "author": "Emilio IPPOLITO",
   "matricule": "6124",
   "repository": {
@@ -13,6 +13,7 @@
   },
   "entryPoint": "CTS Dashboard.js",
   "scripts": [
+    "CTS Analytics Client.js",
     "CTS Config.js",
     "CTS Dashboard.js",
     "CTS Database.js",
