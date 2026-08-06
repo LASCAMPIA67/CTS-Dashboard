@@ -8,7 +8,7 @@
     "type": "depot"
   },
   "CRB": {
-    "name": "UPC",
+    "name": "Dépôt Cronenbourg",
     "type": "depot"
   },
   "ELSA": {
@@ -36,7 +36,31 @@
     "type": "relief"
   },
   "RORE": {
-    "name": "Rodolphe Reuss",
+    "name": "Neuhof Rodolphe Reuss",
+    "type": "relief"
+  },
+  "ROMEEE": {
+    "name": "Rome",
+    "type": "relief"
+  },
+  "ESPL_A": {
+    "name": "Esplanade",
+    "type": "relief"
+  },
+  "RORE_A": {
+    "name": "Neuhof Rodolphe Reuss",
+    "type": "relief"
+  },
+  "LOND_B": {
+    "name": "Londres",
+    "type": "relief"
+  },
+  "GAMA_A": {
+    "name": "Gare aux Marchandises",
+    "type": "relief"
+  },
+  "LHPP_G": {
+    "name": "Halles Pont de Paris",
     "type": "relief"
   }
 }
