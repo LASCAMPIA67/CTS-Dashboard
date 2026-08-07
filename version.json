@@ -1,9 +1,9 @@
 {
   "name": "CTS Dashboard",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "installerVersion": "1.0.1",
   "minimumInstaller": "1.0.1",
-  "lastUpdate": "2026-08-06",
+  "lastUpdate": "2026-08-07",
   "author": "Emilio IPPOLITO",
   "matricule": "6124",
   "repository": {
