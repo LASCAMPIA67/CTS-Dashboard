@@ -385,7 +385,6 @@ function normalizeCode(value) {
   return String(value || "")
     .trim()
     .toUpperCase()
-    .split("_")[0]
 }
 
 function normalizeKey(value) {
