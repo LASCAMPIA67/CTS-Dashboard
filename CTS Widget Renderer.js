@@ -3,6 +3,9 @@
 // icon-color: light-gray; icon-glyph: magic;
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
+// icon-color: light-gray; icon-glyph: magic;
+// Variables used by Scriptable.
+// These must be at the very top of the file. Do not edit.
 // icon-color: cyan; icon-glyph: rectangle.3.group;
 
 const UTILS = importModule("CTS Utils")
@@ -216,7 +219,7 @@ function addDepotTimingRow(parent, slice, state, density) {
 function addRouteDetailsRow(parent, slice, state, density) {
   const lineUp = slice.lineUpAt
     ? {
-        label: "MISE EN LIGNE",
+        label: getOperationStartLabel(slice),
         value: slice.lineUpAt,
         monospaced: false
       }
@@ -403,6 +406,7 @@ function addSlicesList(widget, service, state, density) {
 
 function addSliceRow(parent, slice, state, density) {
   const active = isSliceActive(slice, state)
+
   const duration = UTILS.durationMinutes(
     slice.start,
     slice.end
@@ -419,20 +423,33 @@ function addSliceRow(parent, slice, state, density) {
   )
 
   row.cornerRadius = 11
+
   row.backgroundColor = active
     ? accentAlpha(state, 0.085)
     : THEME.translucentWhite(0.018)
 
   row.borderWidth = 0.5
+
   row.borderColor = active
     ? accentAlpha(state, 0.18)
     : THEME.translucentWhite(0.035)
 
-  addSliceNumber(row, slice, active, state, density)
+  addSliceNumber(
+    row,
+    slice,
+    active,
+    state,
+    density
+  )
 
   row.addSpacer(density.itemGap)
 
-  addSliceDetails(row, slice, active, density)
+  addSliceDetails(
+    row,
+    slice,
+    active,
+    density
+  )
 
   row.addSpacer()
 
@@ -446,7 +463,13 @@ function addSliceRow(parent, slice, state, density) {
   )
 }
 
-function addSliceNumber(row, slice, active, state, density) {
+function addSliceNumber(
+  row,
+  slice,
+  active,
+  state,
+  density
+) {
   const badge = row.addStack()
 
   badge.size = new Size(
@@ -454,12 +477,15 @@ function addSliceNumber(row, slice, active, state, density) {
     density.numberSize
   )
 
-  badge.cornerRadius = density.numberSize / 2
+  badge.cornerRadius =
+    density.numberSize / 2
+
   badge.backgroundColor = active
     ? accentAlpha(state, 0.2)
     : THEME.translucentWhite(0.065)
 
   badge.borderWidth = 0.5
+
   badge.borderColor = active
     ? accentAlpha(state, 0.28)
     : THEME.translucentWhite(0.06)
@@ -470,8 +496,12 @@ function addSliceNumber(row, slice, active, state, density) {
   addText(
     badge,
     slice.index,
-    Font.boldSystemFont(density.numberFont),
-    active ? accent(state) : secondary(),
+    Font.boldSystemFont(
+      density.numberFont
+    ),
+    active
+      ? accent(state)
+      : secondary(),
     1,
     1
   )
@@ -479,11 +509,20 @@ function addSliceNumber(row, slice, active, state, density) {
   badge.addSpacer()
 }
 
-function addSliceDetails(row, slice, active, density) {
+function addSliceDetails(
+  row,
+  slice,
+  active,
+  density
+) {
   const details = row.addStack()
 
   details.layoutVertically()
-  details.size = new Size(density.detailsWidth, 0)
+  details.size =
+    new Size(
+      density.detailsWidth,
+      0
+    )
 
   const title =
     `Ligne ${slice.line} · Voiture ${slice.vehicle}`
@@ -501,9 +540,12 @@ function addSliceDetails(row, slice, active, density) {
     1
   )
 
-  details.addSpacer(density.detailGap)
+  details.addSpacer(
+    density.detailGap
+  )
 
-  const route = `${slice.from} → ${slice.to}`
+  const route =
+    `${slice.from} → ${slice.to}`
 
   addText(
     details,
@@ -528,7 +570,11 @@ function addSliceTiming(
   const timing = row.addStack()
 
   timing.layoutVertically()
-  timing.size = new Size(density.timingWidth, 0)
+  timing.size =
+    new Size(
+      density.timingWidth,
+      0
+    )
 
   const range = addText(
     timing,
@@ -545,11 +591,15 @@ function addSliceTiming(
 
   range.rightAlignText()
 
-  timing.addSpacer(density.detailGap)
+  timing.addSpacer(
+    density.detailGap
+  )
 
   const durationText = addText(
     timing,
-    UTILS.formatDuration(duration),
+    UTILS.formatDuration(
+      duration
+    ),
     Font.mediumSystemFont(
       density.durationSize
     ),
@@ -561,7 +611,11 @@ function addSliceTiming(
   durationText.rightAlignText()
 }
 
-function addStatsSummary(widget, stats, density) {
+function addStatsSummary(
+  widget,
+  stats,
+  density
+) {
   const summary = widget.addStack()
   summary.centerAlignContent()
 
@@ -569,7 +623,9 @@ function addStatsSummary(widget, stats, density) {
 
   addStatCard(
     summary,
-    UTILS.formatDuration(stats.work),
+    UTILS.formatDuration(
+      stats.work
+    ),
     "Travail",
     {
       width: density.statWidth,
@@ -577,11 +633,15 @@ function addStatsSummary(widget, stats, density) {
     }
   )
 
-  summary.addSpacer(density.statGap)
+  summary.addSpacer(
+    density.statGap
+  )
 
   addStatCard(
     summary,
-    UTILS.formatDuration(stats.amplitude),
+    UTILS.formatDuration(
+      stats.amplitude
+    ),
     "Amplitude",
     {
       width: density.statWidth,
@@ -600,33 +660,53 @@ function createMediumWidget(context) {
     displaySlice: focus
   } = context
 
-  const widget = THEME.createBaseWidget(state.type)
+  const widget =
+    THEME.createBaseWidget(
+      state.type
+    )
 
-  widget.setPadding(14, 16, 12, 16)
+  widget.setPadding(
+    14,
+    16,
+    12,
+    16
+  )
 
-  addHeader(widget, service, state, {
-    iconSize: 31,
-    symbolSize: 14,
-    titleSize: 18,
-    dateSize: 9,
-    badgeSize: 9,
-    iconGap: 9
-  })
+  addHeader(
+    widget,
+    service,
+    state,
+    {
+      iconSize: 31,
+      symbolSize: 14,
+      titleSize: 18,
+      dateSize: 9,
+      badgeSize: 9,
+      iconGap: 9
+    }
+  )
 
   widget.addSpacer(9)
 
-  const card = addSurface(widget, {
-    padding: [10, 12, 10, 12],
-    radius: 15,
-    backgroundAlpha: 0.055,
-    borderAlpha: 0.08,
-    vertical: true
-  })
+  const card = addSurface(
+    widget,
+    {
+      padding: [10, 12, 10, 12],
+      radius: 15,
+      backgroundAlpha: 0.055,
+      borderAlpha: 0.08,
+      vertical: true
+    }
+  )
 
-  const identity = card.addStack()
+  const identity =
+    card.addStack()
+
   identity.centerAlignContent()
 
-  const serviceInfo = identity.addStack()
+  const serviceInfo =
+    identity.addStack()
+
   serviceInfo.layoutVertically()
 
   addText(
@@ -651,7 +731,9 @@ function createMediumWidget(context) {
 
   identity.addSpacer()
 
-  const timeInfo = identity.addStack()
+  const timeInfo =
+    identity.addStack()
+
   timeInfo.layoutVertically()
 
   const range = addText(
@@ -664,6 +746,7 @@ function createMediumWidget(context) {
   )
 
   range.rightAlignText()
+
   timeInfo.addSpacer(3)
 
   const duration = addText(
@@ -702,7 +785,11 @@ function createMediumWidget(context) {
     0.55
   )
 
-  if (hasDepartureDetails(focus)) {
+  if (
+    hasDepartureDetails(
+      focus
+    )
+  ) {
     card.addSpacer(3)
 
     addDepartureSummary(
@@ -720,7 +807,9 @@ function createMediumWidget(context) {
 
   widget.addSpacer(8)
 
-  const footer = widget.addStack()
+  const footer =
+    widget.addStack()
+
   footer.centerAlignContent()
 
   addText(
@@ -756,11 +845,21 @@ function createSmallWidget(context) {
     displaySlice: focus
   } = context
 
-  const widget = THEME.createBaseWidget(state.type)
+  const widget =
+    THEME.createBaseWidget(
+      state.type
+    )
 
-  widget.setPadding(12, 13, 11, 13)
+  widget.setPadding(
+    12,
+    13,
+    11,
+    13
+  )
 
-  const header = widget.addStack()
+  const header =
+    widget.addStack()
+
   header.centerAlignContent()
 
   addText(
@@ -805,12 +904,16 @@ function createSmallWidget(context) {
 
   widget.addSpacer(7)
 
-  const timingCard = addSurface(widget, {
-    padding: [6, 8, 6, 8],
-    radius: 11,
-    backgroundAlpha: 0.05,
-    borderAlpha: 0.075
-  })
+  const timingCard =
+    addSurface(
+      widget,
+      {
+        padding: [6, 8, 6, 8],
+        radius: 11,
+        backgroundAlpha: 0.05,
+        borderAlpha: 0.075
+      }
+    )
 
   addSmallTime(
     timingCard,
@@ -839,7 +942,11 @@ function createSmallWidget(context) {
 
   widget.addSpacer(7)
 
-  if (hasDepartureDetails(focus)) {
+  if (
+    hasDepartureDetails(
+      focus
+    )
+  ) {
     addDepartureSummary(
       widget,
       focus,
@@ -887,22 +994,61 @@ function hasDepartureDetails(slice) {
   )
 }
 
+function isTramSlice(slice) {
+  const lineCode =
+    String(
+      slice?.lineCode ||
+      ""
+    )
+      .trim()
+
+  return [
+    "80",
+    "81",
+    "82",
+    "83",
+    "84",
+    "85"
+  ].includes(
+    lineCode
+  )
+}
+
+function getOperationStartLabel(slice) {
+  return isTramSlice(slice)
+    ? "DÉBUT EXPLOITATION"
+    : "MISE EN LIGNE"
+}
+
 function buildDepartureSummary(slice) {
   const lines = []
 
-  if (hasDepotTiming(slice)) {
+  if (
+    hasDepotTiming(
+      slice
+    )
+  ) {
     lines.push(
       `Prise ${slice.dutyStart} · Sortie dépôt ${slice.depotExitAt}`
     )
   }
 
-  if (slice?.lineUpAt) {
+  if (
+    slice?.lineUpAt
+  ) {
+    const label =
+      isTramSlice(slice)
+        ? "Début exploitation"
+        : "Mise en ligne"
+
     lines.push(
-      `Mise en ligne : ${slice.lineUpAt}`
+      `${label} : ${slice.lineUpAt}`
     )
   }
 
-  if (slice?.direction) {
+  if (
+    slice?.direction
+  ) {
     lines.push(
       `Direction : ${slice.direction}`
     )
@@ -917,120 +1063,195 @@ function addDepartureSummary(
   state,
   options = {}
 ) {
-  const lines = buildDepartureSummary(slice)
-
-  if (!lines.length) return null
-
-  const container = parent.addStack()
-  container.layoutVertically()
-
-  const baseFontSize = options.fontSize || 9
-
-  lines.forEach((line, index) => {
-    addText(
-      container,
-      line,
-      Font.semiboldSystemFont(
-        adaptiveFontSize(
-          baseFontSize,
-          line,
-          options.softLimit || 40,
-          options.minimumSize ||
-            Math.max(
-              6.5,
-              baseFontSize - 3
-            )
-        )
-      ),
-      accent(state),
-      1,
-      options.scale || 0.48
+  const lines =
+    buildDepartureSummary(
+      slice
     )
 
-    if (index < lines.length - 1) {
-      container.addSpacer(1)
+  if (
+    !lines.length
+  ) {
+    return null
+  }
+
+  const container =
+    parent.addStack()
+
+  container.layoutVertically()
+
+  const baseFontSize =
+    options.fontSize ||
+    9
+
+  lines.forEach(
+    (
+      line,
+      index
+    ) => {
+      addText(
+        container,
+        line,
+        Font.semiboldSystemFont(
+          adaptiveFontSize(
+            baseFontSize,
+            line,
+            options.softLimit ||
+              40,
+            options.minimumSize ||
+              Math.max(
+                6.5,
+                baseFontSize - 3
+              )
+          )
+        ),
+        accent(state),
+        1,
+        options.scale ||
+          0.48
+      )
+
+      if (
+        index <
+        lines.length - 1
+      ) {
+        container.addSpacer(
+          1
+        )
+      }
     }
-  })
+  )
 
   return container
 }
 
-function addSmallTime(parent, label, time, align) {
-  const block = parent.addStack()
+function addSmallTime(
+  parent,
+  label,
+  time,
+  align
+) {
+  const block =
+    parent.addStack()
+
   block.layoutVertically()
 
-  const labelText = addText(
-    block,
-    label,
-    Font.semiboldSystemFont(6.5),
-    secondary(),
-    1,
-    0.85
+  const labelText =
+    addText(
+      block,
+      label,
+      Font.semiboldSystemFont(
+        6.5
+      ),
+      secondary(),
+      1,
+      0.85
+    )
+
+  const timeText =
+    addText(
+      block,
+      time,
+      Font.boldMonospacedSystemFont(
+        14
+      ),
+      THEME.getPrimaryTextColor(),
+      1,
+      0.82
+    )
+
+  alignText(
+    labelText,
+    align
   )
 
-  const timeText = addText(
-    block,
-    time,
-    Font.boldMonospacedSystemFont(14),
-    THEME.getPrimaryTextColor(),
-    1,
-    0.82
+  alignText(
+    timeText,
+    align
   )
-
-  alignText(labelText, align)
-  alignText(timeText, align)
 }
 
-function addHeader(parent, service, state, options) {
-  const header = parent.addStack()
+function addHeader(
+  parent,
+  service,
+  state,
+  options
+) {
+  const header =
+    parent.addStack()
+
   header.centerAlignContent()
 
-  const icon = header.addStack()
+  const icon =
+    header.addStack()
 
-  icon.size = new Size(
-    options.iconSize,
-    options.iconSize
-  )
+  icon.size =
+    new Size(
+      options.iconSize,
+      options.iconSize
+    )
 
-  icon.cornerRadius = options.iconSize / 2
+  icon.cornerRadius =
+    options.iconSize / 2
+
   icon.backgroundColor =
-    THEME.translucentWhite(0.075)
+    THEME.translucentWhite(
+      0.075
+    )
 
-  icon.borderWidth = 0.5
+  icon.borderWidth =
+    0.5
+
   icon.borderColor =
-    THEME.translucentWhite(0.09)
+    THEME.translucentWhite(
+      0.09
+    )
 
   icon.centerAlignContent()
   icon.addSpacer()
 
   addSymbol(
     icon,
-    "bus.fill",
+    getServiceTransportIcon(
+      service
+    ),
     options.symbolSize,
     accent(state)
   )
 
   icon.addSpacer()
-  header.addSpacer(options.iconGap)
 
-  const identity = header.addStack()
+  header.addSpacer(
+    options.iconGap
+  )
+
+  const identity =
+    header.addStack()
+
   identity.layoutVertically()
 
   addText(
     identity,
     service.number,
-    Font.boldSystemFont(options.titleSize),
+    Font.boldSystemFont(
+      options.titleSize
+    ),
     THEME.getPrimaryTextColor(),
     1,
     0.8
   )
 
-  identity.addSpacer(1)
+  identity.addSpacer(
+    1
+  )
 
   addText(
     identity,
-    WIDGET_ENGINE.formatServiceDate(service),
-    Font.mediumSystemFont(options.dateSize),
+    WIDGET_ENGINE.formatServiceDate(
+      service
+    ),
+    Font.mediumSystemFont(
+      options.dateSize
+    ),
     secondary(),
     1,
     0.75
@@ -1045,13 +1266,35 @@ function addHeader(parent, service, state, options) {
   )
 }
 
+function getServiceTransportIcon(service) {
+  const slices =
+    Array.isArray(
+      service?.slices
+    )
+      ? service.slices
+      : []
+
+  const hasTramSlice =
+    slices.some(
+      slice =>
+        isTramSlice(
+          slice
+        )
+    )
+
+  return hasTramSlice
+    ? "tram.fill"
+    : "bus.fill"
+}
+
 function addStatusPill(
   parent,
   state,
   fontSize,
   padding = [5, 8, 5, 8]
 ) {
-  const pill = parent.addStack()
+  const pill =
+    parent.addStack()
 
   pill.setPadding(
     padding[0],
@@ -1060,15 +1303,30 @@ function addStatusPill(
     padding[3]
   )
 
-  pill.cornerRadius = 10
-  pill.backgroundColor = accentAlpha(state, 0.1)
-  pill.borderWidth = 0.5
-  pill.borderColor = accentAlpha(state, 0.22)
+  pill.cornerRadius =
+    10
+
+  pill.backgroundColor =
+    accentAlpha(
+      state,
+      0.1
+    )
+
+  pill.borderWidth =
+    0.5
+
+  pill.borderColor =
+    accentAlpha(
+      state,
+      0.22
+    )
 
   addText(
     pill,
     state.label,
-    Font.semiboldSystemFont(fontSize),
+    Font.semiboldSystemFont(
+      fontSize
+    ),
     accent(state),
     1,
     0.7
@@ -1077,14 +1335,22 @@ function addStatusPill(
   return pill
 }
 
-function addSectionHeader(parent, title, detail) {
-  const row = parent.addStack()
+function addSectionHeader(
+  parent,
+  title,
+  detail
+) {
+  const row =
+    parent.addStack()
+
   row.centerAlignContent()
 
   addText(
     row,
     title,
-    Font.semiboldSystemFont(8),
+    Font.semiboldSystemFont(
+      8
+    ),
     secondary(),
     1,
     0.85
@@ -1095,7 +1361,9 @@ function addSectionHeader(parent, title, detail) {
   addText(
     row,
     detail,
-    Font.mediumSystemFont(8),
+    Font.mediumSystemFont(
+      8
+    ),
     secondary(),
     1,
     0.85
@@ -1103,22 +1371,39 @@ function addSectionHeader(parent, title, detail) {
 }
 
 function addDivider(parent) {
-  const divider = parent.addStack()
+  const divider =
+    parent.addStack()
 
-  divider.size = new Size(0, 1)
+  divider.size =
+    new Size(
+      0,
+      1
+    )
+
   divider.backgroundColor =
-    THEME.translucentWhite(0.07)
+    THEME.translucentWhite(
+      0.07
+    )
 
   divider.addSpacer()
 
   return divider
 }
 
-function addSurface(parent, options = {}) {
-  const stack = parent.addStack()
-  const padding = options.padding || [0, 0, 0, 0]
+function addSurface(
+  parent,
+  options = {}
+) {
+  const stack =
+    parent.addStack()
 
-  if (options.vertical) {
+  const padding =
+    options.padding ||
+    [0, 0, 0, 0]
+
+  if (
+    options.vertical
+  ) {
     stack.layoutVertically()
   }
 
@@ -1129,18 +1414,23 @@ function addSurface(parent, options = {}) {
     padding[3]
   )
 
-  stack.cornerRadius = options.radius ?? 14
+  stack.cornerRadius =
+    options.radius ??
+    14
 
   stack.backgroundColor =
     THEME.translucentWhite(
-      options.backgroundAlpha ?? 0.05
+      options.backgroundAlpha ??
+        0.05
     )
 
-  stack.borderWidth = 0.5
+  stack.borderWidth =
+    0.5
 
   stack.borderColor =
     THEME.translucentWhite(
-      options.borderAlpha ?? 0.07
+      options.borderAlpha ??
+        0.07
     )
 
   return stack
@@ -1152,45 +1442,71 @@ function addStatCard(
   label,
   options = {}
 ) {
-  const card = addSurface(parent, {
-    padding: [0, 7, 0, 7],
-    radius: 12,
-    backgroundAlpha: 0.05,
-    borderAlpha: 0.065,
-    vertical: true
-  })
-
-  if (options.width || options.height) {
-    card.size = new Size(
-      options.width || 0,
-      options.height || 0
+  const card =
+    addSurface(
+      parent,
+      {
+        padding: [
+          0,
+          7,
+          0,
+          7
+        ],
+        radius: 12,
+        backgroundAlpha: 0.05,
+        borderAlpha: 0.065,
+        vertical: true
+      }
     )
+
+  if (
+    options.width ||
+    options.height
+  ) {
+    card.size =
+      new Size(
+        options.width ||
+          0,
+        options.height ||
+          0
+      )
   }
 
   card.centerAlignContent()
   card.addSpacer()
 
-  const valueText = addCenteredText(
-    card,
-    value,
-    Font.boldSystemFont(14),
-    THEME.getPrimaryTextColor(),
-    0.7
+  const valueText =
+    addCenteredText(
+      card,
+      value,
+      Font.boldSystemFont(
+        14
+      ),
+      THEME.getPrimaryTextColor(),
+      0.7
+    )
+
+  valueText.lineLimit =
+    1
+
+  card.addSpacer(
+    1
   )
 
-  valueText.lineLimit = 1
+  const labelText =
+    addCenteredText(
+      card,
+      label,
+      Font.mediumSystemFont(
+        7.5
+      ),
+      secondary(),
+      0.75
+    )
 
-  card.addSpacer(1)
+  labelText.lineLimit =
+    1
 
-  const labelText = addCenteredText(
-    card,
-    label,
-    Font.mediumSystemFont(7.5),
-    secondary(),
-    0.75
-  )
-
-  labelText.lineLimit = 1
   card.addSpacer()
 
   return card
@@ -1203,43 +1519,67 @@ function addCenteredText(
   color,
   scale
 ) {
-  const row = parent.addStack()
+  const row =
+    parent.addStack()
 
   row.centerAlignContent()
   row.addSpacer()
 
-  const text = addText(
-    row,
-    value,
-    font,
-    color,
-    1,
-    scale
-  )
+  const text =
+    addText(
+      row,
+      value,
+      font,
+      color,
+      1,
+      scale
+    )
 
   text.centerAlignText()
+
   row.addSpacer()
 
   return text
 }
 
-function createErrorWidget(title, message) {
-  const widget = new ListWidget()
+function createErrorWidget(
+  title,
+  message
+) {
+  const widget =
+    new ListWidget()
 
   widget.backgroundColor =
     THEME.getErrorBackgroundColor()
 
-  widget.setPadding(18, 18, 18, 18)
+  widget.setPadding(
+    18,
+    18,
+    18,
+    18
+  )
 
-  const header = widget.addStack()
+  const header =
+    widget.addStack()
+
   header.centerAlignContent()
 
-  const icon = header.addStack()
+  const icon =
+    header.addStack()
 
-  icon.size = new Size(34, 34)
-  icon.cornerRadius = 17
+  icon.size =
+    new Size(
+      34,
+      34
+    )
+
+  icon.cornerRadius =
+    17
+
   icon.backgroundColor =
-    THEME.translucentWhite(0.08)
+    THEME.translucentWhite(
+      0.08
+    )
 
   icon.centerAlignContent()
   icon.addSpacer()
@@ -1252,30 +1592,48 @@ function createErrorWidget(title, message) {
   )
 
   icon.addSpacer()
-  header.addSpacer(10)
+
+  header.addSpacer(
+    10
+  )
 
   addText(
     header,
     title,
-    Font.boldSystemFont(17),
+    Font.boldSystemFont(
+      17
+    ),
     THEME.getPrimaryTextColor(),
     1,
     0.75
   )
 
-  widget.addSpacer(10)
+  widget.addSpacer(
+    10
+  )
 
-  const card = addSurface(widget, {
-    padding: [11, 12, 11, 12],
-    radius: 14,
-    backgroundAlpha: 0.05,
-    borderAlpha: 0.07
-  })
+  const card =
+    addSurface(
+      widget,
+      {
+        padding: [
+          11,
+          12,
+          11,
+          12
+        ],
+        radius: 14,
+        backgroundAlpha: 0.05,
+        borderAlpha: 0.07
+      }
+    )
 
   addText(
     card,
     message,
-    Font.mediumSystemFont(11),
+    Font.mediumSystemFont(
+      11
+    ),
     secondary(),
     4,
     0.65
@@ -1284,17 +1642,40 @@ function createErrorWidget(title, message) {
   return widget
 }
 
-function addSymbol(parent, name, size, color) {
-  const symbol = SFSymbol.named(name)
+function addSymbol(
+  parent,
+  name,
+  size,
+  color
+) {
+  const symbol =
+    SFSymbol.named(
+      name
+    )
 
-  if (!symbol) return null
+  if (!symbol) {
+    return null
+  }
 
-  symbol.applyFont(Font.systemFont(size))
+  symbol.applyFont(
+    Font.systemFont(
+      size
+    )
+  )
 
-  const image = parent.addImage(symbol.image)
+  const image =
+    parent.addImage(
+      symbol.image
+    )
 
-  image.imageSize = new Size(size, size)
-  image.tintColor = color
+  image.imageSize =
+    new Size(
+      size,
+      size
+    )
+
+  image.tintColor =
+    color
 
   return image
 }
@@ -1307,45 +1688,77 @@ function addText(
   lines = 1,
   scale = 0.5
 ) {
-  const element = parent.addText(
-    String(value ?? "")
-  )
+  const element =
+    parent.addText(
+      String(
+        value ??
+        ""
+      )
+    )
 
-  element.font = font
-  element.textColor = color
-  element.lineLimit = lines
-  element.minimumScaleFactor = scale
+  element.font =
+    font
+
+  element.textColor =
+    color
+
+  element.lineLimit =
+    lines
+
+  element.minimumScaleFactor =
+    scale
 
   return element
 }
 
-function alignText(text, alignment) {
-  if (alignment === "right") {
+function alignText(
+  text,
+  alignment
+) {
+  if (
+    alignment ===
+    "right"
+  ) {
     text.rightAlignText()
-  } else if (alignment === "center") {
+  } else if (
+    alignment ===
+    "center"
+  ) {
     text.centerAlignText()
   } else {
     text.leftAlignText()
   }
 }
 
-function isSliceActive(slice, state) {
+function isSliceActive(
+  slice,
+  state
+) {
   return Boolean(
-    state.current?.index === slice.index ||
+    state.current?.index ===
+      slice.index ||
     (
       !state.current &&
-      state.next?.index === slice.index
+      state.next?.index ===
+        slice.index
     )
   )
 }
 
 function accent(state) {
-  return THEME.getAccentColor(state.type)
+  return THEME.getAccentColor(
+    state.type
+  )
 }
 
-function accentAlpha(state, alpha) {
+function accentAlpha(
+  state,
+  alpha
+) {
   return new Color(
-    THEME.getAccentHex(state.type),
+    THEME.getAccentHex(
+      state.type
+    ),
     alpha
   )
 }
@@ -1355,47 +1768,79 @@ function secondary() {
 }
 
 function normalizeFamily(value) {
-  const family = String(value || "")
-    .trim()
-    .toLowerCase()
+  const family =
+    String(
+      value ||
+      ""
+    )
+      .trim()
+      .toLowerCase()
 
-  return VALID_FAMILIES.includes(family)
+  return VALID_FAMILIES.includes(
+    family
+  )
     ? family
     : "large"
 }
 
 function getLargeDensity(slices) {
-  const list = Array.isArray(slices)
-    ? slices
-    : []
+  const list =
+    Array.isArray(
+      slices
+    )
+      ? slices
+      : []
 
-  const sliceCount = Math.max(1, list.length)
+  const sliceCount =
+    Math.max(
+      1,
+      list.length
+    )
 
-  const longestTitle = list.reduce(
-    (length, slice) =>
-      Math.max(
+  const longestTitle =
+    list.reduce(
+      (
         length,
-        `Ligne ${slice?.line || "?"} · Voiture ${
-          slice?.vehicle || ""
-        }`.length
-      ),
-    0
-  )
+        slice
+      ) =>
+        Math.max(
+          length,
+          `Ligne ${
+            slice?.line ||
+            "?"
+          } · Voiture ${
+            slice?.vehicle ||
+            ""
+          }`.length
+        ),
+      0
+    )
 
-  const longestRoute = list.reduce(
-    (length, slice) =>
-      Math.max(
+  const longestRoute =
+    list.reduce(
+      (
         length,
-        `${slice?.from || ""} → ${
-          slice?.to || ""
-        }`.length
-      ),
-    0
-  )
+        slice
+      ) =>
+        Math.max(
+          length,
+          `${
+            slice?.from ||
+            ""
+          } → ${
+            slice?.to ||
+            ""
+          }`.length
+        ),
+      0
+    )
 
   let density
 
-  if (sliceCount >= 5) {
+  if (
+    sliceCount >=
+    5
+  ) {
     density = {
       sectionGap: 5,
       timingPadding: 6,
@@ -1430,7 +1875,10 @@ function getLargeDensity(slices) {
       statHeight: 38,
       statGap: 8
     }
-  } else if (sliceCount >= 3) {
+  } else if (
+    sliceCount >=
+    3
+  ) {
     density = {
       sectionGap: 6,
       timingPadding: 7,
@@ -1505,7 +1953,9 @@ function getLargeDensity(slices) {
   density.sliceTitleResolvedSize =
     adaptiveFontSize(
       density.sliceTitleSize,
-      "X".repeat(longestTitle),
+      "X".repeat(
+        longestTitle
+      ),
       Math.min(
         density.titleSoftLimit,
         20
@@ -1516,7 +1966,9 @@ function getLargeDensity(slices) {
   density.sliceDetailResolvedSize =
     adaptiveFontSize(
       density.sliceDetailSize,
-      "X".repeat(longestRoute),
+      "X".repeat(
+        longestRoute
+      ),
       Math.min(
         density.routeSoftLimit,
         28
@@ -1533,54 +1985,85 @@ function adaptiveFontSize(
   softLimit,
   minimumSize
 ) {
-  const safeBaseSize = Math.max(
-    1,
-    Number(baseSize) || 1
-  )
-
-  const safeMinimumSize = Math.min(
-    safeBaseSize,
+  const safeBaseSize =
     Math.max(
       1,
-      Number(minimumSize) ||
-        safeBaseSize * 0.7
+      Number(
+        baseSize
+      ) ||
+        1
     )
-  )
 
-  const length = String(
-    value ?? ""
-  ).trim().length
+  const safeMinimumSize =
+    Math.min(
+      safeBaseSize,
+      Math.max(
+        1,
+        Number(
+          minimumSize
+        ) ||
+          safeBaseSize *
+            0.7
+      )
+    )
 
-  const limit = Math.max(
-    1,
-    Number(softLimit) || 1
-  )
+  const length =
+    String(
+      value ??
+      ""
+    )
+      .trim()
+      .length
 
-  if (length <= limit) {
+  const limit =
+    Math.max(
+      1,
+      Number(
+        softLimit
+      ) ||
+        1
+    )
+
+  if (
+    length <=
+    limit
+  ) {
     return safeBaseSize
   }
 
-  const ratio = Math.max(
-    0.68,
-    limit / length
-  )
+  const ratio =
+    Math.max(
+      0.68,
+      limit /
+        length
+    )
 
-  const resolved = Math.max(
-    safeMinimumSize,
-    safeBaseSize * ratio
-  )
+  const resolved =
+    Math.max(
+      safeMinimumSize,
+      safeBaseSize *
+        ratio
+    )
 
-  return Math.round(resolved * 2) / 2
+  return (
+    Math.round(
+      resolved *
+        2
+    ) /
+    2
+  )
 }
 
 function validateContext(context) {
   if (
     !context ||
-    typeof context !== "object"
+    typeof context !==
+      "object"
   ) {
     return {
       valid: false,
-      error: "Le contexte du widget est absent."
+      error:
+        "Le contexte du widget est absent."
     }
   }
 
@@ -1598,7 +2081,9 @@ function validateContext(context) {
   }
 
   if (
-    !Array.isArray(context.service.slices) ||
+    !Array.isArray(
+      context.service.slices
+    ) ||
     !context.service.slices.length
   ) {
     return {
