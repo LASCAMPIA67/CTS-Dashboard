@@ -16,7 +16,7 @@ const {
   ensureDirectories
 } = CONFIG
 
-const RESOURCES_VERSION = 1
+const RESOURCES_VERSION = 2
 
 const DATABASES = {
   lines: {
@@ -37,6 +37,9 @@ const DATABASES = {
       },
       "40": {
         "name": "40"
+      },
+      "70": {
+        "name": "70"
       },
       "90": {
         "name": "G"
@@ -127,7 +130,10 @@ const DATABASES = {
         "name": "Lycée Couffignal"
       },
       "NEUHOF RODOLPHE REUSS": {
-        "name": "Rodolphe Reuss"
+        "name": "Neuhof Rodolphe Reuss",
+        "aliases": [
+          "RODOLPHE REUSS"
+        ]
       },
       "CITE MEINAU": {
         "name": "Cité Meinau"
@@ -160,11 +166,157 @@ const DATABASES = {
           "ILLKIRCH MAIRIE MONTEE"
         ]
       },
+      "ROME": {
+        "name": "Rome"
+      },
+      "ESPLANADE": {
+        "name": "Esplanade",
+        "aliases": [
+          "ESPLANADE DESCENTE"
+        ]
+      },
+      "LONDRES": {
+        "name": "Londres"
+      },
+      "IUT PASTEUR": {
+        "name": "IUT Pasteur"
+      },
+      "PARC DES SPORTS": {
+        "name": "Parc des Sports"
+      },
+      "BUGATTI": {
+        "name": "Bugatti"
+      },
+      "POTERIES": {
+        "name": "Poteries"
+      },
+      "OCTROI": {
+        "name": "Octroi"
+      },
+      "BOEUF ROUGE": {
+        "name": "Bœuf Rouge"
+      },
+      "WOLFISHEIM STADE TERMINI": {
+        "name": "Wolfisheim Stade",
+        "aliases": [
+          "WOLFISHEIM STADE",
+          "WOLFISHEIM STADE TERMINUS"
+        ]
+      },
+      "ROBERTSAU RENAISSANCE": {
+        "name": "Robertsau Renaissance"
+      },
+      "PONT PHARIO": {
+        "name": "Pont Phario"
+      },
+      "MAIRES SCHAUB": {
+        "name": "Maires Schaub"
+      },
+      "BISCHHEIM GARE": {
+        "name": "Bischheim Gare"
+      },
+      "CHAMBRE DE METIERS": {
+        "name": "Chambre de Métiers",
+        "aliases": [
+          "CHAMBRE DE METIERS ARRIVEE",
+          "CHAMBRE DE METIERS ARRI"
+        ]
+      },
+      "HOENHEIM BATTEMENT": {
+        "name": "Hœnheim Battement"
+      },
+      "HOENHEIM GARE": {
+        "name": "Hœnheim Gare"
+      },
+      "DAUPHINE": {
+        "name": "Dauphine"
+      },
+      "FORT DESAIX": {
+        "name": "Fort Desaix"
+      },
+      "VICTOR HUGO": {
+        "name": "Victor Hugo"
+      },
+      "POINCARE": {
+        "name": "Poincaré"
+      },
+      "SAINTE HELENE": {
+        "name": "Sainte-Hélène"
+      },
+      "WILSON": {
+        "name": "Wilson"
+      },
+      "HALLES PONT DE PARIS": {
+        "name": "Halles Pont de Paris"
+      },
+      "REPUBLIQUE": {
+        "name": "République"
+      },
+      "ORANGERIE": {
+        "name": "Orangerie"
+      },
+      "ROBERTSAU EGLISE": {
+        "name": "Robertsau Église"
+      },
+      "CITE DE L'ILL": {
+        "name": "Cité de l’Ill"
+      },
+      "GARE AUX MARCHANDISES": {
+        "name": "Gare aux Marchandises"
+      },
+      "PORTE BLANCHE": {
+        "name": "Porte Blanche"
+      },
+      "LAITERIE": {
+        "name": "Laiterie"
+      },
+      "HOPITAL CIVIL": {
+        "name": "Hôpital Civil"
+      },
+      "ETOILE BOURSE": {
+        "name": "Étoile Bourse"
+      },
+      "WINSTON CHURCHILL": {
+        "name": "Winston Churchill"
+      },
+      "DANUBE LE VAISSEAU": {
+        "name": "Danube Le Vaisseau"
+      },
+      "ROTTERDAM": {
+        "name": "Rotterdam"
+      },
+      "RIETH": {
+        "name": "Rieth"
+      },
+      "ARAGO": {
+        "name": "Arago"
+      },
+      "ESPACE EUROPEEN DE L'ENT": {
+        "name": "Espace Européen de l’Entreprise",
+        "aliases": [
+          "ESPACE EUROPEEN DE L'ENTREPRISE"
+        ]
+      },
+      "PLACE DE PIERRE": {
+        "name": "Place de Pierre"
+      },
+      "BARR": {
+        "name": "Barr"
+      },
+      "MAISON ROUGE": {
+        "name": "Maison Rouge"
+      },
+      "PARC WODLI": {
+        "name": "Parc Wodli"
+      },
       "DEPOT ELSAU": {
         "name": "Dépôt Elsau"
       },
       "DEPOT KIBITZENAU": {
         "name": "Dépôt Kibitzenau"
+      },
+      "DEPOT CRONENBOURG": {
+        "name": "Dépôt Cronenbourg"
       }
     }
   },
@@ -182,7 +334,7 @@ const DATABASES = {
         "type": "depot"
       },
       "CRB": {
-        "name": "UPC",
+        "name": "Dépôt Cronenbourg",
         "type": "depot"
       },
       "ELSA": {
@@ -210,7 +362,31 @@ const DATABASES = {
         "type": "relief"
       },
       "RORE": {
-        "name": "Rodolphe Reuss",
+        "name": "Neuhof Rodolphe Reuss",
+        "type": "relief"
+      },
+      "ROMEEE": {
+        "name": "Rome",
+        "type": "relief"
+      },
+      "ESPL_A": {
+        "name": "Esplanade",
+        "type": "relief"
+      },
+      "RORE_A": {
+        "name": "Neuhof Rodolphe Reuss",
+        "type": "relief"
+      },
+      "LOND_B": {
+        "name": "Londres",
+        "type": "relief"
+      },
+      "GAMA_A": {
+        "name": "Gare aux Marchandises",
+        "type": "relief"
+      },
+      "LHPP_G": {
+        "name": "Halles Pont de Paris",
         "type": "relief"
       }
     }
