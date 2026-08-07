@@ -15,11 +15,27 @@
     "name": "Elsau",
     "type": "relief"
   },
+  "ELSA_1": {
+    "name": "Elsau",
+    "type": "relief"
+  },
+  "ELSA_2": {
+    "name": "Elsau",
+    "type": "relief"
+  },
   "ELME": {
     "name": "Elmerforst",
     "type": "relief"
   },
+  "ELME_A": {
+    "name": "Elmerforst",
+    "type": "relief"
+  },
   "MOVE": {
+    "name": "Montagne Verte",
+    "type": "relief"
+  },
+  "MOVE_A": {
     "name": "Montagne Verte",
     "type": "relief"
   },
@@ -35,7 +51,15 @@
     "name": "Hohberg",
     "type": "relief"
   },
+  "HOHB_A": {
+    "name": "Hohberg",
+    "type": "relief"
+  },
   "RORE": {
+    "name": "Neuhof Rodolphe Reuss",
+    "type": "relief"
+  },
+  "RORE_A": {
     "name": "Neuhof Rodolphe Reuss",
     "type": "relief"
   },
@@ -47,8 +71,28 @@
     "name": "Esplanade",
     "type": "relief"
   },
-  "RORE_A": {
-    "name": "Neuhof Rodolphe Reuss",
+  "ESPL_1": {
+    "name": "Esplanade",
+    "type": "relief"
+  },
+  "ESPL_2": {
+    "name": "Esplanade",
+    "type": "relief"
+  },
+  "OBSE_1": {
+    "name": "Observatoire",
+    "type": "relief"
+  },
+  "ROTO_1": {
+    "name": "Rotonde",
+    "type": "relief"
+  },
+  "ROTO_2": {
+    "name": "Rotonde",
+    "type": "relief"
+  },
+  "FANA_1": {
+    "name": "Faubourg National",
     "type": "relief"
   },
   "LOND_B": {
