@@ -3,6 +3,9 @@
 // icon-color: yellow; icon-glyph: magic;
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
+// icon-color: yellow; icon-glyph: magic;
+// Variables used by Scriptable.
+// These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: shippingbox.fill;
 
 // CTS Resources.js
@@ -16,7 +19,7 @@ const {
   ensureDirectories
 } = CONFIG
 
-const RESOURCES_VERSION = 2
+const RESOURCES_VERSION = 3
 
 const DATABASES = {
   lines: {
@@ -40,6 +43,24 @@ const DATABASES = {
       },
       "70": {
         "name": "70"
+      },
+      "80": {
+        "name": "A"
+      },
+      "81": {
+        "name": "B"
+      },
+      "82": {
+        "name": "C"
+      },
+      "83": {
+        "name": "D"
+      },
+      "84": {
+        "name": "E"
+      },
+      "85": {
+        "name": "F"
       },
       "90": {
         "name": "G"
@@ -110,6 +131,9 @@ const DATABASES = {
       },
       "ELSAU": {
         "name": "Elsau"
+      },
+      "ELSAU CO V2": {
+        "name": "Elsau Co V2"
       },
       "PARLEMENT EUROPEEN": {
         "name": "Parlement Européen"
@@ -219,6 +243,7 @@ const DATABASES = {
         "name": "Chambre de Métiers",
         "aliases": [
           "CHAMBRE DE METIERS ARRIVEE",
+          "CHAMBRE DE METIERS ARRIVEE/DEPART",
           "CHAMBRE DE METIERS ARRI"
         ]
       },
@@ -227,6 +252,9 @@ const DATABASES = {
       },
       "HOENHEIM GARE": {
         "name": "Hœnheim Gare"
+      },
+      "HOENHEIM GARE TIROIR": {
+        "name": "Hœnheim Gare Tiroir"
       },
       "DAUPHINE": {
         "name": "Dauphine"
@@ -247,7 +275,10 @@ const DATABASES = {
         "name": "Wilson"
       },
       "HALLES PONT DE PARIS": {
-        "name": "Halles Pont de Paris"
+        "name": "Halles Pont de Paris",
+        "aliases": [
+          "LES HALLES PONT DE PARIS"
+        ]
       },
       "REPUBLIQUE": {
         "name": "République"
@@ -317,6 +348,123 @@ const DATABASES = {
       },
       "DEPOT CRONENBOURG": {
         "name": "Dépôt Cronenbourg"
+      },
+      "ROTONDE": {
+        "name": "Rotonde"
+      },
+      "ROTONDE TIROIR ARRIVEE": {
+        "name": "Rotonde Tiroir"
+      },
+      "ROTONDE TIROIR DEPART": {
+        "name": "Rotonde Tiroir"
+      },
+      "DANTE": {
+        "name": "Dante"
+      },
+      "HOMME DE FER": {
+        "name": "Homme de Fer"
+      },
+      "HOMME DE FER Q1 ARRIVEE": {
+        "name": "Homme de Fer Q1"
+      },
+      "HOMME DE FER Q2 ARRIVEE": {
+        "name": "Homme de Fer Q2"
+      },
+      "HOMME DE FER V.1 ARRIVEE": {
+        "name": "Homme de Fer V1"
+      },
+      "HOMME DE FER V.2 ARRIVEE": {
+        "name": "Homme de Fer V2"
+      },
+      "ETOILE POLYGONE": {
+        "name": "Étoile Polygone"
+      },
+      "LANDSBERG": {
+        "name": "Landsberg"
+      },
+      "JEAN JAURES": {
+        "name": "Jean Jaurès"
+      },
+      "ARISTIDE BRIAND": {
+        "name": "Aristide Briand"
+      },
+      "PORT DU RHIN": {
+        "name": "Port du Rhin"
+      },
+      "KEHL BAHNHOF": {
+        "name": "Kehl Bahnhof"
+      },
+      "HOCHSCHULE / LAGER": {
+        "name": "Hochschule / Lager"
+      },
+      "KEHL RATHAUS": {
+        "name": "Kehl Rathaus"
+      },
+      "KRIMMERI - ST. MEINAU": {
+        "name": "Krimmeri - St. Meinau"
+      },
+      "KRIMMERI - ST. MEINAU Q1 ARRIVEE": {
+        "name": "Krimmeri - St. Meinau Q1"
+      },
+      "KRIMMERI - ST. MEINAU Q2 ARRIVEE": {
+        "name": "Krimmeri - St. Meinau Q2"
+      },
+      "CAMPUS D'ILLKIRCH": {
+        "name": "Campus d’Illkirch"
+      },
+      "TIOIR CAMPUS ILLKIRCH DEPART": {
+        "name": "Tiroir Campus d’Illkirch"
+      },
+      "ILLKIRCH LIXENBUHL": {
+        "name": "Illkirch Lixenbuhl"
+      },
+      "PARC MALRAUX": {
+        "name": "Parc Malraux"
+      },
+      "COURS DE L'ILLIADE": {
+        "name": "Cours de l’Illiade"
+      },
+      "ILLKIRCH GRAFFENSTADEN": {
+        "name": "Illkirch Graffenstaden"
+      },
+      "OBSERVATOIRE": {
+        "name": "Observatoire"
+      },
+      "WACKEN": {
+        "name": "Wacken"
+      },
+      "BOECKLIN": {
+        "name": "Boecklin"
+      },
+      "ROBERTSAU L'ESCALE": {
+        "name": "Robertsau l’Escale"
+      },
+      "GRAVIERE": {
+        "name": "Gravière"
+      },
+      "BROGLIE": {
+        "name": "Broglie"
+      },
+      "FAUBOURG NATIONAL": {
+        "name": "Faubourg National"
+      },
+      "PARC DES ROMAINS": {
+        "name": "Parc des Romains"
+      },
+      "COMTES": {
+        "name": "Comtes"
+      },
+      "GRUBER": {
+        "name": "Gruber"
+      },
+      "WOLFISHEIM HENRI RENDU": {
+        "name": "Wolfisheim Henri Rendu"
+      },
+      "MARTIN SCHONGAUER": {
+        "name": "Martin Schongauer"
+      },
+      "LINGOLSHEIM TIERGAERTEL": {
+        "name": "Lingolsheim Tiergaertel"
       }
     }
   },
@@ -334,10 +482,18 @@ const DATABASES = {
         "type": "depot"
       },
       "CRB": {
-        "name": "Dépôt Cronenbourg",
+        "name": "UPC",
         "type": "depot"
       },
       "ELSA": {
+        "name": "Elsau",
+        "type": "relief"
+      },
+      "ELSA_1": {
+        "name": "Elsau",
+        "type": "relief"
+      },
+      "ELSA_2": {
         "name": "Elsau",
         "type": "relief"
       },
@@ -345,7 +501,15 @@ const DATABASES = {
         "name": "Elmerforst",
         "type": "relief"
       },
+      "ELME_A": {
+        "name": "Elmerforst",
+        "type": "relief"
+      },
       "MOVE": {
+        "name": "Montagne Verte",
+        "type": "relief"
+      },
+      "MOVE_A": {
         "name": "Montagne Verte",
         "type": "relief"
       },
@@ -361,7 +525,15 @@ const DATABASES = {
         "name": "Hohberg",
         "type": "relief"
       },
+      "HOHB_A": {
+        "name": "Hohberg",
+        "type": "relief"
+      },
       "RORE": {
+        "name": "Neuhof Rodolphe Reuss",
+        "type": "relief"
+      },
+      "RORE_A": {
         "name": "Neuhof Rodolphe Reuss",
         "type": "relief"
       },
@@ -373,8 +545,28 @@ const DATABASES = {
         "name": "Esplanade",
         "type": "relief"
       },
-      "RORE_A": {
-        "name": "Neuhof Rodolphe Reuss",
+      "ESPL_1": {
+        "name": "Esplanade",
+        "type": "relief"
+      },
+      "ESPL_2": {
+        "name": "Esplanade",
+        "type": "relief"
+      },
+      "OBSE_1": {
+        "name": "Observatoire",
+        "type": "relief"
+      },
+      "ROTO_1": {
+        "name": "Rotonde",
+        "type": "relief"
+      },
+      "ROTO_2": {
+        "name": "Rotonde",
+        "type": "relief"
+      },
+      "FANA_1": {
+        "name": "Faubourg National",
         "type": "relief"
       },
       "LOND_B": {
