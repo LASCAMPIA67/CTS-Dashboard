@@ -29,6 +29,9 @@
   "ELSAU": {
     "name": "Elsau"
   },
+  "ELSAU CO V2": {
+    "name": "Elsau Co V2"
+  },
   "PARLEMENT EUROPEEN": {
     "name": "Parlement Européen"
   },
@@ -137,6 +140,7 @@
     "name": "Chambre de Métiers",
     "aliases": [
       "CHAMBRE DE METIERS ARRIVEE",
+      "CHAMBRE DE METIERS ARRIVEE/DEPART",
       "CHAMBRE DE METIERS ARRI"
     ]
   },
@@ -145,6 +149,9 @@
   },
   "HOENHEIM GARE": {
     "name": "Hœnheim Gare"
+  },
+  "HOENHEIM GARE TIROIR": {
+    "name": "Hœnheim Gare Tiroir"
   },
   "DAUPHINE": {
     "name": "Dauphine"
@@ -165,7 +172,10 @@
     "name": "Wilson"
   },
   "HALLES PONT DE PARIS": {
-    "name": "Halles Pont de Paris"
+    "name": "Halles Pont de Paris",
+    "aliases": [
+      "LES HALLES PONT DE PARIS"
+    ]
   },
   "REPUBLIQUE": {
     "name": "République"
@@ -235,5 +245,122 @@
   },
   "DEPOT CRONENBOURG": {
     "name": "Dépôt Cronenbourg"
+  },
+  "ROTONDE": {
+    "name": "Rotonde"
+  },
+  "ROTONDE TIROIR ARRIVEE": {
+    "name": "Rotonde Tiroir"
+  },
+  "ROTONDE TIROIR DEPART": {
+    "name": "Rotonde Tiroir"
+  },
+  "DANTE": {
+    "name": "Dante"
+  },
+  "HOMME DE FER": {
+    "name": "Homme de Fer"
+  },
+  "HOMME DE FER Q1 ARRIVEE": {
+    "name": "Homme de Fer Q1"
+  },
+  "HOMME DE FER Q2 ARRIVEE": {
+    "name": "Homme de Fer Q2"
+  },
+  "HOMME DE FER V.1 ARRIVEE": {
+    "name": "Homme de Fer V1"
+  },
+  "HOMME DE FER V.2 ARRIVEE": {
+    "name": "Homme de Fer V2"
+  },
+  "ETOILE POLYGONE": {
+    "name": "Étoile Polygone"
+  },
+  "LANDSBERG": {
+    "name": "Landsberg"
+  },
+  "JEAN JAURES": {
+    "name": "Jean Jaurès"
+  },
+  "ARISTIDE BRIAND": {
+    "name": "Aristide Briand"
+  },
+  "PORT DU RHIN": {
+    "name": "Port du Rhin"
+  },
+  "KEHL BAHNHOF": {
+    "name": "Kehl Bahnhof"
+  },
+  "HOCHSCHULE / LAGER": {
+    "name": "Hochschule / Lager"
+  },
+  "KEHL RATHAUS": {
+    "name": "Kehl Rathaus"
+  },
+  "KRIMMERI - ST. MEINAU": {
+    "name": "Krimmeri - St. Meinau"
+  },
+  "KRIMMERI - ST. MEINAU Q1 ARRIVEE": {
+    "name": "Krimmeri - St. Meinau Q1"
+  },
+  "KRIMMERI - ST. MEINAU Q2 ARRIVEE": {
+    "name": "Krimmeri - St. Meinau Q2"
+  },
+  "CAMPUS D'ILLKIRCH": {
+    "name": "Campus d’Illkirch"
+  },
+  "TIOIR CAMPUS ILLKIRCH DEPART": {
+    "name": "Tiroir Campus d’Illkirch"
+  },
+  "ILLKIRCH LIXENBUHL": {
+    "name": "Illkirch Lixenbuhl"
+  },
+  "PARC MALRAUX": {
+    "name": "Parc Malraux"
+  },
+  "COURS DE L'ILLIADE": {
+    "name": "Cours de l’Illiade"
+  },
+  "ILLKIRCH GRAFFENSTADEN": {
+    "name": "Illkirch Graffenstaden"
+  },
+  "OBSERVATOIRE": {
+    "name": "Observatoire"
+  },
+  "WACKEN": {
+    "name": "Wacken"
+  },
+  "BOECKLIN": {
+    "name": "Boecklin"
+  },
+  "ROBERTSAU L'ESCALE": {
+    "name": "Robertsau l’Escale"
+  },
+  "GRAVIERE": {
+    "name": "Gravière"
+  },
+  "BROGLIE": {
+    "name": "Broglie"
+  },
+  "FAUBOURG NATIONAL": {
+    "name": "Faubourg National"
+  },
+  "PARC DES ROMAINS": {
+    "name": "Parc des Romains"
+  },
+  "COMTES": {
+    "name": "Comtes"
+  },
+  "GRUBER": {
+    "name": "Gruber"
+  },
+  "WOLFISHEIM HENRI RENDU": {
+    "name": "Wolfisheim Henri Rendu"
+  },
+  "MARTIN SCHONGAUER": {
+    "name": "Martin Schongauer"
+  },
+  "LINGOLSHEIM TIERGAERTEL": {
+    "name": "Lingolsheim Tiergaertel"
   }
 }
