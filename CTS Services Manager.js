@@ -66,11 +66,14 @@ async function scanServices(
     return {
       success: true,
       status: "locked",
+      detected: 0,
       scanned: 0,
       candidates: 0,
       processed: 0,
       imported: [],
       failed: [],
+      knownFailures: [],
+      detectionErrors: [],
       remaining: 0
     }
   }
@@ -95,8 +98,14 @@ async function performScan(
   const state =
     await loadScanState()
 
+  const listing =
+    await inspectServicesDirectory()
+
   const servicePdfs =
-    await listServicePdfs()
+    listing.files
+
+  const detectionErrors =
+    listing.detectionErrors
 
   const now =
     new Date()
@@ -165,6 +174,13 @@ async function performScan(
     )
   }
 
+  const knownFailures =
+    collectKnownFailures(
+      servicePdfs,
+      state,
+      failed
+    )
+
   state.updatedAt =
     new Date().toISOString()
 
@@ -172,8 +188,14 @@ async function performScan(
     scannedAt:
       state.updatedAt,
 
+    detectedPdfCount:
+      listing.detected,
+
     pdfCount:
       servicePdfs.length,
+
+    detectionErrorCount:
+      detectionErrors.length,
 
     candidateCount:
       candidates.length,
@@ -185,7 +207,8 @@ async function performScan(
       imported.length,
 
     failedCount:
-      failed.length
+      failed.length +
+      detectionErrors.length
   }
 
   await saveScanState(
@@ -194,12 +217,18 @@ async function performScan(
 
   return {
     success:
-      failed.length === 0,
+      failed.length === 0 &&
+      detectionErrors.length === 0,
 
     status:
       selectedCandidates.length
         ? "processed"
-        : "idle",
+        : detectionErrors.length
+          ? "detection-error"
+          : "idle",
+
+    detected:
+      listing.detected,
 
     scanned:
       servicePdfs.length,
@@ -213,6 +242,10 @@ async function performScan(
     imported,
 
     failed,
+
+    knownFailures,
+
+    detectionErrors,
 
     remaining:
       Math.max(
@@ -276,6 +309,13 @@ async function importCandidate(
 // =====================================================
 
 async function listServicePdfs() {
+  const listing =
+    await inspectServicesDirectory()
+
+  return listing.files
+}
+
+async function inspectServicesDirectory() {
   CONFIG.ensureDirectories()
 
   const fileNames =
@@ -284,21 +324,66 @@ async function listServicePdfs() {
     )
 
   const pdfFiles = []
+  const detectionErrors = []
+
+  let detected = 0
 
   for (
     const fileName
     of fileNames
   ) {
+    if (!isPdfFileName(fileName)) {
+      continue
+    }
+
     const path =
       fm.joinPath(
         paths.services,
         fileName
       )
 
-    if (
-      fm.isDirectory(path) ||
-      !isPdfFileName(fileName)
-    ) {
+    detected++
+
+    let isDirectory = false
+
+    try {
+      isDirectory =
+        fm.isDirectory(path)
+    } catch (error) {
+      const safeError =
+        UTILS.safeError(error)
+
+      detectionErrors.push({
+        fileName,
+        path,
+        stage: "metadata",
+
+        error:
+          safeError.message,
+
+        details:
+          safeError
+      })
+
+      await STORAGE.appendLog(
+        "pdf-detection-error",
+        "PDF détecté mais métadonnées inaccessibles",
+        {
+          fileName,
+          path,
+          error:
+            safeError.message,
+
+          details:
+            safeError
+        }
+      )
+
+      continue
+    }
+
+    if (isDirectory) {
+      detected--
       continue
     }
 
@@ -309,14 +394,44 @@ async function listServicePdfs() {
         )
       )
     } catch (error) {
-      /*
-       * Un PDF momentanément indisponible dans iCloud
-       * sera simplement retenté au prochain balayage.
-       */
+      const safeError =
+        UTILS.safeError(error)
+
+      detectionErrors.push({
+        fileName,
+        path,
+        stage: "inspection",
+
+        error:
+          safeError.message,
+
+        details:
+          safeError
+      })
+
+      await STORAGE.appendLog(
+        "pdf-detection-error",
+        "PDF détecté mais inaccessible",
+        {
+          fileName,
+          path,
+          error:
+            safeError.message,
+
+          details:
+            safeError
+        }
+      )
     }
   }
 
-  return pdfFiles
+  return {
+    detected,
+    files:
+      pdfFiles,
+
+    detectionErrors
+  }
 }
 
 async function inspectPdf(path) {
@@ -668,6 +783,88 @@ function recordFailedImport(
           : ""
       )
   }
+}
+
+function collectKnownFailures(
+  servicePdfs,
+  state,
+  currentFailures
+) {
+  const currentNames =
+    new Set(
+      currentFailures
+        .map(
+          item =>
+            String(
+              item?.detectedFileName ||
+              item?.sourceFileName ||
+              ""
+            ).trim()
+        )
+        .filter(Boolean)
+    )
+
+  const knownFailures = []
+
+  for (
+    const file
+    of servicePdfs
+  ) {
+    if (
+      currentNames.has(
+        file.fileName
+      )
+    ) {
+      continue
+    }
+
+    const previous =
+      state.files[
+        file.fileName
+      ]
+
+    if (
+      !previous ||
+      (
+        previous.status !==
+          "validation-error" &&
+        previous.status !==
+          "exception"
+      )
+    ) {
+      continue
+    }
+
+    const error =
+      String(
+        previous.error || ""
+      ).trim()
+
+    if (!error) {
+      continue
+    }
+
+    knownFailures.push({
+      success: false,
+
+      status:
+        previous.status,
+
+      detectedFileName:
+        file.fileName,
+
+      error,
+
+      previous: true,
+
+      lastAttemptAt:
+        String(
+          previous.lastAttemptAt || ""
+        )
+    })
+  }
+
+  return knownFailures
 }
 
 // =====================================================
