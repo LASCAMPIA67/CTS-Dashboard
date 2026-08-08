@@ -118,7 +118,11 @@ const DATABASES = {
         "name": "Lingolsheim Gare"
       },
       "MONTAGNE VERTE": {
-        "name": "Montagne Verte"
+        "name": "Montagne Verte",
+        "aliases": [
+          "MOVE_A",
+          "MOVE_C"
+        ]
       },
       "NEUHOF GANZAU": {
         "name": "Neuhof Ganzau"
@@ -510,6 +514,10 @@ const DATABASES = {
         "type": "relief"
       },
       "MOVE_A": {
+        "name": "Montagne Verte",
+        "type": "relief"
+      },
+      "MOVE_C": {
         "name": "Montagne Verte",
         "type": "relief"
       },
