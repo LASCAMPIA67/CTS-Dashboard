@@ -8,12 +8,23 @@
 // CTS Importer.js
 // Importation locale des PDF HASTUS déposés dans le dossier Services.
 
-const CONFIG = importModule("CTS Config")
-const PDF_ENGINE = importModule("CTS PDF Engine")
-const PARSER = importModule("CTS Parser")
-const STORAGE = importModule("CTS Storage")
-const DATABASE = importModule("CTS Database")
-const UTILS = importModule("CTS Utils")
+const CONFIG =
+  importModule("CTS Config")
+
+const PDF_ENGINE =
+  importModule("CTS PDF Engine")
+
+const PARSER =
+  importModule("CTS Parser")
+
+const STORAGE =
+  importModule("CTS Storage")
+
+const DATABASE =
+  importModule("CTS Database")
+
+const UTILS =
+  importModule("CTS Utils")
 
 const {
   fm,
@@ -22,6 +33,7 @@ const {
 } = CONFIG
 
 const INDEX_VERSION = 2
+
 
 // =====================================================
 // IMPORTATION D’UN PDF
@@ -36,34 +48,148 @@ async function importPdf(
   const startedAt =
     new Date().toISOString()
 
-  let sourceInfo = null
+  const startedAtMs =
+    Date.now()
+
+  const timings = {
+    sourceInspectionMs:
+      null,
+
+    pdfExtractionMs:
+      null,
+
+    databaseReloadMs:
+      null,
+
+    parserMs:
+      null,
+
+    registrationMs:
+      null,
+
+    totalMs:
+      null
+  }
+
+  let sourceInfo =
+    null
 
   try {
+    let stageStartedAt =
+      Date.now()
+
     sourceInfo =
       await inspectSourcePdf(
         pdfPath
       )
 
-    const extraction =
-      await PDF_ENGINE.extractText(
-        sourceInfo.path
+    timings.sourceInspectionMs =
+      elapsedMs(
+        stageStartedAt
       )
 
-    await DATABASE.reload()
+
+    stageStartedAt =
+      Date.now()
+
+    const extraction =
+      await withTelemetryError(
+        () =>
+          PDF_ENGINE.extractText(
+            sourceInfo.path
+          ),
+
+        "PDF_EXTRACTION_FAILED",
+        "extraction",
+        "L’extraction du texte du PDF a échoué."
+      )
+
+    timings.pdfExtractionMs =
+      elapsedMs(
+        stageStartedAt
+      )
+
+
+    stageStartedAt =
+      Date.now()
+
+    await withTelemetryError(
+      () =>
+        DATABASE.reload(),
+
+      "DATABASE_RELOAD_FAILED",
+      "database",
+      "La base de données CTS n’a pas pu être rechargée."
+    )
+
+    timings.databaseReloadMs =
+      elapsedMs(
+        stageStartedAt
+      )
+
+
+    stageStartedAt =
+      Date.now()
 
     const service =
-      await PARSER.parseService(
-        extraction.text
+      await withTelemetryError(
+        () =>
+          PARSER.parseService(
+            extraction.text
+          ),
+
+        "PARSER_EXECUTION_FAILED",
+        "parser",
+        "Le Parser CTS n’a pas pu analyser le texte HASTUS."
       )
+
+    timings.parserMs =
+      elapsedMs(
+        stageStartedAt
+      )
+
+
+    if (
+      !service ||
+      typeof service !==
+        "object" ||
+      Array.isArray(service)
+    ) {
+      throw createTelemetryError(
+        "PARSER_INVALID_RESULT",
+        "parser",
+        "Le Parser CTS a renvoyé un résultat invalide."
+      )
+    }
+
+
+    if (
+      !service.validation ||
+      typeof service.validation !==
+        "object"
+    ) {
+      throw createTelemetryError(
+        "PARSER_VALIDATION_MISSING",
+        "parser",
+        "Le Parser CTS n’a pas fourni de résultat de validation."
+      )
+    }
+
 
     if (
       !service.validation.valid
     ) {
+      timings.totalMs =
+        elapsedMs(
+          startedAtMs
+        )
+
       const result =
         buildValidationFailure(
           sourceInfo,
           extraction,
-          service
+          service,
+          timings
         )
 
       await STORAGE.appendLog(
@@ -75,6 +201,10 @@ async function importPdf(
       return result
     }
 
+
+    stageStartedAt =
+      Date.now()
+
     const registration =
       await registerImportedService(
         service,
@@ -82,13 +212,35 @@ async function importPdf(
         sourceInfo
       )
 
+    timings.registrationMs =
+      elapsedMs(
+        stageStartedAt
+      )
+
+    timings.totalMs =
+      elapsedMs(
+        startedAtMs
+      )
+
+
     const result = {
-      success: true,
-      status: "imported",
+      success:
+        true,
+
+      status:
+        "imported",
+
+      telemetryCode:
+        "",
+
+      telemetryStage:
+        "",
 
       startedAt,
+
       completedAt:
-        new Date().toISOString(),
+        new Date()
+          .toISOString(),
 
       service:
         service.service,
@@ -100,39 +252,58 @@ async function importPdf(
         service.slices.length,
 
       warnings:
-        [...service.validation.warnings],
+        [
+          ...service
+            .validation
+            .warnings
+        ],
 
       sourceFileName:
         sourceInfo.fileName,
 
       pdfFileName:
-        registration.pdfFileName,
+        registration
+          .pdfFileName,
 
       cacheFileName:
-        registration.cacheFileName,
+        registration
+          .cacheFileName,
 
       textFileName:
-        registration.textFileName,
+        registration
+          .textFileName,
 
       indexEntry:
-        registration.indexEntry,
+        registration
+          .indexEntry,
 
       extraction: {
         engine:
           extraction.engine,
 
         engineVersion:
-          extraction.engineVersion,
+          extraction
+            .engineVersion,
 
         pageCount:
           extraction.pageCount,
 
         characterCount:
-          extraction.characterCount
-      }
+          extraction
+            .characterCount
+      },
+
+      timings:
+        cloneTimings(
+          timings
+        )
     }
 
-    if (options.activate === true) {
+
+    if (
+      options.activate ===
+        true
+    ) {
       const activation =
         await activateService(
           service
@@ -143,10 +314,27 @@ async function importPdf(
 
       result.activationError =
         activation.error
+
+      result.activationTelemetryCode =
+        activation.telemetryCode
+
+      result.activationTelemetryStage =
+        activation.telemetryStage
+
     } else {
-      result.activated = false
-      result.activationError = ""
+      result.activated =
+        false
+
+      result.activationError =
+        ""
+
+      result.activationTelemetryCode =
+        ""
+
+      result.activationTelemetryStage =
+        ""
     }
+
 
     await STORAGE.appendLog(
       "success",
@@ -154,28 +342,62 @@ async function importPdf(
       result
     )
 
+
     return result
+
   } catch (error) {
+    const telemetry =
+      telemetryFromError(
+        error,
+        "SERVICE_IMPORT_FAILED",
+        "import"
+      )
+
     const safeError =
-      UTILS.safeError(error)
+      UTILS.safeError(
+        error
+      )
+
+    timings.totalMs =
+      elapsedMs(
+        startedAtMs
+      )
 
     const result = {
-      success: false,
-      status: "exception",
+      success:
+        false,
+
+      status:
+        "exception",
+
+      telemetryCode:
+        telemetry.code,
+
+      telemetryStage:
+        telemetry.stage,
 
       startedAt,
+
       completedAt:
-        new Date().toISOString(),
+        new Date()
+          .toISOString(),
 
       sourceFileName:
-        sourceInfo?.fileName || "",
+        sourceInfo?.fileName ||
+        "",
 
       error:
         safeError.message,
 
       details:
-        safeError
+        safeError,
+
+      timings:
+        cloneTimings(
+          timings
+        )
     }
+
 
     await STORAGE.appendLog(
       "exception",
@@ -183,9 +405,11 @@ async function importPdf(
       result
     )
 
+
     return result
   }
 }
+
 
 // =====================================================
 // INSPECTION DU PDF SOURCE
@@ -195,52 +419,115 @@ async function inspectSourcePdf(
   pdfPath
 ) {
   const normalizedPath =
-    String(pdfPath || "")
-      .trim()
+    String(
+      pdfPath || ""
+    ).trim()
+
 
   if (!normalizedPath) {
-    throw new Error(
+    throw createTelemetryError(
+      "PDF_PATH_MISSING",
+      "source",
       "Aucun chemin de PDF n’a été fourni à l’importeur."
     )
   }
 
-  if (!fm.fileExists(normalizedPath)) {
-    throw new Error(
+
+  if (
+    !fm.fileExists(
+      normalizedPath
+    )
+  ) {
+    throw createTelemetryError(
+      "PDF_SOURCE_NOT_FOUND",
+      "source",
       "Le PDF à importer est introuvable."
     )
   }
 
-  if (fm.isDirectory(normalizedPath)) {
-    throw new Error(
+
+  let isDirectory
+
+  try {
+    isDirectory =
+      fm.isDirectory(
+        normalizedPath
+      )
+  } catch (error) {
+    throw createTelemetryError(
+      "PDF_METADATA_READ_FAILED",
+      "source",
+      `Les métadonnées du PDF ne peuvent pas être lues : ${errorMessage(error)}`,
+      error
+    )
+  }
+
+
+  if (isDirectory) {
+    throw createTelemetryError(
+      "PDF_PATH_IS_DIRECTORY",
+      "source",
       "Le chemin fourni correspond à un dossier et non à un PDF."
     )
   }
+
 
   const fileName =
     fileNameFromPath(
       normalizedPath
     )
 
-  if (!/\.pdf$/i.test(fileName)) {
-    throw new Error(
+
+  if (
+    !/\.pdf$/i.test(
+      fileName
+    )
+  ) {
+    throw createTelemetryError(
+      "PDF_INVALID_EXTENSION",
+      "source",
       "Le fichier à importer doit être un PDF."
     )
   }
 
-  if (
-    !fm.isFileDownloaded(
-      normalizedPath
-    )
-  ) {
-    await fm.downloadFileFromiCloud(
-      normalizedPath
+
+  try {
+    if (
+      !fm.isFileDownloaded(
+        normalizedPath
+      )
+    ) {
+      await fm
+        .downloadFileFromiCloud(
+          normalizedPath
+        )
+    }
+  } catch (error) {
+    throw createTelemetryError(
+      "PDF_ICLOUD_DOWNLOAD_FAILED",
+      "source",
+      `Le PDF n’a pas pu être téléchargé depuis iCloud : ${errorMessage(error)}`,
+      error
     )
   }
 
-  const sizeKilobytes =
-    fm.fileSize(
-      normalizedPath
+
+  let sizeKilobytes
+
+  try {
+    sizeKilobytes =
+      fm.fileSize(
+        normalizedPath
+      )
+  } catch (error) {
+    throw createTelemetryError(
+      "PDF_METADATA_READ_FAILED",
+      "source",
+      `La taille du PDF ne peut pas être lue : ${errorMessage(error)}`,
+      error
     )
+  }
+
 
   if (
     !Number.isFinite(
@@ -248,33 +535,45 @@ async function inspectSourcePdf(
     ) ||
     sizeKilobytes <= 0
   ) {
-    throw new Error(
+    throw createTelemetryError(
+      "PDF_EMPTY_OR_INACCESSIBLE",
+      "source",
       "Le PDF est vide ou inaccessible."
     )
   }
 
+
   const maximumKilobytes =
     (
       Number(
-        CONFIG.pdf.maximumFileSizeBytes
+        CONFIG
+          .pdf
+          .maximumFileSizeBytes
       ) ||
-      20 * 1024 * 1024
+      20 *
+      1024 *
+      1024
     ) /
     1024
 
+
   if (
     sizeKilobytes >
-    maximumKilobytes
+      maximumKilobytes
   ) {
-    throw new Error(
+    throw createTelemetryError(
+      "PDF_TOO_LARGE",
+      "source",
       "Le PDF dépasse la taille maximale autorisée."
     )
   }
+
 
   const modificationDate =
     safeModificationDate(
       normalizedPath
     )
+
 
   return {
     path:
@@ -286,25 +585,34 @@ async function inspectSourcePdf(
 
     modifiedAt:
       modificationDate
-        ? modificationDate.toISOString()
+        ? modificationDate
+            .toISOString()
         : "",
 
     fingerprint:
       buildFingerprint({
         fileName,
+
         sizeKilobytes,
+
         modifiedAt:
           modificationDate
-            ? modificationDate.toISOString()
+            ? modificationDate
+                .toISOString()
             : ""
       })
   }
 }
 
-function safeModificationDate(path) {
+
+function safeModificationDate(
+  path
+) {
   try {
     const value =
-      fm.modificationDate(path)
+      fm.modificationDate(
+        path
+      )
 
     return (
       value &&
@@ -316,10 +624,12 @@ function safeModificationDate(path) {
     )
       ? value
       : null
-  } catch (error) {
+
+  } catch (_) {
     return null
   }
 }
+
 
 // =====================================================
 // ENREGISTREMENT TRANSACTIONNEL
@@ -331,70 +641,143 @@ async function registerImportedService(
   sourceInfo
 ) {
   const plan =
-    createImportPlan(
-      service,
-      sourceInfo
+    await withTelemetryError(
+      () =>
+        Promise.resolve(
+          createImportPlan(
+            service,
+            sourceInfo
+          )
+        ),
+
+      "SERVICE_IMPORT_PLAN_FAILED",
+      "registration",
+      "Le plan d’importation du service n’a pas pu être créé."
     )
+
 
   const cacheSnapshot =
-    await snapshotTextFile(
-      plan.cachePath
+    await withTelemetryError(
+      () =>
+        snapshotTextFile(
+          plan.cachePath
+        ),
+
+      "SERVICE_CACHE_SNAPSHOT_FAILED",
+      "cache",
+      "Le cache existant du service n’a pas pu être préparé."
     )
+
 
   const textSnapshot =
-    await snapshotTextFile(
-      plan.textPath
+    await withTelemetryError(
+      () =>
+        snapshotTextFile(
+          plan.textPath
+        ),
+
+      "SERVICE_TEXT_CACHE_SNAPSHOT_FAILED",
+      "text_cache",
+      "Le cache texte existant n’a pas pu être préparé."
     )
+
 
   const indexSnapshot =
-    await snapshotTextFile(
-      files.servicesIndex
+    await withTelemetryError(
+      () =>
+        snapshotTextFile(
+          files.servicesIndex
+        ),
+
+      "SERVICE_INDEX_SNAPSHOT_FAILED",
+      "index",
+      "L’index existant des services n’a pas pu être préparé."
     )
 
-  let pdfTransaction = null
+
+  let pdfTransaction =
+    null
+
 
   try {
-    await STORAGE.writeJsonSafely(
-      plan.cachePath,
-      service
+    await withTelemetryError(
+      () =>
+        STORAGE.writeJsonSafely(
+          plan.cachePath,
+          service
+        ),
+
+      "SERVICE_CACHE_WRITE_FAILED",
+      "cache",
+      "Le cache JSON du service n’a pas pu être enregistré."
     )
 
-    await writeTextSafely(
-      plan.textPath,
-      extraction.text
+
+    await withTelemetryError(
+      () =>
+        writeTextSafely(
+          plan.textPath,
+          extraction.text
+        ),
+
+      "SERVICE_TEXT_CACHE_WRITE_FAILED",
+      "text_cache",
+      "Le texte extrait du PDF n’a pas pu être enregistré."
     )
+
 
     pdfTransaction =
       await movePdfToCanonicalName(
         plan
       )
 
+
     const index =
-      await buildUpdatedIndex(
-        plan,
-        service,
-        extraction,
-        sourceInfo,
-        pdfTransaction.fileName
+      await withTelemetryError(
+        () =>
+          buildUpdatedIndex(
+            plan,
+            service,
+            extraction,
+            sourceInfo,
+            pdfTransaction
+              .fileName
+          ),
+
+        "SERVICE_INDEX_BUILD_FAILED",
+        "index",
+        "Le nouvel index des services n’a pas pu être construit."
       )
 
-    await STORAGE.writeJsonSafely(
-      files.servicesIndex,
-      index
+
+    await withTelemetryError(
+      () =>
+        STORAGE.writeJsonSafely(
+          files.servicesIndex,
+          index
+        ),
+
+      "SERVICE_INDEX_WRITE_FAILED",
+      "index",
+      "L’index des services n’a pas pu être enregistré."
     )
+
 
     const indexEntry =
       index.services.find(
         entry =>
-          entry.id === plan.id
+          entry.id ===
+          plan.id
       ) || null
+
 
     return {
       id:
         plan.id,
 
       pdfFileName:
-        pdfTransaction.fileName,
+        pdfTransaction
+          .fileName,
 
       cacheFileName:
         plan.cacheFileName,
@@ -404,14 +787,18 @@ async function registerImportedService(
 
       indexEntry
     }
+
   } catch (error) {
     await restoreTextFile(
       files.servicesIndex,
       indexSnapshot
     )
 
-    if (pdfTransaction) {
-      await pdfTransaction.rollback()
+    if (
+      pdfTransaction
+    ) {
+      await pdfTransaction
+        .rollback()
     }
 
     await restoreTextFile(
@@ -428,6 +815,7 @@ async function registerImportedService(
   }
 }
 
+
 // =====================================================
 // PLAN D’IMPORTATION
 // =====================================================
@@ -441,22 +829,36 @@ function createImportPlan(
       service.date || ""
     ).trim()
 
-  if (!UTILS.parseDate(date)) {
-    throw new Error(
+
+  if (
+    !UTILS.parseDate(
+      date
+    )
+  ) {
+    throw createTelemetryError(
+      "SERVICE_DATE_INVALID",
+      "registration",
       "La date détectée dans le PDF est invalide."
     )
   }
+
 
   const serviceNumber =
     sanitizeServiceNumber(
       service.service
     )
 
-  if (!serviceNumber) {
-    throw new Error(
+
+  if (
+    !serviceNumber
+  ) {
+    throw createTelemetryError(
+      "SERVICE_NUMBER_INVALID",
+      "registration",
       "Le numéro de service détecté est invalide."
     )
   }
+
 
   const stem =
     `Service_${date}_${serviceNumber}`
@@ -470,11 +872,13 @@ function createImportPlan(
   const textFileName =
     `${stem}.txt`
 
+
   return {
     id:
       `${date}_${serviceNumber}`,
 
     date,
+
     serviceNumber,
 
     sourcePath:
@@ -509,10 +913,13 @@ function createImportPlan(
   }
 }
 
+
 function sanitizeServiceNumber(
   value
 ) {
-  return String(value || "")
+  return String(
+    value || ""
+  )
     .trim()
     .toUpperCase()
     .replace(
@@ -520,6 +927,7 @@ function sanitizeServiceNumber(
       ""
     )
 }
+
 
 // =====================================================
 // RENOMMAGE CANONIQUE DU PDF
@@ -530,7 +938,7 @@ async function movePdfToCanonicalName(
 ) {
   if (
     plan.sourcePath ===
-    plan.pdfPath
+      plan.pdfPath
   ) {
     return {
       fileName:
@@ -541,22 +949,36 @@ async function movePdfToCanonicalName(
     }
   }
 
-  let archivedPreviousPath = ""
+
+  let archivedPreviousPath =
+    ""
+
 
   if (
     fm.fileExists(
       plan.pdfPath
     )
   ) {
-    if (
-      !fm.isFileDownloaded(
-        plan.pdfPath
-      )
-    ) {
-      await fm.downloadFileFromiCloud(
-        plan.pdfPath
+    try {
+      if (
+        !fm.isFileDownloaded(
+          plan.pdfPath
+        )
+      ) {
+        await fm
+          .downloadFileFromiCloud(
+            plan.pdfPath
+          )
+      }
+    } catch (error) {
+      throw createTelemetryError(
+        "PDF_CANONICAL_ICLOUD_FAILED",
+        "canonicalize",
+        `Le PDF canonique existant n’a pas pu être téléchargé depuis iCloud : ${errorMessage(error)}`,
+        error
       )
     }
+
 
     archivedPreviousPath =
       getUniqueArchivePath(
@@ -567,25 +989,43 @@ async function movePdfToCanonicalName(
         ].join("_")
       )
 
-    fm.move(
-      plan.pdfPath,
-      archivedPreviousPath
-    )
+
+    try {
+      fm.move(
+        plan.pdfPath,
+        archivedPreviousPath
+      )
+    } catch (error) {
+      throw createTelemetryError(
+        "PDF_CANONICAL_ARCHIVE_FAILED",
+        "canonicalize",
+        `L’ancien PDF canonique n’a pas pu être archivé : ${errorMessage(error)}`,
+        error
+      )
+    }
   }
+
 
   try {
     fm.move(
       plan.sourcePath,
       plan.pdfPath
     )
+
   } catch (error) {
     restoreArchivedPreviousPdf(
       archivedPreviousPath,
       plan.pdfPath
     )
 
-    throw error
+    throw createTelemetryError(
+      "PDF_CANONICAL_MOVE_FAILED",
+      "canonicalize",
+      `Le PDF n’a pas pu être renommé ou déplacé vers son nom canonique : ${errorMessage(error)}`,
+      error
+    )
   }
+
 
   return {
     fileName:
@@ -612,12 +1052,17 @@ async function movePdfToCanonicalName(
             archivedPreviousPath,
             plan.pdfPath
           )
-        } catch (rollbackError) {
-          // L’erreur principale reste prioritaire.
+
+        } catch (_) {
+          /*
+           * Une erreur de rollback ne doit
+           * jamais masquer l’erreur principale.
+           */
         }
       }
   }
 }
+
 
 function restoreArchivedPreviousPdf(
   archivedPath,
@@ -632,12 +1077,15 @@ function restoreArchivedPreviousPdf(
       canonicalPath
     )
   ) {
-    fm.move(
-      archivedPath,
-      canonicalPath
-    )
+    try {
+      fm.move(
+        archivedPath,
+        canonicalPath
+      )
+    } catch (_) {}
   }
 }
+
 
 function getUniqueArchivePath(
   fileName
@@ -649,6 +1097,7 @@ function getUniqueArchivePath(
     )
 
   let suffix = 2
+
 
   while (
     fm.fileExists(
@@ -670,6 +1119,7 @@ function getUniqueArchivePath(
           )
         : fileName
 
+
     candidate =
       fm.joinPath(
         paths.servicesArchive,
@@ -679,8 +1129,10 @@ function getUniqueArchivePath(
     suffix++
   }
 
+
   return candidate
 }
+
 
 // =====================================================
 // INDEX DES SERVICES
@@ -696,14 +1148,19 @@ async function buildUpdatedIndex(
   const current =
     await readCurrentIndex()
 
+
   const previousEntry =
     current.services.find(
       entry =>
-        entry.id === plan.id
+        entry.id ===
+        plan.id
     ) || null
 
+
   const now =
-    new Date().toISOString()
+    new Date()
+      .toISOString()
+
 
   const entry = {
     id:
@@ -717,7 +1174,8 @@ async function buildUpdatedIndex(
 
     pdfFile:
       pdfFileName ||
-      previousEntry?.pdfFile ||
+      previousEntry
+        ?.pdfFile ||
       "",
 
     cacheFile:
@@ -734,26 +1192,35 @@ async function buildUpdatedIndex(
       now,
 
     warnings:
-      service.validation.warnings.length,
+      service
+        .validation
+        .warnings
+        .length,
 
     slices:
-      service.slices.length,
+      service
+        .slices
+        .length,
 
     firstDutyStart:
-      service.slices[0]?.dutyStart ||
+      service.slices[0]
+        ?.dutyStart ||
       "",
 
     lastEnd:
       service.slices[
-        service.slices.length - 1
-      ]?.end || "",
+        service.slices.length -
+        1
+      ]?.end ||
+      "",
 
     source: {
       originalFileName:
         sourceInfo.fileName,
 
       sizeKilobytes:
-        sourceInfo.sizeKilobytes,
+        sourceInfo
+          .sizeKilobytes,
 
       modifiedAt:
         sourceInfo.modifiedAt,
@@ -767,26 +1234,33 @@ async function buildUpdatedIndex(
         extraction.engine,
 
       engineVersion:
-        extraction.engineVersion,
+        extraction
+          .engineVersion,
 
       pageCount:
         extraction.pageCount,
 
       characterCount:
-        extraction.characterCount
+        extraction
+          .characterCount
     }
   }
+
 
   const services =
     current.services
       .filter(
         item =>
-          item.id !== plan.id
+          item.id !==
+          plan.id
       )
-      .concat(entry)
+      .concat(
+        entry
+      )
       .sort(
         compareIndexEntries
       )
+
 
   return {
     version:
@@ -799,17 +1273,32 @@ async function buildUpdatedIndex(
   }
 }
 
+
 async function readCurrentIndex() {
   const exists =
     fm.fileExists(
       files.servicesIndex
     )
 
-  const value =
-    await STORAGE.readJson(
-      files.servicesIndex,
-      null
+  let value
+
+
+  try {
+    value =
+      await STORAGE.readJson(
+        files.servicesIndex,
+        null
+      )
+
+  } catch (error) {
+    throw createTelemetryError(
+      "SERVICE_INDEX_READ_FAILED",
+      "index",
+      `L’index des services ne peut pas être lu : ${errorMessage(error)}`,
+      error
     )
+  }
+
 
   if (!exists) {
     return {
@@ -824,18 +1313,25 @@ async function readCurrentIndex() {
     }
   }
 
+
   if (
     !value ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
+    typeof value !==
+      "object" ||
+    Array.isArray(
+      value
+    ) ||
     !Array.isArray(
       value.services
     )
   ) {
-    throw new Error(
+    throw createTelemetryError(
+      "SERVICE_INDEX_INVALID",
+      "index",
       "L’index des services est invalide. Il n’a pas été remplacé."
     )
   }
+
 
   return {
     version:
@@ -855,31 +1351,44 @@ async function readCurrentIndex() {
           entry &&
           typeof entry ===
             "object" &&
-          !Array.isArray(entry)
+          !Array.isArray(
+            entry
+          )
       )
   }
 }
+
 
 function compareIndexEntries(
   first,
   second
 ) {
   const byDate =
-    String(first.date)
-      .localeCompare(
-        String(second.date)
+    String(
+      first.date
+    ).localeCompare(
+      String(
+        second.date
       )
+    )
 
-  if (byDate !== 0) {
+
+  if (
+    byDate !== 0
+  ) {
     return byDate
   }
+
 
   return String(
     first.service
   ).localeCompare(
-    String(second.service)
+    String(
+      second.service
+    )
   )
 }
+
 
 // =====================================================
 // ACTIVATION D’UN SERVICE
@@ -894,20 +1403,41 @@ async function activateService(
     )
 
     return {
-      success: true,
-      error: ""
+      success:
+        true,
+
+      error:
+        "",
+
+      telemetryCode:
+        "",
+
+      telemetryStage:
+        ""
     }
+
   } catch (error) {
     const safeError =
-      UTILS.safeError(error)
+      UTILS.safeError(
+        error
+      )
 
     return {
-      success: false,
+      success:
+        false,
+
       error:
-        safeError.message
+        safeError.message,
+
+      telemetryCode:
+        "SERVICE_ACTIVATION_FAILED",
+
+      telemetryStage:
+        "activation"
     }
   }
 }
+
 
 // =====================================================
 // ÉCHEC DE VALIDATION
@@ -916,46 +1446,86 @@ async function activateService(
 function buildValidationFailure(
   sourceInfo,
   extraction,
-  service
+  service,
+  timings
 ) {
   return {
-    success: false,
+    success:
+      false,
+
     status:
       "validation-error",
 
+    telemetryCode:
+      "HASTUS_VALIDATION_FAILED",
+
+    telemetryStage:
+      "validation",
+
     completedAt:
-      new Date().toISOString(),
+      new Date()
+        .toISOString(),
 
     sourceFileName:
       sourceInfo.fileName,
 
     service:
-      service.service || "",
+      service.service ||
+      "",
 
     date:
-      service.date || "",
+      service.date ||
+      "",
 
     errors:
-      [...service.validation.errors],
+      Array.isArray(
+        service
+          .validation
+          .errors
+      )
+        ? [
+            ...service
+              .validation
+              .errors
+          ]
+        : [],
 
     warnings:
-      [...service.validation.warnings],
+      Array.isArray(
+        service
+          .validation
+          .warnings
+      )
+        ? [
+            ...service
+              .validation
+              .warnings
+          ]
+        : [],
 
     extraction: {
       engine:
         extraction.engine,
 
       engineVersion:
-        extraction.engineVersion,
+        extraction
+          .engineVersion,
 
       pageCount:
         extraction.pageCount,
 
       characterCount:
-        extraction.characterCount
-    }
+        extraction
+          .characterCount
+    },
+
+    timings:
+      cloneTimings(
+        timings
+      )
   }
 }
+
 
 // =====================================================
 // ÉCRITURES ET RESTAURATIONS
@@ -968,22 +1538,32 @@ async function writeTextSafely(
   const temporaryPath =
     `${path}.import-${Date.now()}`
 
+
   try {
     fm.writeString(
       temporaryPath,
-      String(value || "")
+      String(
+        value || ""
+      )
     )
 
+
     if (
-      fm.fileExists(path)
+      fm.fileExists(
+        path
+      )
     ) {
-      fm.remove(path)
+      fm.remove(
+        path
+      )
     }
+
 
     fm.move(
       temporaryPath,
       path
     )
+
   } catch (error) {
     removeFileQuietly(
       temporaryPath
@@ -993,37 +1573,57 @@ async function writeTextSafely(
   }
 }
 
+
 async function snapshotTextFile(
   path
 ) {
-  if (!fm.fileExists(path)) {
+  if (
+    !fm.fileExists(
+      path
+    )
+  ) {
     return {
-      existed: false,
-      content: ""
+      existed:
+        false,
+
+      content:
+        ""
     }
   }
 
+
   if (
-    !fm.isFileDownloaded(path)
-  ) {
-    await fm.downloadFileFromiCloud(
+    !fm.isFileDownloaded(
       path
     )
+  ) {
+    await fm
+      .downloadFileFromiCloud(
+        path
+      )
   }
 
+
   return {
-    existed: true,
+    existed:
+      true,
+
     content:
-      fm.readString(path)
+      fm.readString(
+        path
+      )
   }
 }
+
 
 async function restoreTextFile(
   path,
   snapshot
 ) {
   try {
-    if (snapshot.existed) {
+    if (
+      snapshot.existed
+    ) {
       fm.writeString(
         path,
         snapshot.content
@@ -1032,15 +1632,300 @@ async function restoreTextFile(
       return
     }
 
+
     if (
-      fm.fileExists(path)
+      fm.fileExists(
+        path
+      )
     ) {
-      fm.remove(path)
+      fm.remove(
+        path
+      )
     }
-  } catch (restoreError) {
-    // La transaction principale reste prioritaire.
+
+  } catch (_) {
+    /*
+     * Une restauration secondaire
+     * ne doit pas masquer l’erreur
+     * principale.
+     */
   }
 }
+
+
+// =====================================================
+// TÉLÉMÉTRIE LOCALE DES ERREURS
+// =====================================================
+
+async function withTelemetryError(
+  operation,
+  fallbackCode,
+  fallbackStage,
+  fallbackMessage
+) {
+  try {
+    return await operation()
+
+  } catch (error) {
+    if (
+      hasTelemetryError(
+        error
+      )
+    ) {
+      throw error
+    }
+
+
+    throw createTelemetryError(
+      fallbackCode,
+      fallbackStage,
+
+      [
+        String(
+          fallbackMessage ||
+          ""
+        ).trim(),
+
+        errorMessage(
+          error
+        )
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .trim(),
+
+      error
+    )
+  }
+}
+
+
+function createTelemetryError(
+  code,
+  stage,
+  message,
+  cause =
+    null
+) {
+  const error =
+    new Error(
+      String(
+        message ||
+        code ||
+        "Erreur d’import inconnue."
+      )
+    )
+
+
+  error.telemetryCode =
+    normalizeTelemetryCode(
+      code,
+      "SERVICE_IMPORT_FAILED"
+    )
+
+
+  error.telemetryStage =
+    normalizeTelemetryStage(
+      stage,
+      "import"
+    )
+
+
+  if (
+    cause
+  ) {
+    try {
+      error.cause =
+        cause
+    } catch (_) {}
+  }
+
+
+  return error
+}
+
+
+function hasTelemetryError(
+  error
+) {
+  return Boolean(
+    error &&
+    typeof error ===
+      "object" &&
+    typeof error.telemetryCode ===
+      "string" &&
+    error.telemetryCode.trim()
+  )
+}
+
+
+function telemetryFromError(
+  error,
+  fallbackCode,
+  fallbackStage
+) {
+  return {
+    code:
+      normalizeTelemetryCode(
+        error
+          ?.telemetryCode,
+        fallbackCode
+      ),
+
+    stage:
+      normalizeTelemetryStage(
+        error
+          ?.telemetryStage,
+        fallbackStage
+      )
+  }
+}
+
+
+function normalizeTelemetryCode(
+  value,
+  fallback
+) {
+  const normalized =
+    String(
+      value ||
+      fallback ||
+      "SERVICE_IMPORT_FAILED"
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /[^A-Z0-9_]/g,
+        "_"
+      )
+      .slice(
+        0,
+        64
+      )
+
+
+  return normalized ||
+    "SERVICE_IMPORT_FAILED"
+}
+
+
+function normalizeTelemetryStage(
+  value,
+  fallback
+) {
+  const normalized =
+    String(
+      value ||
+      fallback ||
+      "import"
+    )
+      .trim()
+      .replace(
+        /[^a-zA-Z0-9._-]/g,
+        "_"
+      )
+      .slice(
+        0,
+        50
+      )
+
+
+  return normalized ||
+    "import"
+}
+
+
+// =====================================================
+// MESURES DE PERFORMANCE LOCALES
+// =====================================================
+
+function elapsedMs(
+  startedAt
+) {
+  const value =
+    Date.now() -
+    Number(
+      startedAt
+    )
+
+
+  if (
+    !Number.isFinite(
+      value
+    )
+  ) {
+    return null
+  }
+
+
+  return Math.max(
+    0,
+    Math.round(
+      value
+    )
+  )
+}
+
+
+function cloneTimings(
+  timings
+) {
+  return {
+    sourceInspectionMs:
+      finiteOrNull(
+        timings
+          ?.sourceInspectionMs
+      ),
+
+    pdfExtractionMs:
+      finiteOrNull(
+        timings
+          ?.pdfExtractionMs
+      ),
+
+    databaseReloadMs:
+      finiteOrNull(
+        timings
+          ?.databaseReloadMs
+      ),
+
+    parserMs:
+      finiteOrNull(
+        timings
+          ?.parserMs
+      ),
+
+    registrationMs:
+      finiteOrNull(
+        timings
+          ?.registrationMs
+      ),
+
+    totalMs:
+      finiteOrNull(
+        timings
+          ?.totalMs
+      )
+  }
+}
+
+
+function finiteOrNull(
+  value
+) {
+  const number =
+    Number(
+      value
+    )
+
+
+  return Number.isFinite(
+    number
+  )
+    ? number
+    : null
+}
+
 
 // =====================================================
 // OUTILS INTERNES
@@ -1052,21 +1937,35 @@ function buildFingerprint({
   modifiedAt
 }) {
   return [
-    String(fileName || "")
+    String(
+      fileName || ""
+    )
       .toLowerCase(),
 
-    Number(sizeKilobytes) || 0,
+    Number(
+      sizeKilobytes
+    ) || 0,
 
-    String(modifiedAt || "")
+    String(
+      modifiedAt || ""
+    )
   ].join("|")
 }
 
-function fileNameFromPath(path) {
-  return String(path || "")
-    .split(/[\\/]/)
+
+function fileNameFromPath(
+  path
+) {
+  return String(
+    path || ""
+  )
+    .split(
+      /[\\/]/
+    )
     .pop()
     .trim()
 }
+
 
 function timestampForFileName() {
   return new Date()
@@ -1081,16 +1980,44 @@ function timestampForFileName() {
     )
 }
 
-function removeFileQuietly(path) {
+
+function removeFileQuietly(
+  path
+) {
   try {
     if (
       path &&
-      fm.fileExists(path)
+      fm.fileExists(
+        path
+      )
     ) {
-      fm.remove(path)
+      fm.remove(
+        path
+      )
     }
-  } catch (error) {}
+  } catch (_) {}
 }
+
+
+function errorMessage(
+  error
+) {
+  if (
+    error &&
+    typeof error.message ===
+      "string" &&
+    error.message.trim()
+  ) {
+    return error.message.trim()
+  }
+
+
+  return String(
+    error ||
+    "Erreur inconnue"
+  )
+}
+
 
 // =====================================================
 // EXPORTS
