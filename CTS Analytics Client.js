@@ -1,37 +1,159 @@
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
+// icon-color: purple; icon-glyph: magic;
+// Variables used by Scriptable.
+// These must be at the very top of the file. Do not edit.
 // icon-color: deep-blue; icon-glyph: chart.bar.xaxis;
 
 const API_URL =
   "https://cts-analytics.nameless-frog-624d.workers.dev"
 
-const REQUEST_TIMEOUT_SECONDS = 12
-const RETRY_DELAY_MS = 60 * 60 * 1000
+const REQUEST_TIMEOUT_SECONDS =
+  12
+
+const TELEMETRY_TIMEOUT_SECONDS =
+  8
+
+const RETRY_DELAY_MS =
+  60 * 60 * 1000
+
+const MAX_TELEMETRY_ISSUES =
+  50
+
 
 const KEYS = {
   installationId:
     "CTS_ANALYTICS_INSTALLATION_ID",
+
   clientToken:
     "CTS_ANALYTICS_CLIENT_TOKEN",
+
   adminApiKey:
     "CTS_ANALYTICS_ADMIN_API_KEY",
+
   lastActivityDay:
     "CTS_ANALYTICS_LAST_ACTIVITY_DAY",
+
   lastAttemptAt:
     "CTS_ANALYTICS_LAST_ATTEMPT_AT"
 }
 
-function createInstallationId() {
+
+const TELEMETRY_STAGE_PROPERTIES = {
+  pdf:
+    "pdfStatus",
+
+  parser:
+    "parserStatus",
+
+  service:
+    "serviceStatus",
+
+  render:
+    "renderStatus",
+
+  archive:
+    "archiveStatus"
+}
+
+
+const TELEMETRY_STAGE_VALUES = {
+  pdf:
+    new Set([
+      "not_checked",
+      "found",
+      "missing",
+      "read_error"
+    ]),
+
+  parser:
+    new Set([
+      "not_run",
+      "success",
+      "error"
+    ]),
+
+  service:
+    new Set([
+      "not_run",
+      "found",
+      "not_found",
+      "error"
+    ]),
+
+  render:
+    new Set([
+      "not_run",
+      "success",
+      "error"
+    ]),
+
+  archive:
+    new Set([
+      "not_run",
+      "success",
+      "error"
+    ])
+}
+
+
+const TELEMETRY_RUN_STATUSES =
+  new Set([
+    "success",
+    "warning",
+    "error"
+  ])
+
+
+const TELEMETRY_SEVERITIES =
+  new Set([
+    "warning",
+    "error",
+    "fatal"
+  ])
+
+
+const TELEMETRY_CONTEXTS =
+  new Set([
+    "widget",
+    "app"
+  ])
+
+
+
+function createOpaqueId() {
   return (
     UUID.string() +
     UUID.string()
-  ).replace(/-/g, "")
+  ).replace(
+    /-/g,
+    ""
+  )
 }
 
+
+function createInstallationId() {
+  return createOpaqueId()
+}
+
+
+function createTelemetryRunId() {
+  return createOpaqueId()
+}
+
+
+function createTelemetryIssueId() {
+  return createOpaqueId()
+}
+
+
+
 function getInstallationId() {
-  if (Keychain.contains(
-    KEYS.installationId
-  )) {
+  if (
+    Keychain.contains(
+      KEYS.installationId
+    )
+  ) {
     return Keychain.get(
       KEYS.installationId
     )
@@ -48,6 +170,8 @@ function getInstallationId() {
   return value
 }
 
+
+
 function getIOSMajorVersion() {
   const value =
     Number.parseInt(
@@ -62,12 +186,17 @@ function getIOSMajorVersion() {
     : null
 }
 
-function saveAdminApiKey(value) {
+
+
+function saveAdminApiKey(
+  value
+) {
   saveSecret(
     KEYS.adminApiKey,
     value
   )
 }
+
 
 function hasAdminApiKey() {
   return hasSecret(
@@ -75,11 +204,14 @@ function hasAdminApiKey() {
   )
 }
 
+
 function removeAdminApiKey() {
   removeKey(
     KEYS.adminApiKey
   )
 }
+
+
 
 function hasClientToken() {
   return hasSecret(
@@ -87,22 +219,30 @@ function hasClientToken() {
   )
 }
 
+
 function removeClientToken() {
   removeKey(
     KEYS.clientToken
   )
 }
 
+
+
 async function registerInstallation({
   dashboardVersion
 }) {
   const result =
     await sendRequest({
-      path: "/register",
-      method: "POST",
-      body: devicePayload(
-        dashboardVersion
-      )
+      path:
+        "/register",
+
+      method:
+        "POST",
+
+      body:
+        devicePayload(
+          dashboardVersion
+        )
     })
 
   const token =
@@ -122,22 +262,32 @@ async function registerInstallation({
   return result
 }
 
+
+
 async function registerActivity({
   dashboardVersion
 }) {
   return sendRequest({
-    path: "/activity",
-    method: "POST",
+    path:
+      "/activity",
+
+    method:
+      "POST",
+
     apiKey:
       readRequiredSecret(
         KEYS.clientToken,
         "client_token_missing"
       ),
-    body: devicePayload(
-      dashboardVersion
-    )
+
+    body:
+      devicePayload(
+        dashboardVersion
+      )
   })
 }
+
+
 
 async function registerDailyActivity({
   dashboardVersion
@@ -150,7 +300,10 @@ async function registerDailyActivity({
   const today =
     new Date()
       .toISOString()
-      .slice(0, 10)
+      .slice(
+        0,
+        10
+      )
 
   if (
     readKey(
@@ -159,11 +312,14 @@ async function registerDailyActivity({
   ) {
     return {
       ok: true,
+
       skipped: true,
+
       reason:
         "already_registered_today"
     }
   }
+
 
   const lastAttempt =
     Number(
@@ -172,36 +328,49 @@ async function registerDailyActivity({
       )
     ) || 0
 
+
   if (
     lastAttempt &&
-    Date.now() - lastAttempt <
+    Date.now() -
+      lastAttempt <
       RETRY_DELAY_MS
   ) {
     return {
       ok: true,
+
       skipped: true,
+
       reason:
         "retry_delayed"
     }
   }
 
+
   Keychain.set(
     KEYS.lastAttemptAt,
-    String(Date.now())
+    String(
+      Date.now()
+    )
   )
 
+
   try {
-    if (!hasClientToken()) {
+    if (
+      !hasClientToken()
+    ) {
       const registration =
         await registerInstallation({
           dashboardVersion:
             version
         })
 
-      if (!registration.ok) {
+      if (
+        !registration.ok
+      ) {
         return registration
       }
     }
+
 
     let activity =
       await registerActivity({
@@ -209,11 +378,14 @@ async function registerDailyActivity({
           version
       })
 
+
     if (
       !activity.ok &&
-      activity.statusCode === 401
+      activity.statusCode ===
+        401
     ) {
       removeClientToken()
+
 
       const registration =
         await registerInstallation({
@@ -221,9 +393,13 @@ async function registerDailyActivity({
             version
         })
 
-      if (!registration.ok) {
+
+      if (
+        !registration.ok
+      ) {
         return registration
       }
+
 
       activity =
         await registerActivity({
@@ -232,7 +408,10 @@ async function registerDailyActivity({
         })
     }
 
-    if (activity.ok) {
+
+    if (
+      activity.ok
+    ) {
       Keychain.set(
         KEYS.lastActivityDay,
         today
@@ -243,22 +422,819 @@ async function registerDailyActivity({
       )
     }
 
+
     return activity
   } catch (error) {
     return {
       ok: false,
-      statusCode: null,
+
+      statusCode:
+        null,
+
       error:
         error?.message ||
-        String(error)
+        String(
+          error
+        )
     }
   }
 }
 
+
+
+function createTelemetryRun({
+  executionContext =
+    "widget"
+} = {}) {
+  const context =
+    String(
+      executionContext ||
+      ""
+    ).trim()
+
+
+  if (
+    !TELEMETRY_CONTEXTS
+      .has(
+        context
+      )
+  ) {
+    throw new Error(
+      "invalid_execution_context"
+    )
+  }
+
+
+  return {
+    runId:
+      createTelemetryRunId(),
+
+    startedAt:
+      Date.now(),
+
+    executionContext:
+      context,
+
+    status:
+      "success",
+
+    durationMs:
+      null,
+
+    pdfStatus:
+      "not_checked",
+
+    parserStatus:
+      "not_run",
+
+    serviceStatus:
+      "not_run",
+
+    renderStatus:
+      "not_run",
+
+    archiveStatus:
+      "not_run",
+
+    issues:
+      []
+  }
+}
+
+
+
+function setTelemetryRunStatus(
+  run,
+  status
+) {
+  ensureTelemetryRun(
+    run
+  )
+
+  const value =
+    String(
+      status ||
+      ""
+    ).trim()
+
+
+  if (
+    !TELEMETRY_RUN_STATUSES
+      .has(
+        value
+      )
+  ) {
+    throw new Error(
+      "invalid_telemetry_status"
+    )
+  }
+
+
+  run.status =
+    value
+
+  return run
+}
+
+
+
+function setTelemetryStage(
+  run,
+  stage,
+  status
+) {
+  ensureTelemetryRun(
+    run
+  )
+
+
+  const stageName =
+    String(
+      stage ||
+      ""
+    ).trim()
+
+
+  const property =
+    TELEMETRY_STAGE_PROPERTIES[
+      stageName
+    ]
+
+
+  const allowedValues =
+    TELEMETRY_STAGE_VALUES[
+      stageName
+    ]
+
+
+  if (
+    !property ||
+    !allowedValues
+  ) {
+    throw new Error(
+      "invalid_telemetry_stage"
+    )
+  }
+
+
+  const value =
+    String(
+      status ||
+      ""
+    ).trim()
+
+
+  if (
+    !allowedValues.has(
+      value
+    )
+  ) {
+    throw new Error(
+      "invalid_telemetry_stage_status"
+    )
+  }
+
+
+  run[property] =
+    value
+
+  return run
+}
+
+
+
+function addTelemetryIssue(
+  run,
+  {
+    severity =
+      "error",
+
+    errorCode,
+
+    module,
+
+    stage =
+      null
+  }
+) {
+  ensureTelemetryRun(
+    run
+  )
+
+
+  if (
+    run.issues.length >=
+      MAX_TELEMETRY_ISSUES
+  ) {
+    return null
+  }
+
+
+  const normalizedSeverity =
+    String(
+      severity ||
+      ""
+    ).trim()
+
+
+  if (
+    !TELEMETRY_SEVERITIES
+      .has(
+        normalizedSeverity
+      )
+  ) {
+    throw new Error(
+      "invalid_issue_severity"
+    )
+  }
+
+
+  const normalizedCode =
+    normalizeErrorCode(
+      errorCode
+    )
+
+
+  const normalizedModule =
+    normalizeTelemetryLabel(
+      module,
+      "module"
+    )
+
+
+  const normalizedStage =
+    stage === null ||
+    stage === undefined ||
+    stage === ""
+      ? null
+      : normalizeTelemetryLabel(
+          stage,
+          "stage"
+        )
+
+
+  const issue = {
+    issueId:
+      createTelemetryIssueId(),
+
+    severity:
+      normalizedSeverity,
+
+    errorCode:
+      normalizedCode,
+
+    module:
+      normalizedModule,
+
+    stage:
+      normalizedStage
+  }
+
+
+  run.issues.push(
+    issue
+  )
+
+
+  run.status =
+    strongestTelemetryStatus(
+      run.status,
+      severityToRunStatus(
+        normalizedSeverity
+      )
+    )
+
+
+  return issue
+}
+
+
+
+function finishTelemetryRun(
+  run
+) {
+  ensureTelemetryRun(
+    run
+  )
+
+
+  if (
+    run.durationMs === null ||
+    run.durationMs === undefined
+  ) {
+    const startedAt =
+      Number(
+        run.startedAt
+      )
+
+
+    if (
+      Number.isFinite(
+        startedAt
+      )
+    ) {
+      run.durationMs =
+        Math.max(
+          0,
+          Math.min(
+            300000,
+            Math.round(
+              Date.now() -
+              startedAt
+            )
+          )
+        )
+    }
+  }
+
+
+  run.status =
+    deriveTelemetryRunStatus(
+      run
+    )
+
+
+  return run
+}
+
+
+
+async function registerTelemetry({
+  dashboardVersion,
+  run
+}) {
+  const version =
+    normalizeVersion(
+      dashboardVersion
+    )
+
+
+  const telemetryRun =
+    normalizeTelemetryRunForSend(
+      finishTelemetryRun(
+        run
+      )
+    )
+
+
+  return sendRequest({
+    path:
+      "/telemetry",
+
+    method:
+      "POST",
+
+    apiKey:
+      readRequiredSecret(
+        KEYS.clientToken,
+        "client_token_missing"
+      ),
+
+    body: {
+      ...devicePayload(
+        version
+      ),
+
+      run:
+        telemetryRun
+    },
+
+    timeoutSeconds:
+      TELEMETRY_TIMEOUT_SECONDS
+  })
+}
+
+
+
+async function registerTelemetrySafely({
+  dashboardVersion,
+  run
+}) {
+  try {
+    const version =
+      normalizeVersion(
+        dashboardVersion
+      )
+
+
+    if (
+      !hasClientToken()
+    ) {
+      const registration =
+        await registerInstallation({
+          dashboardVersion:
+            version
+        })
+
+
+      if (
+        !registration.ok
+      ) {
+        return registration
+      }
+    }
+
+
+    let result =
+      await registerTelemetry({
+        dashboardVersion:
+          version,
+
+        run
+      })
+
+
+    if (
+      !result.ok &&
+      result.statusCode ===
+        401
+    ) {
+      removeClientToken()
+
+
+      const registration =
+        await registerInstallation({
+          dashboardVersion:
+            version
+        })
+
+
+      if (
+        !registration.ok
+      ) {
+        return registration
+      }
+
+
+      result =
+        await registerTelemetry({
+          dashboardVersion:
+            version,
+
+          run
+        })
+    }
+
+
+    return result
+  } catch (error) {
+    return {
+      ok: false,
+
+      statusCode:
+        null,
+
+      error:
+        error?.message ||
+        String(
+          error
+        )
+    }
+  }
+}
+
+
+
+function deriveTelemetryRunStatus(
+  run
+) {
+  let result =
+    TELEMETRY_RUN_STATUSES
+      .has(
+        run.status
+      )
+      ? run.status
+      : "success"
+
+
+  for (
+    const issue of
+      run.issues || []
+  ) {
+    result =
+      strongestTelemetryStatus(
+        result,
+        severityToRunStatus(
+          issue.severity
+        )
+      )
+  }
+
+
+  if (
+    run.pdfStatus ===
+      "read_error" ||
+    run.parserStatus ===
+      "error" ||
+    run.serviceStatus ===
+      "error" ||
+    run.renderStatus ===
+      "error"
+  ) {
+    result =
+      strongestTelemetryStatus(
+        result,
+        "error"
+      )
+  }
+
+
+  if (
+    run.pdfStatus ===
+      "missing" ||
+    run.serviceStatus ===
+      "not_found" ||
+    run.archiveStatus ===
+      "error"
+  ) {
+    result =
+      strongestTelemetryStatus(
+        result,
+        "warning"
+      )
+  }
+
+
+  return result
+}
+
+
+
+function strongestTelemetryStatus(
+  first,
+  second
+) {
+  const weights = {
+    success:
+      0,
+
+    warning:
+      1,
+
+    error:
+      2
+  }
+
+
+  const firstValue =
+    weights[first] ??
+    0
+
+  const secondValue =
+    weights[second] ??
+    0
+
+
+  return secondValue >
+    firstValue
+      ? second
+      : first
+}
+
+
+
+function severityToRunStatus(
+  severity
+) {
+  if (
+    severity === "warning"
+  ) {
+    return "warning"
+  }
+
+  if (
+    severity === "error" ||
+    severity === "fatal"
+  ) {
+    return "error"
+  }
+
+  return "success"
+}
+
+
+
+function normalizeTelemetryRunForSend(
+  run
+) {
+  return {
+    runId:
+      String(
+        run.runId
+      ).trim(),
+
+    executionContext:
+      String(
+        run.executionContext
+      ).trim(),
+
+    status:
+      String(
+        run.status
+      ).trim(),
+
+    durationMs:
+      run.durationMs ===
+        null ||
+      run.durationMs ===
+        undefined
+        ? null
+        : Math.max(
+            0,
+            Math.min(
+              300000,
+              Math.round(
+                Number(
+                  run.durationMs
+                )
+              )
+            )
+          ),
+
+    pdfStatus:
+      String(
+        run.pdfStatus ||
+        "not_checked"
+      ).trim(),
+
+    parserStatus:
+      String(
+        run.parserStatus ||
+        "not_run"
+      ).trim(),
+
+    serviceStatus:
+      String(
+        run.serviceStatus ||
+        "not_run"
+      ).trim(),
+
+    renderStatus:
+      String(
+        run.renderStatus ||
+        "not_run"
+      ).trim(),
+
+    archiveStatus:
+      String(
+        run.archiveStatus ||
+        "not_run"
+      ).trim(),
+
+    issues:
+      Array.isArray(
+        run.issues
+      )
+        ? run.issues
+            .slice(
+              0,
+              MAX_TELEMETRY_ISSUES
+            )
+            .map(
+              issue => ({
+                issueId:
+                  String(
+                    issue.issueId
+                  ).trim(),
+
+                severity:
+                  String(
+                    issue.severity
+                  ).trim(),
+
+                errorCode:
+                  String(
+                    issue.errorCode
+                  ).trim(),
+
+                module:
+                  String(
+                    issue.module
+                  ).trim(),
+
+                stage:
+                  issue.stage ===
+                    null ||
+                  issue.stage ===
+                    undefined ||
+                  issue.stage ===
+                    ""
+                    ? null
+                    : String(
+                        issue.stage
+                      ).trim()
+              })
+            )
+        : []
+  }
+}
+
+
+
+function ensureTelemetryRun(
+  run
+) {
+  if (
+    !run ||
+    typeof run !==
+      "object" ||
+    Array.isArray(
+      run
+    )
+  ) {
+    throw new Error(
+      "invalid_telemetry_run"
+    )
+  }
+
+
+  if (
+    typeof run.runId !==
+      "string" ||
+    !run.runId.trim()
+  ) {
+    throw new Error(
+      "telemetry_run_id_missing"
+    )
+  }
+
+
+  if (
+    !Array.isArray(
+      run.issues
+    )
+  ) {
+    run.issues = []
+  }
+}
+
+
+
+function normalizeErrorCode(
+  value
+) {
+  const code =
+    String(
+      value ||
+      ""
+    )
+      .trim()
+      .toUpperCase()
+
+
+  if (
+    !/^[A-Z0-9_]{2,64}$/
+      .test(
+        code
+      )
+  ) {
+    throw new Error(
+      "invalid_error_code"
+    )
+  }
+
+
+  return code
+}
+
+
+
+function normalizeTelemetryLabel(
+  value,
+  label
+) {
+  const normalized =
+    String(
+      value ||
+      ""
+    ).trim()
+
+
+  if (
+    !/^[a-zA-Z0-9._-]{1,50}$/
+      .test(
+        normalized
+      )
+  ) {
+    throw new Error(
+      `invalid_${label}`
+    )
+  }
+
+
+  return normalized
+}
+
+
+
 async function getStatistics() {
   return sendRequest({
-    path: "/stats",
-    method: "GET",
+    path:
+      "/stats",
+
+    method:
+      "GET",
+
     apiKey:
       readRequiredSecret(
         KEYS.adminApiKey,
@@ -267,12 +1243,19 @@ async function getStatistics() {
   })
 }
 
+
+
 async function checkHealth() {
   return sendRequest({
-    path: "/health",
-    method: "GET"
+    path:
+      "/health",
+
+    method:
+      "GET"
   })
 }
+
+
 
 function devicePayload(
   dashboardVersion
@@ -291,9 +1274,17 @@ function devicePayload(
   }
 }
 
-function normalizeVersion(value) {
+
+
+function normalizeVersion(
+  value
+) {
   const version =
-    String(value || "").trim()
+    String(
+      value ||
+      ""
+    ).trim()
+
 
   if (!version) {
     throw new Error(
@@ -301,12 +1292,22 @@ function normalizeVersion(value) {
     )
   }
 
+
   return version
 }
 
-function saveSecret(key, value) {
+
+
+function saveSecret(
+  key,
+  value
+) {
   const secret =
-    String(value || "").trim()
+    String(
+      value ||
+      ""
+    ).trim()
+
 
   if (!secret) {
     throw new Error(
@@ -314,127 +1315,209 @@ function saveSecret(key, value) {
     )
   }
 
+
   Keychain.set(
     key,
     secret
   )
 }
 
-function hasSecret(key) {
+
+
+function hasSecret(
+  key
+) {
   return Boolean(
-    readKey(key)?.trim()
+    readKey(
+      key
+    )?.trim()
   )
 }
+
+
 
 function readRequiredSecret(
   key,
   errorCode
 ) {
   const value =
-    readKey(key)?.trim()
+    readKey(
+      key
+    )?.trim()
+
 
   if (!value) {
-    throw new Error(errorCode)
+    throw new Error(
+      errorCode
+    )
   }
+
 
   return value
 }
 
-function readKey(key) {
-  return Keychain.contains(key)
+
+
+function readKey(
+  key
+) {
+  return Keychain.contains(
+    key
+  )
     ? String(
-        Keychain.get(key) || ""
+        Keychain.get(
+          key
+        ) || ""
       )
     : ""
 }
 
-function removeKey(key) {
-  if (Keychain.contains(key)) {
-    Keychain.remove(key)
+
+
+function removeKey(
+  key
+) {
+  if (
+    Keychain.contains(
+      key
+    )
+  ) {
+    Keychain.remove(
+      key
+    )
   }
 }
+
+
 
 async function sendRequest({
   path,
   method,
-  apiKey = null,
-  body = null
+  apiKey =
+    null,
+  body =
+    null,
+  timeoutSeconds =
+    REQUEST_TIMEOUT_SECONDS
 }) {
   const request =
     new Request(
       `${API_URL}${path}`
     )
 
-  request.method = method
+
+  request.method =
+    method
+
+
   request.timeoutInterval =
-    REQUEST_TIMEOUT_SECONDS
+    timeoutSeconds
+
 
   const headers = {
     Accept:
       "application/json"
   }
 
-  if (apiKey) {
+
+  if (
+    apiKey
+  ) {
     headers.Authorization =
-      `Bearer ${String(apiKey).trim()}`
+      `Bearer ${String(
+        apiKey
+      ).trim()}`
   }
 
-  if (body !== null) {
-    headers["Content-Type"] =
+
+  if (
+    body !== null
+  ) {
+    headers[
+      "Content-Type"
+    ] =
       "application/json"
 
+
     request.body =
-      JSON.stringify(body)
+      JSON.stringify(
+        body
+      )
   }
+
 
   request.headers =
     headers
+
 
   try {
     const response =
       await request.loadJSON()
 
+
     const statusCode =
       Number(
-        request.response?.statusCode
+        request.response
+          ?.statusCode
       )
 
+
     if (
-      !Number.isFinite(statusCode) ||
+      !Number.isFinite(
+        statusCode
+      ) ||
       statusCode < 200 ||
       statusCode >= 300 ||
       response?.ok !== true
     ) {
       return {
         ok: false,
+
         statusCode:
-          Number.isFinite(statusCode)
+          Number.isFinite(
+            statusCode
+          )
             ? statusCode
             : null,
+
         error:
           response?.error ||
-          "invalid_response"
+          "invalid_response",
+
+        data:
+          response || null
       }
     }
 
+
     return {
       ok: true,
+
       statusCode,
-      data: response
+
+      data:
+        response
     }
   } catch (error) {
     return {
       ok: false,
+
       statusCode:
         Number(
-          request.response?.statusCode
+          request.response
+            ?.statusCode
         ) || null,
+
       error:
         error?.message ||
-        String(error)
+        String(
+          error
+        )
     }
   }
 }
+
+
 
 module.exports = {
   getInstallationId,
@@ -450,6 +1533,15 @@ module.exports = {
   registerInstallation,
   registerActivity,
   registerDailyActivity,
+
+  createTelemetryRun,
+  setTelemetryRunStatus,
+  setTelemetryStage,
+  addTelemetryIssue,
+  finishTelemetryRun,
+
+  registerTelemetry,
+  registerTelemetrySafely,
 
   getStatistics,
   checkHealth
