@@ -39,6 +39,10 @@
     "name": "Montagne Verte",
     "type": "relief"
   },
+  "MOVE_C": {
+    "name": "Montagne Verte",
+    "type": "relief"
+  },
   "GACE": {
     "name": "Gare Centrale",
     "type": "relief"
