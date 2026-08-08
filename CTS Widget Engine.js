@@ -68,13 +68,8 @@ async function loadContext(
     resolution.source
 
   if (!source) {
-    return failure(
-      "Aucun service",
-      [
-        "Aucun service exploitable n’a été trouvé.",
-        "",
-        "Ajoute un PDF HASTUS dans le dossier Services."
-      ].join("\n"),
+    return buildMissingServiceFailure(
+      resolution,
       currentDate
     )
   }
@@ -421,6 +416,263 @@ function extractCleanupError(
   return (
     "L’entretien automatique des services a rencontré une erreur."
   )
+}
+
+// =====================================================
+// DIAGNOSTIC D'ABSENCE DE SERVICE
+// =====================================================
+
+function buildMissingServiceFailure(
+  resolution,
+  currentDate
+) {
+  const scanResult =
+    resolution?.scanResult
+
+  const scanError =
+    String(
+      resolution?.scanError || ""
+    ).trim()
+
+  if (scanError) {
+    return failure(
+      "Erreur d’analyse PDF",
+      [
+        "Le dossier Services n’a pas pu être analysé.",
+        "",
+        scanError
+      ].join("\n"),
+      currentDate
+    )
+  }
+
+  const detectionErrors =
+    Array.isArray(
+      scanResult?.detectionErrors
+    )
+      ? scanResult.detectionErrors
+      : []
+
+  if (detectionErrors.length) {
+    const first =
+      detectionErrors[0]
+
+    const fileName =
+      displayFileName(
+        first?.fileName
+      )
+
+    const error =
+      firstUsefulError(
+        first
+      )
+
+    return failure(
+      "PDF inaccessible",
+      [
+        `${fileName} a bien été détecté dans le dossier Services,`,
+        "mais CTS Dashboard n’arrive pas à lire ce fichier.",
+        "",
+        error ||
+          "Le fichier est peut-être indisponible dans iCloud."
+      ].join("\n"),
+      currentDate
+    )
+  }
+
+  const currentFailures =
+    Array.isArray(
+      scanResult?.failed
+    )
+      ? scanResult.failed
+      : []
+
+  const knownFailures =
+    Array.isArray(
+      scanResult?.knownFailures
+    )
+      ? scanResult.knownFailures
+      : []
+
+  const failedImports =
+    currentFailures.length
+      ? currentFailures
+      : knownFailures
+
+  if (failedImports.length) {
+    const first =
+      failedImports[0]
+
+    const fileName =
+      displayFileName(
+        first?.detectedFileName ||
+        first?.sourceFileName
+      )
+
+    const error =
+      firstUsefulError(
+        first
+      )
+
+    const validationFailure =
+      String(
+        first?.status || ""
+      ) === "validation-error"
+
+    return failure(
+      validationFailure
+        ? "PDF HASTUS non reconnu"
+        : "Erreur d’import PDF",
+
+      [
+        `${fileName} a bien été détecté dans le dossier Services.`,
+        "",
+        validationFailure
+          ? "Le PDF a été lu, mais les informations nécessaires au service n’ont pas été reconnues."
+          : "CTS Dashboard n’a pas réussi à importer ce PDF.",
+        "",
+        error
+      ]
+        .filter(
+          value =>
+            String(
+              value || ""
+            ).length > 0
+        )
+        .join("\n"),
+
+      currentDate
+    )
+  }
+
+  const selectionError =
+    String(
+      resolution?.selectionError || ""
+    ).trim()
+
+  if (selectionError) {
+    return failure(
+      "Erreur de service",
+      [
+        "Le PDF a été analysé, mais le service ne peut pas être sélectionné.",
+        "",
+        selectionError
+      ].join("\n"),
+      currentDate
+    )
+  }
+
+  if (
+    scanResult?.status ===
+    "locked"
+  ) {
+    return failure(
+      "Analyse en cours",
+      [
+        "Le dossier Services est déjà en cours d’analyse.",
+        "",
+        "Relance CTS Dashboard dans quelques instants."
+      ].join("\n"),
+      currentDate
+    )
+  }
+
+  const detected =
+    Math.max(
+      0,
+      Number(
+        scanResult?.detected ??
+        scanResult?.scanned ??
+        0
+      ) || 0
+    )
+
+  if (detected > 0) {
+    return failure(
+      "Aucun service exploitable",
+      [
+        `${detected} PDF${detected > 1 ? " ont" : " a"} été détecté${detected > 1 ? "s" : ""} dans Services,`,
+        "mais aucun service exploitable n’est disponible.",
+        "",
+        "Relance CTS Dashboard. Si le problème persiste, vérifie le PDF concerné."
+      ].join("\n"),
+      currentDate
+    )
+  }
+
+  return failure(
+    "Aucun PDF",
+    [
+      "Aucun fichier PDF n’a été trouvé dans le dossier Services.",
+      "",
+      "Ajoute une carte agent HASTUS au format PDF dans Services."
+    ].join("\n"),
+    currentDate
+  )
+}
+
+function firstUsefulError(
+  value
+) {
+  const direct =
+    String(
+      value?.error || ""
+    ).trim()
+
+  if (direct) {
+    return direct
+  }
+
+  const errors =
+    Array.isArray(
+      value?.errors
+    )
+      ? value.errors
+          .map(
+            item =>
+              typeof item === "string"
+                ? item
+                : item?.message ||
+                  item?.error ||
+                  ""
+          )
+          .map(
+            item =>
+              String(
+                item || ""
+              ).trim()
+          )
+          .filter(Boolean)
+      : []
+
+  if (errors.length) {
+    return errors.join(
+      " · "
+    )
+  }
+
+  const detailsMessage =
+    String(
+      value?.details?.message || ""
+    ).trim()
+
+  if (detailsMessage) {
+    return detailsMessage
+  }
+
+  return ""
+}
+
+function displayFileName(
+  value
+) {
+  const fileName =
+    String(
+      value || ""
+    ).trim()
+
+  return fileName ||
+    "Le PDF"
 }
 
 // =====================================================
