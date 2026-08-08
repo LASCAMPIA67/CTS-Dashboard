@@ -3,28 +3,35 @@
 // icon-color: green; icon-glyph: magic;
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
-// icon-color: green; icon-glyph: magic;
-// Variables used by Scriptable.
-// These must be at the very top of the file. Do not edit.
 // icon-color: blue; icon-glyph: folder.badge.gearshape;
 
 // CTS Services Manager.js
 // Détection, importation et sélection automatique des services PDF.
 
 const CONFIG =
-  importModule("CTS Config")
+  importModule(
+    "CTS Config"
+  )
 
 const IMPORTER =
-  importModule("CTS Importer")
+  importModule(
+    "CTS Importer"
+  )
 
 const STORAGE =
-  importModule("CTS Storage")
+  importModule(
+    "CTS Storage"
+  )
 
 const UTILS =
-  importModule("CTS Utils")
+  importModule(
+    "CTS Utils"
+  )
 
 const SERVICES_CLEANER =
-  importModule("CTS Services Cleaner")
+  importModule(
+    "CTS Services Cleaner"
+  )
 
 const {
   fm,
@@ -33,7 +40,9 @@ const {
   pdf
 } = CONFIG
 
-const SCAN_STATE_VERSION = 1
+
+const SCAN_STATE_VERSION =
+  1
 
 const SCAN_LOCK_PATH =
   fm.joinPath(
@@ -50,6 +59,7 @@ const EXCEPTION_RETRY_DELAY_MS =
 const SERVICE_DISPLAY_GRACE_MS =
   60 * 60 * 1000
 
+
 // =====================================================
 // BALAYAGE PRINCIPAL
 // =====================================================
@@ -62,21 +72,46 @@ async function scanServices(
   const lock =
     await acquireScanLock()
 
-  if (!lock.acquired) {
+
+  if (
+    !lock.acquired
+  ) {
     return {
-      success: true,
-      status: "locked",
-      detected: 0,
-      scanned: 0,
-      candidates: 0,
-      processed: 0,
-      imported: [],
-      failed: [],
-      knownFailures: [],
-      detectionErrors: [],
-      remaining: 0
+      success:
+        true,
+
+      status:
+        "locked",
+
+      detected:
+        0,
+
+      scanned:
+        0,
+
+      candidates:
+        0,
+
+      processed:
+        0,
+
+      imported:
+        [],
+
+      failed:
+        [],
+
+      knownFailures:
+        [],
+
+      detectionErrors:
+        [],
+
+      remaining:
+        0
     }
   }
+
 
   try {
     return await performScan(
@@ -89,26 +124,34 @@ async function scanServices(
   }
 }
 
+
 async function performScan(
   options
 ) {
   const index =
-    await IMPORTER.readCurrentIndex()
+    await IMPORTER
+      .readCurrentIndex()
+
 
   const state =
     await loadScanState()
 
+
   const listing =
     await inspectServicesDirectory()
+
 
   const servicePdfs =
     listing.files
 
+
   const detectionErrors =
     listing.detectionErrors
 
+
   const now =
     new Date()
+
 
   const candidates =
     servicePdfs
@@ -125,10 +168,12 @@ async function performScan(
         compareCandidates
       )
 
+
   const maximumFiles =
     resolveMaximumFiles(
       options.maximumFiles
     )
+
 
   const selectedCandidates =
     candidates.slice(
@@ -136,8 +181,10 @@ async function performScan(
       maximumFiles
     )
 
+
   const imported = []
   const failed = []
+
 
   for (
     const candidate
@@ -148,16 +195,24 @@ async function performScan(
         candidate
       )
 
-    if (result.success) {
-      imported.push(result)
+
+    if (
+      result.success
+    ) {
+      imported.push(
+        result
+      )
 
       await recordSuccessfulImport(
         state,
         candidate,
         result
       )
+
     } else {
-      failed.push(result)
+      failed.push(
+        result
+      )
 
       recordFailedImport(
         state,
@@ -166,13 +221,17 @@ async function performScan(
       )
     }
 
+
     state.updatedAt =
-      new Date().toISOString()
+      new Date()
+        .toISOString()
+
 
     await saveScanState(
       state
     )
   }
+
 
   const knownFailures =
     collectKnownFailures(
@@ -181,8 +240,11 @@ async function performScan(
       failed
     )
 
+
   state.updatedAt =
-    new Date().toISOString()
+    new Date()
+      .toISOString()
+
 
   state.lastScan = {
     scannedAt:
@@ -211,9 +273,11 @@ async function performScan(
       detectionErrors.length
   }
 
+
   await saveScanState(
     state
   )
+
 
   return {
     success:
@@ -250,11 +314,13 @@ async function performScan(
     remaining:
       Math.max(
         0,
+
         candidates.length -
-          selectedCandidates.length
+        selectedCandidates.length
       )
   }
 }
+
 
 // =====================================================
 // IMPORTATION D’UN CANDIDAT
@@ -268,9 +334,11 @@ async function importCandidate(
       await IMPORTER.importPdf(
         candidate.path,
         {
-          activate: false
+          activate:
+            false
         }
       )
+
 
     return {
       ...result,
@@ -281,19 +349,40 @@ async function importCandidate(
       detectedFingerprint:
         candidate.fingerprint
     }
+
   } catch (error) {
     const safeError =
-      UTILS.safeError(error)
+      UTILS.safeError(
+        error
+      )
+
+
+    const telemetry =
+      telemetryFromError(
+        error,
+        "SERVICE_IMPORT_FAILED",
+        "import"
+      )
+
 
     return {
-      success: false,
-      status: "exception",
+      success:
+        false,
+
+      status:
+        "exception",
 
       detectedFileName:
         candidate.fileName,
 
       detectedFingerprint:
         candidate.fingerprint,
+
+      telemetryCode:
+        telemetry.code,
+
+      telemetryStage:
+        telemetry.stage,
 
       error:
         safeError.message,
@@ -304,6 +393,7 @@ async function importCandidate(
   }
 }
 
+
 // =====================================================
 // LISTE DES PDF
 // =====================================================
@@ -312,29 +402,52 @@ async function listServicePdfs() {
   const listing =
     await inspectServicesDirectory()
 
+
   return listing.files
 }
+
 
 async function inspectServicesDirectory() {
   CONFIG.ensureDirectories()
 
-  const fileNames =
-    fm.listContents(
-      paths.services
+
+  let fileNames
+
+
+  try {
+    fileNames =
+      fm.listContents(
+        paths.services
+      )
+
+  } catch (error) {
+    throw createTelemetryError(
+      "SERVICES_DIRECTORY_READ_FAILED",
+      "scan",
+      `Le dossier Services ne peut pas être lu : ${errorMessage(error)}`,
+      error
     )
+  }
+
 
   const pdfFiles = []
   const detectionErrors = []
 
   let detected = 0
 
+
   for (
     const fileName
     of fileNames
   ) {
-    if (!isPdfFileName(fileName)) {
+    if (
+      !isPdfFileName(
+        fileName
+      )
+    ) {
       continue
     }
+
 
     const path =
       fm.joinPath(
@@ -342,21 +455,48 @@ async function inspectServicesDirectory() {
         fileName
       )
 
+
     detected++
 
-    let isDirectory = false
+
+    let isDirectory =
+      false
+
 
     try {
       isDirectory =
-        fm.isDirectory(path)
+        fm.isDirectory(
+          path
+        )
+
     } catch (error) {
       const safeError =
-        UTILS.safeError(error)
+        UTILS.safeError(
+          error
+        )
+
+
+      const telemetry =
+        telemetryFromError(
+          error,
+          "PDF_METADATA_READ_FAILED",
+          "metadata"
+        )
+
 
       detectionErrors.push({
         fileName,
+
         path,
-        stage: "metadata",
+
+        stage:
+          "metadata",
+
+        telemetryCode:
+          telemetry.code,
+
+        telemetryStage:
+          telemetry.stage,
 
         error:
           safeError.message,
@@ -365,12 +505,23 @@ async function inspectServicesDirectory() {
           safeError
       })
 
+
       await STORAGE.appendLog(
         "pdf-detection-error",
+
         "PDF détecté mais métadonnées inaccessibles",
+
         {
           fileName,
+
           path,
+
+          telemetryCode:
+            telemetry.code,
+
+          telemetryStage:
+            telemetry.stage,
+
           error:
             safeError.message,
 
@@ -379,13 +530,18 @@ async function inspectServicesDirectory() {
         }
       )
 
+
       continue
     }
 
-    if (isDirectory) {
+
+    if (
+      isDirectory
+    ) {
       detected--
       continue
     }
+
 
     try {
       pdfFiles.push(
@@ -393,14 +549,35 @@ async function inspectServicesDirectory() {
           path
         )
       )
+
     } catch (error) {
       const safeError =
-        UTILS.safeError(error)
+        UTILS.safeError(
+          error
+        )
+
+
+      const telemetry =
+        telemetryFromError(
+          error,
+          "PDF_INSPECTION_FAILED",
+          "inspection"
+        )
+
 
       detectionErrors.push({
         fileName,
+
         path,
-        stage: "inspection",
+
+        stage:
+          "inspection",
+
+        telemetryCode:
+          telemetry.code,
+
+        telemetryStage:
+          telemetry.stage,
 
         error:
           safeError.message,
@@ -409,12 +586,23 @@ async function inspectServicesDirectory() {
           safeError
       })
 
+
       await STORAGE.appendLog(
         "pdf-detection-error",
+
         "PDF détecté mais inaccessible",
+
         {
           fileName,
+
           path,
+
+          telemetryCode:
+            telemetry.code,
+
+          telemetryStage:
+            telemetry.stage,
+
           error:
             safeError.message,
 
@@ -425,8 +613,10 @@ async function inspectServicesDirectory() {
     }
   }
 
+
   return {
     detected,
+
     files:
       pdfFiles,
 
@@ -434,24 +624,73 @@ async function inspectServicesDirectory() {
   }
 }
 
-async function inspectPdf(path) {
-  if (!fm.fileExists(path)) {
-    throw new Error(
+
+async function inspectPdf(
+  path
+) {
+  if (
+    !fm.fileExists(
+      path
+    )
+  ) {
+    throw createTelemetryError(
+      "PDF_SOURCE_NOT_FOUND",
+      "inspection",
       "Le PDF est introuvable."
     )
   }
 
-  if (!fm.isFileDownloaded(path)) {
-    await fm.downloadFileFromiCloud(
-      path
+
+  try {
+    if (
+      !fm.isFileDownloaded(
+        path
+      )
+    ) {
+      await fm
+        .downloadFileFromiCloud(
+          path
+        )
+    }
+
+  } catch (error) {
+    throw createTelemetryError(
+      "PDF_ICLOUD_DOWNLOAD_FAILED",
+      "inspection",
+
+      `Le PDF n’a pas pu être téléchargé depuis iCloud : ${errorMessage(error)}`,
+
+      error
     )
   }
 
-  const fileName =
-    fileNameFromPath(path)
 
-  const sizeKilobytes =
-    fm.fileSize(path)
+  const fileName =
+    fileNameFromPath(
+      path
+    )
+
+
+  let sizeKilobytes
+
+
+  try {
+    sizeKilobytes =
+      fm.fileSize(
+        path
+      )
+
+  } catch (error) {
+    throw createTelemetryError(
+      "PDF_METADATA_READ_FAILED",
+      "inspection",
+
+      `La taille du PDF ne peut pas être lue : ${errorMessage(error)}`,
+
+      error
+    )
+  }
+
 
   if (
     !Number.isFinite(
@@ -459,25 +698,34 @@ async function inspectPdf(path) {
     ) ||
     sizeKilobytes <= 0
   ) {
-    throw new Error(
+    throw createTelemetryError(
+      "PDF_EMPTY_OR_INACCESSIBLE",
+      "inspection",
       "Le PDF est vide ou inaccessible."
     )
   }
+
 
   const modificationDate =
     safeModificationDate(
       path
     )
 
+
   const modifiedAt =
     modificationDate
-      ? modificationDate.toISOString()
+      ? modificationDate
+          .toISOString()
       : ""
+
 
   return {
     path,
+
     fileName,
+
     sizeKilobytes,
+
     modifiedAt,
 
     canonical:
@@ -493,6 +741,7 @@ async function inspectPdf(path) {
       })
   }
 }
+
 
 // =====================================================
 // DÉCISION DE TRAITEMENT
@@ -513,21 +762,27 @@ function shouldProcessPdf(
     return false
   }
 
+
   const previous =
     state.files[
       file.fileName
     ]
 
-  if (!previous) {
-    return true
-  }
 
   if (
-    previous.fingerprint !==
-    file.fingerprint
+    !previous
   ) {
     return true
   }
+
+
+  if (
+    previous.fingerprint !==
+      file.fingerprint
+  ) {
+    return true
+  }
+
 
   switch (
     previous.status
@@ -537,16 +792,19 @@ function shouldProcessPdf(
     case "validation-error":
       return false
 
+
     case "exception":
       return retryDelayElapsed(
         previous.lastAttemptAt,
         now
       )
 
+
     default:
       return true
   }
 }
+
 
 function isIndexedAndCurrent(
   file,
@@ -559,6 +817,7 @@ function isIndexedAndCurrent(
       ? index.services
       : []
 
+
   const entry =
     services.find(
       item =>
@@ -566,13 +825,20 @@ function isIndexedAndCurrent(
         file.fileName
     )
 
-  if (!entry) {
+
+  if (
+    !entry
+  ) {
     return false
   }
 
-  if (!entry.cacheFile) {
+
+  if (
+    !entry.cacheFile
+  ) {
     return false
   }
+
 
   const cachePath =
     fm.joinPath(
@@ -580,15 +846,22 @@ function isIndexedAndCurrent(
       entry.cacheFile
     )
 
-  if (!fm.fileExists(cachePath)) {
+
+  if (
+    !fm.fileExists(
+      cachePath
+    )
+  ) {
     return false
   }
+
 
   const indexedSize =
     Number(
       entry.source
         ?.sizeKilobytes
     )
+
 
   const sameSize =
     !Number.isFinite(
@@ -597,6 +870,7 @@ function isIndexedAndCurrent(
     indexedSize ===
       file.sizeKilobytes
 
+
   const indexedModifiedAt =
     String(
       entry.source
@@ -604,17 +878,20 @@ function isIndexedAndCurrent(
       ""
     )
 
+
   const sameModificationDate =
     !indexedModifiedAt ||
     !file.modifiedAt ||
     indexedModifiedAt ===
       file.modifiedAt
 
+
   return (
     sameSize &&
     sameModificationDate
   )
 }
+
 
 function retryDelayElapsed(
   lastAttemptAt,
@@ -623,9 +900,11 @@ function retryDelayElapsed(
   const lastAttemptTime =
     Date.parse(
       String(
-        lastAttemptAt || ""
+        lastAttemptAt ||
+        ""
       )
     )
+
 
   if (
     !Number.isFinite(
@@ -635,12 +914,14 @@ function retryDelayElapsed(
     return true
   }
 
+
   return (
     now.getTime() -
       lastAttemptTime >=
     EXCEPTION_RETRY_DELAY_MS
   )
 }
+
 
 // =====================================================
 // ENREGISTREMENT DU RÉSULTAT
@@ -652,7 +933,9 @@ async function recordSuccessfulImport(
   result
 ) {
   const now =
-    new Date().toISOString()
+    new Date()
+      .toISOString()
+
 
   state.files[
     candidate.fileName
@@ -667,21 +950,39 @@ async function recordSuccessfulImport(
       now,
 
     service:
-      result.service || "",
+      result.service ||
+      "",
 
     date:
-      result.date || "",
+      result.date ||
+      "",
 
     canonicalFileName:
-      result.pdfFileName || "",
+      result.pdfFileName ||
+      "",
+
+    telemetryCode:
+      "",
+
+    telemetryStage:
+      "",
+
+    timings:
+      normalizeTimings(
+        result.timings
+      ),
 
     error:
       ""
   }
 
-  if (!result.pdfFileName) {
+
+  if (
+    !result.pdfFileName
+  ) {
     return
   }
+
 
   const canonicalPath =
     fm.joinPath(
@@ -689,15 +990,22 @@ async function recordSuccessfulImport(
       result.pdfFileName
     )
 
-  if (!fm.fileExists(canonicalPath)) {
+
+  if (
+    !fm.fileExists(
+      canonicalPath
+    )
+  ) {
     return
   }
+
 
   try {
     const canonicalInfo =
       await inspectPdf(
         canonicalPath
       )
+
 
     state.files[
       canonicalInfo.fileName
@@ -712,24 +1020,39 @@ async function recordSuccessfulImport(
         now,
 
       service:
-        result.service || "",
+        result.service ||
+        "",
 
       date:
-        result.date || "",
+        result.date ||
+        "",
 
       canonicalFileName:
         canonicalInfo.fileName,
 
+      telemetryCode:
+        "",
+
+      telemetryStage:
+        "",
+
+      timings:
+        normalizeTimings(
+          result.timings
+        ),
+
       error:
         ""
     }
-  } catch (error) {
+
+  } catch (_) {
     /*
      * L’import principal reste valide même si
      * l’empreinte canonique ne peut pas être relue.
      */
   }
 }
+
 
 function recordFailedImport(
   state,
@@ -741,10 +1064,12 @@ function recordFailedImport(
       candidate.fileName
     ]
 
+
   const previousAttempts =
     Number(
       previous?.attempts
     ) || 0
+
 
   state.files[
     candidate.fileName
@@ -757,19 +1082,48 @@ function recordFailedImport(
       "exception",
 
     lastAttemptAt:
-      new Date().toISOString(),
+      new Date()
+        .toISOString(),
 
     attempts:
-      previousAttempts + 1,
+      previousAttempts +
+      1,
 
     service:
-      result.service || "",
+      result.service ||
+      "",
 
     date:
-      result.date || "",
+      result.date ||
+      "",
 
     canonicalFileName:
       "",
+
+    telemetryCode:
+      normalizeTelemetryCode(
+        result.telemetryCode,
+
+        result.status ===
+          "validation-error"
+          ? "HASTUS_VALIDATION_FAILED"
+          : "SERVICE_IMPORT_FAILED"
+      ),
+
+    telemetryStage:
+      normalizeTelemetryStage(
+        result.telemetryStage,
+
+        result.status ===
+          "validation-error"
+          ? "validation"
+          : "import"
+      ),
+
+    timings:
+      normalizeTimings(
+        result.timings
+      ),
 
     error:
       result.error ||
@@ -785,6 +1139,7 @@ function recordFailedImport(
   }
 }
 
+
 function collectKnownFailures(
   servicePdfs,
   state,
@@ -796,15 +1151,22 @@ function collectKnownFailures(
         .map(
           item =>
             String(
-              item?.detectedFileName ||
-              item?.sourceFileName ||
+              item
+                ?.detectedFileName ||
+              item
+                ?.sourceFileName ||
               ""
             ).trim()
         )
-        .filter(Boolean)
+        .filter(
+          Boolean
+        )
     )
 
-  const knownFailures = []
+
+  const knownFailures =
+    []
+
 
   for (
     const file
@@ -818,10 +1180,12 @@ function collectKnownFailures(
       continue
     }
 
+
     const previous =
       state.files[
         file.fileName
       ]
+
 
     if (
       !previous ||
@@ -835,17 +1199,24 @@ function collectKnownFailures(
       continue
     }
 
+
     const error =
       String(
-        previous.error || ""
+        previous.error ||
+        ""
       ).trim()
 
-    if (!error) {
+
+    if (
+      !error
+    ) {
       continue
     }
 
+
     knownFailures.push({
-      success: false,
+      success:
+        false,
 
       status:
         previous.status,
@@ -853,38 +1224,87 @@ function collectKnownFailures(
       detectedFileName:
         file.fileName,
 
+      telemetryCode:
+        normalizeTelemetryCode(
+          previous.telemetryCode,
+
+          previous.status ===
+            "validation-error"
+            ? "HASTUS_VALIDATION_FAILED"
+            : "SERVICE_IMPORT_FAILED"
+        ),
+
+      telemetryStage:
+        normalizeTelemetryStage(
+          previous.telemetryStage,
+
+          previous.status ===
+            "validation-error"
+            ? "validation"
+            : "import"
+        ),
+
+      timings:
+        normalizeTimings(
+          previous.timings
+        ),
+
       error,
 
-      previous: true,
+      previous:
+        true,
 
       lastAttemptAt:
         String(
-          previous.lastAttemptAt || ""
+          previous.lastAttemptAt ||
+          ""
         )
     })
   }
 
+
   return knownFailures
 }
+
 
 // =====================================================
 // ÉTAT DU BALAYAGE
 // =====================================================
 
 async function loadScanState() {
-  const value =
-    await STORAGE.readJson(
-      files.servicesScanState,
-      null
+  let value
+
+
+  try {
+    value =
+      await STORAGE.readJson(
+        files.servicesScanState,
+        null
+      )
+
+  } catch (error) {
+    throw createTelemetryError(
+      "SERVICES_SCAN_STATE_READ_FAILED",
+      "scan_state",
+
+      `L’état du balayage des services ne peut pas être lu : ${errorMessage(error)}`,
+
+      error
     )
+  }
+
 
   if (
     !value ||
-    typeof value !== "object" ||
-    Array.isArray(value)
+    typeof value !==
+      "object" ||
+    Array.isArray(
+      value
+    )
   ) {
     return emptyScanState()
   }
+
 
   const storedFiles =
     value.files &&
@@ -896,6 +1316,7 @@ async function loadScanState() {
       ? value.files
       : {}
 
+
   return {
     version:
       Number(
@@ -905,7 +1326,8 @@ async function loadScanState() {
 
     updatedAt:
       String(
-        value.updatedAt || ""
+        value.updatedAt ||
+        ""
       ),
 
     lastScan:
@@ -923,6 +1345,7 @@ async function loadScanState() {
   }
 }
 
+
 function emptyScanState() {
   return {
     version:
@@ -939,10 +1362,12 @@ function emptyScanState() {
   }
 }
 
+
 async function saveScanState(
   state
 ) {
   CONFIG.ensureDirectories()
+
 
   const value = {
     version:
@@ -950,20 +1375,46 @@ async function saveScanState(
 
     updatedAt:
       state.updatedAt ||
-      new Date().toISOString(),
+      new Date()
+        .toISOString(),
 
     lastScan:
-      state.lastScan || null,
+      state.lastScan ||
+      null,
 
     files:
-      state.files || {}
+      state.files ||
+      {}
   }
 
-  await writeJsonAtomically(
-    files.servicesScanState,
-    value
-  )
+
+  try {
+    await writeJsonAtomically(
+      files.servicesScanState,
+      value
+    )
+
+  } catch (error) {
+    if (
+      hasTelemetryError(
+        error
+      )
+    ) {
+      throw error
+    }
+
+
+    throw createTelemetryError(
+      "SERVICES_SCAN_STATE_WRITE_FAILED",
+      "scan_state",
+
+      `L’état du balayage des services ne peut pas être enregistré : ${errorMessage(error)}`,
+
+      error
+    )
+  }
 }
+
 
 // =====================================================
 // VERROU DE BALAYAGE
@@ -973,16 +1424,33 @@ async function acquireScanLock() {
   const now =
     new Date()
 
+
   if (
     fm.fileExists(
       SCAN_LOCK_PATH
     )
   ) {
-    const existingLock =
-      await STORAGE.readJson(
-        SCAN_LOCK_PATH,
-        null
+    let existingLock
+
+
+    try {
+      existingLock =
+        await STORAGE.readJson(
+          SCAN_LOCK_PATH,
+          null
+        )
+
+    } catch (error) {
+      throw createTelemetryError(
+        "SERVICES_SCAN_LOCK_READ_FAILED",
+        "scan_lock",
+
+        `Le verrou d’analyse des services ne peut pas être lu : ${errorMessage(error)}`,
+
+        error
       )
+    }
+
 
     const lockTime =
       Date.parse(
@@ -993,6 +1461,7 @@ async function acquireScanLock() {
         )
       )
 
+
     const lockIsActive =
       Number.isFinite(
         lockTime
@@ -1001,39 +1470,67 @@ async function acquireScanLock() {
         lockTime <
         SCAN_LOCK_TTL_MS
 
-    if (lockIsActive) {
+
+    if (
+      lockIsActive
+    ) {
       return {
-        acquired: false,
-        token: ""
+        acquired:
+          false,
+
+        token:
+          ""
       }
     }
+
 
     removeFileQuietly(
       SCAN_LOCK_PATH
     )
   }
 
+
   const token =
     buildUniqueToken()
 
-  fm.writeString(
-    SCAN_LOCK_PATH,
-    JSON.stringify(
-      {
-        token,
-        createdAt:
-          now.toISOString()
-      },
-      null,
-      2
+
+  try {
+    fm.writeString(
+      SCAN_LOCK_PATH,
+
+      JSON.stringify(
+        {
+          token,
+
+          createdAt:
+            now.toISOString()
+        },
+
+        null,
+        2
+      )
     )
-  )
+
+  } catch (error) {
+    throw createTelemetryError(
+      "SERVICES_SCAN_LOCK_WRITE_FAILED",
+      "scan_lock",
+
+      `Le verrou d’analyse des services ne peut pas être créé : ${errorMessage(error)}`,
+
+      error
+    )
+  }
+
 
   return {
-    acquired: true,
+    acquired:
+      true,
+
     token
   }
 }
+
 
 async function releaseScanLock(
   lock
@@ -1047,12 +1544,14 @@ async function releaseScanLock(
     return
   }
 
+
   try {
     const currentLock =
       await STORAGE.readJson(
         SCAN_LOCK_PATH,
         null
       )
+
 
     if (
       !currentLock ||
@@ -1063,12 +1562,18 @@ async function releaseScanLock(
         SCAN_LOCK_PATH
       )
     }
-  } catch (error) {
+
+  } catch (_) {
+    /*
+     * Une erreur de libération du verrou
+     * ne doit jamais empêcher l'affichage.
+     */
     removeFileQuietly(
       SCAN_LOCK_PATH
     )
   }
 }
+
 
 // =====================================================
 // ÉCRITURE ATOMIQUE
@@ -1081,11 +1586,14 @@ async function writeJsonAtomically(
   const token =
     buildUniqueToken()
 
+
   const temporaryPath =
     `${path}.tmp-${token}`
 
+
   const rollbackPath =
     `${path}.rollback-${token}`
+
 
   const content =
     JSON.stringify(
@@ -1094,76 +1602,124 @@ async function writeJsonAtomically(
       2
     )
 
+
   removeFileQuietly(
     temporaryPath
   )
+
 
   removeFileQuietly(
     rollbackPath
   )
 
-  fm.writeString(
-    temporaryPath,
-    content
-  )
-
-  let previousMoved = false
 
   try {
-    if (fm.fileExists(path)) {
+    fm.writeString(
+      temporaryPath,
+      content
+    )
+
+  } catch (error) {
+    throw createTelemetryError(
+      "SERVICES_SCAN_STATE_TEMP_WRITE_FAILED",
+      "scan_state",
+
+      `Le fichier temporaire d’état ne peut pas être écrit : ${errorMessage(error)}`,
+
+      error
+    )
+  }
+
+
+  let previousMoved =
+    false
+
+
+  try {
+    if (
+      fm.fileExists(
+        path
+      )
+    ) {
       fm.move(
         path,
         rollbackPath
       )
 
-      previousMoved = true
+      previousMoved =
+        true
     }
+
 
     fm.move(
       temporaryPath,
       path
     )
+
   } catch (error) {
     removeFileQuietly(
       temporaryPath
     )
+
 
     if (
       previousMoved &&
       fm.fileExists(
         rollbackPath
       ) &&
-      !fm.fileExists(path)
-    ) {
-      fm.move(
-        rollbackPath,
+      !fm.fileExists(
         path
       )
+    ) {
+      try {
+        fm.move(
+          rollbackPath,
+          path
+        )
+      } catch (_) {}
     }
 
-    throw error
+
+    throw createTelemetryError(
+      "SERVICES_SCAN_STATE_COMMIT_FAILED",
+      "scan_state",
+
+      `L’état du balayage n’a pas pu être validé : ${errorMessage(error)}`,
+
+      error
+    )
   }
+
 
   removeFileQuietly(
     rollbackPath
   )
 }
 
+
 // =====================================================
 // SÉLECTION AUTOMATIQUE DU SERVICE
 // =====================================================
 
 async function resolveServiceForDate(
-  currentDate = new Date()
+  currentDate =
+    new Date()
 ) {
-  if (!isUsableDate(currentDate)) {
+  if (
+    !isUsableDate(
+      currentDate
+    )
+  ) {
     return emptyServiceSelection(
       "invalid-date"
     )
   }
 
+
   const index =
-    await IMPORTER.readCurrentIndex()
+    await IMPORTER
+      .readCurrentIndex()
+
 
   const entries =
     Array.isArray(
@@ -1174,43 +1730,48 @@ async function resolveServiceForDate(
         )
       : []
 
-  if (!entries.length) {
+
+  if (
+    !entries.length
+  ) {
     return emptyServiceSelection(
       "empty-index"
     )
   }
+
 
   const todayKey =
     localDateKey(
       currentDate
     )
 
+
   const yesterdayDate =
     new Date(
       currentDate.getFullYear(),
       currentDate.getMonth(),
-      currentDate.getDate() - 1
+      currentDate.getDate() -
+        1
     )
+
 
   const yesterdayKey =
     localDateKey(
       yesterdayDate
     )
 
+
   let previousDayFallback =
     null
+
 
   let todayFallback =
     null
 
+
   /*
    * Le service de la veille reste prioritaire
    * jusqu’à une heure après sa fin réelle.
-   *
-   * Cette règle couvre :
-   * - les services terminant après minuit ;
-   * - les services terminant avant minuit dont
-   *   l’heure de conservation dépasse minuit.
    */
   const previousDayEntries =
     entries
@@ -1223,6 +1784,7 @@ async function resolveServiceForDate(
         compareEntriesByNewest
       )
 
+
   for (
     const entry
     of previousDayEntries
@@ -1232,15 +1794,20 @@ async function resolveServiceForDate(
         entry
       )
 
-    if (!source) {
+
+    if (
+      !source
+    ) {
       continue
     }
+
 
     const timing =
       resolveServiceDisplayTiming(
         source,
         currentDate
       )
+
 
     if (
       !timing.switchAfterDate ||
@@ -1255,7 +1822,10 @@ async function resolveServiceForDate(
       )
     }
 
-    if (!previousDayFallback) {
+
+    if (
+      !previousDayFallback
+    ) {
       previousDayFallback = {
         entry,
         source,
@@ -1263,6 +1833,7 @@ async function resolveServiceForDate(
       }
     }
   }
+
 
   /*
    * Le service du jour reste sélectionné
@@ -1279,6 +1850,7 @@ async function resolveServiceForDate(
         compareEntriesByNewest
       )
 
+
   for (
     const entry
     of todayEntries
@@ -1288,15 +1860,20 @@ async function resolveServiceForDate(
         entry
       )
 
-    if (!source) {
+
+    if (
+      !source
+    ) {
       continue
     }
+
 
     const timing =
       resolveServiceDisplayTiming(
         source,
         currentDate
       )
+
 
     if (
       !timing.switchAfterDate ||
@@ -1311,7 +1888,10 @@ async function resolveServiceForDate(
       )
     }
 
-    if (!todayFallback) {
+
+    if (
+      !todayFallback
+    ) {
       todayFallback = {
         entry,
         source,
@@ -1320,13 +1900,10 @@ async function resolveServiceForDate(
     }
   }
 
+
   /*
    * Une fois le délai d’une heure écoulé,
    * le prochain service disponible est préparé.
-   *
-   * CTS Service affichera automatiquement :
-   * - Service demain ;
-   * - Service dans X jours.
    */
   const futureEntries =
     entries
@@ -1339,6 +1916,7 @@ async function resolveServiceForDate(
         compareFutureEntries
       )
 
+
   for (
     const entry
     of futureEntries
@@ -1348,11 +1926,15 @@ async function resolveServiceForDate(
         entry
       )
 
-    if (source) {
+
+    if (
+      source
+    ) {
       return buildServiceSelection(
         entry,
         source,
         "next",
+
         resolveServiceDisplayTiming(
           source,
           currentDate
@@ -1361,16 +1943,19 @@ async function resolveServiceForDate(
     }
   }
 
+
   /*
-   * Aucun service futur n’est encore disponible :
-   * on conserve le dernier service connu afin
-   * d’éviter un widget vide ou une erreur inutile.
+   * Aucun service futur disponible :
+   * on conserve le dernier service connu.
    */
   const fallback =
     todayFallback ||
     previousDayFallback
 
-  if (fallback) {
+
+  if (
+    fallback
+  ) {
     return buildServiceSelection(
       fallback.entry,
       fallback.source,
@@ -1379,10 +1964,12 @@ async function resolveServiceForDate(
     )
   }
 
+
   return emptyServiceSelection(
     "no-usable-service"
   )
 }
+
 
 async function loadIndexedService(
   entry
@@ -1394,29 +1981,51 @@ async function loadIndexedService(
     return null
   }
 
+
   const cachePath =
     fm.joinPath(
       paths.servicesCache,
       entry.cacheFile
     )
 
-  const source =
-    await STORAGE.readJson(
-      cachePath,
-      null
+
+  let source
+
+
+  try {
+    source =
+      await STORAGE.readJson(
+        cachePath,
+        null
+      )
+
+  } catch (error) {
+    throw createTelemetryError(
+      "SERVICE_CACHE_READ_FAILED",
+      "selection",
+
+      `Le cache du service ne peut pas être lu : ${errorMessage(error)}`,
+
+      error
     )
+  }
+
 
   if (
     !source ||
     typeof source !==
       "object" ||
-    Array.isArray(source)
+    Array.isArray(
+      source
+    )
   ) {
     return null
   }
 
+
   if (
-    source.validation?.valid !==
+    source.validation
+      ?.valid !==
       true ||
     !Array.isArray(
       source.slices
@@ -1426,19 +2035,24 @@ async function loadIndexedService(
     return null
   }
 
+
   if (
     String(
-      source.date || ""
+      source.date ||
+      ""
     ) !==
     String(
-      entry.date || ""
+      entry.date ||
+      ""
     )
   ) {
     return null
   }
 
+
   return source
 }
+
 
 function resolveServiceDisplayTiming(
   source,
@@ -1450,34 +2064,49 @@ function resolveServiceDisplayTiming(
         source
       )
 
+
   if (
     !isUsableDate(
       serviceEndDate
     )
   ) {
     return {
-      serviceEndDate: null,
-      switchAfterDate: null,
+      serviceEndDate:
+        null,
 
-      serviceEndAt: "",
-      switchAfter: "",
+      switchAfterDate:
+        null,
 
-      withinGracePeriod: false,
-      expired: false
+      serviceEndAt:
+        "",
+
+      switchAfter:
+        "",
+
+      withinGracePeriod:
+        false,
+
+      expired:
+        false
     }
   }
 
+
   const switchAfterDate =
     new Date(
-      serviceEndDate.getTime() +
+      serviceEndDate
+        .getTime() +
       SERVICE_DISPLAY_GRACE_MS
     )
+
 
   const currentTime =
     currentDate.getTime()
 
+
   return {
     serviceEndDate,
+
     switchAfterDate,
 
     serviceEndAt:
@@ -1490,15 +2119,19 @@ function resolveServiceDisplayTiming(
 
     withinGracePeriod:
       currentTime >=
-        serviceEndDate.getTime() &&
+        serviceEndDate
+          .getTime() &&
       currentTime <
-        switchAfterDate.getTime(),
+        switchAfterDate
+          .getTime(),
 
     expired:
       currentTime >=
-      switchAfterDate.getTime()
+      switchAfterDate
+        .getTime()
   }
 }
+
 
 function isUsableServiceEntry(
   entry
@@ -1507,17 +2140,22 @@ function isUsableServiceEntry(
     entry &&
     typeof entry ===
       "object" &&
-    !Array.isArray(entry) &&
+    !Array.isArray(
+      entry
+    ) &&
     /^\d{4}-\d{2}-\d{2}$/.test(
       String(
-        entry.date || ""
+        entry.date ||
+        ""
       )
     ) &&
     String(
-      entry.cacheFile || ""
+      entry.cacheFile ||
+      ""
     ).trim()
   )
 }
+
 
 function compareEntriesByNewest(
   first,
@@ -1532,6 +2170,7 @@ function compareEntriesByNewest(
       )
     )
 
+
   const secondTime =
     Date.parse(
       String(
@@ -1541,12 +2180,14 @@ function compareEntriesByNewest(
       )
     )
 
+
   const safeFirstTime =
     Number.isFinite(
       firstTime
     )
       ? firstTime
       : 0
+
 
   const safeSecondTime =
     Number.isFinite(
@@ -1555,31 +2196,42 @@ function compareEntriesByNewest(
       ? secondTime
       : 0
 
+
   return (
     safeSecondTime -
     safeFirstTime
   )
 }
 
+
 function compareFutureEntries(
   first,
   second
 ) {
   const byDate =
-    String(first.date)
+    String(
+      first.date
+    )
       .localeCompare(
-        String(second.date)
+        String(
+          second.date
+        )
       )
 
-  if (byDate !== 0) {
+
+  if (
+    byDate !== 0
+  ) {
     return byDate
   }
+
 
   return compareEntriesByNewest(
     first,
     second
   )
 }
+
 
 function buildServiceSelection(
   entry,
@@ -1588,40 +2240,49 @@ function buildServiceSelection(
   timing = {}
 ) {
   return {
-    found: true,
+    found:
+      true,
+
     reason,
 
     entry,
+
     source,
 
     service:
       String(
-        source.service || ""
+        source.service ||
+        ""
       ),
 
     date:
       String(
-        source.date || ""
+        source.date ||
+        ""
       ),
 
     cacheFile:
       String(
-        entry.cacheFile || ""
+        entry.cacheFile ||
+        ""
       ),
 
     pdfFile:
       String(
-        entry.pdfFile || ""
+        entry.pdfFile ||
+        ""
       ),
 
     serviceEndAt:
       String(
-        timing.serviceEndAt || ""
+        timing.serviceEndAt ||
+        ""
       ),
 
     switchAfter:
       String(
-        timing.switchAfter || ""
+        timing.switchAfter ||
+        ""
       ),
 
     displayGraceMs:
@@ -1634,27 +2295,43 @@ function buildServiceSelection(
   }
 }
 
+
 function emptyServiceSelection(
   reason
 ) {
   return {
-    found: false,
+    found:
+      false,
 
     reason:
       String(
-        reason || "unknown"
+        reason ||
+        "unknown"
       ),
 
-    entry: null,
-    source: null,
+    entry:
+      null,
 
-    service: "",
-    date: "",
-    cacheFile: "",
-    pdfFile: "",
+    source:
+      null,
 
-    serviceEndAt: "",
-    switchAfter: "",
+    service:
+      "",
+
+    date:
+      "",
+
+    cacheFile:
+      "",
+
+    pdfFile:
+      "",
+
+    serviceEndAt:
+      "",
+
+    switchAfter:
+      "",
 
     displayGraceMs:
       SERVICE_DISPLAY_GRACE_MS,
@@ -1664,6 +2341,7 @@ function emptyServiceSelection(
   }
 }
 
+
 function localDateKey(
   date
 ) {
@@ -1671,7 +2349,8 @@ function localDateKey(
     date.getFullYear(),
 
     String(
-      date.getMonth() + 1
+      date.getMonth() +
+      1
     ).padStart(
       2,
       "0"
@@ -1685,6 +2364,7 @@ function localDateKey(
     )
   ].join("-")
 }
+
 
 function isUsableDate(
   value
@@ -1709,6 +2389,228 @@ function isUsableDate(
   )
 }
 
+
+// =====================================================
+// TÉLÉMÉTRIE LOCALE
+// =====================================================
+
+function createTelemetryError(
+  code,
+  stage,
+  message,
+  cause = null
+) {
+  const error =
+    new Error(
+      String(
+        message ||
+        code ||
+        "Erreur Services Manager."
+      )
+    )
+
+
+  error.telemetryCode =
+    normalizeTelemetryCode(
+      code,
+      "SERVICES_MANAGER_FAILED"
+    )
+
+
+  error.telemetryStage =
+    normalizeTelemetryStage(
+      stage,
+      "services"
+    )
+
+
+  if (
+    cause
+  ) {
+    try {
+      error.cause =
+        cause
+    } catch (_) {}
+  }
+
+
+  return error
+}
+
+
+function hasTelemetryError(
+  error
+) {
+  return Boolean(
+    error &&
+    typeof error ===
+      "object" &&
+    typeof error
+      .telemetryCode ===
+      "string" &&
+    error.telemetryCode
+      .trim()
+  )
+}
+
+
+function telemetryFromError(
+  error,
+  fallbackCode,
+  fallbackStage
+) {
+  return {
+    code:
+      normalizeTelemetryCode(
+        error
+          ?.telemetryCode,
+
+        fallbackCode
+      ),
+
+    stage:
+      normalizeTelemetryStage(
+        error
+          ?.telemetryStage,
+
+        fallbackStage
+      )
+  }
+}
+
+
+function normalizeTelemetryCode(
+  value,
+  fallback
+) {
+  const normalized =
+    String(
+      value ||
+      fallback ||
+      "SERVICES_MANAGER_FAILED"
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /[^A-Z0-9_]/g,
+        "_"
+      )
+      .slice(
+        0,
+        64
+      )
+
+
+  return normalized ||
+    "SERVICES_MANAGER_FAILED"
+}
+
+
+function normalizeTelemetryStage(
+  value,
+  fallback
+) {
+  const normalized =
+    String(
+      value ||
+      fallback ||
+      "services"
+    )
+      .trim()
+      .replace(
+        /[^a-zA-Z0-9._-]/g,
+        "_"
+      )
+      .slice(
+        0,
+        50
+      )
+
+
+  return normalized ||
+    "services"
+}
+
+
+function normalizeTimings(
+  value
+) {
+  if (
+    !value ||
+    typeof value !==
+      "object" ||
+    Array.isArray(
+      value
+    )
+  ) {
+    return null
+  }
+
+
+  return {
+    sourceInspectionMs:
+      finiteOrNull(
+        value
+          .sourceInspectionMs
+      ),
+
+    pdfExtractionMs:
+      finiteOrNull(
+        value
+          .pdfExtractionMs
+      ),
+
+    databaseReloadMs:
+      finiteOrNull(
+        value
+          .databaseReloadMs
+      ),
+
+    parserMs:
+      finiteOrNull(
+        value.parserMs
+      ),
+
+    registrationMs:
+      finiteOrNull(
+        value
+          .registrationMs
+      ),
+
+    totalMs:
+      finiteOrNull(
+        value.totalMs
+      )
+  }
+}
+
+
+function finiteOrNull(
+  value
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null
+  }
+
+
+  const number =
+    Number(
+      value
+    )
+
+
+  return Number.isFinite(
+    number
+  )
+    ? number
+    : null
+}
+
+
 // =====================================================
 // OUTILS INTERNES
 // =====================================================
@@ -1721,24 +2623,33 @@ function resolveMaximumFiles(
       pdf.maximumFilesPerRun
     ) || 2
 
+
   const value =
     Number(
       requestedValue
     )
 
+
   const resolved =
-    Number.isFinite(value)
+    Number.isFinite(
+      value
+    )
       ? value
       : configuredValue
 
+
   return Math.max(
     1,
+
     Math.min(
       10,
-      Math.floor(resolved)
+      Math.floor(
+        resolved
+      )
     )
   )
 }
+
 
 function compareCandidates(
   first,
@@ -1753,15 +2664,18 @@ function compareCandidates(
       : -1
   }
 
+
   const firstTime =
     Date.parse(
       first.modifiedAt
     )
 
+
   const secondTime =
     Date.parse(
       second.modifiedAt
     )
+
 
   if (
     Number.isFinite(
@@ -1770,7 +2684,8 @@ function compareCandidates(
     Number.isFinite(
       secondTime
     ) &&
-    firstTime !== secondTime
+    firstTime !==
+      secondTime
   ) {
     return (
       firstTime -
@@ -1778,16 +2693,23 @@ function compareCandidates(
     )
   }
 
+
   return first.fileName
     .localeCompare(
       second.fileName,
+
       "fr-FR",
+
       {
-        numeric: true,
-        sensitivity: "base"
+        numeric:
+          true,
+
+        sensitivity:
+          "base"
       }
     )
 }
+
 
 function safeModificationDate(
   path
@@ -1797,6 +2719,7 @@ function safeModificationDate(
       fm.modificationDate(
         path
       )
+
 
     return (
       value &&
@@ -1808,10 +2731,12 @@ function safeModificationDate(
     )
       ? value
       : null
-  } catch (error) {
+
+  } catch (_) {
     return null
   }
 }
+
 
 function buildFingerprint({
   fileName,
@@ -1819,7 +2744,10 @@ function buildFingerprint({
   modifiedAt
 }) {
   return [
-    String(fileName || "")
+    String(
+      fileName ||
+      ""
+    )
       .toLowerCase(),
 
     Number(
@@ -1827,45 +2755,67 @@ function buildFingerprint({
     ) || 0,
 
     String(
-      modifiedAt || ""
+      modifiedAt ||
+      ""
     )
   ].join("|")
 }
+
 
 function buildUniqueToken() {
   return [
     Date.now(),
 
     Math.random()
-      .toString(36)
-      .slice(2, 10)
+      .toString(
+        36
+      )
+      .slice(
+        2,
+        10
+      )
   ].join("-")
 }
+
 
 function isPdfFileName(
   fileName
 ) {
   return /\.pdf$/i.test(
-    String(fileName || "")
+    String(
+      fileName ||
+      ""
+    )
   )
 }
+
 
 function isCanonicalPdfName(
   fileName
 ) {
   return /^Service_\d{4}-\d{2}-\d{2}_[A-Z0-9_-]+\.pdf$/i.test(
-    String(fileName || "")
+    String(
+      fileName ||
+      ""
+    )
   )
 }
+
 
 function fileNameFromPath(
   path
 ) {
-  return String(path || "")
-    .split(/[\\/]/)
+  return String(
+    path ||
+    ""
+  )
+    .split(
+      /[\\/]/
+    )
     .pop()
     .trim()
 }
+
 
 function removeFileQuietly(
   path
@@ -1873,12 +2823,37 @@ function removeFileQuietly(
   try {
     if (
       path &&
-      fm.fileExists(path)
+      fm.fileExists(
+        path
+      )
     ) {
-      fm.remove(path)
+      fm.remove(
+        path
+      )
     }
-  } catch (error) {}
+  } catch (_) {}
 }
+
+
+function errorMessage(
+  error
+) {
+  if (
+    error &&
+    typeof error.message ===
+      "string" &&
+    error.message.trim()
+  ) {
+    return error.message.trim()
+  }
+
+
+  return String(
+    error ||
+    "Erreur inconnue"
+  )
+}
+
 
 // =====================================================
 // EXPORTS
