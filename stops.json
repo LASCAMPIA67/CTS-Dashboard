@@ -15,7 +15,11 @@
     "name": "Lingolsheim Gare"
   },
   "MONTAGNE VERTE": {
-    "name": "Montagne Verte"
+    "name": "Montagne Verte",
+    "aliases": [
+      "MOVE_A",
+      "MOVE_C"
+    ]
   },
   "NEUHOF GANZAU": {
     "name": "Neuhof Ganzau"
