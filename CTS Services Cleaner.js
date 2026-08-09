@@ -60,7 +60,9 @@ async function maintainServices(
   if (!isUsableDate(currentDate)) {
     return failureResult(
       "invalid-date",
-      "La date fournie au nettoyeur est invalide."
+      "La date fournie au nettoyeur est invalide.",
+      "CLEANUP_INVALID_DATE",
+      "archive"
     )
   }
 
@@ -94,8 +96,23 @@ async function performMaintenance(
   currentDate,
   options
 ) {
-  const index =
-    await IMPORTER.readCurrentIndex()
+  let index
+
+  try {
+    index =
+      await IMPORTER.readCurrentIndex()
+  } catch (error) {
+    if (hasTelemetryError(error)) {
+      throw error
+    }
+
+    throw createTelemetryError(
+      "CLEANUP_INDEX_READ_FAILED",
+      "archive",
+      `L’index des services ne peut pas être lu : ${errorMessage(error)}`,
+      error
+    )
+  }
 
   const services =
     Array.isArray(
@@ -157,6 +174,13 @@ async function performMaintenance(
       const safeError =
         UTILS.safeError(error)
 
+      const telemetry =
+        telemetryFromError(
+          error,
+          "SERVICES_CLEANUP_FAILED",
+          "archive"
+        )
+
       errors.push({
         id:
           String(
@@ -173,6 +197,12 @@ async function performMaintenance(
             entry?.date || ""
           ),
 
+        telemetryCode:
+          telemetry.code,
+
+        telemetryStage:
+          telemetry.stage,
+
         error:
           safeError.message
       })
@@ -185,7 +215,17 @@ async function performMaintenance(
 
     await writeJsonAtomically(
       files.servicesIndex,
-      index
+      index,
+      {
+        writeCode:
+          "ARCHIVE_INDEX_TEMP_WRITE_FAILED",
+
+        commitCode:
+          "ARCHIVE_INDEX_COMMIT_FAILED",
+
+        stage:
+          "archive"
+      }
     )
   }
 
@@ -220,29 +260,37 @@ async function performMaintenance(
     deleted.length ||
     errors.length
   ) {
-    await STORAGE.appendLog(
-      errors.length
-        ? "cleanup-warning"
-        : "cleanup",
+    try {
+      await STORAGE.appendLog(
+        errors.length
+          ? "cleanup-warning"
+          : "cleanup",
 
-      "Entretien automatique des PDF de services",
+        "Entretien automatique des PDF de services",
 
-      {
-        archived:
-          archived.map(
-            item =>
-              item.fileName
-          ),
+        {
+          archived:
+            archived.map(
+              item =>
+                item.fileName
+            ),
 
-        deleted:
-          deleted.map(
-            item =>
-              item.fileName
-          ),
+          deleted:
+            deleted.map(
+              item =>
+                item.fileName
+            ),
 
-        errors
-      }
-    )
+          errors
+        }
+      )
+    } catch (_) {
+      /*
+       * Le journal local reste secondaire :
+       * son échec ne doit pas invalider un
+       * archivage ou une suppression réussis.
+       */
+    }
   }
 
   return result
@@ -376,9 +424,18 @@ async function maintainActivePdfEntry(
       sourcePath
     )
   ) {
-    await fm.downloadFileFromiCloud(
-      sourcePath
-    )
+    try {
+      await fm.downloadFileFromiCloud(
+        sourcePath
+      )
+    } catch (error) {
+      throw createTelemetryError(
+        "ARCHIVE_ICLOUD_DOWNLOAD_FAILED",
+        "archive",
+        `Le PDF à archiver n’a pas pu être téléchargé depuis iCloud : ${errorMessage(error)}`,
+        error
+      )
+    }
   }
 
   const archiveFileName =
@@ -392,10 +449,19 @@ async function maintainActivePdfEntry(
       archiveFileName
     )
 
-  fm.move(
-    sourcePath,
-    archivePath
-  )
+  try {
+    fm.move(
+      sourcePath,
+      archivePath
+    )
+  } catch (error) {
+    throw createTelemetryError(
+      "ARCHIVE_MOVE_FAILED",
+      "archive",
+      `Le PDF du service n’a pas pu être déplacé vers les archives : ${errorMessage(error)}`,
+      error
+    )
+  }
 
   const archivedAt =
     currentDate.toISOString()
@@ -505,9 +571,18 @@ async function maintainArchivedEntry(
     )
 
   if (fm.fileExists(archivePath)) {
-    fm.remove(
-      archivePath
-    )
+    try {
+      fm.remove(
+        archivePath
+      )
+    } catch (error) {
+      throw createTelemetryError(
+        "ARCHIVE_DELETE_FAILED",
+        "archive",
+        `Le PDF archivé n’a pas pu être supprimé : ${errorMessage(error)}`,
+        error
+      )
+    }
   }
 
   const deletedAt =
@@ -561,11 +636,22 @@ async function loadEntryService(
       cacheFileName
     )
 
-  const source =
-    await STORAGE.readJson(
-      cachePath,
-      null
+  let source
+
+  try {
+    source =
+      await STORAGE.readJson(
+        cachePath,
+        null
+      )
+  } catch (error) {
+    throw createTelemetryError(
+      "ARCHIVE_SERVICE_CACHE_READ_FAILED",
+      "archive",
+      `Le cache du service à archiver ne peut pas être lu : ${errorMessage(error)}`,
+      error
     )
+  }
 
   if (
     !source ||
@@ -686,7 +772,17 @@ async function saveCleanupState(
 
   await writeJsonAtomically(
     CLEANUP_STATE_PATH,
-    state
+    state,
+    {
+      writeCode:
+        "CLEANUP_STATE_TEMP_WRITE_FAILED",
+
+      commitCode:
+        "CLEANUP_STATE_COMMIT_FAILED",
+
+      stage:
+        "archive"
+    }
   )
 }
 
@@ -703,11 +799,22 @@ async function acquireCleanupLock() {
       CLEANUP_LOCK_PATH
     )
   ) {
-    const existing =
-      await STORAGE.readJson(
-        CLEANUP_LOCK_PATH,
-        null
+    let existing
+
+    try {
+      existing =
+        await STORAGE.readJson(
+          CLEANUP_LOCK_PATH,
+          null
+        )
+    } catch (error) {
+      throw createTelemetryError(
+        "CLEANUP_LOCK_READ_FAILED",
+        "archive_lock",
+        `Le verrou d’entretien ne peut pas être lu : ${errorMessage(error)}`,
+        error
       )
+    }
 
     const createdAt =
       Date.parse(
@@ -739,18 +846,27 @@ async function acquireCleanupLock() {
   const token =
     uniqueToken()
 
-  fm.writeString(
-    CLEANUP_LOCK_PATH,
-    JSON.stringify(
-      {
-        token,
-        createdAt:
-          now.toISOString()
-      },
-      null,
-      2
+  try {
+    fm.writeString(
+      CLEANUP_LOCK_PATH,
+      JSON.stringify(
+        {
+          token,
+          createdAt:
+            now.toISOString()
+        },
+        null,
+        2
+      )
     )
-  )
+  } catch (error) {
+    throw createTelemetryError(
+      "CLEANUP_LOCK_WRITE_FAILED",
+      "archive_lock",
+      `Le verrou d’entretien ne peut pas être créé : ${errorMessage(error)}`,
+      error
+    )
+  }
 
   return {
     acquired: true,
@@ -786,7 +902,7 @@ async function releaseCleanupLock(
         CLEANUP_LOCK_PATH
       )
     }
-  } catch (error) {
+  } catch (_) {
     removeFileQuietly(
       CLEANUP_LOCK_PATH
     )
@@ -799,7 +915,17 @@ async function releaseCleanupLock(
 
 async function writeJsonAtomically(
   path,
-  value
+  value,
+  {
+    writeCode =
+      "CLEANUP_JSON_TEMP_WRITE_FAILED",
+
+    commitCode =
+      "CLEANUP_JSON_COMMIT_FAILED",
+
+    stage =
+      "archive"
+  } = {}
 ) {
   const token =
     uniqueToken()
@@ -818,14 +944,23 @@ async function writeJsonAtomically(
     rollbackPath
   )
 
-  fm.writeString(
-    temporaryPath,
-    JSON.stringify(
-      value,
-      null,
-      2
+  try {
+    fm.writeString(
+      temporaryPath,
+      JSON.stringify(
+        value,
+        null,
+        2
+      )
     )
-  )
+  } catch (error) {
+    throw createTelemetryError(
+      writeCode,
+      stage,
+      `Le fichier temporaire d’entretien ne peut pas être écrit : ${errorMessage(error)}`,
+      error
+    )
+  }
 
   let previousMoved = false
 
@@ -855,18 +990,147 @@ async function writeJsonAtomically(
       ) &&
       !fm.fileExists(path)
     ) {
-      fm.move(
-        rollbackPath,
-        path
-      )
+      try {
+        fm.move(
+          rollbackPath,
+          path
+        )
+      } catch (_) {}
     }
 
-    throw error
+    throw createTelemetryError(
+      commitCode,
+      stage,
+      `Le fichier d’entretien n’a pas pu être validé : ${errorMessage(error)}`,
+      error
+    )
   }
 
   removeFileQuietly(
     rollbackPath
   )
+}
+
+// =====================================================
+// TÉLÉMÉTRIE LOCALE
+// =====================================================
+
+function createTelemetryError(
+  code,
+  stage,
+  message,
+  cause = null
+) {
+  const error =
+    new Error(
+      String(
+        message ||
+        code ||
+        "Erreur d’entretien des services."
+      )
+    )
+
+  error.telemetryCode =
+    normalizeTelemetryCode(
+      code,
+      "SERVICES_CLEANUP_FAILED"
+    )
+
+  error.telemetryStage =
+    normalizeTelemetryStage(
+      stage,
+      "archive"
+    )
+
+  if (cause) {
+    try {
+      error.cause = cause
+    } catch (_) {}
+  }
+
+  return error
+}
+
+function hasTelemetryError(
+  error
+) {
+  return Boolean(
+    error &&
+    typeof error ===
+      "object" &&
+    typeof error.telemetryCode ===
+      "string" &&
+    error.telemetryCode.trim()
+  )
+}
+
+function telemetryFromError(
+  error,
+  fallbackCode,
+  fallbackStage
+) {
+  return {
+    code:
+      normalizeTelemetryCode(
+        error?.telemetryCode,
+        fallbackCode
+      ),
+
+    stage:
+      normalizeTelemetryStage(
+        error?.telemetryStage,
+        fallbackStage
+      )
+  }
+}
+
+function normalizeTelemetryCode(
+  value,
+  fallback
+) {
+  const normalized =
+    String(
+      value ||
+      fallback ||
+      "SERVICES_CLEANUP_FAILED"
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /[^A-Z0-9_]/g,
+        "_"
+      )
+      .slice(
+        0,
+        64
+      )
+
+  return normalized ||
+    "SERVICES_CLEANUP_FAILED"
+}
+
+function normalizeTelemetryStage(
+  value,
+  fallback
+) {
+  const normalized =
+    String(
+      value ||
+      fallback ||
+      "archive"
+    )
+      .trim()
+      .replace(
+        /[^a-zA-Z0-9._-]/g,
+        "_"
+      )
+      .slice(
+        0,
+        50
+      )
+
+  return normalized ||
+    "archive"
 }
 
 // =====================================================
@@ -1017,7 +1281,11 @@ function skippedResult(
 
 function failureResult(
   status,
-  message
+  message,
+  telemetryCode =
+    "SERVICES_CLEANUP_FAILED",
+  telemetryStage =
+    "archive"
 ) {
   return {
     success: false,
@@ -1027,6 +1295,18 @@ function failureResult(
     skipped: [],
     errors: [
       {
+        telemetryCode:
+          normalizeTelemetryCode(
+            telemetryCode,
+            "SERVICES_CLEANUP_FAILED"
+          ),
+
+        telemetryStage:
+          normalizeTelemetryStage(
+            telemetryStage,
+            "archive"
+          ),
+
         error:
           String(
             message ||
@@ -1057,7 +1337,25 @@ function removeFileQuietly(
     ) {
       fm.remove(path)
     }
-  } catch (error) {}
+  } catch (_) {}
+}
+
+function errorMessage(
+  error
+) {
+  if (
+    error &&
+    typeof error.message ===
+      "string" &&
+    error.message.trim()
+  ) {
+    return error.message.trim()
+  }
+
+  return String(
+    error ||
+    "Erreur inconnue"
+  )
 }
 
 // =====================================================
