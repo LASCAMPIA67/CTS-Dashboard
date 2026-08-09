@@ -2,8 +2,10 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: cyan; icon-glyph: rectangle.3.group;
 
+// CTS Widget Renderer.js
+// Rendu natif du widget CTS Dashboard, exclusivement au format large.
+
 const UTILS = importModule("CTS Utils")
-const WIDGET_ENGINE = importModule("CTS Widget Engine")
 const THEME = importModule("CTS Widget Theme")
 
 function createWidget(family, context) {
@@ -16,10 +18,8 @@ function createWidget(family, context) {
     )
   }
 
-  const normalizedFamily = normalizeFamily(family)
-
-  if (normalizedFamily !== "large") {
-    return createLargeOnlyWidget(normalizedFamily)
+  if (normalizeFamily(family) !== "large") {
+    return createLargeOnlyWidget()
   }
 
   return createLargeWidget(context)
@@ -33,7 +33,7 @@ function createLargeWidget(context) {
     displaySlice: focus
   } = context
 
-  const density = getLargeDensity(service.slices.length)
+  const density = getDensity(service.slices.length)
   const widget = THEME.createBaseWidget(state.type)
 
   widget.setPadding(
@@ -43,45 +43,21 @@ function createLargeWidget(context) {
     density.paddingHorizontal
   )
 
-  addHeader(widget, service, state, density.header)
+  addHeader(widget, service, state, density)
   widget.addSpacer(density.sectionGap)
 
-  addLargeTimingCard(
-    widget,
-    focus,
-    state,
-    density
-  )
-
+  addTimingCard(widget, focus, state, density)
   widget.addSpacer(density.sectionGap)
 
-  addSlicesList(
-    widget,
-    service,
-    state,
-    density
-  )
-
+  addProgram(widget, service, state, density)
   widget.addSpacer(density.sectionGap)
 
-  addStatsSummary(
-    widget,
-    stats,
-    density
-  )
+  addStats(widget, stats, density)
 
   return widget
 }
 
-function createMediumWidget() {
-  return createLargeOnlyWidget("medium")
-}
-
-function createSmallWidget() {
-  return createLargeOnlyWidget("small")
-}
-
-function createLargeOnlyWidget(family) {
+function createLargeOnlyWidget() {
   const widget = new ListWidget()
   widget.backgroundColor = new Color("#0B1726")
   widget.setPadding(16, 16, 16, 16)
@@ -92,63 +68,80 @@ function createLargeOnlyWidget(family) {
   const icon = row.addStack()
   icon.size = new Size(34, 34)
   icon.cornerRadius = 17
-  icon.backgroundColor = new Color("#FFFFFF", 0.07)
+  icon.backgroundColor = THEME.translucentWhite(0.07)
   icon.centerAlignContent()
   icon.addSpacer()
-
-  addSymbol(
-    icon,
-    "rectangle.3.group.fill",
-    15,
-    new Color("#9EC8FF")
-  )
-
+  addSymbol(icon, "rectangle.3.group.fill", 15, new Color("#9EC8FF"))
   icon.addSpacer()
+
   row.addSpacer(10)
 
   const text = row.addStack()
   text.layoutVertically()
-
-  addText(
-    text,
-    "CTS Dashboard",
-    Font.boldSystemFont(family === "small" ? 13 : 16),
-    Color.white(),
-    1
-  )
-
+  addText(text, "CTS Dashboard", Font.boldSystemFont(15), Color.white())
   text.addSpacer(2)
-
   addText(
     text,
     "Widget grand requis",
-    Font.semiboldSystemFont(family === "small" ? 8 : 10),
-    new Color("#9EC8FF"),
-    1
+    Font.semiboldSystemFont(9),
+    new Color("#9EC8FF")
   )
-
-  if (family !== "small") {
-    widget.addSpacer(10)
-
-    addText(
-      widget,
-      "CTS Dashboard est conçu exclusivement pour le format grand afin de garantir un affichage complet et lisible.",
-      Font.mediumSystemFont(10),
-      new Color("#AAB5C4"),
-      3
-    )
-  }
 
   return widget
 }
 
-function addLargeTimingCard(widget, focus, state, density) {
-  const card = addSurface(widget, {
+function addHeader(parent, service, state, density) {
+  const row = parent.addStack()
+  row.centerAlignContent()
+
+  const icon = row.addStack()
+  icon.size = new Size(density.iconSize, density.iconSize)
+  icon.cornerRadius = density.iconSize / 2
+  icon.backgroundColor = THEME.translucentWhite(0.075)
+  icon.borderWidth = 0.5
+  icon.borderColor = THEME.translucentWhite(0.09)
+  icon.centerAlignContent()
+  icon.addSpacer()
+  addSymbol(
+    icon,
+    getTransportIcon(service),
+    density.iconSymbolSize,
+    accent(state)
+  )
+  icon.addSpacer()
+
+  row.addSpacer(density.iconGap)
+
+  const identity = row.addStack()
+  identity.layoutVertically()
+
+  addText(
+    identity,
+    service.number,
+    Font.boldSystemFont(density.serviceSize),
+    THEME.getPrimaryTextColor()
+  )
+
+  identity.addSpacer(1)
+
+  addText(
+    identity,
+    UTILS.formatDateLong(service.dateObject),
+    Font.mediumSystemFont(density.dateSize),
+    secondary()
+  )
+
+  row.addSpacer()
+  addStatusPill(row, state, density)
+}
+
+function addTimingCard(parent, focus, state, density) {
+  const card = addSurface(parent, {
     padding: [
-      density.timingPadding,
-      density.surfacePaddingHorizontal,
-      density.timingPadding,
-      density.surfacePaddingHorizontal
+      density.timingPaddingVertical,
+      density.timingPaddingHorizontal,
+      density.timingPaddingVertical,
+      density.timingPaddingHorizontal
     ],
     radius: density.surfaceRadius,
     backgroundAlpha: 0.055,
@@ -156,117 +149,89 @@ function addLargeTimingCard(widget, focus, state, density) {
     vertical: true
   })
 
-  addTimingLabels(card, state, density)
-  card.addSpacer(density.timingLabelGap)
-  addTimingValues(card, focus, state, density)
-  card.addSpacer(density.placeGap)
-  addTimingPlaces(card, focus, density)
+  const timing = card.addStack()
+  timing.centerAlignContent()
 
-  if (!hasDepartureDetails(focus)) {
+  addTimingSide(
+    timing,
+    getTimingStartLabel(state),
+    focus.start,
+    focus.from,
+    "left",
+    density
+  )
+
+  timing.addSpacer()
+  addArrowBadge(timing, state, density.arrowSize)
+  timing.addSpacer()
+
+  addTimingSide(
+    timing,
+    "FIN DE TRANCHE",
+    focus.end,
+    focus.to,
+    "right",
+    density
+  )
+
+  if (!hasOperationalDetails(focus)) {
     return
   }
 
-  card.addSpacer(density.departureSectionGap)
+  card.addSpacer(density.detailsSectionGap)
   addDivider(card)
-  card.addSpacer(density.departureSectionGap)
-
-  addOperationalDetails(
-    card,
-    focus,
-    state,
-    density
-  )
+  card.addSpacer(density.detailsSectionGap)
+  addOperationalDetails(card, focus, state, density)
 }
 
-function addTimingLabels(parent, state, density) {
-  const row = parent.addStack()
-  row.centerAlignContent()
+function addTimingSide(
+  parent,
+  label,
+  time,
+  place,
+  alignment,
+  density
+) {
+  const block = parent.addStack()
+  block.layoutVertically()
 
-  const startLabel = addText(
-    row,
-    getTimingStartLabel(state),
+  const labelText = addText(
+    block,
+    label,
     Font.semiboldSystemFont(density.timingLabelSize),
-    secondary(),
-    1
+    secondary()
   )
-  startLabel.leftAlignText()
 
-  row.addSpacer()
+  block.addSpacer(density.timingLabelGap)
 
-  const endLabel = addText(
-    row,
-    "FIN DE TRANCHE",
-    Font.semiboldSystemFont(density.timingLabelSize),
-    secondary(),
-    1
-  )
-  endLabel.rightAlignText()
-}
-
-function addTimingValues(parent, focus, state, density) {
-  const row = parent.addStack()
-  row.centerAlignContent()
-
-  const startTime = addText(
-    row,
-    focus.start,
+  const timeText = addText(
+    block,
+    time,
     Font.boldMonospacedSystemFont(density.timeSize),
-    THEME.getPrimaryTextColor(),
-    1
+    THEME.getPrimaryTextColor()
   )
-  startTime.leftAlignText()
 
-  row.addSpacer(density.timingGap)
-  addArrowBadge(row, state, density.arrowSize)
-  row.addSpacer(density.timingGap)
+  block.addSpacer(density.placeGap)
 
-  const endTime = addText(
-    row,
-    focus.end,
-    Font.boldMonospacedSystemFont(density.timeSize),
-    THEME.getPrimaryTextColor(),
-    1
-  )
-  endTime.rightAlignText()
-}
-
-function addTimingPlaces(parent, focus, density) {
-  const row = parent.addStack()
-  row.centerAlignContent()
-
-  const from = addText(
-    row,
-    focus.from,
+  const placeText = addText(
+    block,
+    place,
     Font.mediumSystemFont(
       fitFont(
         density.placeSize,
-        focus.from,
+        place,
         density.placeSoftLimit,
         density.placeMinimumSize
       )
     ),
-    secondary(),
-    1
+    secondary()
   )
-  from.leftAlignText()
 
-  row.addSpacer(density.placePairGap)
+  alignText(labelText, alignment)
+  alignText(timeText, alignment)
+  alignText(placeText, alignment)
 
-  const to = addText(
-    row,
-    focus.to,
-    Font.mediumSystemFont(
-      fitFont(
-        density.placeSize,
-        focus.to,
-        density.placeSoftLimit,
-        density.placeMinimumSize
-      )
-    ),
-    secondary(),
-    1
-  )
-  to.rightAlignText()
+  return block
 }
 
 function addOperationalDetails(parent, slice, state, density) {
@@ -280,10 +245,7 @@ function addOperationalDetails(parent, slice, state, density) {
       slice.dutyStart,
       state,
       density,
-      {
-        time: true,
-        alignment: "left"
-      }
+      { time: true, alignment: "left" }
     )
 
     row.addSpacer()
@@ -294,14 +256,11 @@ function addOperationalDetails(parent, slice, state, density) {
       slice.depotExitAt,
       state,
       density,
-      {
-        time: true,
-        alignment: "right"
-      }
+      { time: true, alignment: "right" }
     )
 
     if (slice.lineUpAt || slice.direction) {
-      parent.addSpacer(density.departureGroupGap)
+      parent.addSpacer(density.detailGroupGap)
     }
   }
 
@@ -311,14 +270,11 @@ function addOperationalDetails(parent, slice, state, density) {
       getOperationStartLabel(slice),
       slice.lineUpAt,
       state,
-      density,
-      {
-        alignment: "left"
-      }
+      density
     )
 
     if (slice.direction) {
-      parent.addSpacer(density.departureGroupGap)
+      parent.addSpacer(density.detailGroupGap)
     }
   }
 
@@ -329,121 +285,88 @@ function addOperationalDetails(parent, slice, state, density) {
       slice.direction,
       state,
       density,
-      {
-        alignment: "left",
-        emphasized: true
-      }
+      { emphasized: true }
     )
   }
 }
 
-function addDetailBlock(parent, label, value, state, density, options = {}) {
+function addDetailBlock(
+  parent,
+  label,
+  value,
+  state,
+  density,
+  options = {}
+) {
   const block = parent.addStack()
   block.layoutVertically()
 
   const labelText = addText(
     block,
     label,
-    Font.semiboldSystemFont(density.departureLabelSize),
-    secondary(),
-    1
+    Font.semiboldSystemFont(density.detailLabelSize),
+    secondary()
   )
 
-  block.addSpacer(density.departureValueGap)
+  block.addSpacer(density.detailValueGap)
 
   const valueText = addText(
     block,
     value,
     options.time
-      ? Font.boldMonospacedSystemFont(density.departureTimeSize)
+      ? Font.boldMonospacedSystemFont(density.detailTimeSize)
       : Font.semiboldSystemFont(
           fitFont(
             options.emphasized
-              ? density.directionValueSize
-              : density.departureValueSize,
+              ? density.directionSize
+              : density.detailValueSize,
             value,
             options.emphasized
               ? density.directionSoftLimit
-              : density.departureSoftLimit,
-            density.departureMinimumSize
+              : density.detailSoftLimit,
+            density.detailMinimumSize
           )
         ),
     options.emphasized
       ? accent(state)
-      : THEME.getPrimaryTextColor(),
-    1
+      : THEME.getPrimaryTextColor()
   )
 
-  alignText(labelText, options.alignment || "left")
-  alignText(valueText, options.alignment || "left")
+  const alignment = options.alignment || "left"
+  alignText(labelText, alignment)
+  alignText(valueText, alignment)
 
   return block
 }
 
-function getTimingStartLabel(state) {
-  switch (state?.type) {
-    case "WORK":
-      return "DÉBUT DE TRANCHE"
-    case "DONE":
-      return "DERNIÈRE TRANCHE"
-    default:
-      return "PROCHAINE TRANCHE"
-  }
-}
-
-function addArrowBadge(parent, state, size) {
-  const badge = parent.addStack()
-  badge.size = new Size(size, size)
-  badge.cornerRadius = size / 2
-  badge.backgroundColor = accentAlpha(state, 0.11)
-  badge.borderWidth = 0.5
-  badge.borderColor = accentAlpha(state, 0.24)
-  badge.centerAlignContent()
-  badge.addSpacer()
-
-  addSymbol(
-    badge,
-    "arrow.right",
-    Math.max(10, size * 0.48),
-    accent(state)
-  )
-
-  badge.addSpacer()
-}
-
-function addSlicesList(widget, service, state, density) {
-  const list = addSurface(widget, {
+function addProgram(parent, service, state, density) {
+  const card = addSurface(parent, {
     padding: [
-      density.listPadding,
-      density.listPadding,
-      density.listPadding,
-      density.listPadding
+      density.programPadding,
+      density.programPadding,
+      density.programPadding,
+      density.programPadding
     ],
-    radius: density.listRadius,
+    radius: density.programRadius,
     backgroundAlpha: 0.05,
     borderAlpha: 0.075,
     vertical: true
   })
 
   addSectionHeader(
-    list,
+    card,
     "PROGRAMME",
     `${service.slices.length} tranche${service.slices.length > 1 ? "s" : ""}`,
     density.sectionHeaderSize
   )
 
-  list.addSpacer(density.headerGap)
+  card.addSpacer(density.programHeaderGap)
 
   service.slices.forEach((slice, index) => {
-    addSliceRow(
-      list,
-      slice,
-      state,
-      density
-    )
+    addSliceRow(card, slice, state, density)
 
     if (index < service.slices.length - 1) {
-      list.addSpacer(density.rowGap)
+      card.addSpacer(density.rowGap)
     }
   })
 }
@@ -469,14 +392,7 @@ function addSliceRow(parent, slice, state, density) {
     ? accentAlpha(state, 0.18)
     : THEME.translucentWhite(0.035)
 
-  addSliceNumber(
-    row,
-    slice,
-    active,
-    state,
-    density
-  )
-
+  addSliceNumber(row, slice, active, state, density)
   row.addSpacer(density.itemGap)
 
   const body = row.addStack()
@@ -499,8 +415,7 @@ function addSliceRow(parent, slice, state, density) {
     ),
     active
       ? THEME.getPrimaryTextColor()
-      : THEME.getInactiveTextColor(),
-    1
+      : THEME.getInactiveTextColor()
   )
   title.leftAlignText()
 
@@ -510,12 +425,13 @@ function addSliceRow(parent, slice, state, density) {
     top,
     `${slice.start}–${slice.end}`,
     Font.boldMonospacedSystemFont(density.rangeSize),
-    active ? accent(state) : THEME.getInactiveTimeColor(),
-    1
+    active
+      ? accent(state)
+      : THEME.getInactiveTimeColor()
   )
   range.rightAlignText()
 
-  body.addSpacer(density.detailGap)
+  body.addSpacer(density.sliceDetailGap)
 
   const bottom = body.addStack()
   bottom.centerAlignContent()
@@ -532,8 +448,7 @@ function addSliceRow(parent, slice, state, density) {
         density.routeMinimumSize
       )
     ),
-    secondary(),
-    1
+    secondary()
   )
   route.leftAlignText()
 
@@ -543,14 +458,13 @@ function addSliceRow(parent, slice, state, density) {
     bottom,
     UTILS.formatDuration(duration),
     Font.mediumSystemFont(density.durationSize),
-    secondary(),
-    1
+    secondary()
   )
   durationText.rightAlignText()
 }
 
-function addSliceNumber(row, slice, active, state, density) {
-  const badge = row.addStack()
+function addSliceNumber(parent, slice, active, state, density) {
+  const badge = parent.addStack()
   badge.size = new Size(density.numberSize, density.numberSize)
   badge.cornerRadius = density.numberSize / 2
   badge.backgroundColor = active
@@ -567,141 +481,75 @@ function addSliceNumber(row, slice, active, state, density) {
     badge,
     slice.index,
     Font.boldSystemFont(density.numberFont),
-    active ? accent(state) : secondary(),
-    1
+    active ? accent(state) : secondary()
   )
 
   badge.addSpacer()
 }
 
-function addStatsSummary(widget, stats, density) {
-  const summary = widget.addStack()
-  summary.centerAlignContent()
+function addStats(parent, stats, density) {
+  const row = parent.addStack()
+  row.centerAlignContent()
+  row.addSpacer()
 
   addStatCard(
-    summary,
+    row,
     UTILS.formatDuration(stats.work),
     "Travail",
-    {
-      paddingHorizontal: density.statPaddingHorizontal,
-      paddingVertical: density.statPaddingVertical,
-      valueSize: density.statValueSize,
-      labelSize: density.statLabelSize
-    }
+    density
   )
 
-  summary.addSpacer(density.statGap)
+  row.addSpacer(density.statGap)
 
   addStatCard(
-    summary,
+    row,
     UTILS.formatDuration(stats.amplitude),
     "Amplitude",
-    {
-      paddingHorizontal: density.statPaddingHorizontal,
-      paddingVertical: density.statPaddingVertical,
-      valueSize: density.statValueSize,
-      labelSize: density.statLabelSize
-    }
+    density
+  )
+
+  row.addSpacer()
+}
+
+function addStatCard(parent, value, label, density) {
+  const card = addSurface(parent, {
+    padding: [
+      density.statPaddingVertical,
+      density.statPaddingHorizontal,
+      density.statPaddingVertical,
+      density.statPaddingHorizontal
+    ],
+    radius: density.statRadius,
+    backgroundAlpha: 0.05,
+    borderAlpha: 0.065,
+    vertical: true
+  })
+
+  card.centerAlignContent()
+  addCenteredText(
+    card,
+    value,
+    Font.boldSystemFont(density.statValueSize),
+    THEME.getPrimaryTextColor()
+  )
+
+  card.addSpacer(1)
+
+  addCenteredText(
+    card,
+    label,
+    Font.mediumSystemFont(density.statLabelSize),
+    secondary()
   )
 }
 
-function hasDepotTiming(slice) {
-  return Boolean(slice?.dutyStart && slice?.depotExitAt)
-}
-
-function hasDepartureDetails(slice) {
-  return Boolean(
-    slice &&
-    (slice.depotExitAt || slice.lineUpAt || slice.direction)
-  )
-}
-
-function isTramSlice(slice) {
-  const lineCode = String(slice?.lineCode || "").trim()
-  return ["80", "81", "82", "83", "84", "85"].includes(lineCode)
-}
-
-function getOperationStartLabel(slice) {
-  return isTramSlice(slice)
-    ? "DÉBUT EXPLOITATION"
-    : "MISE EN LIGNE"
-}
-
-function addHeader(parent, service, state, options) {
-  const header = parent.addStack()
-  header.centerAlignContent()
-
-  const icon = header.addStack()
-  icon.size = new Size(options.iconSize, options.iconSize)
-  icon.cornerRadius = options.iconSize / 2
-  icon.backgroundColor = THEME.translucentWhite(0.075)
-  icon.borderWidth = 0.5
-  icon.borderColor = THEME.translucentWhite(0.09)
-  icon.centerAlignContent()
-  icon.addSpacer()
-
-  addSymbol(
-    icon,
-    getServiceTransportIcon(service),
-    options.symbolSize,
-    accent(state)
-  )
-
-  icon.addSpacer()
-  header.addSpacer(options.iconGap)
-
-  const identity = header.addStack()
-  identity.layoutVertically()
-
-  addText(
-    identity,
-    service.number,
-    Font.boldSystemFont(options.titleSize),
-    THEME.getPrimaryTextColor(),
-    1
-  )
-
-  identity.addSpacer(1)
-
-  addText(
-    identity,
-    WIDGET_ENGINE.formatServiceDate(service),
-    Font.mediumSystemFont(options.dateSize),
-    secondary(),
-    1
-  )
-
-  header.addSpacer()
-
-  addStatusPill(
-    header,
-    state,
-    options.badgeSize,
-    options.badgePadding
-  )
-}
-
-function getServiceTransportIcon(service) {
-  const slices = Array.isArray(service?.slices)
-    ? service.slices
-    : []
-
-  return slices.some(slice => isTramSlice(slice))
-    ? "tram.fill"
-    : "bus.fill"
-}
-
-function addStatusPill(parent, state, fontSize, padding) {
-  const safePadding = Array.isArray(padding)
-    ? padding
-    : [5, 8, 5, 8]
-
+function addStatusPill(parent, state, density) {
   const pill = parent.addStack()
   pill.setPadding(
-    safePadding[0],
-    safePadding[1],
-    safePadding[2],
-    safePadding[3]
+    density.badgePaddingVertical,
+    density.badgePaddingHorizontal,
+    density.badgePaddingVertical,
+    density.badgePaddingHorizontal
   )
   pill.cornerRadius = 10
   pill.backgroundColor = accentAlpha(state, 0.1)
@@ -711,12 +559,27 @@ function addStatusPill(parent, state, fontSize, padding) {
   addText(
     pill,
     state.label,
-    Font.semiboldSystemFont(fontSize),
-    accent(state),
-    1
+    Font.semiboldSystemFont(density.badgeSize),
+    accent(state)
   )
+}
 
-  return pill
+function addArrowBadge(parent, state, size) {
+  const badge = parent.addStack()
+  badge.size = new Size(size, size)
+  badge.cornerRadius = size / 2
+  badge.backgroundColor = accentAlpha(state, 0.11)
+  badge.borderWidth = 0.5
+  badge.borderColor = accentAlpha(state, 0.24)
+  badge.centerAlignContent()
+  badge.addSpacer()
+  addSymbol(
+    badge,
+    "arrow.right",
+    Math.max(10, size * 0.48),
+    accent(state)
+  )
+  badge.addSpacer()
 }
 
 function addSectionHeader(parent, title, detail, fontSize) {
@@ -727,8 +590,7 @@ function addSectionHeader(parent, title, detail, fontSize) {
     row,
     title,
     Font.semiboldSystemFont(fontSize),
-    secondary(),
-    1
+    secondary()
   )
 
   row.addSpacer()
@@ -737,17 +599,8 @@ function addSectionHeader(parent, title, detail, fontSize) {
     row,
     detail,
     Font.mediumSystemFont(fontSize),
-    secondary(),
-    1
+    secondary()
   )
-}
-
-function addDivider(parent) {
-  const divider = parent.addStack()
-  divider.size = new Size(0, 1)
-  divider.backgroundColor = THEME.translucentWhite(0.07)
-  divider.addSpacer()
-  return divider
 }
 
 function addSurface(parent, options = {}) {
@@ -776,104 +629,28 @@ function addSurface(parent, options = {}) {
   return stack
 }
 
-function addStatCard(parent, value, label, options = {}) {
-  const card = addSurface(parent, {
-    padding: [
-      options.paddingVertical || 5,
-      options.paddingHorizontal || 18,
-      options.paddingVertical || 5,
-      options.paddingHorizontal || 18
-    ],
-    radius: 12,
-    backgroundAlpha: 0.05,
-    borderAlpha: 0.065,
-    vertical: true
-  })
-
-  card.centerAlignContent()
-
-  addCenteredText(
-    card,
-    value,
-    Font.boldSystemFont(options.valueSize || 14),
-    THEME.getPrimaryTextColor()
-  )
-
-  card.addSpacer(1)
-
-  addCenteredText(
-    card,
-    label,
-    Font.mediumSystemFont(options.labelSize || 7.5),
-    secondary()
-  )
-
-  return card
+function addDivider(parent) {
+  const divider = parent.addStack()
+  divider.size = new Size(0, 1)
+  divider.backgroundColor = THEME.translucentWhite(0.07)
+  divider.addSpacer()
 }
 
 function addCenteredText(parent, value, font, color) {
   const row = parent.addStack()
   row.centerAlignContent()
   row.addSpacer()
-
-  const text = addText(row, value, font, color, 1)
+  const text = addText(row, value, font, color)
   text.centerAlignText()
-
   row.addSpacer()
-  return text
 }
 
-function createErrorWidget(title, message) {
-  const widget = new ListWidget()
-  widget.backgroundColor = THEME.getErrorBackgroundColor()
-  widget.setPadding(18, 18, 18, 18)
-
-  const header = widget.addStack()
-  header.centerAlignContent()
-
-  const icon = header.addStack()
-  icon.size = new Size(34, 34)
-  icon.cornerRadius = 17
-  icon.backgroundColor = THEME.translucentWhite(0.08)
-  icon.centerAlignContent()
-  icon.addSpacer()
-
-  addSymbol(
-    icon,
-    "exclamationmark.triangle.fill",
-    15,
-    THEME.getPrimaryTextColor()
-  )
-
-  icon.addSpacer()
-  header.addSpacer(10)
-
-  addText(
-    header,
-    title,
-    Font.boldSystemFont(17),
-    THEME.getPrimaryTextColor(),
-    1
-  )
-
-  widget.addSpacer(10)
-
-  const card = addSurface(widget, {
-    padding: [11, 12, 11, 12],
-    radius: 14,
-    backgroundAlpha: 0.05,
-    borderAlpha: 0.07
-  })
-
-  addText(
-    card,
-    message,
-    Font.mediumSystemFont(11),
-    secondary(),
-    4
-  )
-
-  return widget
+function addText(parent, value, font, color, lines = 1) {
+  const text = parent.addText(String(value ?? ""))
+  text.font = font
+  text.textColor = color
+  text.lineLimit = lines
+  return text
 }
 
 function addSymbol(parent, name, size, color) {
@@ -888,16 +665,7 @@ function addSymbol(parent, name, size, color) {
   const image = parent.addImage(symbol.image)
   image.imageSize = new Size(size, size)
   image.tintColor = color
-
   return image
-}
-
-function addText(parent, value, font, color, lines = 1) {
-  const element = parent.addText(String(value ?? ""))
-  element.font = font
-  element.textColor = color
-  element.lineLimit = lines
-  return element
 }
 
 function alignText(text, alignment) {
@@ -908,6 +676,51 @@ function alignText(text, alignment) {
   } else {
     text.leftAlignText()
   }
+}
+
+function getTransportIcon(service) {
+  const slices = Array.isArray(service?.slices)
+    ? service.slices
+    : []
+
+  return slices.some(isTramSlice)
+    ? "tram.fill"
+    : "bus.fill"
+}
+
+function isTramSlice(slice) {
+  return ["80", "81", "82", "83", "84", "85"].includes(
+    String(slice?.lineCode || "").trim()
+  )
+}
+
+function hasDepotTiming(slice) {
+  return Boolean(slice?.dutyStart && slice?.depotExitAt)
+}
+
+function hasOperationalDetails(slice) {
+  return Boolean(
+    slice &&
+    (slice.depotExitAt || slice.lineUpAt || slice.direction)
+  )
+}
+
+function getOperationStartLabel(slice) {
+  return isTramSlice(slice)
+    ? "DÉBUT EXPLOITATION"
+    : "MISE EN LIGNE"
+}
+
+function getTimingStartLabel(state) {
+  if (state?.type === "WORK") {
+    return "DÉBUT DE TRANCHE"
+  }
+
+  if (state?.type === "DONE") {
+    return "DERNIÈRE TRANCHE"
+  }
+
+  return "PROCHAINE TRANCHE"
 }
 
 function isSliceActive(slice, state) {
@@ -922,7 +735,10 @@ function accent(state) {
 }
 
 function accentAlpha(state, alpha) {
-  return new Color(THEME.getAccentHex(state.type), alpha)
+  return new Color(
+    THEME.getAccentHex(state.type),
+    alpha
+  )
 }
 
 function secondary() {
@@ -934,180 +750,82 @@ function normalizeFamily(value) {
     .trim()
     .toLowerCase()
 
-  if (["small", "medium", "large"].includes(family)) {
-    return family
-  }
-
-  return "large"
+  return family || "large"
 }
 
-function getLargeDensity(sliceCountValue) {
-  const sliceCount = Math.max(1, Number(sliceCountValue) || 1)
+function fitFont(baseSize, value, softLimit, minimumSize) {
+  const base = Math.max(1, Number(baseSize) || 1)
+  const minimum = Math.min(
+    base,
+    Math.max(1, Number(minimumSize) || base * 0.7)
+  )
+  const length = String(value ?? "").trim().length
+  const limit = Math.max(1, Number(softLimit) || 1)
 
-  if (sliceCount >= 5) {
-    return createDensity({
-      paddingTop: 13,
-      paddingBottom: 11,
-      paddingHorizontal: 15,
-      sectionGap: 4,
-      surfacePaddingHorizontal: 10,
-      surfaceRadius: 15,
-      timingPadding: 5,
-      timingLabelSize: 6.8,
-      timingLabelGap: 2,
-      timeSize: 21,
-      timingGap: 5,
-      arrowSize: 22,
-      placeGap: 2,
-      placePairGap: 8,
-      placeSize: 8.5,
-      placeSoftLimit: 18,
-      placeMinimumSize: 7,
-      departureSectionGap: 3,
-      departureGroupGap: 3,
-      departureValueGap: 1,
-      departureLabelSize: 6.5,
-      departureValueSize: 7.5,
-      directionValueSize: 8,
-      departureTimeSize: 8.5,
-      departureSoftLimit: 22,
-      directionSoftLimit: 28,
-      departureMinimumSize: 6.5,
-      listPadding: 6,
-      listRadius: 14,
-      sectionHeaderSize: 7,
-      headerGap: 4,
-      rowGap: 3,
-      rowPaddingVertical: 3,
-      rowPaddingHorizontal: 4,
-      rowRadius: 10,
-      itemGap: 5,
-      numberSize: 18,
-      numberFont: 8,
-      sliceTitleSize: 9,
-      sliceDetailSize: 7.2,
-      titleSoftLimit: 26,
-      titleMinimumSize: 7.5,
-      routeSoftLimit: 34,
-      routeMinimumSize: 6.5,
-      rangeSize: 8.5,
-      durationSize: 7,
-      detailGap: 1,
-      statPaddingHorizontal: 17,
-      statPaddingVertical: 4,
-      statGap: 6,
-      statValueSize: 12.5,
-      statLabelSize: 6.8,
-      header: {
-        iconSize: 31,
-        symbolSize: 14,
-        titleSize: 17,
-        dateSize: 8.5,
-        badgeSize: 8.5,
-        iconGap: 8,
-        badgePadding: [4, 7, 4, 7]
-      }
-    })
+  if (length <= limit) {
+    return base
   }
 
-  if (sliceCount >= 3) {
-    return createDensity({
-      paddingTop: 15,
-      paddingBottom: 12,
-      paddingHorizontal: 16,
-      sectionGap: 5,
-      surfacePaddingHorizontal: 11,
-      surfaceRadius: 16,
-      timingPadding: 6,
-      timingLabelSize: 7.2,
-      timingLabelGap: 3,
-      timeSize: 23,
-      timingGap: 6,
-      arrowSize: 24,
-      placeGap: 2,
-      placePairGap: 10,
-      placeSize: 9,
-      placeSoftLimit: 18,
-      placeMinimumSize: 7.2,
-      departureSectionGap: 3,
-      departureGroupGap: 3,
-      departureValueGap: 1,
-      departureLabelSize: 7,
-      departureValueSize: 8.5,
-      directionValueSize: 9,
-      departureTimeSize: 9.5,
-      departureSoftLimit: 24,
-      directionSoftLimit: 30,
-      departureMinimumSize: 7,
-      listPadding: 7,
-      listRadius: 15,
-      sectionHeaderSize: 7.5,
-      headerGap: 5,
-      rowGap: 4,
-      rowPaddingVertical: 4,
-      rowPaddingHorizontal: 5,
-      rowRadius: 10,
-      itemGap: 6,
-      numberSize: 21,
-      numberFont: 9,
-      sliceTitleSize: 10,
-      sliceDetailSize: 8,
-      titleSoftLimit: 27,
-      titleMinimumSize: 8,
-      routeSoftLimit: 35,
-      routeMinimumSize: 6.8,
-      rangeSize: 9.5,
-      durationSize: 7.5,
-      detailGap: 2,
-      statPaddingHorizontal: 19,
-      statPaddingVertical: 4,
-      statGap: 7,
-      statValueSize: 13,
-      statLabelSize: 7,
-      header: {
-        iconSize: 34,
-        symbolSize: 16,
-        titleSize: 19,
-        dateSize: 9,
-        badgeSize: 9,
-        iconGap: 9,
-        badgePadding: [4, 7, 4, 7]
-      }
-    })
+  const ratio = Math.max(0.7, limit / length)
+
+  return Math.round(
+    Math.max(minimum, base * ratio) * 2
+  ) / 2
+}
+
+function getDensity(sliceCountValue) {
+  const count = Math.max(1, Number(sliceCountValue) || 1)
+
+  if (count >= 5) {
+    return densityCompact()
   }
 
-  return createDensity({
+  if (count >= 3) {
+    return densityStandard()
+  }
+
+  return densityComfortable()
+}
+
+function densityComfortable() {
+  return {
     paddingTop: 17,
     paddingBottom: 14,
     paddingHorizontal: 18,
     sectionGap: 7,
-    surfacePaddingHorizontal: 12,
+    iconSize: 38,
+    iconSymbolSize: 18,
+    iconGap: 11,
+    serviceSize: 21,
+    dateSize: 10,
+    badgeSize: 10,
+    badgePaddingVertical: 5,
+    badgePaddingHorizontal: 8,
     surfaceRadius: 17,
-    timingPadding: 7,
+    timingPaddingVertical: 8,
+    timingPaddingHorizontal: 12,
     timingLabelSize: 8,
     timingLabelGap: 3,
     timeSize: 27,
-    timingGap: 7,
     arrowSize: 28,
     placeGap: 3,
-    placePairGap: 12,
     placeSize: 10.5,
     placeSoftLimit: 18,
     placeMinimumSize: 7.5,
-    departureSectionGap: 4,
-    departureGroupGap: 4,
-    departureValueGap: 1,
-    departureLabelSize: 7.5,
-    departureValueSize: 10,
-    directionValueSize: 10.5,
-    departureTimeSize: 11,
-    departureSoftLimit: 26,
+    detailsSectionGap: 4,
+    detailGroupGap: 4,
+    detailValueGap: 1,
+    detailLabelSize: 7.5,
+    detailValueSize: 10,
+    directionSize: 10.5,
+    detailTimeSize: 11,
+    detailSoftLimit: 26,
     directionSoftLimit: 34,
-    departureMinimumSize: 7.5,
-    listPadding: 9,
-    listRadius: 16,
+    detailMinimumSize: 7.5,
+    programPadding: 9,
+    programRadius: 16,
     sectionHeaderSize: 8,
-    headerGap: 6,
+    programHeaderGap: 6,
     rowGap: 6,
     rowPaddingVertical: 5,
     rowPaddingHorizontal: 6,
@@ -1123,47 +841,127 @@ function getLargeDensity(sliceCountValue) {
     routeMinimumSize: 7.4,
     rangeSize: 11,
     durationSize: 9,
-    detailGap: 3,
+    sliceDetailGap: 3,
     statPaddingHorizontal: 24,
     statPaddingVertical: 5,
     statGap: 8,
+    statRadius: 12,
     statValueSize: 14,
-    statLabelSize: 7.5,
-    header: {
-      iconSize: 38,
-      symbolSize: 18,
-      titleSize: 21,
-      dateSize: 10,
-      badgeSize: 10,
-      iconGap: 11,
-      badgePadding: [5, 8, 5, 8]
-    }
-  })
-}
-
-function createDensity(value) {
-  return value
-}
-
-function fitFont(baseSize, value, softLimit, minimumSize) {
-  const safeBaseSize = Math.max(1, Number(baseSize) || 1)
-  const safeMinimumSize = Math.min(
-    safeBaseSize,
-    Math.max(1, Number(minimumSize) || safeBaseSize * 0.7)
-  )
-
-  const length = String(value ?? "").trim().length
-  const limit = Math.max(1, Number(softLimit) || 1)
-
-  if (length <= limit) {
-    return safeBaseSize
+    statLabelSize: 7.5
   }
+}
 
-  const ratio = Math.max(0.7, limit / length)
+function densityStandard() {
+  return {
+    ...densityComfortable(),
+    paddingTop: 15,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+    sectionGap: 5,
+    iconSize: 34,
+    iconSymbolSize: 16,
+    iconGap: 9,
+    serviceSize: 19,
+    dateSize: 9,
+    badgeSize: 9,
+    badgePaddingVertical: 4,
+    badgePaddingHorizontal: 7,
+    surfaceRadius: 16,
+    timingPaddingVertical: 6,
+    timingPaddingHorizontal: 11,
+    timingLabelSize: 7.2,
+    timeSize: 23,
+    arrowSize: 24,
+    placeSize: 9,
+    detailsSectionGap: 3,
+    detailGroupGap: 3,
+    detailLabelSize: 7,
+    detailValueSize: 8.5,
+    directionSize: 9,
+    detailTimeSize: 9.5,
+    detailSoftLimit: 24,
+    directionSoftLimit: 30,
+    detailMinimumSize: 7,
+    programPadding: 7,
+    programRadius: 15,
+    sectionHeaderSize: 7.5,
+    programHeaderGap: 5,
+    rowGap: 4,
+    rowPaddingVertical: 4,
+    rowPaddingHorizontal: 5,
+    rowRadius: 10,
+    itemGap: 6,
+    numberSize: 21,
+    numberFont: 9,
+    sliceTitleSize: 10,
+    sliceDetailSize: 8,
+    titleSoftLimit: 27,
+    titleMinimumSize: 8,
+    routeSoftLimit: 35,
+    routeMinimumSize: 6.8,
+    rangeSize: 9.5,
+    durationSize: 7.5,
+    sliceDetailGap: 2,
+    statPaddingHorizontal: 19,
+    statPaddingVertical: 4,
+    statGap: 7,
+    statValueSize: 13,
+    statLabelSize: 7
+  }
+}
 
-  return Math.round(
-    Math.max(safeMinimumSize, safeBaseSize * ratio) * 2
-  ) / 2
+function densityCompact() {
+  return {
+    ...densityStandard(),
+    paddingTop: 13,
+    paddingBottom: 11,
+    paddingHorizontal: 15,
+    sectionGap: 4,
+    iconSize: 31,
+    iconSymbolSize: 14,
+    iconGap: 8,
+    serviceSize: 17,
+    dateSize: 8.5,
+    badgeSize: 8.5,
+    surfaceRadius: 15,
+    timingPaddingVertical: 5,
+    timingPaddingHorizontal: 10,
+    timingLabelSize: 6.8,
+    timeSize: 21,
+    arrowSize: 22,
+    placeSize: 8.5,
+    placeMinimumSize: 7,
+    detailLabelSize: 6.5,
+    detailValueSize: 7.5,
+    directionSize: 8,
+    detailTimeSize: 8.5,
+    detailSoftLimit: 22,
+    directionSoftLimit: 28,
+    detailMinimumSize: 6.5,
+    programPadding: 6,
+    programRadius: 14,
+    sectionHeaderSize: 7,
+    programHeaderGap: 4,
+    rowGap: 3,
+    rowPaddingVertical: 3,
+    rowPaddingHorizontal: 4,
+    itemGap: 5,
+    numberSize: 18,
+    numberFont: 8,
+    sliceTitleSize: 9,
+    sliceDetailSize: 7.2,
+    titleSoftLimit: 26,
+    titleMinimumSize: 7.5,
+    routeSoftLimit: 34,
+    routeMinimumSize: 6.5,
+    rangeSize: 8.5,
+    durationSize: 7,
+    sliceDetailGap: 1,
+    statPaddingHorizontal: 17,
+    statGap: 6,
+    statValueSize: 12.5,
+    statLabelSize: 6.8
+  }
 }
 
 function validateContext(context) {
@@ -1202,13 +1000,61 @@ function validateContext(context) {
   }
 }
 
+function createErrorWidget(title, message) {
+  const widget = new ListWidget()
+  widget.backgroundColor = THEME.getErrorBackgroundColor()
+  widget.setPadding(18, 18, 18, 18)
+
+  const header = widget.addStack()
+  header.centerAlignContent()
+
+  const icon = header.addStack()
+  icon.size = new Size(34, 34)
+  icon.cornerRadius = 17
+  icon.backgroundColor = THEME.translucentWhite(0.08)
+  icon.centerAlignContent()
+  icon.addSpacer()
+  addSymbol(
+    icon,
+    "exclamationmark.triangle.fill",
+    15,
+    THEME.getPrimaryTextColor()
+  )
+  icon.addSpacer()
+
+  header.addSpacer(10)
+
+  addText(
+    header,
+    title,
+    Font.boldSystemFont(17),
+    THEME.getPrimaryTextColor()
+  )
+
+  widget.addSpacer(10)
+
+  const card = addSurface(widget, {
+    padding: [11, 12, 11, 12],
+    radius: 14,
+    backgroundAlpha: 0.05,
+    borderAlpha: 0.07
+  })
+
+  addText(
+    card,
+    message,
+    Font.mediumSystemFont(11),
+    secondary(),
+    4
+  )
+
+  return widget
+}
+
 module.exports = {
   createWidget,
   createLargeWidget,
-  createMediumWidget,
-  createSmallWidget,
-  createErrorWidget,
-  addText,
-  addSymbol,
-  addStatCard
+  createMediumWidget: createLargeOnlyWidget,
+  createSmallWidget: createLargeOnlyWidget,
+  createErrorWidget
 }
