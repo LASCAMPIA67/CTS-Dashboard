@@ -487,6 +487,15 @@ async function runServicesCleanup(
         result
       )
 
+    const telemetryIssues =
+      extractCleanupTelemetryIssues(
+        result
+      )
+
+    const primaryTelemetry =
+      telemetryIssues[0] ||
+      null
+
     return {
       result,
 
@@ -495,13 +504,19 @@ async function runServicesCleanup(
 
       telemetryCode:
         cleanupError
-          ? "SERVICES_CLEANUP_FAILED"
+          ? primaryTelemetry
+              ?.errorCode ||
+            "SERVICES_CLEANUP_FAILED"
           : "",
 
       telemetryStage:
         cleanupError
-          ? "archive"
-          : ""
+          ? primaryTelemetry
+              ?.stage ||
+            "archive"
+          : "",
+
+      telemetryIssues
     }
   } catch (error) {
     const safeError =
@@ -528,7 +543,17 @@ async function runServicesCleanup(
         telemetry.code,
 
       telemetryStage:
-        telemetry.stage
+        telemetry.stage,
+
+      telemetryIssues: [
+        {
+          errorCode:
+            telemetry.code,
+
+          stage:
+            telemetry.stage
+        }
+      ]
     }
   }
 }
@@ -569,6 +594,77 @@ function extractCleanupError(
   return (
     "L’entretien automatique des services a rencontré une erreur."
   )
+}
+
+function extractCleanupTelemetryIssues(
+  result
+) {
+  if (
+    !result ||
+    result.success !== false
+  ) {
+    return []
+  }
+
+  const errors =
+    Array.isArray(
+      result.errors
+    )
+      ? result.errors
+      : []
+
+  const issues = []
+
+  for (
+    const item
+    of errors
+  ) {
+    const issue = {
+      errorCode:
+        normalizeTelemetryCode(
+          item?.telemetryCode,
+          "SERVICES_CLEANUP_FAILED"
+        ),
+
+      stage:
+        normalizeTelemetryStage(
+          item?.telemetryStage,
+          "archive"
+        )
+    }
+
+    const duplicate =
+      issues.some(
+        current =>
+          current.errorCode ===
+            issue.errorCode &&
+          current.stage ===
+            issue.stage
+      )
+
+    if (!duplicate) {
+      issues.push(issue)
+    }
+
+    if (
+      issues.length >=
+      MAX_TELEMETRY_ISSUES
+    ) {
+      break
+    }
+  }
+
+  if (!issues.length) {
+    issues.push({
+      errorCode:
+        "SERVICES_CLEANUP_FAILED",
+
+      stage:
+        "archive"
+    })
+  }
+
+  return issues
 }
 
 // =====================================================
@@ -1139,26 +1235,49 @@ function buildContextTelemetry(
     telemetry.archiveStatus =
       "error"
 
-    addDiagnosticIssue(
-      telemetry,
-      {
-        severity:
-          "warning",
+    const cleanupIssues =
+      Array.isArray(
+        cleanup?.telemetryIssues
+      ) &&
+      cleanup.telemetryIssues.length
+        ? cleanup.telemetryIssues
+        : [
+            {
+              errorCode:
+                cleanup
+                  .telemetryCode ||
+                "SERVICES_CLEANUP_FAILED",
 
-        errorCode:
-          cleanup
-            .telemetryCode ||
-          "SERVICES_CLEANUP_FAILED",
+              stage:
+                cleanup
+                  .telemetryStage ||
+                "archive"
+            }
+          ]
 
-        module:
-          "ServicesCleaner",
+    for (
+      const item
+      of cleanupIssues
+    ) {
+      addDiagnosticIssue(
+        telemetry,
+        {
+          severity:
+            "warning",
 
-        stage:
-          cleanup
-            .telemetryStage ||
-          "archive"
-      }
-    )
+          errorCode:
+            item?.errorCode ||
+            "SERVICES_CLEANUP_FAILED",
+
+          module:
+            "ServicesCleaner",
+
+          stage:
+            item?.stage ||
+            "archive"
+        }
+      )
+    }
   }
 
   if (
