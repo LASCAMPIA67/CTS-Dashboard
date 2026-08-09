@@ -90,6 +90,13 @@ async function main() {
     context =
       loadedContext
 
+
+    applyContextTelemetrySafely(
+      analytics,
+      telemetryRun,
+      context?.telemetry
+    )
+
   } catch (error) {
     console.warn(
       "[Dashboard]",
@@ -148,11 +155,27 @@ async function main() {
               ERROR_MESSAGE
           )
 
+
+    setTelemetryStageSafely(
+      analytics,
+      telemetryRun,
+      "render",
+      "success"
+    )
+
   } catch (error) {
     console.warn(
       "[Dashboard]",
       messageOf(error)
     )
+
+    setTelemetryStageSafely(
+      analytics,
+      telemetryRun,
+      "render",
+      "error"
+    )
+
 
     registerTelemetryIssueSafely(
       analytics,
@@ -317,6 +340,135 @@ async function registerAnalytics(
           "Activité non enregistrée."
       )
     }
+
+  } catch (error) {
+    console.warn(
+      "[Analytics]",
+      messageOf(error)
+    )
+  }
+}
+
+
+
+function applyContextTelemetrySafely(
+  client,
+  run,
+  telemetry
+) {
+  if (
+    !client ||
+    !run ||
+    !telemetry ||
+    typeof telemetry !==
+      "object"
+  ) {
+    return
+  }
+
+
+  const stages = [
+    [
+      "pdf",
+      telemetry.pdfStatus
+    ],
+
+    [
+      "parser",
+      telemetry.parserStatus
+    ],
+
+    [
+      "service",
+      telemetry.serviceStatus
+    ],
+
+    [
+      "archive",
+      telemetry.archiveStatus
+    ]
+  ]
+
+
+  for (
+    const [stage, status]
+    of stages
+  ) {
+    if (
+      typeof status !==
+        "string" ||
+      !status.trim()
+    ) {
+      continue
+    }
+
+
+    setTelemetryStageSafely(
+      client,
+      run,
+      stage,
+      status
+    )
+  }
+
+
+  const issues =
+    Array.isArray(
+      telemetry.issues
+    )
+      ? telemetry.issues
+      : []
+
+
+  for (
+    const issue
+    of issues
+  ) {
+    registerTelemetryIssueSafely(
+      client,
+      run,
+      {
+        severity:
+          issue?.severity,
+
+        errorCode:
+          issue?.errorCode,
+
+        module:
+          issue?.module,
+
+        stage:
+          issue?.stage
+      }
+    )
+  }
+}
+
+
+
+function setTelemetryStageSafely(
+  client,
+  run,
+  stage,
+  status
+) {
+  if (
+    !client ||
+    !run ||
+    typeof client
+      .setTelemetryStage !==
+      "function"
+  ) {
+    return
+  }
+
+
+  try {
+    client.setTelemetryStage(
+      run,
+      stage,
+      status
+    )
 
   } catch (error) {
     console.warn(
