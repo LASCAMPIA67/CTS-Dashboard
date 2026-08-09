@@ -1,11 +1,5 @@
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
-// icon-color: light-gray; icon-glyph: magic;
-// Variables used by Scriptable.
-// These must be at the very top of the file. Do not edit.
-// icon-color: light-gray; icon-glyph: magic;
-// Variables used by Scriptable.
-// These must be at the very top of the file. Do not edit.
 // icon-color: cyan; icon-glyph: rectangle.3.group;
 
 const UTILS = importModule("CTS Utils")
@@ -18,7 +12,10 @@ function createWidget(family, context) {
   const validation = validateContext(context)
 
   if (!validation.valid) {
-    return createErrorWidget("Service invalide", validation.error)
+    return createErrorWidget(
+      "Service invalide",
+      validation.error
+    )
   }
 
   switch (normalizeFamily(family)) {
@@ -39,79 +36,126 @@ function createLargeWidget(context) {
     displaySlice: focus
   } = context
 
-  const widget = THEME.createBaseWidget(state.type)
-  const density = getLargeDensity(service.slices)
+  const profile = getScreenProfile()
+  const density = getLargeDensity(
+    service.slices,
+    profile
+  )
 
-  widget.setPadding(17, 18, 14, 18)
+  const widget = THEME.createBaseWidget(
+    state.type
+  )
 
-  addHeader(widget, service, state, {
-    iconSize: 38,
-    symbolSize: 18,
-    titleSize: 21,
-    dateSize: 10,
-    badgeSize: 10,
-    iconGap: 11
-  })
+  widget.setPadding(
+    density.paddingTop,
+    density.paddingHorizontal,
+    density.paddingBottom,
+    density.paddingHorizontal
+  )
+
+  addHeader(
+    widget,
+    service,
+    state,
+    density.header
+  )
 
   widget.addSpacer(density.sectionGap)
-  addLargeTimingCard(widget, focus, state, density)
+  addLargeTimingCard(
+    widget,
+    focus,
+    state,
+    density
+  )
 
   widget.addSpacer(density.sectionGap)
-  addSlicesList(widget, service, state, density)
+  addSlicesList(
+    widget,
+    service,
+    state,
+    density
+  )
 
   widget.addSpacer(density.sectionGap)
-  addStatsSummary(widget, stats, density)
+  addStatsSummary(
+    widget,
+    stats,
+    density
+  )
 
   return widget
 }
 
-function addLargeTimingCard(widget, focus, state, density) {
-  const card = addSurface(widget, {
-    padding: [
-      density.timingPadding,
-      12,
-      density.timingPadding,
-      12
-    ],
-    radius: 17,
-    backgroundAlpha: 0.055,
-    borderAlpha: 0.085,
-    vertical: true
-  })
+function addLargeTimingCard(
+  widget,
+  focus,
+  state,
+  density
+) {
+  const card = addSurface(
+    widget,
+    {
+      padding: [
+        density.timingPadding,
+        density.surfacePaddingHorizontal,
+        density.timingPadding,
+        density.surfacePaddingHorizontal
+      ],
+      radius: density.surfaceRadius,
+      backgroundAlpha: 0.055,
+      borderAlpha: 0.085,
+      vertical: true
+    }
+  )
 
   const row = card.addStack()
   row.centerAlignContent()
 
-  addTimeColumn(row, {
-    label: getTimingStartLabel(state),
-    time: focus.start,
-    place: focus.from,
-    width: density.timeColumnWidth,
-    timeSize: density.timeSize,
-    placeSize: density.placeSize,
-    align: "left"
-  })
+  addTimeColumn(
+    row,
+    {
+      label: getTimingStartLabel(state),
+      time: focus.start,
+      place: focus.from,
+      timeSize: density.timeSize,
+      placeSize: density.placeSize,
+      align: "left",
+      fontLimit: density.placeSoftLimit
+    }
+  )
 
-  row.addSpacer(7)
-  addArrowBadge(row, state, density.arrowSize)
-  row.addSpacer(7)
+  row.addSpacer(density.timingGap)
+  addArrowBadge(
+    row,
+    state,
+    density.arrowSize
+  )
+  row.addSpacer(density.timingGap)
 
-  addTimeColumn(row, {
-    label: "FIN DE TRANCHE",
-    time: focus.end,
-    place: focus.to,
-    width: density.timeColumnWidth,
-    timeSize: density.timeSize,
-    placeSize: density.placeSize,
-    align: "right"
-  })
+  addTimeColumn(
+    row,
+    {
+      label: "FIN DE TRANCHE",
+      time: focus.end,
+      place: focus.to,
+      timeSize: density.timeSize,
+      placeSize: density.placeSize,
+      align: "right",
+      fontLimit: density.placeSoftLimit
+    }
+  )
 
-  if (!hasDepartureDetails(focus)) return
+  if (!hasDepartureDetails(focus)) {
+    return
+  }
 
   card.addSpacer(density.departureSectionGap)
-  addDivider(card)
-  card.addSpacer(density.departureSectionGap)
-  addLargeDeparturePanel(card, focus, state, density)
+  addLargeDeparturePanel(
+    card,
+    focus,
+    state,
+    density
+  )
 }
 
 function getTimingStartLabel(state) {
@@ -126,228 +170,248 @@ function getTimingStartLabel(state) {
 }
 
 function addTimeColumn(parent, options) {
-  const {
-    label,
-    time,
-    place,
-    width,
-    timeSize,
-    placeSize,
-    align
-  } = options
-
   const column = parent.addStack()
   column.layoutVertically()
-  column.size = new Size(width, 0)
 
   const labelText = addText(
     column,
-    label,
-    Font.semiboldSystemFont(8),
+    options.label,
+    Font.semiboldSystemFont(
+      options.labelSize || 8
+    ),
     secondary(),
-    1,
-    0.72
+    1
   )
 
-  column.addSpacer(3)
+  column.addSpacer(2)
 
   const timeText = addText(
     column,
-    time,
-    Font.boldMonospacedSystemFont(timeSize),
+    options.time,
+    Font.boldSystemFont(
+      options.timeSize
+    ),
     THEME.getPrimaryTextColor(),
-    1,
-    0.85
+    1
   )
 
-  column.addSpacer(3)
+  column.addSpacer(2)
 
   const placeText = addText(
     column,
-    place,
+    options.place,
     Font.mediumSystemFont(
       adaptiveFontSize(
-        placeSize,
-        place,
-        18,
-        Math.max(7, placeSize - 3)
+        options.placeSize,
+        options.place,
+        options.fontLimit || 18,
+        Math.max(
+          7,
+          options.placeSize - 3
+        )
       )
     ),
     secondary(),
-    1,
-    0.55
+    1
   )
 
-  alignText(labelText, align)
-  alignText(timeText, align)
-  alignText(placeText, align)
+  alignText(labelText, options.align)
+  alignText(timeText, options.align)
+  alignText(placeText, options.align)
 }
 
-function addLargeDeparturePanel(parent, slice, state, density) {
+function addLargeDeparturePanel(
+  parent,
+  slice,
+  state,
+  density
+) {
+  const entries = []
+
   if (hasDepotTiming(slice)) {
-    addDepotTimingRow(parent, slice, state, density)
-
-    if (slice.lineUpAt || slice.direction) {
-      parent.addSpacer(density.departureRowGap)
-    }
-  }
-
-  if (slice.lineUpAt || slice.direction) {
-    addRouteDetailsRow(parent, slice, state, density)
-  }
-}
-
-function addDepotTimingRow(parent, slice, state, density) {
-  addAlignedInformationRow(
-    parent,
-    {
+    entries.push({
       label: "PRISE DE SERVICE",
       value: slice.dutyStart,
-      monospaced: true
-    },
-    {
+      time: true
+    })
+
+    entries.push({
       label: "SORTIE DÉPÔT",
       value: slice.depotExitAt,
-      monospaced: true
-    },
-    state,
-    density,
-    density.depotTimeSize
-  )
+      time: true
+    })
+  }
+
+  if (slice.lineUpAt) {
+    entries.push({
+      label: getOperationStartLabel(slice),
+      value: slice.lineUpAt,
+      time: false
+    })
+  }
+
+  if (slice.direction) {
+    entries.push({
+      label: "DIRECTION",
+      value: slice.direction,
+      time: false
+    })
+  }
+
+  if (!entries.length) {
+    return
+  }
+
+  if (density.departureVertical) {
+    entries.forEach((entry, index) => {
+      addDepartureLine(
+        parent,
+        entry,
+        state,
+        density
+      )
+
+      if (index < entries.length - 1) {
+        parent.addSpacer(
+          density.departureRowGap
+        )
+      }
+    })
+
+    return
+  }
+
+  for (
+    let index = 0;
+    index < entries.length;
+    index += 2
+  ) {
+    const row = parent.addStack()
+    row.centerAlignContent()
+
+    addDepartureBlock(
+      row,
+      entries[index],
+      state,
+      density,
+      "left"
+    )
+
+    row.addSpacer(
+      density.departurePairGap
+    )
+
+    if (entries[index + 1]) {
+      addDepartureBlock(
+        row,
+        entries[index + 1],
+        state,
+        density,
+        "right"
+      )
+    }
+
+    if (index + 2 < entries.length) {
+      parent.addSpacer(
+        density.departureRowGap
+      )
+    }
+  }
 }
 
-function addRouteDetailsRow(parent, slice, state, density) {
-  const lineUp = slice.lineUpAt
-    ? {
-        label: getOperationStartLabel(slice),
-        value: slice.lineUpAt,
-        monospaced: false
-      }
-    : null
-
-  const direction = slice.direction
-    ? {
-        label: "DIRECTION",
-        value: slice.direction,
-        monospaced: false
-      }
-    : null
-
-  addAlignedInformationRow(
-    parent,
-    lineUp || direction,
-    lineUp ? direction : null,
-    state,
-    density,
-    density.departureSize
-  )
-}
-
-function addAlignedInformationRow(
+function addDepartureLine(
   parent,
-  left,
-  right,
+  entry,
   state,
-  density,
-  valueSize
+  density
 ) {
   const row = parent.addStack()
   row.centerAlignContent()
 
-  if (left) {
-    addDepartureBlock(
-      row,
-      left.label,
-      left.value,
-      state,
-      {
-        width: density.timeColumnWidth,
-        valueSize,
-        monospaced: left.monospaced,
-        align: "left"
-      }
-    )
-  } else {
-    addEmptyColumn(row, density.timeColumnWidth)
-  }
+  const label = addText(
+    row,
+    entry.label,
+    Font.semiboldSystemFont(
+      density.departureLabelSize
+    ),
+    secondary(),
+    1
+  )
 
-  row.addSpacer(density.timingCenterWidth)
+  label.leftAlignText()
+  row.addSpacer()
 
-  if (right) {
-    addDepartureBlock(
-      row,
-      right.label,
-      right.value,
-      state,
-      {
-        width: density.timeColumnWidth,
-        valueSize,
-        monospaced: right.monospaced,
-        align: "right"
-      }
-    )
-  } else {
-    addEmptyColumn(row, density.timeColumnWidth)
-  }
-}
+  const value = addText(
+    row,
+    entry.value,
+    entry.time
+      ? Font.boldSystemFont(
+          density.departureValueSize
+        )
+      : Font.semiboldSystemFont(
+          adaptiveFontSize(
+            density.departureValueSize,
+            entry.value,
+            density.departureSoftLimit,
+            Math.max(
+              7,
+              density.departureValueSize - 2.5
+            )
+          )
+        ),
+    accent(state),
+    1
+  )
 
-function addEmptyColumn(parent, width) {
-  const empty = parent.addStack()
-  empty.size = new Size(width, 0)
-  return empty
+  value.rightAlignText()
 }
 
 function addDepartureBlock(
   parent,
-  label,
-  value,
+  entry,
   state,
-  options = {}
+  density,
+  align
 ) {
   const block = parent.addStack()
   block.layoutVertically()
 
-  if (options.width) {
-    block.size = new Size(options.width, 0)
-  }
-
-  const labelText = addText(
+  const label = addText(
     block,
-    label,
-    Font.semiboldSystemFont(7.5),
+    entry.label,
+    Font.semiboldSystemFont(
+      density.departureLabelSize
+    ),
     secondary(),
-    1,
-    0.72
+    1
   )
 
   block.addSpacer(2)
 
-  const baseValueSize = options.valueSize || 10
+  const valueSize = entry.time
+    ? density.departureTimeSize
+    : adaptiveFontSize(
+        density.departureValueSize,
+        entry.value,
+        density.departureSoftLimit,
+        Math.max(
+          7,
+          density.departureValueSize - 2.5
+        )
+      )
 
-  const fontSize = adaptiveFontSize(
-    baseValueSize,
-    value,
-    options.width
-      ? Math.max(17, Math.floor(options.width / 6))
-      : 28,
-    Math.max(7, baseValueSize - 3)
-  )
-
-  const font = options.monospaced
-    ? Font.boldMonospacedSystemFont(fontSize)
-    : Font.semiboldSystemFont(fontSize)
-
-  const valueText = addText(
+  const value = addText(
     block,
-    value,
-    font,
+    entry.value,
+    entry.time
+      ? Font.boldSystemFont(valueSize)
+      : Font.semiboldSystemFont(valueSize),
     accent(state),
-    1,
-    0.45
+    1
   )
 
-  alignText(labelText, options.align || "left")
-  alignText(valueText, options.align || "left")
+  alignText(label, align)
+  alignText(value, align)
 }
 
 function addArrowBadge(parent, state, size) {
@@ -355,57 +419,94 @@ function addArrowBadge(parent, state, size) {
 
   badge.size = new Size(size, size)
   badge.cornerRadius = size / 2
-  badge.backgroundColor = accentAlpha(state, 0.11)
+  badge.backgroundColor = accentAlpha(
+    state,
+    0.11
+  )
   badge.borderWidth = 0.5
-  badge.borderColor = accentAlpha(state, 0.24)
+  badge.borderColor = accentAlpha(
+    state,
+    0.24
+  )
   badge.centerAlignContent()
   badge.addSpacer()
 
   addSymbol(
     badge,
     "arrow.right",
-    Math.max(12, size - 14),
+    Math.max(10, size * 0.48),
     accent(state)
   )
 
   badge.addSpacer()
 }
 
-function addSlicesList(widget, service, state, density) {
-  const list = addSurface(widget, {
-    padding: [
-      density.listPadding,
-      density.listPadding,
-      density.listPadding,
-      density.listPadding
-    ],
-    radius: 16,
-    backgroundAlpha: 0.05,
-    borderAlpha: 0.075,
-    vertical: true
-  })
+function addSlicesList(
+  widget,
+  service,
+  state,
+  density
+) {
+  const list = addSurface(
+    widget,
+    {
+      padding: [
+        density.listPadding,
+        density.listPadding,
+        density.listPadding,
+        density.listPadding
+      ],
+      radius: density.listRadius,
+      backgroundAlpha: 0.05,
+      borderAlpha: 0.075,
+      vertical: true
+    }
+  )
 
   addSectionHeader(
     list,
     "PROGRAMME",
     `${service.slices.length} tranche${
-      service.slices.length > 1 ? "s" : ""
-    }`
+      service.slices.length > 1
+        ? "s"
+        : ""
+    }`,
+    density.sectionHeaderSize
   )
 
   list.addSpacer(density.headerGap)
 
-  service.slices.forEach((slice, index) => {
-    addSliceRow(list, slice, state, density)
+  service.slices.forEach(
+    (slice, index) => {
+      addSliceRow(
+        list,
+        slice,
+        state,
+        density
+      )
 
-    if (index < service.slices.length - 1) {
-      list.addSpacer(density.rowGap)
+      if (
+        index <
+        service.slices.length - 1
+      ) {
+        list.addSpacer(
+          density.rowGap
+        )
+      }
     }
-  })
+  )
 }
 
-function addSliceRow(parent, slice, state, density) {
-  const active = isSliceActive(slice, state)
+function addSliceRow(
+  parent,
+  slice,
+  state,
+  density
+) {
+  const active = isSliceActive(
+    slice,
+    state
+  )
 
   const duration = UTILS.durationMinutes(
     slice.start,
@@ -422,14 +523,11 @@ function addSliceRow(parent, slice, state, density) {
     density.rowPadding
   )
 
-  row.cornerRadius = 11
-
+  row.cornerRadius = density.rowRadius
   row.backgroundColor = active
     ? accentAlpha(state, 0.085)
     : THEME.translucentWhite(0.018)
-
   row.borderWidth = 0.5
-
   row.borderColor = active
     ? accentAlpha(state, 0.18)
     : THEME.translucentWhite(0.035)
@@ -444,23 +542,80 @@ function addSliceRow(parent, slice, state, density) {
 
   row.addSpacer(density.itemGap)
 
-  addSliceDetails(
-    row,
-    slice,
-    active,
-    density
+  const body = row.addStack()
+  body.layoutVertically()
+
+  const top = body.addStack()
+  top.centerAlignContent()
+
+  const title = addText(
+    top,
+    `Ligne ${slice.line} · Voiture ${slice.vehicle}`,
+    Font.boldSystemFont(
+      adaptiveFontSize(
+        density.sliceTitleSize,
+        `Ligne ${slice.line} · Voiture ${slice.vehicle}`,
+        density.titleSoftLimit,
+        density.titleMinimumSize
+      )
+    ),
+    active
+      ? THEME.getPrimaryTextColor()
+      : THEME.getInactiveTextColor(),
+    1
   )
 
-  row.addSpacer()
+  title.leftAlignText()
+  top.addSpacer()
 
-  addSliceTiming(
-    row,
-    slice,
-    duration,
-    active,
-    state,
-    density
+  const range = addText(
+    top,
+    `${slice.start}–${slice.end}`,
+    Font.boldSystemFont(
+      density.rangeSize
+    ),
+    active
+      ? accent(state)
+      : THEME.getInactiveTimeColor(),
+    1
   )
+
+  range.rightAlignText()
+
+  body.addSpacer(density.detailGap)
+
+  const bottom = body.addStack()
+  bottom.centerAlignContent()
+
+  const route = addText(
+    bottom,
+    `${slice.from} → ${slice.to}`,
+    Font.mediumSystemFont(
+      adaptiveFontSize(
+        density.sliceDetailSize,
+        `${slice.from} → ${slice.to}`,
+        density.routeSoftLimit,
+        density.routeMinimumSize
+      )
+    ),
+    secondary(),
+    1
+  )
+
+  route.leftAlignText()
+  bottom.addSpacer()
+
+  const durationText = addText(
+    bottom,
+    UTILS.formatDuration(duration),
+    Font.mediumSystemFont(
+      density.durationSize
+    ),
+    secondary(),
+    1
+  )
+
+  durationText.rightAlignText()
 }
 
 function addSliceNumber(
@@ -476,20 +631,14 @@ function addSliceNumber(
     density.numberSize,
     density.numberSize
   )
-
-  badge.cornerRadius =
-    density.numberSize / 2
-
+  badge.cornerRadius = density.numberSize / 2
   badge.backgroundColor = active
     ? accentAlpha(state, 0.2)
     : THEME.translucentWhite(0.065)
-
   badge.borderWidth = 0.5
-
   badge.borderColor = active
     ? accentAlpha(state, 0.28)
     : THEME.translucentWhite(0.06)
-
   badge.centerAlignContent()
   badge.addSpacer()
 
@@ -502,113 +651,10 @@ function addSliceNumber(
     active
       ? accent(state)
       : secondary(),
-    1,
     1
   )
 
   badge.addSpacer()
-}
-
-function addSliceDetails(
-  row,
-  slice,
-  active,
-  density
-) {
-  const details = row.addStack()
-
-  details.layoutVertically()
-  details.size =
-    new Size(
-      density.detailsWidth,
-      0
-    )
-
-  const title =
-    `Ligne ${slice.line} · Voiture ${slice.vehicle}`
-
-  addText(
-    details,
-    title,
-    Font.boldSystemFont(
-      density.sliceTitleResolvedSize
-    ),
-    active
-      ? THEME.getPrimaryTextColor()
-      : THEME.getInactiveTextColor(),
-    1,
-    1
-  )
-
-  details.addSpacer(
-    density.detailGap
-  )
-
-  const route =
-    `${slice.from} → ${slice.to}`
-
-  addText(
-    details,
-    route,
-    Font.mediumSystemFont(
-      density.sliceDetailResolvedSize
-    ),
-    secondary(),
-    1,
-    1
-  )
-}
-
-function addSliceTiming(
-  row,
-  slice,
-  duration,
-  active,
-  state,
-  density
-) {
-  const timing = row.addStack()
-
-  timing.layoutVertically()
-  timing.size =
-    new Size(
-      density.timingWidth,
-      0
-    )
-
-  const range = addText(
-    timing,
-    `${slice.start}–${slice.end}`,
-    Font.boldMonospacedSystemFont(
-      density.rangeSize
-    ),
-    active
-      ? accent(state)
-      : THEME.getInactiveTimeColor(),
-    1,
-    1
-  )
-
-  range.rightAlignText()
-
-  timing.addSpacer(
-    density.detailGap
-  )
-
-  const durationText = addText(
-    timing,
-    UTILS.formatDuration(
-      duration
-    ),
-    Font.mediumSystemFont(
-      density.durationSize
-    ),
-    secondary(),
-    1,
-    1
-  )
-
-  durationText.rightAlignText()
 }
 
 function addStatsSummary(
@@ -619,37 +665,39 @@ function addStatsSummary(
   const summary = widget.addStack()
   summary.centerAlignContent()
 
-  summary.addSpacer()
-
   addStatCard(
     summary,
-    UTILS.formatDuration(
-      stats.work
-    ),
+    UTILS.formatDuration(stats.work),
     "Travail",
     {
-      width: density.statWidth,
-      height: density.statHeight
+      paddingHorizontal:
+        density.statPaddingHorizontal,
+      paddingVertical:
+        density.statPaddingVertical,
+      valueSize:
+        density.statValueSize,
+      labelSize:
+        density.statLabelSize
     }
   )
 
-  summary.addSpacer(
-    density.statGap
-  )
+  summary.addSpacer(density.statGap)
 
   addStatCard(
     summary,
-    UTILS.formatDuration(
-      stats.amplitude
-    ),
+    UTILS.formatDuration(stats.amplitude),
     "Amplitude",
     {
-      width: density.statWidth,
-      height: density.statHeight
+      paddingHorizontal:
+        density.statPaddingHorizontal,
+      paddingVertical:
+        density.statPaddingVertical,
+      valueSize:
+        density.statValueSize,
+      labelSize:
+        density.statLabelSize
     }
   )
-
-  summary.addSpacer()
 }
 
 function createMediumWidget(context) {
@@ -660,62 +708,59 @@ function createMediumWidget(context) {
     displaySlice: focus
   } = context
 
-  const widget =
-    THEME.createBaseWidget(
-      state.type
-    )
+  const profile = getScreenProfile()
+  const density = getMediumDensity(profile)
+
+  const widget = THEME.createBaseWidget(
+    state.type
+  )
 
   widget.setPadding(
-    14,
-    16,
-    12,
-    16
+    density.paddingTop,
+    density.paddingHorizontal,
+    density.paddingBottom,
+    density.paddingHorizontal
   )
 
   addHeader(
     widget,
     service,
     state,
-    {
-      iconSize: 31,
-      symbolSize: 14,
-      titleSize: 18,
-      dateSize: 9,
-      badgeSize: 9,
-      iconGap: 9
-    }
+    density.header
   )
 
-  widget.addSpacer(9)
+  widget.addSpacer(density.sectionGap)
 
   const card = addSurface(
     widget,
     {
-      padding: [10, 12, 10, 12],
-      radius: 15,
+      padding: [
+        density.cardPaddingVertical,
+        density.cardPaddingHorizontal,
+        density.cardPaddingVertical,
+        density.cardPaddingHorizontal
+      ],
+      radius: density.surfaceRadius,
       backgroundAlpha: 0.055,
       borderAlpha: 0.08,
       vertical: true
     }
   )
 
-  const identity =
-    card.addStack()
-
+  const identity = card.addStack()
   identity.centerAlignContent()
 
-  const serviceInfo =
-    identity.addStack()
-
+  const serviceInfo = identity.addStack()
   serviceInfo.layoutVertically()
 
   addText(
     serviceInfo,
     `Ligne ${focus.line}`,
-    Font.boldSystemFont(24),
+    Font.boldSystemFont(
+      density.lineSize
+    ),
     THEME.getPrimaryTextColor(),
-    1,
-    0.7
+    1
   )
 
   serviceInfo.addSpacer(2)
@@ -723,31 +768,30 @@ function createMediumWidget(context) {
   addText(
     serviceInfo,
     `Voiture ${focus.vehicle}`,
-    Font.semiboldSystemFont(13),
+    Font.semiboldSystemFont(
+      density.vehicleSize
+    ),
     accent(state),
-    1,
-    0.8
+    1
   )
 
-  identity.addSpacer()
+  identity.addSpacer(density.identityGap)
 
-  const timeInfo =
-    identity.addStack()
-
+  const timeInfo = identity.addStack()
   timeInfo.layoutVertically()
 
   const range = addText(
     timeInfo,
     `${focus.start} → ${focus.end}`,
-    Font.boldMonospacedSystemFont(15),
+    Font.boldSystemFont(
+      density.rangeSize
+    ),
     THEME.getPrimaryTextColor(),
-    1,
-    0.8
+    1
   )
-
   range.rightAlignText()
 
-  timeInfo.addSpacer(3)
+  timeInfo.addSpacer(2)
 
   const duration = addText(
     timeInfo,
@@ -757,59 +801,52 @@ function createMediumWidget(context) {
         focus.end
       )
     ),
-    Font.semiboldSystemFont(10),
+    Font.semiboldSystemFont(
+      density.durationSize
+    ),
     accent(state),
-    1,
-    0.8
+    1
   )
-
   duration.rightAlignText()
 
-  card.addSpacer(7)
-  addDivider(card)
-  card.addSpacer(6)
+  card.addSpacer(density.cardGap)
 
   addText(
     card,
-    focus.from,
+    `${focus.from} → ${focus.to}`,
     Font.mediumSystemFont(
       adaptiveFontSize(
-        11,
-        focus.from,
-        30,
-        8
+        density.routeSize,
+        `${focus.from} → ${focus.to}`,
+        density.routeSoftLimit,
+        density.routeMinimumSize
       )
     ),
     secondary(),
-    1,
-    0.55
+    1
   )
 
-  if (
-    hasDepartureDetails(
-      focus
-    )
-  ) {
-    card.addSpacer(3)
+  if (hasDepartureDetails(focus)) {
+    card.addSpacer(density.departureGap)
 
     addDepartureSummary(
       card,
       focus,
       state,
       {
-        fontSize: 10,
-        scale: 0.48,
-        softLimit: 48,
-        minimumSize: 7.5
+        fontSize:
+          density.departureSize,
+        softLimit:
+          density.departureSoftLimit,
+        minimumSize:
+          density.departureMinimumSize
       }
     )
   }
 
-  widget.addSpacer(8)
+  widget.addSpacer(density.footerGap)
 
-  const footer =
-    widget.addStack()
-
+  const footer = widget.addStack()
   footer.centerAlignContent()
 
   addText(
@@ -817,10 +854,11 @@ function createMediumWidget(context) {
     `${stats.count} tranches · ${UTILS.formatDuration(
       stats.work
     )}`,
-    Font.semiboldSystemFont(9),
+    Font.semiboldSystemFont(
+      density.footerSize
+    ),
     secondary(),
-    1,
-    0.75
+    1
   )
 
   footer.addSpacer()
@@ -828,10 +866,11 @@ function createMediumWidget(context) {
   addText(
     footer,
     `Fin ${stats.end}`,
-    Font.boldMonospacedSystemFont(10),
+    Font.boldSystemFont(
+      density.footerTimeSize
+    ),
     accent(state),
-    1,
-    0.8
+    1
   )
 
   return widget
@@ -845,30 +884,31 @@ function createSmallWidget(context) {
     displaySlice: focus
   } = context
 
-  const widget =
-    THEME.createBaseWidget(
-      state.type
-    )
+  const profile = getScreenProfile()
+  const density = getSmallDensity(profile)
 
-  widget.setPadding(
-    12,
-    13,
-    11,
-    13
+  const widget = THEME.createBaseWidget(
+    state.type
   )
 
-  const header =
-    widget.addStack()
+  widget.setPadding(
+    density.paddingTop,
+    density.paddingHorizontal,
+    density.paddingBottom,
+    density.paddingHorizontal
+  )
 
+  const header = widget.addStack()
   header.centerAlignContent()
 
   addText(
     header,
     service.number,
-    Font.boldSystemFont(15),
+    Font.boldSystemFont(
+      density.serviceSize
+    ),
     THEME.getPrimaryTextColor(),
-    1,
-    0.8
+    1
   )
 
   header.addSpacer()
@@ -876,19 +916,20 @@ function createSmallWidget(context) {
   addStatusPill(
     header,
     state,
-    8,
-    [3, 6, 3, 6]
+    density.badgeSize,
+    density.badgePadding
   )
 
-  widget.addSpacer(8)
+  widget.addSpacer(density.sectionGap)
 
   addText(
     widget,
     `Ligne ${focus.line}`,
-    Font.boldSystemFont(21),
+    Font.boldSystemFont(
+      density.lineSize
+    ),
     THEME.getPrimaryTextColor(),
-    1,
-    0.7
+    1
   )
 
   widget.addSpacer(2)
@@ -896,30 +937,36 @@ function createSmallWidget(context) {
   addText(
     widget,
     `Voiture ${focus.vehicle}`,
-    Font.semiboldSystemFont(10),
+    Font.semiboldSystemFont(
+      density.vehicleSize
+    ),
     accent(state),
-    1,
-    0.8
+    1
   )
 
-  widget.addSpacer(7)
+  widget.addSpacer(density.sectionGap)
 
-  const timingCard =
-    addSurface(
-      widget,
-      {
-        padding: [6, 8, 6, 8],
-        radius: 11,
-        backgroundAlpha: 0.05,
-        borderAlpha: 0.075
-      }
-    )
+  const timingCard = addSurface(
+    widget,
+    {
+      padding: [
+        density.timePaddingVertical,
+        density.timePaddingHorizontal,
+        density.timePaddingVertical,
+        density.timePaddingHorizontal
+      ],
+      radius: density.surfaceRadius,
+      backgroundAlpha: 0.05,
+      borderAlpha: 0.075
+    }
+  )
 
   addSmallTime(
     timingCard,
     "DÉBUT",
     focus.start,
-    "left"
+    "left",
+    density
   )
 
   timingCard.addSpacer()
@@ -927,7 +974,7 @@ function createSmallWidget(context) {
   addSymbol(
     timingCard,
     "arrow.right",
-    10,
+    density.arrowSize,
     secondary()
   )
 
@@ -937,29 +984,28 @@ function createSmallWidget(context) {
     timingCard,
     "FIN",
     focus.end,
-    "right"
+    "right",
+    density
   )
 
-  widget.addSpacer(7)
+  widget.addSpacer(density.sectionGap)
 
-  if (
-    hasDepartureDetails(
-      focus
-    )
-  ) {
+  if (hasDepartureDetails(focus)) {
     addDepartureSummary(
       widget,
       focus,
       state,
       {
-        fontSize: 8.5,
-        scale: 0.42,
-        softLimit: 30,
-        minimumSize: 6.5
+        fontSize:
+          density.departureSize,
+        softLimit:
+          density.departureSoftLimit,
+        minimumSize:
+          density.departureMinimumSize
       }
     )
 
-    widget.addSpacer(4)
+    widget.addSpacer(density.departureGap)
   }
 
   addText(
@@ -967,10 +1013,11 @@ function createSmallWidget(context) {
     `${stats.count} tranches · ${UTILS.formatDuration(
       stats.work
     )}`,
-    Font.mediumSystemFont(9),
+    Font.mediumSystemFont(
+      density.footerSize
+    ),
     secondary(),
-    1,
-    0.7
+    1
   )
 
   return widget
@@ -995,12 +1042,9 @@ function hasDepartureDetails(slice) {
 }
 
 function isTramSlice(slice) {
-  const lineCode =
-    String(
-      slice?.lineCode ||
-      ""
-    )
-      .trim()
+  const lineCode = String(
+    slice?.lineCode || ""
+  ).trim()
 
   return [
     "80",
@@ -1009,9 +1053,7 @@ function isTramSlice(slice) {
     "83",
     "84",
     "85"
-  ].includes(
-    lineCode
-  )
+  ].includes(lineCode)
 }
 
 function getOperationStartLabel(slice) {
@@ -1023,32 +1065,23 @@ function getOperationStartLabel(slice) {
 function buildDepartureSummary(slice) {
   const lines = []
 
-  if (
-    hasDepotTiming(
-      slice
-    )
-  ) {
+  if (hasDepotTiming(slice)) {
     lines.push(
       `Prise ${slice.dutyStart} · Sortie dépôt ${slice.depotExitAt}`
     )
   }
 
-  if (
-    slice?.lineUpAt
-  ) {
-    const label =
-      isTramSlice(slice)
-        ? "Début exploitation"
-        : "Mise en ligne"
-
+  if (slice?.lineUpAt) {
     lines.push(
-      `${label} : ${slice.lineUpAt}`
+      `${
+        isTramSlice(slice)
+          ? "Début exploitation"
+          : "Mise en ligne"
+      } : ${slice.lineUpAt}`
     )
   }
 
-  if (
-    slice?.direction
-  ) {
+  if (slice?.direction) {
     lines.push(
       `Direction : ${slice.direction}`
     )
@@ -1063,63 +1096,41 @@ function addDepartureSummary(
   state,
   options = {}
 ) {
-  const lines =
-    buildDepartureSummary(
-      slice
-    )
+  const lines = buildDepartureSummary(slice)
 
-  if (
-    !lines.length
-  ) {
+  if (!lines.length) {
     return null
   }
 
-  const container =
-    parent.addStack()
-
+  const container = parent.addStack()
   container.layoutVertically()
 
-  const baseFontSize =
-    options.fontSize ||
-    9
+  const baseFontSize = options.fontSize || 9
 
-  lines.forEach(
-    (
+  lines.forEach((line, index) => {
+    addText(
+      container,
       line,
-      index
-    ) => {
-      addText(
-        container,
-        line,
-        Font.semiboldSystemFont(
-          adaptiveFontSize(
-            baseFontSize,
-            line,
-            options.softLimit ||
-              40,
-            options.minimumSize ||
-              Math.max(
-                6.5,
-                baseFontSize - 3
-              )
-          )
-        ),
-        accent(state),
-        1,
-        options.scale ||
-          0.48
-      )
-
-      if (
-        index <
-        lines.length - 1
-      ) {
-        container.addSpacer(
-          1
+      Font.semiboldSystemFont(
+        adaptiveFontSize(
+          baseFontSize,
+          line,
+          options.softLimit || 40,
+          options.minimumSize ||
+            Math.max(
+              6.5,
+              baseFontSize - 3
+            )
         )
-      }
+      ),
+      accent(state),
+      1
+    )
+
+    if (index < lines.length - 1) {
+      container.addSpacer(1)
     }
-  )
+  })
 
   return container
 }
@@ -1128,46 +1139,34 @@ function addSmallTime(
   parent,
   label,
   time,
-  align
+  align,
+  density
 ) {
-  const block =
-    parent.addStack()
-
+  const block = parent.addStack()
   block.layoutVertically()
 
-  const labelText =
-    addText(
-      block,
-      label,
-      Font.semiboldSystemFont(
-        6.5
-      ),
-      secondary(),
-      1,
-      0.85
-    )
-
-  const timeText =
-    addText(
-      block,
-      time,
-      Font.boldMonospacedSystemFont(
-        14
-      ),
-      THEME.getPrimaryTextColor(),
-      1,
-      0.82
-    )
-
-  alignText(
-    labelText,
-    align
+  const labelText = addText(
+    block,
+    label,
+    Font.semiboldSystemFont(
+      density.timeLabelSize
+    ),
+    secondary(),
+    1
   )
 
-  alignText(
-    timeText,
-    align
+  const timeText = addText(
+    block,
+    time,
+    Font.boldSystemFont(
+      density.timeSize
+    ),
+    THEME.getPrimaryTextColor(),
+    1
   )
+
+  alignText(labelText, align)
+  alignText(timeText, align)
 }
 
 function addHeader(
@@ -1176,57 +1175,36 @@ function addHeader(
   state,
   options
 ) {
-  const header =
-    parent.addStack()
-
+  const header = parent.addStack()
   header.centerAlignContent()
 
-  const icon =
-    header.addStack()
-
-  icon.size =
-    new Size(
-      options.iconSize,
-      options.iconSize
-    )
-
-  icon.cornerRadius =
-    options.iconSize / 2
-
-  icon.backgroundColor =
-    THEME.translucentWhite(
-      0.075
-    )
-
-  icon.borderWidth =
-    0.5
-
-  icon.borderColor =
-    THEME.translucentWhite(
-      0.09
-    )
-
+  const icon = header.addStack()
+  icon.size = new Size(
+    options.iconSize,
+    options.iconSize
+  )
+  icon.cornerRadius = options.iconSize / 2
+  icon.backgroundColor = THEME.translucentWhite(
+    0.075
+  )
+  icon.borderWidth = 0.5
+  icon.borderColor = THEME.translucentWhite(
+    0.09
+  )
   icon.centerAlignContent()
   icon.addSpacer()
 
   addSymbol(
     icon,
-    getServiceTransportIcon(
-      service
-    ),
+    getServiceTransportIcon(service),
     options.symbolSize,
     accent(state)
   )
 
   icon.addSpacer()
+  header.addSpacer(options.iconGap)
 
-  header.addSpacer(
-    options.iconGap
-  )
-
-  const identity =
-    header.addStack()
-
+  const identity = header.addStack()
   identity.layoutVertically()
 
   addText(
@@ -1236,13 +1214,10 @@ function addHeader(
       options.titleSize
     ),
     THEME.getPrimaryTextColor(),
-    1,
-    0.8
-  )
-
-  identity.addSpacer(
     1
   )
+
+  identity.addSpacer(1)
 
   addText(
     identity,
@@ -1253,8 +1228,7 @@ function addHeader(
       options.dateSize
     ),
     secondary(),
-    1,
-    0.75
+    1
   )
 
   header.addSpacer()
@@ -1262,27 +1236,21 @@ function addHeader(
   addStatusPill(
     header,
     state,
-    options.badgeSize
+    options.badgeSize,
+    options.badgePadding
   )
 }
 
 function getServiceTransportIcon(service) {
-  const slices =
-    Array.isArray(
-      service?.slices
-    )
-      ? service.slices
-      : []
+  const slices = Array.isArray(
+    service?.slices
+  )
+    ? service.slices
+    : []
 
-  const hasTramSlice =
-    slices.some(
-      slice =>
-        isTramSlice(
-          slice
-        )
-    )
-
-  return hasTramSlice
+  return slices.some(
+    slice => isTramSlice(slice)
+  )
     ? "tram.fill"
     : "bus.fill"
 }
@@ -1293,8 +1261,7 @@ function addStatusPill(
   fontSize,
   padding = [5, 8, 5, 8]
 ) {
-  const pill =
-    parent.addStack()
+  const pill = parent.addStack()
 
   pill.setPadding(
     padding[0],
@@ -1302,34 +1269,26 @@ function addStatusPill(
     padding[2],
     padding[3]
   )
-
-  pill.cornerRadius =
-    10
-
-  pill.backgroundColor =
-    accentAlpha(
-      state,
-      0.1
-    )
-
-  pill.borderWidth =
-    0.5
-
-  pill.borderColor =
-    accentAlpha(
-      state,
-      0.22
-    )
+  pill.cornerRadius = Math.max(
+    8,
+    padding[1] + 2
+  )
+  pill.backgroundColor = accentAlpha(
+    state,
+    0.1
+  )
+  pill.borderWidth = 0.5
+  pill.borderColor = accentAlpha(
+    state,
+    0.22
+  )
 
   addText(
     pill,
     state.label,
-    Font.semiboldSystemFont(
-      fontSize
-    ),
+    Font.semiboldSystemFont(fontSize),
     accent(state),
-    1,
-    0.7
+    1
   )
 
   return pill
@@ -1338,22 +1297,18 @@ function addStatusPill(
 function addSectionHeader(
   parent,
   title,
-  detail
+  detail,
+  fontSize = 8
 ) {
-  const row =
-    parent.addStack()
-
+  const row = parent.addStack()
   row.centerAlignContent()
 
   addText(
     row,
     title,
-    Font.semiboldSystemFont(
-      8
-    ),
+    Font.semiboldSystemFont(fontSize),
     secondary(),
-    1,
-    0.85
+    1
   )
 
   row.addSpacer()
@@ -1361,49 +1316,21 @@ function addSectionHeader(
   addText(
     row,
     detail,
-    Font.mediumSystemFont(
-      8
-    ),
+    Font.mediumSystemFont(fontSize),
     secondary(),
-    1,
-    0.85
+    1
   )
-}
-
-function addDivider(parent) {
-  const divider =
-    parent.addStack()
-
-  divider.size =
-    new Size(
-      0,
-      1
-    )
-
-  divider.backgroundColor =
-    THEME.translucentWhite(
-      0.07
-    )
-
-  divider.addSpacer()
-
-  return divider
 }
 
 function addSurface(
   parent,
   options = {}
 ) {
-  const stack =
-    parent.addStack()
-
-  const padding =
-    options.padding ||
+  const stack = parent.addStack()
+  const padding = options.padding ||
     [0, 0, 0, 0]
 
-  if (
-    options.vertical
-  ) {
+  if (options.vertical) {
     stack.layoutVertically()
   }
 
@@ -1413,24 +1340,16 @@ function addSurface(
     padding[2],
     padding[3]
   )
-
   stack.cornerRadius =
-    options.radius ??
-    14
-
+    options.radius ?? 14
   stack.backgroundColor =
     THEME.translucentWhite(
-      options.backgroundAlpha ??
-        0.05
+      options.backgroundAlpha ?? 0.05
     )
-
-  stack.borderWidth =
-    0.5
-
+  stack.borderWidth = 0.5
   stack.borderColor =
     THEME.translucentWhite(
-      options.borderAlpha ??
-        0.07
+      options.borderAlpha ?? 0.07
     )
 
   return stack
@@ -1442,72 +1361,43 @@ function addStatCard(
   label,
   options = {}
 ) {
-  const card =
-    addSurface(
-      parent,
-      {
-        padding: [
-          0,
-          7,
-          0,
-          7
-        ],
-        radius: 12,
-        backgroundAlpha: 0.05,
-        borderAlpha: 0.065,
-        vertical: true
-      }
-    )
-
-  if (
-    options.width ||
-    options.height
-  ) {
-    card.size =
-      new Size(
-        options.width ||
-          0,
-        options.height ||
-          0
-      )
-  }
-
-  card.centerAlignContent()
-  card.addSpacer()
-
-  const valueText =
-    addCenteredText(
-      card,
-      value,
-      Font.boldSystemFont(
-        14
-      ),
-      THEME.getPrimaryTextColor(),
-      0.7
-    )
-
-  valueText.lineLimit =
-    1
-
-  card.addSpacer(
-    1
+  const card = addSurface(
+    parent,
+    {
+      padding: [
+        options.paddingVertical || 5,
+        options.paddingHorizontal || 18,
+        options.paddingVertical || 5,
+        options.paddingHorizontal || 18
+      ],
+      radius: 12,
+      backgroundAlpha: 0.05,
+      borderAlpha: 0.065,
+      vertical: true
+    }
   )
 
-  const labelText =
-    addCenteredText(
-      card,
-      label,
-      Font.mediumSystemFont(
-        7.5
-      ),
-      secondary(),
-      0.75
-    )
+  card.centerAlignContent()
 
-  labelText.lineLimit =
-    1
+  addCenteredText(
+    card,
+    value,
+    Font.boldSystemFont(
+      options.valueSize || 14
+    ),
+    THEME.getPrimaryTextColor()
+  )
 
-  card.addSpacer()
+  card.addSpacer(1)
+
+  addCenteredText(
+    card,
+    label,
+    Font.mediumSystemFont(
+      options.labelSize || 7.5
+    ),
+    secondary()
+  )
 
   return card
 }
@@ -1516,127 +1406,104 @@ function addCenteredText(
   parent,
   value,
   font,
-  color,
-  scale
+  color
 ) {
-  const row =
-    parent.addStack()
-
+  const row = parent.addStack()
   row.centerAlignContent()
   row.addSpacer()
 
-  const text =
-    addText(
-      row,
-      value,
-      font,
-      color,
-      1,
-      scale
-    )
+  const text = addText(
+    row,
+    value,
+    font,
+    color,
+    1
+  )
 
   text.centerAlignText()
-
   row.addSpacer()
 
   return text
 }
 
-function createErrorWidget(
-  title,
-  message
-) {
-  const widget =
-    new ListWidget()
+function createErrorWidget(title, message) {
+  const widget = new ListWidget()
+  const profile = getScreenProfile()
+  const scale = profile.uiScale
 
   widget.backgroundColor =
     THEME.getErrorBackgroundColor()
-
   widget.setPadding(
-    18,
-    18,
-    18,
-    18
+    scaled(18, scale),
+    scaled(18, scale),
+    scaled(18, scale),
+    scaled(18, scale)
   )
 
-  const header =
-    widget.addStack()
-
+  const header = widget.addStack()
   header.centerAlignContent()
 
-  const icon =
-    header.addStack()
-
-  icon.size =
-    new Size(
-      34,
-      34
-    )
-
-  icon.cornerRadius =
-    17
-
+  const iconSize = scaled(34, scale)
+  const icon = header.addStack()
+  icon.size = new Size(
+    iconSize,
+    iconSize
+  )
+  icon.cornerRadius = iconSize / 2
   icon.backgroundColor =
-    THEME.translucentWhite(
-      0.08
-    )
-
+    THEME.translucentWhite(0.08)
   icon.centerAlignContent()
   icon.addSpacer()
 
   addSymbol(
     icon,
     "exclamationmark.triangle.fill",
-    15,
+    scaled(15, scale),
     THEME.getPrimaryTextColor()
   )
 
   icon.addSpacer()
-
   header.addSpacer(
-    10
+    scaled(10, scale)
   )
 
   addText(
     header,
     title,
     Font.boldSystemFont(
-      17
+      scaled(17, scale)
     ),
     THEME.getPrimaryTextColor(),
-    1,
-    0.75
+    1
   )
 
   widget.addSpacer(
-    10
+    scaled(10, scale)
   )
 
-  const card =
-    addSurface(
-      widget,
-      {
-        padding: [
-          11,
-          12,
-          11,
-          12
-        ],
-        radius: 14,
-        backgroundAlpha: 0.05,
-        borderAlpha: 0.07
-      }
-    )
+  const card = addSurface(
+    widget,
+    {
+      padding: [
+        scaled(11, scale),
+        scaled(12, scale),
+        scaled(11, scale),
+        scaled(12, scale)
+      ],
+      radius: scaled(14, scale),
+      backgroundAlpha: 0.05,
+      borderAlpha: 0.07
+    }
+  )
 
   addText(
     card,
     message,
     Font.mediumSystemFont(
-      11
+      scaled(11, scale)
     ),
     secondary(),
-    4,
-    0.65
+    4
   )
 
   return widget
@@ -1648,34 +1515,24 @@ function addSymbol(
   size,
   color
 ) {
-  const symbol =
-    SFSymbol.named(
-      name
-    )
+  const symbol = SFSymbol.named(name)
 
   if (!symbol) {
     return null
   }
 
   symbol.applyFont(
-    Font.systemFont(
-      size
-    )
+    Font.systemFont(size)
   )
 
-  const image =
-    parent.addImage(
-      symbol.image
-    )
-
-  image.imageSize =
-    new Size(
-      size,
-      size
-    )
-
-  image.tintColor =
-    color
+  const image = parent.addImage(
+    symbol.image
+  )
+  image.imageSize = new Size(
+    size,
+    size
+  )
+  image.tintColor = color
 
   return image
 }
@@ -1685,62 +1542,35 @@ function addText(
   value,
   font,
   color,
-  lines = 1,
-  scale = 0.5
+  lines = 1
 ) {
-  const element =
-    parent.addText(
-      String(
-        value ??
-        ""
-      )
-    )
+  const element = parent.addText(
+    String(value ?? "")
+  )
 
-  element.font =
-    font
-
-  element.textColor =
-    color
-
-  element.lineLimit =
-    lines
-
-  element.minimumScaleFactor =
-    scale
+  element.font = font
+  element.textColor = color
+  element.lineLimit = lines
 
   return element
 }
 
-function alignText(
-  text,
-  alignment
-) {
-  if (
-    alignment ===
-    "right"
-  ) {
+function alignText(text, alignment) {
+  if (alignment === "right") {
     text.rightAlignText()
-  } else if (
-    alignment ===
-    "center"
-  ) {
+  } else if (alignment === "center") {
     text.centerAlignText()
   } else {
     text.leftAlignText()
   }
 }
 
-function isSliceActive(
-  slice,
-  state
-) {
+function isSliceActive(slice, state) {
   return Boolean(
-    state.current?.index ===
-      slice.index ||
+    state.current?.index === slice.index ||
     (
       !state.current &&
-      state.next?.index ===
-        slice.index
+      state.next?.index === slice.index
     )
   )
 }
@@ -1751,14 +1581,9 @@ function accent(state) {
   )
 }
 
-function accentAlpha(
-  state,
-  alpha
-) {
+function accentAlpha(state, alpha) {
   return new Color(
-    THEME.getAccentHex(
-      state.type
-    ),
+    THEME.getAccentHex(state.type),
     alpha
   )
 }
@@ -1768,215 +1593,293 @@ function secondary() {
 }
 
 function normalizeFamily(value) {
-  const family =
-    String(
-      value ||
-      ""
-    )
-      .trim()
-      .toLowerCase()
-
-  return VALID_FAMILIES.includes(
-    family
+  const family = String(
+    value || ""
   )
+    .trim()
+    .toLowerCase()
+
+  return VALID_FAMILIES.includes(family)
     ? family
     : "large"
 }
 
-function getLargeDensity(slices) {
-  const list =
-    Array.isArray(
-      slices
-    )
-      ? slices
-      : []
+function getScreenProfile() {
+  let size
 
-  const sliceCount =
-    Math.max(
-      1,
-      list.length
-    )
-
-  const longestTitle =
-    list.reduce(
-      (
-        length,
-        slice
-      ) =>
-        Math.max(
-          length,
-          `Ligne ${
-            slice?.line ||
-            "?"
-          } · Voiture ${
-            slice?.vehicle ||
-            ""
-          }`.length
-        ),
-      0
-    )
-
-  const longestRoute =
-    list.reduce(
-      (
-        length,
-        slice
-      ) =>
-        Math.max(
-          length,
-          `${
-            slice?.from ||
-            ""
-          } → ${
-            slice?.to ||
-            ""
-          }`.length
-        ),
-      0
-    )
-
-  let density
-
-  if (
-    sliceCount >=
-    5
-  ) {
-    density = {
-      sectionGap: 5,
-      timingPadding: 6,
-      timeColumnWidth: 110,
-      timeSize: 23,
-      placeSize: 9,
-      arrowSize: 24,
-      timingCenterWidth: 38,
-      departureSectionGap: 3,
-      departureRowGap: 3,
-      depotTimeSize: 10,
-      departureSize: 8.5,
-      listPadding: 7,
-      headerGap: 5,
-      rowGap: 3,
-      rowPadding: 3,
-      itemGap: 6,
-      numberSize: 20,
-      numberFont: 8.5,
-      detailsWidth: 144,
-      timingWidth: 70,
-      sliceTitleSize: 10,
-      sliceDetailSize: 8,
-      titleSoftLimit: 25,
-      titleMinimumSize: 8,
-      routeSoftLimit: 30,
-      routeMinimumSize: 6.8,
-      rangeSize: 9.5,
-      durationSize: 7.5,
-      detailGap: 1,
-      statWidth: 143,
-      statHeight: 38,
-      statGap: 8
-    }
-  } else if (
-    sliceCount >=
-    3
-  ) {
-    density = {
-      sectionGap: 6,
-      timingPadding: 7,
-      timeColumnWidth: 116,
-      timeSize: 25,
-      placeSize: 9.5,
-      arrowSize: 26,
-      timingCenterWidth: 40,
-      departureSectionGap: 4,
-      departureRowGap: 4,
-      depotTimeSize: 10.5,
-      departureSize: 9,
-      listPadding: 8,
-      headerGap: 6,
-      rowGap: 5,
-      rowPadding: 4,
-      itemGap: 7,
-      numberSize: 23,
-      numberFont: 9.5,
-      detailsWidth: 156,
-      timingWidth: 74,
-      sliceTitleSize: 11,
-      sliceDetailSize: 8.8,
-      titleSoftLimit: 26,
-      titleMinimumSize: 8.5,
-      routeSoftLimit: 32,
-      routeMinimumSize: 7,
-      rangeSize: 10.5,
-      durationSize: 8,
-      detailGap: 2,
-      statWidth: 143,
-      statHeight: 40,
-      statGap: 8
-    }
-  } else {
-    density = {
-      sectionGap: 7,
-      timingPadding: 7,
-      timeColumnWidth: 121,
-      timeSize: 27,
-      placeSize: 10.5,
-      arrowSize: 28,
-      timingCenterWidth: 42,
-      departureSectionGap: 4,
-      departureRowGap: 5,
-      depotTimeSize: 11.5,
-      departureSize: 10.5,
-      listPadding: 9,
-      headerGap: 6,
-      rowGap: 6,
-      rowPadding: 5,
-      itemGap: 8,
-      numberSize: 25,
-      numberFont: 10.5,
-      detailsWidth: 170,
-      timingWidth: 78,
-      sliceTitleSize: 12,
-      sliceDetailSize: 9.8,
-      titleSoftLimit: 27,
-      titleMinimumSize: 9,
-      routeSoftLimit: 34,
-      routeMinimumSize: 7.4,
-      rangeSize: 11,
-      durationSize: 9,
-      detailGap: 3,
-      statWidth: 143,
-      statHeight: 42,
-      statGap: 8
-    }
+  try {
+    size = Device.screenSize()
+  } catch (_) {
+    size = new Size(390, 844)
   }
 
-  density.sliceTitleResolvedSize =
-    adaptiveFontSize(
-      density.sliceTitleSize,
-      "X".repeat(
-        longestTitle
-      ),
-      Math.min(
-        density.titleSoftLimit,
-        20
-      ),
-      density.titleMinimumSize
-    )
+  const rawWidth = Number(size?.width) || 390
+  const rawHeight = Number(size?.height) || 844
+  const width = Math.min(rawWidth, rawHeight)
+  const height = Math.max(rawWidth, rawHeight)
 
-  density.sliceDetailResolvedSize =
-    adaptiveFontSize(
-      density.sliceDetailSize,
-      "X".repeat(
-        longestRoute
-      ),
-      Math.min(
-        density.routeSoftLimit,
-        28
-      ),
-      density.routeMinimumSize
-    )
+  const widthScale = clamp(
+    width / 390,
+    0.82,
+    1.14
+  )
 
-  return density
+  const heightScale = clamp(
+    height / 844,
+    0.82,
+    1.14
+  )
+
+  const uiScale = clamp(
+    Math.min(widthScale, heightScale),
+    0.82,
+    1.12
+  )
+
+  return {
+    width,
+    height,
+    widthScale,
+    heightScale,
+    uiScale,
+    compact:
+      width <= 375 || height <= 736,
+    narrow:
+      width < 390,
+    spacious:
+      width >= 428 && height >= 900
+  }
+}
+
+function getLargeDensity(slices, profile) {
+  const list = Array.isArray(slices)
+    ? slices
+    : []
+
+  const sliceCount = Math.max(
+    1,
+    list.length
+  )
+
+  const contentScale = sliceCount >= 5
+    ? 0.82
+    : sliceCount >= 4
+      ? 0.88
+      : sliceCount >= 3
+        ? 0.94
+        : 1
+
+  const scale = clamp(
+    profile.uiScale * contentScale,
+    0.74,
+    1.08
+  )
+
+  const horizontalScale = clamp(
+    profile.widthScale,
+    0.82,
+    1.12
+  )
+
+  return {
+    paddingTop: scaled(16, scale),
+    paddingBottom: scaled(13, scale),
+    paddingHorizontal:
+      scaled(17, horizontalScale),
+    sectionGap: scaled(7, scale),
+    surfacePaddingHorizontal:
+      scaled(11, horizontalScale),
+    surfaceRadius: scaled(16, scale),
+    timingPadding: scaled(7, scale),
+    timingGap: scaled(5, horizontalScale),
+    timeSize: scaled(26, scale),
+    placeSize: scaled(10, scale),
+    placeSoftLimit:
+      profile.narrow ? 14 : 18,
+    arrowSize: scaled(27, scale),
+    departureSectionGap:
+      scaled(6, scale),
+    departureRowGap:
+      scaled(4, scale),
+    departurePairGap:
+      scaled(18, horizontalScale),
+    departureLabelSize:
+      scaled(7.3, scale),
+    departureValueSize:
+      scaled(9.5, scale),
+    departureTimeSize:
+      scaled(10.5, scale),
+    departureSoftLimit:
+      profile.narrow ? 18 : 24,
+    departureVertical:
+      profile.width < 400,
+    listPadding: scaled(8, scale),
+    listRadius: scaled(15, scale),
+    sectionHeaderSize:
+      scaled(8, scale),
+    headerGap: scaled(5, scale),
+    rowGap: scaled(4, scale),
+    rowPadding: scaled(4, scale),
+    rowRadius: scaled(10, scale),
+    itemGap: scaled(7, horizontalScale),
+    numberSize: scaled(23, scale),
+    numberFont: scaled(9.5, scale),
+    sliceTitleSize: scaled(11, scale),
+    sliceDetailSize: scaled(8.8, scale),
+    titleSoftLimit:
+      profile.narrow ? 20 : 25,
+    titleMinimumSize:
+      scaled(8.2, scale),
+    routeSoftLimit:
+      profile.narrow ? 25 : 31,
+    routeMinimumSize:
+      scaled(7, scale),
+    rangeSize: scaled(10, scale),
+    durationSize: scaled(8, scale),
+    detailGap: scaled(2, scale),
+    statPaddingHorizontal:
+      scaled(22, horizontalScale),
+    statPaddingVertical:
+      scaled(5, scale),
+    statGap: scaled(8, horizontalScale),
+    statValueSize: scaled(14, scale),
+    statLabelSize: scaled(7.5, scale),
+    header: {
+      iconSize: scaled(37, scale),
+      symbolSize: scaled(17, scale),
+      titleSize: scaled(20, scale),
+      dateSize: scaled(9.5, scale),
+      badgeSize: scaled(9.5, scale),
+      iconGap: scaled(10, horizontalScale),
+      badgePadding: [
+        scaled(4, scale),
+        scaled(7, horizontalScale),
+        scaled(4, scale),
+        scaled(7, horizontalScale)
+      ]
+    }
+  }
+}
+
+function getMediumDensity(profile) {
+  const scale = clamp(
+    profile.uiScale,
+    0.82,
+    1.08
+  )
+  const horizontalScale = clamp(
+    profile.widthScale,
+    0.82,
+    1.1
+  )
+
+  return {
+    paddingTop: scaled(13, scale),
+    paddingBottom: scaled(11, scale),
+    paddingHorizontal:
+      scaled(15, horizontalScale),
+    sectionGap: scaled(8, scale),
+    cardPaddingVertical:
+      scaled(9, scale),
+    cardPaddingHorizontal:
+      scaled(11, horizontalScale),
+    surfaceRadius: scaled(14, scale),
+    identityGap:
+      scaled(profile.narrow ? 8 : 14, horizontalScale),
+    lineSize: scaled(22, scale),
+    vehicleSize: scaled(12, scale),
+    rangeSize: scaled(14, scale),
+    durationSize: scaled(9.5, scale),
+    cardGap: scaled(6, scale),
+    routeSize: scaled(10.5, scale),
+    routeSoftLimit:
+      profile.narrow ? 25 : 30,
+    routeMinimumSize:
+      scaled(7.8, scale),
+    departureGap: scaled(3, scale),
+    departureSize: scaled(9, scale),
+    departureSoftLimit:
+      profile.narrow ? 36 : 46,
+    departureMinimumSize:
+      scaled(7, scale),
+    footerGap: scaled(7, scale),
+    footerSize: scaled(8.5, scale),
+    footerTimeSize: scaled(9.5, scale),
+    header: {
+      iconSize: scaled(30, scale),
+      symbolSize: scaled(13.5, scale),
+      titleSize: scaled(17, scale),
+      dateSize: scaled(8.5, scale),
+      badgeSize: scaled(8.5, scale),
+      iconGap: scaled(8, horizontalScale),
+      badgePadding: [
+        scaled(4, scale),
+        scaled(7, horizontalScale),
+        scaled(4, scale),
+        scaled(7, horizontalScale)
+      ]
+    }
+  }
+}
+
+function getSmallDensity(profile) {
+  const scale = clamp(
+    profile.uiScale,
+    0.82,
+    1.06
+  )
+  const horizontalScale = clamp(
+    profile.widthScale,
+    0.82,
+    1.08
+  )
+
+  return {
+    paddingTop: scaled(11, scale),
+    paddingBottom: scaled(10, scale),
+    paddingHorizontal:
+      scaled(12, horizontalScale),
+    serviceSize: scaled(14, scale),
+    badgeSize: scaled(7.5, scale),
+    badgePadding: [
+      scaled(3, scale),
+      scaled(6, horizontalScale),
+      scaled(3, scale),
+      scaled(6, horizontalScale)
+    ],
+    sectionGap: scaled(6, scale),
+    lineSize: scaled(19, scale),
+    vehicleSize: scaled(9.5, scale),
+    surfaceRadius: scaled(10, scale),
+    timePaddingVertical:
+      scaled(5, scale),
+    timePaddingHorizontal:
+      scaled(7, horizontalScale),
+    timeLabelSize: scaled(6, scale),
+    timeSize: scaled(13, scale),
+    arrowSize: scaled(9, scale),
+    departureSize: scaled(8, scale),
+    departureSoftLimit:
+      profile.narrow ? 25 : 30,
+    departureMinimumSize:
+      scaled(6.3, scale),
+    departureGap: scaled(3, scale),
+    footerSize: scaled(8.5, scale)
+  }
+}
+
+function scaled(value, scale) {
+  return Math.max(
+    1,
+    Math.round(value * scale * 2) / 2
+  )
+}
+
+function clamp(value, minimum, maximum) {
+  return Math.min(
+    maximum,
+    Math.max(minimum, value)
+  )
 }
 
 function adaptiveFontSize(
@@ -1985,85 +1888,52 @@ function adaptiveFontSize(
   softLimit,
   minimumSize
 ) {
-  const safeBaseSize =
+  const safeBaseSize = Math.max(
+    1,
+    Number(baseSize) || 1
+  )
+  const safeMinimumSize = Math.min(
+    safeBaseSize,
     Math.max(
       1,
-      Number(
-        baseSize
-      ) ||
-        1
+      Number(minimumSize) ||
+        safeBaseSize * 0.7
     )
+  )
 
-  const safeMinimumSize =
-    Math.min(
-      safeBaseSize,
-      Math.max(
-        1,
-        Number(
-          minimumSize
-        ) ||
-          safeBaseSize *
-            0.7
-      )
-    )
+  const length = String(
+    value ?? ""
+  ).trim().length
+  const limit = Math.max(
+    1,
+    Number(softLimit) || 1
+  )
 
-  const length =
-    String(
-      value ??
-      ""
-    )
-      .trim()
-      .length
-
-  const limit =
-    Math.max(
-      1,
-      Number(
-        softLimit
-      ) ||
-        1
-    )
-
-  if (
-    length <=
-    limit
-  ) {
+  if (length <= limit) {
     return safeBaseSize
   }
 
-  const ratio =
-    Math.max(
-      0.68,
-      limit /
-        length
-    )
+  const ratio = Math.max(
+    0.66,
+    limit / length
+  )
 
-  const resolved =
+  return Math.round(
     Math.max(
       safeMinimumSize,
-      safeBaseSize *
-        ratio
-    )
-
-  return (
-    Math.round(
-      resolved *
-        2
-    ) /
-    2
-  )
+      safeBaseSize * ratio
+    ) * 2
+  ) / 2
 }
 
 function validateContext(context) {
   if (
     !context ||
-    typeof context !==
-      "object"
+    typeof context !== "object"
   ) {
     return {
       valid: false,
-      error:
-        "Le contexte du widget est absent."
+      error: "Le contexte du widget est absent."
     }
   }
 
@@ -2075,8 +1945,7 @@ function validateContext(context) {
   ) {
     return {
       valid: false,
-      error:
-        "Les données nécessaires au widget sont incomplètes."
+      error: "Les données nécessaires au widget sont incomplètes."
     }
   }
 
@@ -2088,8 +1957,7 @@ function validateContext(context) {
   ) {
     return {
       valid: false,
-      error:
-        "Aucune tranche ne peut être affichée."
+      error: "Aucune tranche ne peut être affichée."
     }
   }
 
