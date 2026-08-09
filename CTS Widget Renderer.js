@@ -150,6 +150,9 @@ function addLargeTimingCard(
   }
 
   card.addSpacer(density.departureSectionGap)
+  addDivider(card)
+  card.addSpacer(density.departureSectionGap)
+
   addLargeDeparturePanel(
     card,
     focus,
@@ -183,19 +186,19 @@ function addTimeColumn(parent, options) {
     1
   )
 
-  column.addSpacer(2)
+  column.addSpacer(3)
 
   const timeText = addText(
     column,
     options.time,
-    Font.boldSystemFont(
+    Font.boldMonospacedSystemFont(
       options.timeSize
     ),
     THEME.getPrimaryTextColor(),
     1
   )
 
-  column.addSpacer(2)
+  column.addSpacer(3)
 
   const placeText = addText(
     column,
@@ -345,7 +348,7 @@ function addDepartureLine(
     row,
     entry.value,
     entry.time
-      ? Font.boldSystemFont(
+      ? Font.boldMonospacedSystemFont(
           density.departureValueSize
         )
       : Font.semiboldSystemFont(
@@ -404,7 +407,7 @@ function addDepartureBlock(
     block,
     entry.value,
     entry.time
-      ? Font.boldSystemFont(valueSize)
+      ? Font.boldMonospacedSystemFont(valueSize)
       : Font.semiboldSystemFont(valueSize),
     accent(state),
     1
@@ -571,7 +574,7 @@ function addSliceRow(
   const range = addText(
     top,
     `${slice.start}–${slice.end}`,
-    Font.boldSystemFont(
+    Font.boldMonospacedSystemFont(
       density.rangeSize
     ),
     active
@@ -664,6 +667,7 @@ function addStatsSummary(
 ) {
   const summary = widget.addStack()
   summary.centerAlignContent()
+  summary.addSpacer()
 
   addStatCard(
     summary,
@@ -698,6 +702,8 @@ function addStatsSummary(
         density.statLabelSize
     }
   )
+
+  summary.addSpacer()
 }
 
 function createMediumWidget(context) {
@@ -775,7 +781,7 @@ function createMediumWidget(context) {
     1
   )
 
-  identity.addSpacer(density.identityGap)
+  identity.addSpacer()
 
   const timeInfo = identity.addStack()
   timeInfo.layoutVertically()
@@ -783,7 +789,7 @@ function createMediumWidget(context) {
   const range = addText(
     timeInfo,
     `${focus.start} → ${focus.end}`,
-    Font.boldSystemFont(
+    Font.boldMonospacedSystemFont(
       density.rangeSize
     ),
     THEME.getPrimaryTextColor(),
@@ -791,7 +797,7 @@ function createMediumWidget(context) {
   )
   range.rightAlignText()
 
-  timeInfo.addSpacer(2)
+  timeInfo.addSpacer(3)
 
   const duration = addText(
     timeInfo,
@@ -810,14 +816,16 @@ function createMediumWidget(context) {
   duration.rightAlignText()
 
   card.addSpacer(density.cardGap)
+  addDivider(card)
+  card.addSpacer(density.routeGap)
 
   addText(
     card,
-    `${focus.from} → ${focus.to}`,
+    focus.from,
     Font.mediumSystemFont(
       adaptiveFontSize(
         density.routeSize,
-        `${focus.from} → ${focus.to}`,
+        focus.from,
         density.routeSoftLimit,
         density.routeMinimumSize
       )
@@ -866,7 +874,7 @@ function createMediumWidget(context) {
   addText(
     footer,
     `Fin ${stats.end}`,
-    Font.boldSystemFont(
+    Font.boldMonospacedSystemFont(
       density.footerTimeSize
     ),
     accent(state),
@@ -1158,7 +1166,7 @@ function addSmallTime(
   const timeText = addText(
     block,
     time,
-    Font.boldSystemFont(
+    Font.boldMonospacedSystemFont(
       density.timeSize
     ),
     THEME.getPrimaryTextColor(),
@@ -1269,10 +1277,7 @@ function addStatusPill(
     padding[2],
     padding[3]
   )
-  pill.cornerRadius = Math.max(
-    8,
-    padding[1] + 2
-  )
+  pill.cornerRadius = 10
   pill.backgroundColor = accentAlpha(
     state,
     0.1
@@ -1320,6 +1325,15 @@ function addSectionHeader(
     secondary(),
     1
   )
+}
+
+function addDivider(parent) {
+  const divider = parent.addStack()
+  divider.size = new Size(0, 1)
+  divider.backgroundColor =
+    THEME.translucentWhite(0.07)
+  divider.addSpacer()
+  return divider
 }
 
 function addSurface(
@@ -1621,19 +1635,19 @@ function getScreenProfile() {
   const widthScale = clamp(
     width / 390,
     0.82,
-    1.14
+    1
   )
 
   const heightScale = clamp(
     height / 844,
     0.82,
-    1.14
+    1
   )
 
   const uiScale = clamp(
     Math.min(widthScale, heightScale),
     0.82,
-    1.12
+    1
   )
 
   return {
@@ -1661,210 +1675,256 @@ function getLargeDensity(slices, profile) {
     list.length
   )
 
-  const contentScale = sliceCount >= 5
-    ? 0.82
-    : sliceCount >= 4
-      ? 0.88
-      : sliceCount >= 3
-        ? 0.94
-        : 1
+  const scale = profile.uiScale
+  const horizontalScale = profile.widthScale
 
-  const scale = clamp(
-    profile.uiScale * contentScale,
-    0.74,
-    1.08
-  )
+  let base
 
-  const horizontalScale = clamp(
-    profile.widthScale,
-    0.82,
-    1.12
-  )
+  if (sliceCount >= 5) {
+    base = {
+      sectionGap: 5,
+      timingPadding: 6,
+      timeSize: 23,
+      placeSize: 9,
+      arrowSize: 24,
+      departureSectionGap: 3,
+      departureRowGap: 3,
+      departureLabelSize: 7,
+      departureValueSize: 8.5,
+      departureTimeSize: 10,
+      listPadding: 7,
+      headerGap: 5,
+      rowGap: 3,
+      rowPadding: 3,
+      itemGap: 6,
+      numberSize: 20,
+      numberFont: 8.5,
+      sliceTitleSize: 10,
+      sliceDetailSize: 8,
+      titleSoftLimit: 25,
+      titleMinimumSize: 8,
+      routeSoftLimit: 30,
+      routeMinimumSize: 6.8,
+      rangeSize: 9.5,
+      durationSize: 7.5,
+      detailGap: 1,
+      statValueSize: 14,
+      statLabelSize: 7.5,
+      statPaddingVertical: 4,
+      statPaddingHorizontal: 20
+    }
+  } else if (sliceCount >= 3) {
+    base = {
+      sectionGap: 6,
+      timingPadding: 7,
+      timeSize: 25,
+      placeSize: 9.5,
+      arrowSize: 26,
+      departureSectionGap: 4,
+      departureRowGap: 4,
+      departureLabelSize: 7.5,
+      departureValueSize: 9,
+      departureTimeSize: 10.5,
+      listPadding: 8,
+      headerGap: 6,
+      rowGap: 5,
+      rowPadding: 4,
+      itemGap: 7,
+      numberSize: 23,
+      numberFont: 9.5,
+      sliceTitleSize: 11,
+      sliceDetailSize: 8.8,
+      titleSoftLimit: 26,
+      titleMinimumSize: 8.5,
+      routeSoftLimit: 32,
+      routeMinimumSize: 7,
+      rangeSize: 10.5,
+      durationSize: 8,
+      detailGap: 2,
+      statValueSize: 14,
+      statLabelSize: 7.5,
+      statPaddingVertical: 5,
+      statPaddingHorizontal: 22
+    }
+  } else {
+    base = {
+      sectionGap: 7,
+      timingPadding: 7,
+      timeSize: 27,
+      placeSize: 10.5,
+      arrowSize: 28,
+      departureSectionGap: 4,
+      departureRowGap: 5,
+      departureLabelSize: 7.5,
+      departureValueSize: 10.5,
+      departureTimeSize: 11.5,
+      listPadding: 9,
+      headerGap: 6,
+      rowGap: 6,
+      rowPadding: 5,
+      itemGap: 8,
+      numberSize: 25,
+      numberFont: 10.5,
+      sliceTitleSize: 12,
+      sliceDetailSize: 9.8,
+      titleSoftLimit: 27,
+      titleMinimumSize: 9,
+      routeSoftLimit: 34,
+      routeMinimumSize: 7.4,
+      rangeSize: 11,
+      durationSize: 9,
+      detailGap: 3,
+      statValueSize: 14,
+      statLabelSize: 7.5,
+      statPaddingVertical: 5,
+      statPaddingHorizontal: 24
+    }
+  }
 
   return {
-    paddingTop: scaled(16, scale),
-    paddingBottom: scaled(13, scale),
-    paddingHorizontal:
-      scaled(17, horizontalScale),
-    sectionGap: scaled(7, scale),
-    surfacePaddingHorizontal:
-      scaled(11, horizontalScale),
-    surfaceRadius: scaled(16, scale),
-    timingPadding: scaled(7, scale),
-    timingGap: scaled(5, horizontalScale),
-    timeSize: scaled(26, scale),
-    placeSize: scaled(10, scale),
-    placeSoftLimit:
-      profile.narrow ? 14 : 18,
-    arrowSize: scaled(27, scale),
+    paddingTop: scaled(17, scale),
+    paddingBottom: scaled(14, scale),
+    paddingHorizontal: scaled(18, horizontalScale),
+    sectionGap: scaled(base.sectionGap, scale),
+    surfacePaddingHorizontal: scaled(12, horizontalScale),
+    surfaceRadius: scaled(17, scale),
+    timingPadding: scaled(base.timingPadding, scale),
+    timingGap: scaled(7, horizontalScale),
+    timeSize: scaled(base.timeSize, scale),
+    placeSize: scaled(base.placeSize, scale),
+    placeSoftLimit: profile.narrow ? 15 : 18,
+    arrowSize: scaled(base.arrowSize, scale),
     departureSectionGap:
-      scaled(6, scale),
+      scaled(base.departureSectionGap, scale),
     departureRowGap:
-      scaled(4, scale),
-    departurePairGap:
-      scaled(18, horizontalScale),
+      scaled(base.departureRowGap, scale),
+    departurePairGap: scaled(22, horizontalScale),
     departureLabelSize:
-      scaled(7.3, scale),
+      scaled(base.departureLabelSize, scale),
     departureValueSize:
-      scaled(9.5, scale),
+      scaled(base.departureValueSize, scale),
     departureTimeSize:
-      scaled(10.5, scale),
-    departureSoftLimit:
-      profile.narrow ? 18 : 24,
-    departureVertical:
-      profile.width < 400,
-    listPadding: scaled(8, scale),
-    listRadius: scaled(15, scale),
-    sectionHeaderSize:
-      scaled(8, scale),
-    headerGap: scaled(5, scale),
-    rowGap: scaled(4, scale),
-    rowPadding: scaled(4, scale),
-    rowRadius: scaled(10, scale),
-    itemGap: scaled(7, horizontalScale),
-    numberSize: scaled(23, scale),
-    numberFont: scaled(9.5, scale),
-    sliceTitleSize: scaled(11, scale),
-    sliceDetailSize: scaled(8.8, scale),
-    titleSoftLimit:
-      profile.narrow ? 20 : 25,
-    titleMinimumSize:
-      scaled(8.2, scale),
-    routeSoftLimit:
-      profile.narrow ? 25 : 31,
-    routeMinimumSize:
-      scaled(7, scale),
-    rangeSize: scaled(10, scale),
-    durationSize: scaled(8, scale),
-    detailGap: scaled(2, scale),
+      scaled(base.departureTimeSize, scale),
+    departureSoftLimit: profile.narrow ? 18 : 24,
+    departureVertical: profile.width < 375,
+    listPadding: scaled(base.listPadding, scale),
+    listRadius: scaled(16, scale),
+    sectionHeaderSize: scaled(8, scale),
+    headerGap: scaled(base.headerGap, scale),
+    rowGap: scaled(base.rowGap, scale),
+    rowPadding: scaled(base.rowPadding, scale),
+    rowRadius: scaled(11, scale),
+    itemGap: scaled(base.itemGap, horizontalScale),
+    numberSize: scaled(base.numberSize, scale),
+    numberFont: scaled(base.numberFont, scale),
+    sliceTitleSize: scaled(base.sliceTitleSize, scale),
+    sliceDetailSize: scaled(base.sliceDetailSize, scale),
+    titleSoftLimit: base.titleSoftLimit,
+    titleMinimumSize: scaled(base.titleMinimumSize, scale),
+    routeSoftLimit: base.routeSoftLimit,
+    routeMinimumSize: scaled(base.routeMinimumSize, scale),
+    rangeSize: scaled(base.rangeSize, scale),
+    durationSize: scaled(base.durationSize, scale),
+    detailGap: scaled(base.detailGap, scale),
     statPaddingHorizontal:
-      scaled(22, horizontalScale),
+      scaled(base.statPaddingHorizontal, horizontalScale),
     statPaddingVertical:
-      scaled(5, scale),
+      scaled(base.statPaddingVertical, scale),
     statGap: scaled(8, horizontalScale),
-    statValueSize: scaled(14, scale),
-    statLabelSize: scaled(7.5, scale),
+    statValueSize: scaled(base.statValueSize, scale),
+    statLabelSize: scaled(base.statLabelSize, scale),
     header: {
-      iconSize: scaled(37, scale),
-      symbolSize: scaled(17, scale),
-      titleSize: scaled(20, scale),
-      dateSize: scaled(9.5, scale),
-      badgeSize: scaled(9.5, scale),
-      iconGap: scaled(10, horizontalScale),
+      iconSize: scaled(38, scale),
+      symbolSize: scaled(18, scale),
+      titleSize: scaled(21, scale),
+      dateSize: scaled(10, scale),
+      badgeSize: scaled(10, scale),
+      iconGap: scaled(11, horizontalScale),
       badgePadding: [
-        scaled(4, scale),
-        scaled(7, horizontalScale),
-        scaled(4, scale),
-        scaled(7, horizontalScale)
+        scaled(5, scale),
+        scaled(8, horizontalScale),
+        scaled(5, scale),
+        scaled(8, horizontalScale)
       ]
     }
   }
 }
 
 function getMediumDensity(profile) {
-  const scale = clamp(
-    profile.uiScale,
-    0.82,
-    1.08
-  )
-  const horizontalScale = clamp(
-    profile.widthScale,
-    0.82,
-    1.1
-  )
+  const scale = profile.uiScale
+  const horizontalScale = profile.widthScale
 
   return {
-    paddingTop: scaled(13, scale),
-    paddingBottom: scaled(11, scale),
-    paddingHorizontal:
-      scaled(15, horizontalScale),
-    sectionGap: scaled(8, scale),
-    cardPaddingVertical:
-      scaled(9, scale),
-    cardPaddingHorizontal:
-      scaled(11, horizontalScale),
-    surfaceRadius: scaled(14, scale),
-    identityGap:
-      scaled(profile.narrow ? 8 : 14, horizontalScale),
-    lineSize: scaled(22, scale),
-    vehicleSize: scaled(12, scale),
-    rangeSize: scaled(14, scale),
-    durationSize: scaled(9.5, scale),
-    cardGap: scaled(6, scale),
-    routeSize: scaled(10.5, scale),
-    routeSoftLimit:
-      profile.narrow ? 25 : 30,
-    routeMinimumSize:
-      scaled(7.8, scale),
+    paddingTop: scaled(14, scale),
+    paddingBottom: scaled(12, scale),
+    paddingHorizontal: scaled(16, horizontalScale),
+    sectionGap: scaled(9, scale),
+    cardPaddingVertical: scaled(10, scale),
+    cardPaddingHorizontal: scaled(12, horizontalScale),
+    surfaceRadius: scaled(15, scale),
+    lineSize: scaled(24, scale),
+    vehicleSize: scaled(13, scale),
+    rangeSize: scaled(15, scale),
+    durationSize: scaled(10, scale),
+    cardGap: scaled(7, scale),
+    routeGap: scaled(6, scale),
+    routeSize: scaled(11, scale),
+    routeSoftLimit: profile.narrow ? 26 : 30,
+    routeMinimumSize: scaled(8, scale),
     departureGap: scaled(3, scale),
-    departureSize: scaled(9, scale),
-    departureSoftLimit:
-      profile.narrow ? 36 : 46,
-    departureMinimumSize:
-      scaled(7, scale),
-    footerGap: scaled(7, scale),
-    footerSize: scaled(8.5, scale),
-    footerTimeSize: scaled(9.5, scale),
+    departureSize: scaled(10, scale),
+    departureSoftLimit: profile.narrow ? 38 : 48,
+    departureMinimumSize: scaled(7.5, scale),
+    footerGap: scaled(8, scale),
+    footerSize: scaled(9, scale),
+    footerTimeSize: scaled(10, scale),
     header: {
-      iconSize: scaled(30, scale),
-      symbolSize: scaled(13.5, scale),
-      titleSize: scaled(17, scale),
-      dateSize: scaled(8.5, scale),
-      badgeSize: scaled(8.5, scale),
-      iconGap: scaled(8, horizontalScale),
+      iconSize: scaled(31, scale),
+      symbolSize: scaled(14, scale),
+      titleSize: scaled(18, scale),
+      dateSize: scaled(9, scale),
+      badgeSize: scaled(9, scale),
+      iconGap: scaled(9, horizontalScale),
       badgePadding: [
-        scaled(4, scale),
-        scaled(7, horizontalScale),
-        scaled(4, scale),
-        scaled(7, horizontalScale)
+        scaled(5, scale),
+        scaled(8, horizontalScale),
+        scaled(5, scale),
+        scaled(8, horizontalScale)
       ]
     }
   }
 }
 
 function getSmallDensity(profile) {
-  const scale = clamp(
-    profile.uiScale,
-    0.82,
-    1.06
-  )
-  const horizontalScale = clamp(
-    profile.widthScale,
-    0.82,
-    1.08
-  )
+  const scale = profile.uiScale
+  const horizontalScale = profile.widthScale
 
   return {
-    paddingTop: scaled(11, scale),
-    paddingBottom: scaled(10, scale),
-    paddingHorizontal:
-      scaled(12, horizontalScale),
-    serviceSize: scaled(14, scale),
-    badgeSize: scaled(7.5, scale),
+    paddingTop: scaled(12, scale),
+    paddingBottom: scaled(11, scale),
+    paddingHorizontal: scaled(13, horizontalScale),
+    serviceSize: scaled(15, scale),
+    badgeSize: scaled(8, scale),
     badgePadding: [
       scaled(3, scale),
       scaled(6, horizontalScale),
       scaled(3, scale),
       scaled(6, horizontalScale)
     ],
-    sectionGap: scaled(6, scale),
-    lineSize: scaled(19, scale),
-    vehicleSize: scaled(9.5, scale),
-    surfaceRadius: scaled(10, scale),
-    timePaddingVertical:
-      scaled(5, scale),
-    timePaddingHorizontal:
-      scaled(7, horizontalScale),
-    timeLabelSize: scaled(6, scale),
-    timeSize: scaled(13, scale),
-    arrowSize: scaled(9, scale),
-    departureSize: scaled(8, scale),
-    departureSoftLimit:
-      profile.narrow ? 25 : 30,
-    departureMinimumSize:
-      scaled(6.3, scale),
-    departureGap: scaled(3, scale),
-    footerSize: scaled(8.5, scale)
+    sectionGap: scaled(7, scale),
+    lineSize: scaled(21, scale),
+    vehicleSize: scaled(10, scale),
+    surfaceRadius: scaled(11, scale),
+    timePaddingVertical: scaled(6, scale),
+    timePaddingHorizontal: scaled(8, horizontalScale),
+    timeLabelSize: scaled(6.5, scale),
+    timeSize: scaled(14, scale),
+    arrowSize: scaled(10, scale),
+    departureSize: scaled(8.5, scale),
+    departureSoftLimit: profile.narrow ? 26 : 30,
+    departureMinimumSize: scaled(6.5, scale),
+    departureGap: scaled(4, scale),
+    footerSize: scaled(9, scale)
   }
 }
 
