@@ -696,15 +696,14 @@ function addTelemetryIssue(
   )
 
 
-  run.status =
-    strongestTelemetryStatus(
-      run.status,
-      severityToRunStatus(
-        normalizedSeverity
-      )
-    )
-
-
+  /*
+   * Le statut global est calculé uniquement
+   * à la fin de l’exécution.
+   *
+   * Cela permet de retirer proprement les
+   * signaux techniques bénins avant l’envoi
+   * sans conserver un ancien statut warning.
+   */
   return issue
 }
 
@@ -746,6 +745,11 @@ function finishTelemetryRun(
         )
     }
   }
+
+
+  normalizeTelemetrySignals(
+    run
+  )
 
 
   run.status =
@@ -891,6 +895,115 @@ async function registerTelemetrySafely({
         )
     }
   }
+}
+
+
+
+function normalizeTelemetrySignals(
+  run
+) {
+  ensureTelemetryRun(
+    run
+  )
+
+
+  const issues =
+    Array.isArray(
+      run.issues
+    )
+      ? run.issues
+      : []
+
+
+  const hadScanLocked =
+    issues.some(
+      issue =>
+        String(
+          issue?.errorCode ||
+          ""
+        ).trim() ===
+          "SERVICES_SCAN_LOCKED"
+    )
+
+
+  const serviceFound =
+    run.serviceStatus ===
+      "found"
+
+
+  run.issues =
+    issues.filter(
+      issue => {
+        const code =
+          String(
+            issue?.errorCode ||
+            ""
+          ).trim()
+
+
+        /*
+         * Un verrou de scan est un mécanisme normal
+         * de concurrence entre plusieurs exécutions.
+         * Ce n’est pas un incident fonctionnel.
+         */
+        if (
+          code ===
+            "SERVICES_SCAN_LOCKED"
+        ) {
+          return false
+        }
+
+
+        /*
+         * L’absence d’un nouveau PDF n’est pas un
+         * problème si un service valide a déjà été
+         * trouvé et peut être affiché.
+         */
+        if (
+          code ===
+            "PDF_NOT_FOUND" &&
+          serviceFound
+        ) {
+          return false
+        }
+
+
+        return true
+      }
+    )
+
+
+  if (hadScanLocked) {
+    if (
+      run.pdfStatus ===
+        "missing"
+    ) {
+      run.pdfStatus =
+        "not_checked"
+    }
+
+
+    if (
+      run.serviceStatus ===
+        "not_found"
+    ) {
+      run.serviceStatus =
+        "not_run"
+    }
+  }
+
+
+  if (
+    serviceFound &&
+    run.pdfStatus ===
+      "missing"
+  ) {
+    run.pdfStatus =
+      "not_checked"
+  }
+
+
+  return run
 }
 
 
