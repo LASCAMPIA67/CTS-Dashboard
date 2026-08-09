@@ -5,13 +5,16 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.1"
+const INSTALLER_VERSION = "1.0.2"
 
 const REPO = {
   owner: "LASCAMPIA67",
   name: "CTS-Dashboard",
   branch: "main"
 }
+
+let repositoryRevision =
+  REPO.branch
 
 const INSTALLER_FILE = "CTS Installer.js"
 const META_FILE = "installation.json"
@@ -64,6 +67,9 @@ Script.complete()
 async function main() {
   try {
     await preserveInstaller()
+
+    repositoryRevision =
+      await resolveRepositoryRevision()
 
     const manifest = await loadManifest()
 
@@ -149,7 +155,7 @@ async function menu(manifest, state) {
     updateAvailable
       ? "Une nouvelle version est disponible."
       : state.complete
-        ? "CTS Dashboard est entièrement à jour."
+        ? "Installation locale valide. Utilisez « Vérifier les fichiers » pour la comparer à la dernière version publiée sur GitHub."
         : "Les fichiers absents ou invalides seront réparés.",
     "",
     "CTS Installer, vos PDF et leurs archives seront conservés."
@@ -333,7 +339,7 @@ async function installOrUpdate(manifest, previous) {
     await progress.system(
       "github",
       "success",
-      "Connexion établie"
+      `Snapshot GitHub ${repositoryRevision.slice(0, 7)} validé`
     )
 
     await progress.system(
@@ -1974,6 +1980,7 @@ async function writeMetadata(
           now,
         updatedAt: now,
         repository: REPO,
+        repositoryRevision,
         files: summary
       },
       null,
@@ -2038,6 +2045,79 @@ function ensureParent(path) {
   }
 }
 
+async function resolveRepositoryRevision() {
+  const url = [
+    "https://api.github.com/repos",
+    encodeURIComponent(REPO.owner),
+    encodeURIComponent(REPO.name),
+    "commits",
+    encodeURIComponent(REPO.branch)
+  ].join("/") +
+    `?t=${Date.now()}`
+
+  const request = new Request(url)
+
+  request.timeoutInterval = TIMEOUT
+
+  request.headers = {
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": "CTS-Dashboard-Installer",
+    "Cache-Control": "no-cache",
+    Pragma: "no-cache"
+  }
+
+  let content
+
+  try {
+    content = await request.loadString()
+  } catch (error) {
+    throw new Error(
+      `Impossible de déterminer la version GitHub actuelle : ${messageOf(error)}`
+    )
+  }
+
+  const status = Number(
+    request.response?.statusCode
+  )
+
+  if (
+    Number.isFinite(status) &&
+    (
+      status < 200 ||
+      status >= 300
+    )
+  ) {
+    throw new Error(
+      `Impossible de déterminer la version GitHub actuelle : réponse HTTP ${status}`
+    )
+  }
+
+  let payload
+
+  try {
+    payload = JSON.parse(content)
+  } catch (error) {
+    throw new Error(
+      `Réponse GitHub invalide : ${messageOf(error)}`
+    )
+  }
+
+  const sha = String(
+    payload?.sha || ""
+  )
+    .trim()
+    .toLowerCase()
+
+  if (!/^[0-9a-f]{40}$/.test(sha)) {
+    throw new Error(
+      "GitHub n’a pas renvoyé un identifiant de commit valide."
+    )
+  }
+
+  return sha
+}
+
 async function downloadText(url, label) {
   const request = new Request(url)
 
@@ -2085,12 +2165,17 @@ async function downloadText(url, label) {
   }
 }
 
-function rawUrl(name) {
+function rawUrl(
+  name,
+  reference =
+    repositoryRevision ||
+    REPO.branch
+) {
   return [
     "https://raw.githubusercontent.com",
     encodeURIComponent(REPO.owner),
     encodeURIComponent(REPO.name),
-    encodeURIComponent(REPO.branch),
+    encodeURIComponent(reference),
     String(name)
       .split("/")
       .map(encodeURIComponent)
