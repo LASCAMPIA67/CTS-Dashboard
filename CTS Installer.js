@@ -1,11 +1,8 @@
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
-// icon-color: deep-blue; icon-glyph: magic;
-// Variables used by Scriptable.
-// These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.2"
+const INSTALLER_VERSION = "1.0.3"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -13,8 +10,7 @@ const REPO = {
   branch: "main"
 }
 
-let repositoryRevision =
-  REPO.branch
+let repositoryRevision = REPO.branch
 
 const INSTALLER_FILE = "CTS Installer.js"
 const META_FILE = "installation.json"
@@ -72,7 +68,6 @@ async function main() {
       await resolveRepositoryRevision()
 
     const manifest = await loadManifest()
-
     validateManifest(manifest)
 
     if (!await handleInstallerUpdate(manifest)) {
@@ -84,9 +79,7 @@ async function main() {
 
     if (action === "install") {
       await installOrUpdate(manifest, state)
-    }
-
-    if (action === "uninstall") {
+    } else if (action === "uninstall") {
       await uninstall(manifest)
     }
   } catch (error) {
@@ -96,26 +89,19 @@ async function main() {
 
 async function menu(manifest, state) {
   const alert = new Alert()
-
   alert.title = "CTS Dashboard"
 
   if (!state.present) {
     alert.message = [
-      "CTS Dashboard n’est pas installé sur cet iPhone.",
-      "",
       `Version disponible : ${manifest.version}`,
-      `Installateur : ${INSTALLER_VERSION}`,
+      `CTS Installer : ${INSTALLER_VERSION}`,
       "",
-      "Les scripts, ressources et dossiers nécessaires seront installés automatiquement.",
+      "Installation automatique des scripts, ressources et dossiers nécessaires.",
       "",
-      "Développé par Emilio IPPOLITO",
-      "Matricule 6124"
+      "Vos services PDF resteront protégés."
     ].join("\n")
 
-    alert.addAction(
-      `Installer la version ${manifest.version}`
-    )
-
+    alert.addAction(`Installer la version ${manifest.version}`)
     alert.addCancelAction("Fermer")
 
     return await alert.presentSheet() === 0
@@ -139,27 +125,27 @@ async function menu(manifest, state) {
   ]
 
   const stateLabel = state.complete
-    ? `${state.valid}/${state.total} fichiers valides`
+    ? `${state.valid}/${state.total} fichiers locaux valides`
     : `${state.valid}/${state.total} fichiers valides — réparation nécessaire`
 
   alert.message = [
     updateAvailable
-      ? `Mise à jour disponible : ${installedVersion} → ${manifest.version}`
-      : `Version installée : ${installedVersion}`,
+      ? `Mise à jour : ${installedVersion} → ${manifest.version}`
+      : `Dashboard ${installedVersion} · Installer ${INSTALLER_VERSION}`,
     "",
     stateLabel,
     issues.length
-      ? `\nFichiers concernés : ${issues.join(", ")}`
+      ? `Fichiers concernés : ${issues.join(", ")}`
       : "",
     "",
     updateAvailable
-      ? "Une nouvelle version est disponible."
+      ? "La nouvelle version est prête à être installée."
       : state.complete
-        ? "Installation locale valide. Utilisez « Vérifier les fichiers » pour la comparer à la dernière version publiée sur GitHub."
+        ? "L’installation locale est valide. Lancez une vérification pour la comparer au snapshot GitHub actuel."
         : "Les fichiers absents ou invalides seront réparés.",
     "",
     "CTS Installer, vos PDF et leurs archives seront conservés."
-  ].join("\n")
+  ].filter(Boolean).join("\n")
 
   alert.addAction(
     updateAvailable
@@ -269,25 +255,19 @@ async function installOrUpdate(manifest, previous) {
     ? [
         `CTS Dashboard ${manifest.version} va être installé.`,
         "",
-        "Tous les scripts, ressources et dossiers seront créés automatiquement.",
+        "Tous les éléments nécessaires seront créés automatiquement.",
         "",
         "Une connexion Internet est nécessaire."
       ].join("\n")
     : [
         `CTS Dashboard ${manifest.version} va être contrôlé.`,
         "",
-        "Chaque fichier sera comparé à la version officielle publiée sur GitHub.",
-        "",
-        "Les fichiers différents, absents ou invalides seront remplacés.",
+        "Chaque fichier sera comparé au snapshot GitHub actuel. Les fichiers différents, absents ou invalides seront remplacés.",
         "",
         "CTS Installer, vos PDF et leurs archives seront conservés."
       ].join("\n")
 
-  if (!await confirm(
-    title,
-    message,
-    "Continuer"
-  )) {
+  if (!await confirm(title, message, "Continuer")) {
     return
   }
 
@@ -331,7 +311,7 @@ async function installOrUpdate(manifest, previous) {
     await progress.system(
       "github",
       "running",
-      "Connexion au dépôt GitHub…"
+      "Validation du snapshot GitHub…"
     )
 
     await verifyRepository()
@@ -339,7 +319,7 @@ async function installOrUpdate(manifest, previous) {
     await progress.system(
       "github",
       "success",
-      `Snapshot GitHub ${repositoryRevision.slice(0, 7)} validé`
+      `Snapshot ${repositoryRevision.slice(0, 7)} validé`
     )
 
     await progress.system(
@@ -371,7 +351,6 @@ async function installOrUpdate(manifest, previous) {
 
       try {
         const status = await syncFile(entry)
-
         summary[status].push(entry.name)
 
         await progress.entry(
@@ -403,7 +382,7 @@ async function installOrUpdate(manifest, previous) {
       await progress.system(
         "retry",
         "running",
-        `Nouvelle tentative sur ${failures.length} fichier(s)…`
+        `${failures.length} nouvelle(s) tentative(s)…`
       )
 
       for (const failure of failures) {
@@ -432,7 +411,6 @@ async function installOrUpdate(manifest, previous) {
           )
         } catch (error) {
           failure.reason = messageOf(error)
-
           summary.failed.push(
             failure.entry.name
           )
@@ -456,7 +434,7 @@ async function installOrUpdate(manifest, previous) {
           : "success",
         unresolved.length
           ? `${unresolved.length} fichier(s) encore en erreur`
-          : "Toutes les erreurs ont été corrigées"
+          : "Toutes les nouvelles tentatives ont réussi"
       )
     } else {
       await progress.system(
@@ -469,7 +447,7 @@ async function installOrUpdate(manifest, previous) {
     await progress.system(
       "verification",
       "running",
-      "Contrôle final de l’installation…"
+      "Validation finale…"
     )
 
     const verification = await inspect(manifest)
@@ -480,8 +458,7 @@ async function installOrUpdate(manifest, previous) {
           name => `${name} — absent`
         ),
         ...verification.invalid.map(
-          name =>
-            `${name} — ${verification.reasons[name] || "invalide"}`
+          name => `${name} — ${verification.reasons[name] || "invalide"}`
         )
       ]
 
@@ -496,13 +473,14 @@ async function installOrUpdate(manifest, previous) {
         title: "Installation non validée",
         message: [
           `${verification.valid}/${verification.total} fichiers sont valides.`,
-          "",
           issues.length
-            ? `Fichiers concernés :\n${issues.join("\n")}`
+            ? issues.join("\n")
             : "Une erreur inconnue empêche la validation."
         ].join("\n"),
         summary,
-        duration: Date.now() - startedAt
+        duration: Date.now() - startedAt,
+        valid: verification.valid,
+        total: verification.total
       })
 
       return
@@ -528,15 +506,11 @@ async function installOrUpdate(manifest, previous) {
     await progress.finish({
       success: true,
       title: operationResultTitle(operation),
-      message: [
-        `CTS Dashboard ${manifest.version} est prêt.`,
-        "",
-        "Tous les fichiers ont été contrôlés avec succès.",
-        "",
-        "CTS Installer a été conservé."
-      ].join("\n"),
+      message: `CTS Dashboard ${manifest.version} est prêt.`,
       summary,
-      duration: Date.now() - startedAt
+      duration: Date.now() - startedAt,
+      valid: verification.valid,
+      total: verification.total
     })
   } catch (error) {
     await progress.system(
@@ -550,7 +524,9 @@ async function installOrUpdate(manifest, previous) {
       title: "Opération interrompue",
       message: messageOf(error),
       summary,
-      duration: Date.now() - startedAt
+      duration: Date.now() - startedAt,
+      valid: null,
+      total: entries.length
     })
   }
 }
@@ -709,10 +685,7 @@ async function preserveInstaller() {
 }
 
 async function readInstallerCandidate(path) {
-  if (
-    !path ||
-    !fm.fileExists(path)
-  ) {
+  if (!path || !fm.fileExists(path)) {
     return null
   }
 
@@ -781,7 +754,7 @@ async function uninstall(manifest) {
   if (!await confirm(
     "Désinstaller CTS Dashboard",
     [
-      "Cette opération supprimera les scripts et les données techniques du Dashboard.",
+      "Les scripts et données techniques du Dashboard seront supprimés.",
       "",
       "CTS Installer, le dossier Services, vos PDF et leurs archives seront conservés."
     ].join("\n"),
@@ -802,28 +775,36 @@ async function uninstall(manifest) {
 
   await preserveInstaller()
 
+  const scriptEntries = manifest.scripts
+    .filter(
+      name =>
+        name !== INSTALLER_FILE &&
+        join(docs, name) !== canonicalInstaller &&
+        join(docs, name) !== currentInstaller
+    )
+    .map(name => ({
+      name,
+      type: "Script",
+      destination: join(docs, name)
+    }))
+
+  const projectEntries = fm.fileExists(root)
+    ? fm.listContents(root)
+        .filter(name => name !== "Services")
+        .map(name => ({
+          name,
+          type: "Dossier",
+          destination: join(root, name)
+        }))
+    : []
+
   const entries = [
-    ...manifestEntries(manifest)
-      .filter(
-        entry =>
-          entry.destination !== canonicalInstaller &&
-          entry.destination !== currentInstaller
-      ),
-    ...fm.fileExists(root)
-      ? fm.listContents(root)
-          .filter(
-            name => name !== "Services"
-          )
-          .map(name => ({
-            name,
-            type: "Dossier",
-            destination: join(root, name)
-          }))
-      : []
+    ...scriptEntries,
+    ...projectEntries
   ]
 
   const progress = progressTable({
-    title: "Désinstallation de CTS Dashboard",
+    title: "Désinstaller CTS Dashboard",
     version: manifest.version,
     entries,
     operation: "uninstall"
@@ -889,16 +870,19 @@ async function uninstall(manifest) {
     title: summary.failed.length
       ? "Désinstallation partielle"
       : "Désinstallation terminée",
-    message: [
-      `${summary.unchanged.length} élément(s) supprimé(s).`,
-      `${summary.failed.length} erreur(s).`,
-      "",
-      "CTS Installer, le dossier Services et vos PDF ont été conservés."
-    ].join("\n"),
+    message: summary.failed.length
+      ? `${summary.failed.length} élément(s) n’ont pas pu être supprimés.`
+      : "CTS Dashboard a été supprimé.",
     summary,
-    duration: Date.now() - startedAt
+    duration: Date.now() - startedAt,
+    valid: null,
+    total: entries.length
   })
 }
+
+// =====================================================
+// INTERFACE PREMIUM COMPACTE
+// =====================================================
 
 function progressTable({
   title,
@@ -907,51 +891,41 @@ function progressTable({
   operation
 }) {
   const table = new UITable()
-
   table.showSeparators = true
 
-  const uninstalling =
-    operation === "uninstall"
+  const uninstalling = operation === "uninstall"
 
   const state = {
     completed: 0,
     total: entries.length,
     current: "Initialisation…",
+    title,
+    version,
     operation,
     systems: {
       installer: {
-        title: "Protection de l’installateur",
-        status: uninstalling
-          ? "hidden"
-          : "pending",
+        short: "Installer",
+        status: uninstalling ? "hidden" : "pending",
         detail: "En attente"
       },
       github: {
-        title: "Connexion à GitHub",
-        status: uninstalling
-          ? "hidden"
-          : "pending",
+        short: "GitHub",
+        status: uninstalling ? "hidden" : "pending",
         detail: "En attente"
       },
       directories: {
-        title: "Préparation des dossiers",
-        status: uninstalling
-          ? "hidden"
-          : "pending",
+        short: "Dossiers",
+        status: uninstalling ? "hidden" : "pending",
         detail: "En attente"
       },
       retry: {
-        title: "Contrôle des erreurs",
-        status: uninstalling
-          ? "hidden"
-          : "pending",
+        short: "Erreurs",
+        status: uninstalling ? "hidden" : "pending",
         detail: "En attente"
       },
       verification: {
-        title: "Vérification finale",
-        status: uninstalling
-          ? "hidden"
-          : "pending",
+        short: "Final",
+        status: uninstalling ? "hidden" : "pending",
         detail: "En attente"
       }
     },
@@ -966,66 +940,22 @@ function progressTable({
   const render = async () => {
     table.removeAllRows()
 
-    addHeader(
-      table,
-      title,
-      version,
-      operation
-    )
-
-    addProgress(table, state)
-
-    const systems = Object.values(
-      state.systems
-    ).filter(
-      item => item.status !== "hidden"
-    )
-
-    if (systems.length) {
-      addSection(
-        table,
-        "ÉTAPES SYSTÈME",
-        COLORS.secondary
-      )
-
-      for (const item of systems) {
-        addStatusRow(
-          table,
-          item.title,
-          item.detail,
-          item.status
-        )
-      }
-    }
-
-    addSection(
-      table,
-      uninstalling
-        ? "ÉLÉMENTS À SUPPRIMER"
-        : "FICHIERS DU PROJET",
-      COLORS.secondary
-    )
-
-    for (const entry of state.entries) {
-      addStatusRow(
-        table,
-        entry.name,
-        entry.detail,
-        entry.status
-      )
-    }
-
     if (state.result) {
-      addFinalResult(
+      renderFinalPage(
         table,
-        state.result,
+        state,
+        uninstalling
+      )
+    } else {
+      renderProgressPage(
+        table,
+        state,
         uninstalling
       )
     }
 
     table.reload()
-
-    await sleep(30)
+    await sleep(25)
   }
 
   return {
@@ -1040,14 +970,10 @@ function progressTable({
 
       Object.assign(
         state.systems[key],
-        {
-          status,
-          detail
-        }
+        { status, detail }
       )
 
       state.current = detail
-
       await render()
     },
 
@@ -1058,21 +984,16 @@ function progressTable({
 
       Object.assign(
         state.entries[index],
-        {
-          status,
-          detail
-        }
+        { status, detail }
       )
 
       state.current = detail
-
       await render()
     },
 
     async advance(completed, total) {
       state.completed = completed
       state.total = total
-
       await render()
     },
 
@@ -1092,47 +1013,121 @@ function progressTable({
   }
 }
 
-function addHeader(
+function renderProgressPage(
+  table,
+  state,
+  uninstalling
+) {
+  addCompactHeader(
+    table,
+    state.title,
+    state.version,
+    state.operation
+  )
+
+  addCompactProgress(
+    table,
+    state
+  )
+
+  if (!uninstalling) {
+    addSystemStrip(
+      table,
+      state.systems
+    )
+  }
+
+  addProjectSummaryRow(
+    table,
+    state,
+    uninstalling
+  )
+
+  addProtectionRow(
+    table,
+    uninstalling
+  )
+}
+
+function renderFinalPage(
+  table,
+  state,
+  uninstalling
+) {
+  const result = state.result
+
+  addResultHero(
+    table,
+    result,
+    state.version,
+    state.operation
+  )
+
+  addResultMetrics(
+    table,
+    result,
+    uninstalling
+  )
+
+  if (!uninstalling) {
+    addFinalValidationRow(
+      table,
+      state,
+      result
+    )
+  }
+
+  addChangesRow(
+    table,
+    result,
+    uninstalling
+  )
+
+  addProtectionRow(
+    table,
+    uninstalling
+  )
+}
+
+function addCompactHeader(
   table,
   title,
   version,
   operation
 ) {
   const row = new UITableRow()
-
-  row.height = 92
+  row.height = 76
   row.isHeader = true
 
-  const icon = SFSymbol.named(
+  const symbol = SFSymbol.named(
     operationSymbol(operation)
   )
 
-  icon.applyFont(
-    Font.systemFont(28)
+  symbol.applyFont(
+    Font.systemFont(24)
   )
 
-  const image = row.addImage(icon.image)
+  const image = row.addImage(
+    symbol.image
+  )
 
-  image.widthWeight = 16
+  image.widthWeight = 14
 
   const text = row.addText(
     title,
-    [
-      `Dashboard ${version}`,
-      `Installer ${INSTALLER_VERSION}`
-    ].join("  ·  ")
+    `Dashboard ${version}  ·  Installer ${INSTALLER_VERSION}`
   )
 
-  text.widthWeight = 84
-  text.titleFont = Font.boldSystemFont(21)
-  text.subtitleFont = Font.systemFont(12)
+  text.widthWeight = 86
+  text.titleFont = Font.boldSystemFont(19)
+  text.subtitleFont = Font.systemFont(10)
   text.titleColor = operationColor(operation)
   text.subtitleColor = COLORS.secondary
 
   table.addRow(row)
 }
 
-function addProgress(table, state) {
+function addCompactProgress(table, state) {
   const percentage = state.total
     ? Math.round(
         state.completed /
@@ -1142,127 +1137,185 @@ function addProgress(table, state) {
     : 100
 
   const row = new UITableRow()
-
-  row.height = 88
+  row.height = 68
 
   const progress = row.addText(
     `${progressBar(percentage)}  ${percentage} %`,
-    `${state.completed}/${state.total} fichiers · ${state.current}`
+    `${state.completed}/${state.total} · ${compactCurrent(state.current)}`
   )
 
   progress.titleFont =
-    Font.boldMonospacedSystemFont(15)
+    Font.boldMonospacedSystemFont(14)
 
   progress.subtitleFont =
-    Font.systemFont(12)
+    Font.systemFont(10)
 
   progress.titleColor =
     percentage === 100
       ? COLORS.green
       : COLORS.blue
 
-  progress.subtitleColor =
-    COLORS.secondary
+  progress.subtitleColor = COLORS.secondary
 
   table.addRow(row)
 }
 
-function addSection(table, title, color) {
+function addSystemStrip(table, systems) {
+  const visible = Object.values(systems)
+    .filter(item => item.status !== "hidden")
+
+  if (!visible.length) {
+    return
+  }
+
   const row = new UITableRow()
+  row.height = 60
 
-  row.height = 34
-  row.isHeader = true
+  const overall = visible.some(
+    item => item.status === "error"
+  )
+    ? COLORS.red
+    : visible.some(
+        item => item.status === "running" ||
+          item.status === "retry"
+      )
+      ? COLORS.orange
+      : visible.every(
+          item => item.status === "success"
+        )
+        ? COLORS.green
+        : COLORS.blue
 
-  const text = row.addText(title)
+  const line = visible
+    .map(item =>
+      `${miniStatusMarker(item.status)} ${item.short}`
+    )
+    .join("   ")
 
-  text.titleFont = Font.boldSystemFont(11)
-  text.titleColor = color
+  const active = visible.find(
+    item =>
+      item.status === "running" ||
+      item.status === "retry" ||
+      item.status === "error"
+  )
+
+  const text = row.addText(
+    "Système",
+    active?.detail || line
+  )
+
+  text.widthWeight = 100
+  text.titleFont = Font.semiboldSystemFont(13)
+  text.subtitleFont = Font.systemFont(10)
+  text.titleColor = overall
+  text.subtitleColor = active
+    ? overall
+    : COLORS.secondary
 
   table.addRow(row)
+
+  const strip = new UITableRow()
+  strip.height = 34
+
+  for (const item of visible) {
+    const cell = strip.addText(
+      miniStatusMarker(item.status),
+      item.short.toUpperCase()
+    )
+
+    cell.widthWeight = 100 / visible.length
+    cell.titleFont = Font.boldSystemFont(13)
+    cell.subtitleFont = Font.boldSystemFont(7)
+    cell.titleColor = statusVisual(item.status).color
+    cell.subtitleColor = COLORS.secondary
+  }
+
+  table.addRow(strip)
 }
 
-function addStatusRow(
+function addProjectSummaryRow(
   table,
-  title,
-  detail,
-  status
-) {
-  const visual = statusVisual(status)
-  const row = new UITableRow()
-
-  row.height =
-    detail.length > 68
-      ? 72
-      : 58
-
-  const marker = row.addText(
-    visual.marker
-  )
-
-  marker.widthWeight = 10
-  marker.titleFont =
-    Font.boldSystemFont(19)
-
-  marker.titleColor = visual.color
-
-  const content = row.addText(
-    title,
-    detail
-  )
-
-  content.widthWeight = 72
-  content.titleFont =
-    Font.semiboldSystemFont(14)
-
-  content.subtitleFont =
-    Font.systemFont(11)
-
-  content.titleColor = COLORS.primary
-  content.subtitleColor = visual.color
-
-  const badge = row.addText(
-    visual.label
-  )
-
-  badge.widthWeight = 18
-  badge.titleFont =
-    Font.semiboldSystemFont(10)
-
-  badge.titleColor = visual.color
-
-  table.addRow(row)
-}
-
-function addFinalResult(
-  table,
-  result,
+  state,
   uninstalling
 ) {
-  const success = result.success
-
-  addSection(
-    table,
-    success
-      ? "OPÉRATION TERMINÉE"
-      : "ERREUR",
-    success
-      ? COLORS.green
-      : COLORS.red
+  const counts = entryCounts(
+    state.entries
   )
 
-  const resultRow = new UITableRow()
+  const scripts = state.entries.filter(
+    item => item.type === "Script"
+  ).length
 
-  const lines = result.message
-    .split("\n")
-    .length
+  const resources = state.entries.filter(
+    item => item.type === "Ressource"
+  ).length
 
-  resultRow.height = Math.max(
-    110,
-    72 + lines * 17
-  )
+  const row = new UITableRow()
+  row.height = 62
+  row.dismissOnSelect = false
 
   const symbol = SFSymbol.named(
-    success
+    uninstalling
+      ? "trash.fill"
+      : "shippingbox.fill"
+  )
+
+  symbol.applyFont(
+    Font.systemFont(19)
+  )
+
+  const image = row.addImage(
+    symbol.image
+  )
+
+  image.widthWeight = 12
+
+  const changed =
+    counts.installed +
+    counts.updated +
+    counts.repaired
+
+  const subtitle = uninstalling
+    ? `${counts.success}/${state.total} supprimés · ${counts.error} erreur(s)`
+    : `${scripts} scripts · ${resources} ressources · ${counts.unchanged} à jour · ${changed} modifié(s) · ${counts.error} erreur(s)`
+
+  const text = row.addText(
+    uninstalling
+      ? "Éléments du projet"
+      : "Fichiers du projet",
+    subtitle
+  )
+
+  text.widthWeight = 88
+  text.titleFont = Font.semiboldSystemFont(13)
+  text.subtitleFont = Font.systemFont(9)
+  text.titleColor = counts.error
+    ? COLORS.red
+    : COLORS.primary
+  text.subtitleColor = COLORS.secondary
+
+  row.onSelect = async () => {
+    await presentEntryDetails(
+      state.entries,
+      uninstalling
+    )
+  }
+
+  table.addRow(row)
+}
+
+function addResultHero(
+  table,
+  result,
+  version,
+  operation
+) {
+  const row = new UITableRow()
+  row.height = 88
+  row.isHeader = true
+
+  const symbol = SFSymbol.named(
+    result.success
       ? "checkmark.seal.fill"
       : "exclamationmark.triangle.fill"
   )
@@ -1271,51 +1324,44 @@ function addFinalResult(
     Font.systemFont(27)
   )
 
-  const image = resultRow.addImage(
+  const image = row.addImage(
     symbol.image
   )
 
   image.widthWeight = 15
 
-  const resultText = resultRow.addText(
+  const subtitle = result.success
+    ? `CTS Dashboard ${version} est prêt.  ·  Installer ${INSTALLER_VERSION}`
+    : firstMessageLine(result.message)
+
+  const text = row.addText(
     result.title,
-    result.message
+    subtitle
   )
 
-  resultText.widthWeight = 85
-  resultText.titleFont =
-    Font.boldSystemFont(19)
+  text.widthWeight = 85
+  text.titleFont = Font.boldSystemFont(20)
+  text.subtitleFont = Font.systemFont(11)
+  text.titleColor = result.success
+    ? COLORS.green
+    : COLORS.red
+  text.subtitleColor = COLORS.secondary
 
-  resultText.subtitleFont =
-    Font.systemFont(12)
-
-  resultText.titleColor =
-    success
-      ? COLORS.green
-      : COLORS.red
-
-  resultText.subtitleColor =
-    COLORS.secondary
-
-  table.addRow(resultRow)
-
-  addSummaryCards(
-    table,
-    result,
-    uninstalling
-  )
+  table.addRow(row)
 }
 
-function addSummaryCards(
+function addResultMetrics(
   table,
   result,
   uninstalling
 ) {
   const summary = result.summary
-
   const elapsed = result.duration
     ? formatDuration(result.duration)
     : "—"
+
+  const row = new UITableRow()
+  row.height = 70
 
   const values = uninstalling
     ? [
@@ -1339,23 +1385,16 @@ function addSummaryCards(
       ]
     : [
         {
-          title: summary.installed.length,
-          subtitle: "INSTALLÉS",
-          color: COLORS.green
-        },
-        {
-          title: summary.updated.length,
-          subtitle: "MIS À JOUR",
+          title:
+            summary.installed.length +
+            summary.updated.length +
+            summary.repaired.length,
+          subtitle: "MODIFIÉS",
           color: COLORS.orange
         },
         {
-          title: summary.repaired.length,
-          subtitle: "RÉPARÉS",
-          color: COLORS.green
-        },
-        {
           title: summary.unchanged.length,
-          subtitle: "DÉJÀ À JOUR",
+          subtitle: "À JOUR",
           color: COLORS.blue
         },
         {
@@ -1372,92 +1411,366 @@ function addSummaryCards(
         }
       ]
 
-  for (
-    let index = 0;
-    index < values.length;
-    index += 3
-  ) {
-    const row = new UITableRow()
+  for (const item of values) {
+    const cell = row.addText(
+      String(item.title),
+      item.subtitle
+    )
 
-    row.height = 72
+    cell.widthWeight = 100 / values.length
+    cell.titleFont = Font.boldSystemFont(17)
+    cell.subtitleFont = Font.boldSystemFont(8)
+    cell.titleColor = item.color
+    cell.subtitleColor = COLORS.secondary
+  }
 
-    for (
-      const item of values.slice(
-        index,
-        index + 3
+  table.addRow(row)
+}
+
+function addFinalValidationRow(
+  table,
+  state,
+  result
+) {
+  const row = new UITableRow()
+  row.height = 58
+
+  const symbol = SFSymbol.named(
+    result.success
+      ? "checkmark.shield.fill"
+      : "xmark.shield.fill"
+  )
+
+  symbol.applyFont(
+    Font.systemFont(18)
+  )
+
+  const image = row.addImage(
+    symbol.image
+  )
+
+  image.widthWeight = 11
+
+  const valid = Number.isFinite(result.valid)
+    ? result.valid
+    : state.completed
+
+  const total = Number.isFinite(result.total)
+    ? result.total
+    : state.total
+
+  const text = row.addText(
+    result.success
+      ? "Installation validée"
+      : "Validation incomplète",
+    `${valid}/${total} fichiers valides · Snapshot ${String(repositoryRevision).slice(0, 7)}`
+  )
+
+  text.widthWeight = 89
+  text.titleFont = Font.semiboldSystemFont(13)
+  text.subtitleFont = Font.systemFont(10)
+  text.titleColor = result.success
+    ? COLORS.green
+    : COLORS.red
+  text.subtitleColor = COLORS.secondary
+
+  table.addRow(row)
+}
+
+function addChangesRow(
+  table,
+  result,
+  uninstalling
+) {
+  const summary = result.summary
+
+  const changed = uninstalling
+    ? summary.unchanged
+    : [
+        ...summary.installed,
+        ...summary.updated,
+        ...summary.repaired
+      ]
+
+  const failed = summary.failed
+
+  const row = new UITableRow()
+  row.height = 58
+  row.dismissOnSelect = false
+
+  const title = failed.length
+    ? `${failed.length} erreur(s)`
+    : changed.length
+      ? uninstalling
+        ? `${changed.length} élément(s) supprimé(s)`
+        : `${changed.length} fichier(s) modifié(s)`
+      : "Aucune modification nécessaire"
+
+  const subtitle = failed.length
+    ? compactNames(failed)
+    : changed.length
+      ? compactNames(changed)
+      : "Tous les fichiers correspondaient déjà à la version GitHub."
+
+  const text = row.addText(
+    title,
+    subtitle
+  )
+
+  text.widthWeight = 100
+  text.titleFont = Font.semiboldSystemFont(13)
+  text.subtitleFont = Font.systemFont(9)
+  text.titleColor = failed.length
+    ? COLORS.red
+    : changed.length
+      ? COLORS.orange
+      : COLORS.green
+  text.subtitleColor = COLORS.secondary
+
+  if (failed.length || changed.length) {
+    row.onSelect = async () => {
+      await presentResultDetails(
+        result,
+        uninstalling
       )
-    ) {
-      const cell = row.addText(
-        String(item.title),
-        item.subtitle
-      )
-
-      cell.titleFont =
-        Font.boldSystemFont(18)
-
-      cell.subtitleFont =
-        Font.boldSystemFont(9)
-
-      cell.titleColor = item.color
-      cell.subtitleColor =
-        COLORS.secondary
-
-      cell.widthWeight =
-        100 / Math.min(
-          3,
-          values.length - index
-        )
     }
+  }
+
+  table.addRow(row)
+}
+
+function addProtectionRow(table, uninstalling) {
+  const row = new UITableRow()
+  row.height = 50
+
+  const symbol = SFSymbol.named(
+    "lock.shield.fill"
+  )
+
+  symbol.applyFont(
+    Font.systemFont(16)
+  )
+
+  const image = row.addImage(
+    symbol.image
+  )
+
+  image.widthWeight = 10
+
+  const text = row.addText(
+    "Données protégées",
+    uninstalling
+      ? "CTS Installer, Services, PDF et archives sont conservés."
+      : "CTS Installer, services PDF et archives sont conservés."
+  )
+
+  text.widthWeight = 90
+  text.titleFont = Font.semiboldSystemFont(12)
+  text.subtitleFont = Font.systemFont(9)
+  text.titleColor = COLORS.green
+  text.subtitleColor = COLORS.secondary
+
+  table.addRow(row)
+}
+
+async function presentEntryDetails(
+  entries,
+  uninstalling
+) {
+  const table = new UITable()
+  table.showSeparators = true
+
+  const header = new UITableRow()
+  header.height = 70
+  header.isHeader = true
+
+  const text = header.addText(
+    uninstalling
+      ? "Détail de la désinstallation"
+      : "Détail des fichiers",
+    `${entries.length} élément(s)`
+  )
+
+  text.titleFont = Font.boldSystemFont(18)
+  text.subtitleFont = Font.systemFont(10)
+  text.titleColor = COLORS.blue
+  text.subtitleColor = COLORS.secondary
+
+  table.addRow(header)
+
+  for (const entry of entries) {
+    const visual = statusVisual(entry.status)
+    const row = new UITableRow()
+    row.height = 50
+
+    const marker = row.addText(
+      visual.marker
+    )
+
+    marker.widthWeight = 8
+    marker.titleFont = Font.boldSystemFont(16)
+    marker.titleColor = visual.color
+
+    const content = row.addText(
+      entry.name,
+      entry.detail
+    )
+
+    content.widthWeight = 92
+    content.titleFont = Font.semiboldSystemFont(12)
+    content.subtitleFont = Font.systemFont(9)
+    content.titleColor = COLORS.primary
+    content.subtitleColor = visual.color
 
     table.addRow(row)
   }
 
-  const protectionRow =
-    new UITableRow()
+  await table.present(true)
+}
 
-  protectionRow.height = 55
+async function presentResultDetails(
+  result,
+  uninstalling
+) {
+  const summary = result.summary
 
-  const protection =
-    protectionRow.addText(
-      "Données personnelles protégées",
-      "CTS Installer, les services PDF et leurs archives ont été conservés."
+  const lines = []
+
+  if (uninstalling) {
+    if (summary.unchanged.length) {
+      lines.push(
+        `Supprimés (${summary.unchanged.length})`,
+        ...summary.unchanged,
+        ""
+      )
+    }
+  } else {
+    if (summary.installed.length) {
+      lines.push(
+        `Installés (${summary.installed.length})`,
+        ...summary.installed,
+        ""
+      )
+    }
+
+    if (summary.updated.length) {
+      lines.push(
+        `Mis à jour (${summary.updated.length})`,
+        ...summary.updated,
+        ""
+      )
+    }
+
+    if (summary.repaired.length) {
+      lines.push(
+        `Réparés (${summary.repaired.length})`,
+        ...summary.repaired,
+        ""
+      )
+    }
+  }
+
+  if (summary.failed.length) {
+    lines.push(
+      `Erreurs (${summary.failed.length})`,
+      ...summary.failed
     )
+  }
 
-  protection.titleFont =
-    Font.semiboldSystemFont(13)
+  const alert = new Alert()
+  alert.title = result.title
+  alert.message = lines.join("\n").trim() || result.message
+  alert.addAction("Fermer")
+  await alert.present()
+}
 
-  protection.subtitleFont =
-    Font.systemFont(11)
+function entryCounts(entries) {
+  const counts = {
+    pending: 0,
+    running: 0,
+    installed: 0,
+    updated: 0,
+    repaired: 0,
+    unchanged: 0,
+    success: 0,
+    retry: 0,
+    error: 0
+  }
 
-  protection.titleColor =
-    COLORS.green
+  for (const entry of entries) {
+    const key = Object.prototype.hasOwnProperty.call(
+      counts,
+      entry.status
+    )
+      ? entry.status
+      : "pending"
 
-  protection.subtitleColor =
-    COLORS.secondary
+    counts[key]++
+  }
 
-  table.addRow(protectionRow)
+  return counts
+}
+
+function miniStatusMarker(status) {
+  return {
+    pending: "○",
+    running: "●",
+    retry: "↻",
+    success: "✓",
+    error: "!"
+  }[status] || "○"
+}
+
+function compactCurrent(value) {
+  const text = String(value || "")
+    .replace(/^Contrôle de\s+/i, "")
+    .replace(/^Nouvelle tentative\s*:\s*/i, "Nouvel essai · ")
+
+  return text.length > 52
+    ? `${text.slice(0, 49)}…`
+    : text
+}
+
+function compactNames(names) {
+  const list = Array.isArray(names)
+    ? names
+    : []
+
+  if (!list.length) {
+    return ""
+  }
+
+  const visible = list.slice(0, 2)
+  const remaining = list.length - visible.length
+
+  return remaining > 0
+    ? `${visible.join(" · ")} · +${remaining}`
+    : visible.join(" · ")
+}
+
+function firstMessageLine(message) {
+  return String(message || "Erreur inconnue.")
+    .split("\n")
+    .map(line => line.trim())
+    .find(Boolean) || "Erreur inconnue."
 }
 
 function progressBar(percentage) {
-  const length = 14
+  const length = 12
 
   const completed = Math.max(
     0,
     Math.min(
       length,
       Math.round(
-        percentage /
-        100 *
-        length
+        percentage / 100 * length
       )
     )
   )
 
   return (
     "●".repeat(completed) +
-    "○".repeat(
-      length - completed
-    )
+    "○".repeat(length - completed)
   )
 }
 
@@ -1510,54 +1823,36 @@ function statusVisual(status) {
     }
   }
 
-  return values[status] ||
-    values.pending
+  return values[status] || values.pending
 }
 
 function operationTitle(operation) {
   return {
-    installation:
-      "Installer CTS Dashboard",
-    update:
-      "Mettre à jour CTS Dashboard",
-    verification:
-      "Vérifier CTS Dashboard",
-    repair:
-      "Réparer CTS Dashboard",
-    uninstall:
-      "Désinstaller CTS Dashboard"
-  }[operation] ||
-    "CTS Dashboard"
+    installation: "Installer CTS Dashboard",
+    update: "Mettre à jour CTS Dashboard",
+    verification: "Vérifier CTS Dashboard",
+    repair: "Réparer CTS Dashboard",
+    uninstall: "Désinstaller CTS Dashboard"
+  }[operation] || "CTS Dashboard"
 }
 
 function operationResultTitle(operation) {
   return {
-    installation:
-      "Installation terminée",
-    update:
-      "Mise à jour terminée",
-    verification:
-      "Vérification terminée",
-    repair:
-      "Réparation terminée"
-  }[operation] ||
-    "Opération terminée"
+    installation: "Installation terminée",
+    update: "Mise à jour terminée",
+    verification: "Vérification terminée",
+    repair: "Réparation terminée"
+  }[operation] || "Opération terminée"
 }
 
 function operationSymbol(operation) {
   return {
-    installation:
-      "arrow.down.circle.fill",
-    update:
-      "arrow.triangle.2.circlepath.circle.fill",
-    verification:
-      "checkmark.shield.fill",
-    repair:
-      "wrench.and.screwdriver.fill",
-    uninstall:
-      "trash.circle.fill"
-  }[operation] ||
-    "gearshape.fill"
+    installation: "arrow.down.circle.fill",
+    update: "arrow.triangle.2.circlepath.circle.fill",
+    verification: "checkmark.shield.fill",
+    repair: "wrench.and.screwdriver.fill",
+    uninstall: "trash.circle.fill"
+  }[operation] || "gearshape.fill"
 }
 
 function operationColor(operation) {
@@ -1567,16 +1862,13 @@ function operationColor(operation) {
     verification: COLORS.blue,
     repair: COLORS.orange,
     uninstall: COLORS.red
-  }[operation] ||
-    COLORS.blue
+  }[operation] || COLORS.blue
 }
 
 function manifestEntries(manifest) {
   return [
     ...manifest.scripts
-      .filter(
-        name => name !== INSTALLER_FILE
-      )
+      .filter(name => name !== INSTALLER_FILE)
       .map(name => ({
         name,
         type: "Script",
@@ -1701,10 +1993,7 @@ async function handleInstallerUpdate(manifest) {
     return false
   }
 
-  return (
-    !required &&
-    choice === 1
-  )
+  return !required && choice === 1
 }
 
 async function updateInstaller(version) {
@@ -1726,9 +2015,7 @@ async function updateInstaller(version) {
     content
   )
 
-  if (
-    currentInstaller !== canonicalInstaller
-  ) {
+  if (currentInstaller !== canonicalInstaller) {
     await writeText(
       currentInstaller,
       content
@@ -1737,9 +2024,7 @@ async function updateInstaller(version) {
 
   const alert = new Alert()
 
-  alert.title =
-    "CTS Installer mis à jour"
-
+  alert.title = "CTS Installer mis à jour"
   alert.message = [
     `La version ${version} a été installée.`,
     "",
@@ -1747,7 +2032,6 @@ async function updateInstaller(version) {
   ].join("\n")
 
   alert.addAction("Terminer")
-
   await alert.present()
 }
 
@@ -1796,7 +2080,6 @@ function validateText(content, name) {
   }
 
   const trimmed = content.trim()
-
   const start = trimmed
     .slice(0, 160)
     .toLowerCase()
@@ -1808,8 +2091,7 @@ function validateText(content, name) {
   ) {
     return {
       valid: false,
-      reason:
-        "GitHub a renvoyé une page d’erreur"
+      reason: "GitHub a renvoyé une page d’erreur"
     }
   }
 
@@ -1829,8 +2111,7 @@ function validateText(content, name) {
     } catch (error) {
       return {
         valid: false,
-        reason:
-          `JSON invalide : ${messageOf(error)}`
+        reason: `JSON invalide : ${messageOf(error)}`
       }
     }
   }
@@ -1844,8 +2125,7 @@ function validateText(content, name) {
   ) {
     return {
       valid: false,
-      reason:
-        "fichier anormalement court"
+      reason: "fichier anormalement court"
     }
   }
 
@@ -1865,11 +2145,7 @@ async function validateLocal(path, name) {
 
   try {
     const content = await readText(path)
-
-    return validateText(
-      content,
-      name
-    )
+    return validateText(content, name)
   } catch (error) {
     return {
       valid: false,
@@ -1881,27 +2157,18 @@ async function validateLocal(path, name) {
 async function textMatches(path, remote) {
   const local = await readText(path)
 
-  return (
-    normalize(local) ===
-    normalize(remote)
-  )
+  return normalize(local) === normalize(remote)
 }
 
 async function readText(path) {
   await ensureDownloaded(path)
-
   return fm.readString(path)
 }
 
-async function writeText(
-  destination,
-  content
-) {
+async function writeText(destination, content) {
   ensureParent(destination)
 
-  const temporary =
-    `${destination}.download`
-
+  const temporary = `${destination}.download`
   removeQuietly(temporary)
 
   try {
@@ -1917,7 +2184,6 @@ async function writeText(
     }
 
     await sleep(80)
-
     removeQuietly(destination)
 
     fm.move(
@@ -1958,10 +2224,7 @@ async function readMetadata() {
   }
 }
 
-async function writeMetadata(
-  manifest,
-  summary
-) {
+async function writeMetadata(manifest, summary) {
   ensureDirectories()
 
   const previous = await readMetadata()
@@ -1971,13 +2234,9 @@ async function writeMetadata(
     paths.metadata,
     JSON.stringify(
       {
-        dashboardVersion:
-          manifest.version,
-        installerVersion:
-          INSTALLER_VERSION,
-        installedAt:
-          previous?.installedAt ||
-          now,
+        dashboardVersion: manifest.version,
+        installerVersion: INSTALLER_VERSION,
+        installedAt: previous?.installedAt || now,
         updatedAt: now,
         repository: REPO,
         repositoryRevision,
@@ -2022,8 +2281,7 @@ function projectPath(relative) {
   }
 
   return parts.reduce(
-    (path, part) =>
-      join(path, part),
+    (path, part) => join(path, part),
     root
   )
 }
@@ -2052,13 +2310,10 @@ async function resolveRepositoryRevision() {
     encodeURIComponent(REPO.name),
     "commits",
     encodeURIComponent(REPO.branch)
-  ].join("/") +
-    `?t=${Date.now()}`
+  ].join("/") + `?t=${Date.now()}`
 
   const request = new Request(url)
-
   request.timeoutInterval = TIMEOUT
-
   request.headers = {
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
@@ -2083,10 +2338,7 @@ async function resolveRepositoryRevision() {
 
   if (
     Number.isFinite(status) &&
-    (
-      status < 200 ||
-      status >= 300
-    )
+    (status < 200 || status >= 300)
   ) {
     throw new Error(
       `Impossible de déterminer la version GitHub actuelle : réponse HTTP ${status}`
@@ -2103,9 +2355,7 @@ async function resolveRepositoryRevision() {
     )
   }
 
-  const sha = String(
-    payload?.sha || ""
-  )
+  const sha = String(payload?.sha || "")
     .trim()
     .toLowerCase()
 
@@ -2120,28 +2370,21 @@ async function resolveRepositoryRevision() {
 
 async function downloadText(url, label) {
   const request = new Request(url)
-
   request.timeoutInterval = TIMEOUT
-
   request.headers = {
     "Cache-Control": "no-cache",
     Pragma: "no-cache"
   }
 
   try {
-    const content =
-      await request.loadString()
-
+    const content = await request.loadString()
     const status = Number(
       request.response?.statusCode
     )
 
     if (
       Number.isFinite(status) &&
-      (
-        status < 200 ||
-        status >= 300
-      )
+      (status < 200 || status >= 300)
     ) {
       throw new Error(
         `Réponse HTTP ${status}`
@@ -2152,9 +2395,7 @@ async function downloadText(url, label) {
       typeof content !== "string" ||
       !content.trim()
     ) {
-      throw new Error(
-        "Réponse vide"
-      )
+      throw new Error("Réponse vide")
     }
 
     return content
@@ -2167,9 +2408,7 @@ async function downloadText(url, label) {
 
 function rawUrl(
   name,
-  reference =
-    repositoryRevision ||
-    REPO.branch
+  reference = repositoryRevision || REPO.branch
 ) {
   return [
     "https://raw.githubusercontent.com",
@@ -2190,7 +2429,6 @@ async function confirm(
   destructive = false
 ) {
   const alert = new Alert()
-
   alert.title = title
   alert.message = message
 
@@ -2200,25 +2438,18 @@ async function confirm(
 
   alert.addCancelAction("Annuler")
 
-  return (
-    await alert.present()
-  ) === 0
+  return await alert.present() === 0
 }
 
 async function errorAlert(error) {
   const alert = new Alert()
-
-  alert.title =
-    "Opération impossible"
-
+  alert.title = "Opération impossible"
   alert.message = [
     messageOf(error),
     "",
     "Vérifiez votre connexion Internet puis relancez CTS Installer."
   ].join("\n")
-
   alert.addAction("OK")
-
   await alert.present()
 }
 
@@ -2258,7 +2489,6 @@ function normalize(value) {
 function compareVersions(first, second) {
   const a = versionParts(first)
   const b = versionParts(second)
-
   const length = Math.max(
     a.length,
     b.length
@@ -2288,10 +2518,7 @@ function versionParts(value) {
     .split(".")
     .map(
       part =>
-        Number.parseInt(
-          part,
-          10
-        ) || 0
+        Number.parseInt(part, 10) || 0
     )
 }
 
@@ -2306,9 +2533,7 @@ function isRecord(value) {
 function formatDuration(milliseconds) {
   const seconds = Math.max(
     0,
-    Math.round(
-      milliseconds / 1000
-    )
+    Math.round(milliseconds / 1000)
   )
 
   return seconds < 60
@@ -2319,10 +2544,7 @@ function formatDuration(milliseconds) {
 function messageOf(error) {
   return (
     error?.message?.trim?.() ||
-    String(
-      error ||
-      "Erreur inconnue."
-    )
+    String(error || "Erreur inconnue.")
   )
 }
 
@@ -2347,16 +2569,14 @@ async function registerAnalyticsInstallation(
     const result =
       await analytics.registerInstallation({
         dashboardVersion:
-          String(
-            dashboardVersion || ""
-          ).trim()
+          String(dashboardVersion || "").trim()
       })
 
     if (!result?.ok) {
       console.warn(
         "[Analytics]",
         result?.error ||
-        "Installation non enregistrée."
+          "Installation non enregistrée."
       )
     }
   } catch (error) {
