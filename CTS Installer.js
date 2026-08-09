@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.3"
+const INSTALLER_VERSION = "1.0.4"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -79,6 +79,8 @@ async function main() {
 
     if (action === "install") {
       await installOrUpdate(manifest, state)
+    } else if (action === "diagnostic") {
+      await runDiagnostic(manifest, state)
     } else if (action === "uninstall") {
       await uninstall(manifest)
     }
@@ -155,6 +157,7 @@ async function menu(manifest, state) {
         : "Réparer l’installation"
   )
 
+  alert.addAction("Diagnostic")
   alert.addDestructiveAction("Désinstaller")
   alert.addCancelAction("Fermer")
 
@@ -163,8 +166,10 @@ async function menu(manifest, state) {
   return choice === 0
     ? "install"
     : choice === 1
-      ? "uninstall"
-      : null
+      ? "diagnostic"
+      : choice === 2
+        ? "uninstall"
+        : null
 }
 
 async function inspect(manifest) {
@@ -750,6 +755,813 @@ function isInstallerSource(content) {
   )
 }
 
+// =====================================================
+// DIAGNOSTIC INTÉGRÉ
+// =====================================================
+
+async function runDiagnostic(manifest, state) {
+  const diagnostic = {
+    generatedAt: new Date().toISOString(),
+    dashboardVersion:
+      state.installedVersion || manifest.version || "?",
+    installerVersion: INSTALLER_VERSION,
+    iosVersion: Device.systemVersion(),
+    snapshot: String(repositoryRevision || "").slice(0, 7),
+    checks: [],
+    lastImport: null,
+    lastFailure: null
+  }
+
+  addDiagnosticCheck(
+    diagnostic,
+    "Installation",
+    state.complete ? "success" : "error",
+    `${state.valid}/${state.total} fichiers locaux valides`
+  )
+
+  try {
+    await verifyRepository()
+
+    addDiagnosticCheck(
+      diagnostic,
+      "GitHub",
+      "success",
+      `Snapshot ${diagnostic.snapshot} accessible`
+    )
+  } catch (error) {
+    addDiagnosticCheck(
+      diagnostic,
+      "GitHub",
+      "error",
+      sanitizeDiagnosticText(messageOf(error))
+    )
+  }
+
+  const directoryCheck =
+    inspectDiagnosticDirectories()
+
+  addDiagnosticCheck(
+    diagnostic,
+    "Dossiers iCloud",
+    directoryCheck.status,
+    directoryCheck.detail
+  )
+
+  const writeCheck =
+    await diagnosticWriteTest()
+
+  addDiagnosticCheck(
+    diagnostic,
+    "Écriture iCloud",
+    writeCheck.status,
+    writeCheck.detail
+  )
+
+  const resourcesCheck =
+    await inspectDiagnosticResources()
+
+  addDiagnosticCheck(
+    diagnostic,
+    "Ressources",
+    resourcesCheck.status,
+    resourcesCheck.detail
+  )
+
+  const servicesCheck =
+    inspectDiagnosticServicesFolder()
+
+  addDiagnosticCheck(
+    diagnostic,
+    "Dossier Services",
+    servicesCheck.status,
+    servicesCheck.detail
+  )
+
+  const indexCheck =
+    await inspectDiagnosticIndex()
+
+  addDiagnosticCheck(
+    diagnostic,
+    "Index des services",
+    indexCheck.status,
+    indexCheck.detail
+  )
+
+  const logCheck =
+    await inspectDiagnosticLog()
+
+  diagnostic.lastImport = logCheck.lastImport
+  diagnostic.lastFailure = logCheck.lastFailure
+
+  addDiagnosticCheck(
+    diagnostic,
+    "Journal d’import",
+    logCheck.status,
+    logCheck.detail
+  )
+
+  await presentDiagnostic(diagnostic)
+}
+
+function addDiagnosticCheck(
+  diagnostic,
+  title,
+  status,
+  detail
+) {
+  diagnostic.checks.push({
+    title: String(title || "Diagnostic"),
+    status: diagnosticStatus(status),
+    detail: sanitizeDiagnosticText(detail)
+  })
+}
+
+function inspectDiagnosticDirectories() {
+  const required = [
+    paths.root,
+    paths.data,
+    paths.database,
+    paths.cache,
+    paths.services,
+    paths.archive,
+    paths.rejected,
+    paths.serviceCache,
+    paths.textCache,
+    paths.libraries,
+    paths.pdf
+  ]
+
+  const missing = required.filter(
+    path => !fm.fileExists(path)
+  )
+
+  return missing.length
+    ? {
+        status: "error",
+        detail: `${missing.length} dossier(s) requis absent(s)`
+      }
+    : {
+        status: "success",
+        detail: `${required.length}/${required.length} dossiers accessibles`
+      }
+}
+
+async function diagnosticWriteTest() {
+  if (!fm.fileExists(paths.data)) {
+    return {
+      status: "error",
+      detail: "Le dossier Data est inaccessible"
+    }
+  }
+
+  const testPath = join(
+    paths.data,
+    `.cts-diagnostic-${Date.now()}.tmp`
+  )
+
+  try {
+    const token = `CTS-${Date.now()}`
+
+    fm.writeString(testPath, token)
+
+    const saved = fm.readString(testPath)
+
+    if (saved !== token) {
+      throw new Error(
+        "Le contenu relu ne correspond pas au test écrit."
+      )
+    }
+
+    removeQuietly(testPath)
+
+    return {
+      status: "success",
+      detail: "Lecture et écriture iCloud fonctionnelles"
+    }
+  } catch (error) {
+    removeQuietly(testPath)
+
+    return {
+      status: "error",
+      detail: sanitizeDiagnosticText(messageOf(error))
+    }
+  }
+}
+
+async function inspectDiagnosticResources() {
+  const resources = [
+    {
+      path: join(paths.database, "lines.json"),
+      name: "lines.json"
+    },
+    {
+      path: join(paths.database, "stops.json"),
+      name: "stops.json"
+    },
+    {
+      path: join(paths.database, "places.json"),
+      name: "places.json"
+    },
+    {
+      path: join(paths.pdf, "pdf.min.mjs"),
+      name: "pdf.min.mjs"
+    },
+    {
+      path: join(paths.pdf, "pdf.worker.min.mjs"),
+      name: "pdf.worker.min.mjs"
+    }
+  ]
+
+  let valid = 0
+  const failures = []
+
+  for (const resource of resources) {
+    const result = await validateLocal(
+      resource.path,
+      resource.name
+    )
+
+    if (result.valid) {
+      valid++
+    } else {
+      failures.push(resource.name)
+    }
+  }
+
+  return failures.length
+    ? {
+        status: "error",
+        detail: `${valid}/${resources.length} ressources valides · ${compactNames(failures)}`
+      }
+    : {
+        status: "success",
+        detail: `${valid}/${resources.length} ressources techniques valides`
+      }
+}
+
+function inspectDiagnosticServicesFolder() {
+  if (!fm.fileExists(paths.services)) {
+    return {
+      status: "error",
+      detail: "Le dossier Services est introuvable"
+    }
+  }
+
+  let contents
+
+  try {
+    contents = fm.listContents(paths.services)
+  } catch (error) {
+    return {
+      status: "error",
+      detail: sanitizeDiagnosticText(messageOf(error))
+    }
+  }
+
+  let pdfCount = 0
+  let pendingCloud = 0
+  let inaccessible = 0
+
+  for (const name of contents) {
+    if (!/\.pdf$/i.test(name)) {
+      continue
+    }
+
+    const path = join(paths.services, name)
+
+    try {
+      if (fm.isDirectory(path)) {
+        continue
+      }
+
+      pdfCount++
+
+      if (!fm.isFileDownloaded(path)) {
+        pendingCloud++
+      }
+    } catch (_) {
+      inaccessible++
+    }
+  }
+
+  if (inaccessible > 0) {
+    return {
+      status: "error",
+      detail: `${pdfCount} PDF détecté(s) · ${inaccessible} inaccessible(s)`
+    }
+  }
+
+  if (pendingCloud > 0) {
+    return {
+      status: "warning",
+      detail: `${pdfCount} PDF détecté(s) · ${pendingCloud} en attente iCloud`
+    }
+  }
+
+  if (pdfCount === 0) {
+    return {
+      status: "info",
+      detail: "Aucun PDF actuellement présent dans Services"
+    }
+  }
+
+  return {
+    status: "success",
+    detail: `${pdfCount} PDF détecté(s) et accessible(s)`
+  }
+}
+
+async function inspectDiagnosticIndex() {
+  try {
+    const importer = importModule("CTS Importer")
+
+    if (
+      !importer ||
+      typeof importer.readCurrentIndex !== "function"
+    ) {
+      return {
+        status: "error",
+        detail: "CTS Importer ne fournit pas readCurrentIndex()"
+      }
+    }
+
+    const index = await importer.readCurrentIndex()
+    const count = Array.isArray(index?.services)
+      ? index.services.length
+      : 0
+
+    return count > 0
+      ? {
+          status: "success",
+          detail: `${count} service(s) indexé(s)`
+        }
+      : {
+          status: "info",
+          detail: "Index valide, aucun service enregistré"
+        }
+  } catch (error) {
+    return {
+      status: "error",
+      detail: sanitizeDiagnosticText(messageOf(error))
+    }
+  }
+}
+
+async function inspectDiagnosticLog() {
+  try {
+    const storage = importModule("CTS Storage")
+
+    if (
+      !storage ||
+      typeof storage.loadLog !== "function"
+    ) {
+      return {
+        status: "error",
+        detail: "CTS Storage ne fournit pas loadLog()",
+        lastImport: null,
+        lastFailure: null
+      }
+    }
+
+    const logs = await storage.loadLog()
+    const entries = Array.isArray(logs)
+      ? logs.filter(
+          item => item && typeof item === "object"
+        )
+      : []
+
+    if (!entries.length) {
+      return {
+        status: "info",
+        detail: "Aucun import encore enregistré",
+        lastImport: null,
+        lastFailure: null
+      }
+    }
+
+    const lastImport = normalizeDiagnosticLogEntry(
+      entries[entries.length - 1]
+    )
+
+    const lastFailureSource = [...entries]
+      .reverse()
+      .find(
+        item =>
+          item?.type === "exception" ||
+          item?.type === "validation-error"
+      )
+
+    const lastFailure = lastFailureSource
+      ? normalizeDiagnosticLogEntry(lastFailureSource)
+      : null
+
+    if (lastImport.type === "exception") {
+      return {
+        status: "error",
+        detail: `${lastImport.code || "SERVICE_IMPORT_FAILED"} · ${lastImport.stage || "import"}`,
+        lastImport,
+        lastFailure
+      }
+    }
+
+    if (lastImport.type === "validation-error") {
+      return {
+        status: "warning",
+        detail: `${lastImport.code || "HASTUS_VALIDATION_FAILED"} · ${lastImport.stage || "validation"}`,
+        lastImport,
+        lastFailure
+      }
+    }
+
+    return {
+      status: "success",
+      detail: `Dernier import : ${diagnosticLogTypeLabel(lastImport.type)}`,
+      lastImport,
+      lastFailure
+    }
+  } catch (error) {
+    return {
+      status: "error",
+      detail: sanitizeDiagnosticText(messageOf(error)),
+      lastImport: null,
+      lastFailure: null
+    }
+  }
+}
+
+function normalizeDiagnosticLogEntry(entry) {
+  const details = isRecord(entry?.details)
+    ? entry.details
+    : {}
+
+  const technical = isRecord(details.details)
+    ? details.details
+    : {}
+
+  return {
+    timestamp: String(entry?.timestamp || ""),
+    type: String(entry?.type || "info"),
+    code: String(details.telemetryCode || ""),
+    stage: String(details.telemetryStage || ""),
+    error: sanitizeDiagnosticText(
+      details.error || technical.message || ""
+    ),
+    name: sanitizeDiagnosticText(
+      technical.name || ""
+    ),
+    stack: sanitizeDiagnosticText(
+      technical.stack || ""
+    ),
+    timings: normalizeDiagnosticTimings(details.timings)
+  }
+}
+
+function normalizeDiagnosticTimings(value) {
+  const timings = isRecord(value)
+    ? value
+    : {}
+
+  const fields = [
+    "sourceInspectionMs",
+    "pdfExtractionMs",
+    "databaseReloadMs",
+    "parserMs",
+    "registrationMs",
+    "totalMs"
+  ]
+
+  const result = {}
+
+  for (const field of fields) {
+    const number = Number(timings[field])
+    result[field] = Number.isFinite(number)
+      ? number
+      : null
+  }
+
+  return result
+}
+
+function diagnosticLogTypeLabel(type) {
+  return {
+    success: "réussi",
+    exception: "erreur technique",
+    "validation-error": "validation refusée"
+  }[type] || String(type || "inconnu")
+}
+
+async function presentDiagnostic(diagnostic) {
+  const table = new UITable()
+  table.showSeparators = true
+
+  const counts = diagnosticCounts(diagnostic.checks)
+
+  const header = new UITableRow()
+  header.height = 82
+  header.isHeader = true
+
+  const symbol = SFSymbol.named("stethoscope")
+  symbol.applyFont(Font.systemFont(25))
+
+  const image = header.addImage(symbol.image)
+  image.widthWeight = 14
+
+  const headerText = header.addText(
+    "Diagnostic CTS Dashboard",
+    `Dashboard ${diagnostic.dashboardVersion} · Installer ${diagnostic.installerVersion} · iOS ${diagnostic.iosVersion}`
+  )
+
+  headerText.widthWeight = 86
+  headerText.titleFont = Font.boldSystemFont(19)
+  headerText.subtitleFont = Font.systemFont(10)
+  headerText.titleColor = diagnosticOverallColor(counts)
+  headerText.subtitleColor = COLORS.secondary
+
+  table.addRow(header)
+
+  addDiagnosticSummaryRow(table, counts)
+
+  for (const check of diagnostic.checks) {
+    addDiagnosticRow(table, check)
+  }
+
+  const reportRow = new UITableRow()
+  reportRow.height = 60
+  reportRow.dismissOnSelect = false
+
+  const reportSymbol = SFSymbol.named("doc.on.doc.fill")
+  reportSymbol.applyFont(Font.systemFont(18))
+
+  const reportImage = reportRow.addImage(reportSymbol.image)
+  reportImage.widthWeight = 11
+
+  const reportText = reportRow.addText(
+    "Copier le rapport technique",
+    "Rapport anonymisé prêt à envoyer dans WhatsApp"
+  )
+
+  reportText.widthWeight = 89
+  reportText.titleFont = Font.semiboldSystemFont(13)
+  reportText.subtitleFont = Font.systemFont(9)
+  reportText.titleColor = COLORS.blue
+  reportText.subtitleColor = COLORS.secondary
+
+  reportRow.onSelect = async () => {
+    Pasteboard.copyString(
+      buildDiagnosticReport(diagnostic)
+    )
+
+    const alert = new Alert()
+    alert.title = "Rapport copié"
+    alert.message = [
+      "Le rapport technique anonymisé a été copié dans le presse-papiers.",
+      "",
+      "Collez-le dans WhatsApp pour l’envoyer."
+    ].join("\n")
+    alert.addAction("OK")
+    await alert.present()
+  }
+
+  table.addRow(reportRow)
+
+  const privacyRow = new UITableRow()
+  privacyRow.height = 50
+
+  const privacyText = privacyRow.addText(
+    "Données protégées",
+    "Aucun nom, matricule, horaire, contenu PDF ou numéro de service n’est inclus."
+  )
+
+  privacyText.titleFont = Font.semiboldSystemFont(12)
+  privacyText.subtitleFont = Font.systemFont(9)
+  privacyText.titleColor = COLORS.green
+  privacyText.subtitleColor = COLORS.secondary
+
+  table.addRow(privacyRow)
+
+  await table.present(true)
+}
+
+function addDiagnosticSummaryRow(table, counts) {
+  const row = new UITableRow()
+  row.height = 68
+
+  const values = [
+    {
+      title: counts.success,
+      subtitle: "VALIDÉS",
+      color: COLORS.green
+    },
+    {
+      title: counts.warning,
+      subtitle: "À CONTRÔLER",
+      color: counts.warning ? COLORS.orange : COLORS.green
+    },
+    {
+      title: counts.error,
+      subtitle: "ERREURS",
+      color: counts.error ? COLORS.red : COLORS.green
+    }
+  ]
+
+  for (const item of values) {
+    const cell = row.addText(
+      String(item.title),
+      item.subtitle
+    )
+
+    cell.widthWeight = 100 / values.length
+    cell.titleFont = Font.boldSystemFont(17)
+    cell.subtitleFont = Font.boldSystemFont(8)
+    cell.titleColor = item.color
+    cell.subtitleColor = COLORS.secondary
+  }
+
+  table.addRow(row)
+}
+
+function addDiagnosticRow(table, check) {
+  const visual = diagnosticVisual(check.status)
+  const row = new UITableRow()
+  row.height = 55
+
+  const marker = row.addText(visual.marker)
+  marker.widthWeight = 8
+  marker.titleFont = Font.boldSystemFont(16)
+  marker.titleColor = visual.color
+
+  const content = row.addText(
+    check.title,
+    check.detail
+  )
+
+  content.widthWeight = 92
+  content.titleFont = Font.semiboldSystemFont(12)
+  content.subtitleFont = Font.systemFont(9)
+  content.titleColor = COLORS.primary
+  content.subtitleColor = visual.color
+
+  table.addRow(row)
+}
+
+function diagnosticCounts(checks) {
+  const result = {
+    success: 0,
+    warning: 0,
+    error: 0,
+    info: 0
+  }
+
+  for (const check of checks) {
+    const status = diagnosticStatus(check.status)
+    result[status]++
+  }
+
+  return result
+}
+
+function diagnosticOverallColor(counts) {
+  return counts.error > 0
+    ? COLORS.red
+    : counts.warning > 0
+      ? COLORS.orange
+      : COLORS.green
+}
+
+function diagnosticStatus(value) {
+  return [
+    "success",
+    "warning",
+    "error",
+    "info"
+  ].includes(value)
+    ? value
+    : "info"
+}
+
+function diagnosticVisual(status) {
+  return {
+    success: {
+      marker: "✓",
+      color: COLORS.green
+    },
+    warning: {
+      marker: "!",
+      color: COLORS.orange
+    },
+    error: {
+      marker: "×",
+      color: COLORS.red
+    },
+    info: {
+      marker: "i",
+      color: COLORS.blue
+    }
+  }[diagnosticStatus(status)]
+}
+
+function buildDiagnosticReport(diagnostic) {
+  const counts = diagnosticCounts(diagnostic.checks)
+  const lines = [
+    "CTS DIAGNOSTIC",
+    "==============",
+    "",
+    `Généré : ${diagnostic.generatedAt}`,
+    `Dashboard : ${diagnostic.dashboardVersion}`,
+    `Installer : ${diagnostic.installerVersion}`,
+    `iOS : ${diagnostic.iosVersion}`,
+    `Snapshot GitHub : ${diagnostic.snapshot || "?"}`,
+    "",
+    "RÉSUMÉ",
+    "------",
+    `Validés : ${counts.success}`,
+    `À contrôler : ${counts.warning}`,
+    `Erreurs : ${counts.error}`,
+    `Informations : ${counts.info}`,
+    "",
+    "CONTRÔLES",
+    "---------"
+  ]
+
+  for (const check of diagnostic.checks) {
+    lines.push(
+      `[${diagnosticReportStatus(check.status)}] ${check.title} — ${check.detail}`
+    )
+  }
+
+  if (diagnostic.lastFailure) {
+    const failure = diagnostic.lastFailure
+
+    lines.push(
+      "",
+      "DERNIÈRE ERREUR D’IMPORT",
+      "------------------------",
+      `Date : ${failure.timestamp || "?"}`,
+      `Type : ${failure.type || "?"}`,
+      `Code : ${failure.code || "?"}`,
+      `Étape : ${failure.stage || "?"}`,
+      `Erreur : ${failure.error || "?"}`,
+      `Type JS : ${failure.name || "?"}`,
+      "",
+      "TEMPS DES ÉTAPES",
+      "----------------",
+      `Inspection PDF : ${formatDiagnosticMs(failure.timings.sourceInspectionMs)}`,
+      `Extraction PDF : ${formatDiagnosticMs(failure.timings.pdfExtractionMs)}`,
+      `Base CTS : ${formatDiagnosticMs(failure.timings.databaseReloadMs)}`,
+      `Parser : ${formatDiagnosticMs(failure.timings.parserMs)}`,
+      `Enregistrement : ${formatDiagnosticMs(failure.timings.registrationMs)}`,
+      `Total : ${formatDiagnosticMs(failure.timings.totalMs)}`,
+      "",
+      "STACK JAVASCRIPT",
+      "----------------",
+      failure.stack || "Aucune stack disponible."
+    )
+  }
+
+  lines.push(
+    "",
+    "CONFIDENTIALITÉ",
+    "---------------",
+    "Aucun nom, matricule, horaire, contenu PDF ou numéro de service n’est inclus dans ce rapport."
+  )
+
+  return lines.join("\n")
+}
+
+function diagnosticReportStatus(status) {
+  return {
+    success: "OK",
+    warning: "ATTENTION",
+    error: "ERREUR",
+    info: "INFO"
+  }[diagnosticStatus(status)]
+}
+
+function formatDiagnosticMs(value) {
+  const number = Number(value)
+
+  return Number.isFinite(number)
+    ? `${number} ms`
+    : "non terminée"
+}
+
+function sanitizeDiagnosticText(value) {
+  return String(value || "")
+    .replace(
+      /(?:\/private|\/var|\/mobile|\/Users)[^\n]*/gi,
+      "[chemin local masqué]"
+    )
+    .replace(
+      /[^\s\/\\]+\.pdf\b/gi,
+      "[PDF]"
+    )
+    .replace(
+      /Service_[^\s\/\\]+\.(?:json|txt)\b/gi,
+      "[cache service]"
+    )
+    .trim()
+}
+
 async function uninstall(manifest) {
   if (!await confirm(
     "Désinstaller CTS Dashboard",
@@ -987,7 +1799,7 @@ function progressTable({
         { status, detail }
       )
 
-      state.current = detail
+      state.current = `${state.entries[index].name} · ${detail}`
       await render()
     },
 
@@ -1074,6 +1886,11 @@ function renderFinalPage(
       table,
       state,
       result
+    )
+
+    addVerificationDetailsRow(
+      table,
+      state.entries
     )
   }
 
@@ -1331,7 +2148,7 @@ function addResultHero(
   image.widthWeight = 15
 
   const subtitle = result.success
-    ? `CTS Dashboard ${version} est prêt.  ·  Installer ${INSTALLER_VERSION}`
+    ? `CTS Dashboard ${version} est prêt · Installer ${INSTALLER_VERSION}`
     : firstMessageLine(result.message)
 
   const text = row.addText(
@@ -1473,6 +2290,35 @@ function addFinalValidationRow(
     ? COLORS.green
     : COLORS.red
   text.subtitleColor = COLORS.secondary
+
+  table.addRow(row)
+}
+
+function addVerificationDetailsRow(table, entries) {
+  const row = new UITableRow()
+  row.height = 55
+  row.dismissOnSelect = false
+
+  const symbol = SFSymbol.named("list.bullet.rectangle.fill")
+  symbol.applyFont(Font.systemFont(17))
+
+  const image = row.addImage(symbol.image)
+  image.widthWeight = 10
+
+  const text = row.addText(
+    "Détails de la vérification",
+    `${entries.length} fichiers contrôlés · toucher pour afficher`
+  )
+
+  text.widthWeight = 90
+  text.titleFont = Font.semiboldSystemFont(12)
+  text.subtitleFont = Font.systemFont(9)
+  text.titleColor = COLORS.blue
+  text.subtitleColor = COLORS.secondary
+
+  row.onSelect = async () => {
+    await presentEntryDetails(entries, false)
+  }
 
   table.addRow(row)
 }
