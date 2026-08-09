@@ -1,14 +1,14 @@
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
-// icon-color: light-gray; icon-glyph: magic;
-// Variables used by Scriptable.
-// These must be at the very top of the file. Do not edit.
 // icon-color: blue; icon-glyph: clock;
 
+const CONFIG = importModule("CTS Config")
 const UTILS = importModule("CTS Utils")
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const MINUTES_PER_DAY = 24 * 60
+
+let placeLookupCache = null
 
 const STATE = {
   NEXT: { type: "NEXT", label: "Service demain" },
@@ -96,6 +96,8 @@ function normalizeSlice(slice, index) {
     : ""
 
   const vehicle = normalizeOptionalString(source.vehicle)
+  const fromCode = String(source.startPlaceCode || "")
+  const toCode = String(source.endPlaceCode || "")
 
   const valid = Boolean(
     UTILS.isValidTime(dutyStart) &&
@@ -117,13 +119,160 @@ function normalizeSlice(slice, index) {
     end,
     dutyEnd,
     depotExitAt,
-    fromCode: String(source.startPlaceCode || ""),
-    from: String(source.startPlace || "Lieu inconnu"),
-    toCode: String(source.endPlaceCode || ""),
-    to: String(source.endPlace || "Lieu inconnu"),
+    fromCode,
+    from: resolvePlaceLabel(
+      fromCode,
+      source.startPlace
+    ),
+    toCode,
+    to: resolvePlaceLabel(
+      toCode,
+      source.endPlace
+    ),
     lineUpAt: String(source.lineUpAt || ""),
     direction: String(source.direction || "")
   }
+}
+
+function resolvePlaceLabel(code, fallback) {
+  const name = getPlaceName(code)
+
+  if (name) {
+    return name
+  }
+
+  return String(
+    fallback || "Lieu inconnu"
+  )
+}
+
+function getPlaceName(code) {
+  const key = normalizeLookupKey(code)
+
+  if (!key) {
+    return ""
+  }
+
+  const lookup = getPlaceLookup()
+  return lookup[key] || ""
+}
+
+function getPlaceLookup() {
+  if (placeLookupCache) {
+    return placeLookupCache
+  }
+
+  const lookup = Object.create(null)
+
+  try {
+    const fm = CONFIG.fm
+    const path = CONFIG.files.places
+
+    if (
+      !fm.fileExists(path) ||
+      !fm.isFileDownloaded(path)
+    ) {
+      placeLookupCache = lookup
+      return lookup
+    }
+
+    const text = fm.readString(path).trim()
+
+    if (!text) {
+      placeLookupCache = lookup
+      return lookup
+    }
+
+    const database = JSON.parse(text)
+
+    if (
+      !database ||
+      typeof database !== "object" ||
+      Array.isArray(database)
+    ) {
+      placeLookupCache = lookup
+      return lookup
+    }
+
+    for (
+      const [code, rawEntry]
+      of Object.entries(database)
+    ) {
+      const entry =
+        typeof rawEntry === "string"
+          ? { name: rawEntry }
+          : rawEntry
+
+      if (
+        !entry ||
+        typeof entry !== "object" ||
+        Array.isArray(entry)
+      ) {
+        continue
+      }
+
+      const name = String(entry.name || "").trim()
+
+      if (!name) {
+        continue
+      }
+
+      addPlaceLookupEntry(
+        lookup,
+        code,
+        name
+      )
+
+      const aliases = Array.isArray(entry.aliases)
+        ? entry.aliases
+        : typeof entry.aliases === "string"
+          ? [entry.aliases]
+          : []
+
+      aliases.forEach(alias =>
+        addPlaceLookupEntry(
+          lookup,
+          alias,
+          name
+        )
+      )
+    }
+  } catch (_) {
+    // Une base momentanément indisponible ne doit
+    // jamais empêcher l'affichage du service.
+  }
+
+  placeLookupCache = lookup
+  return lookup
+}
+
+function addPlaceLookupEntry(
+  lookup,
+  code,
+  name
+) {
+  const key = normalizeLookupKey(code)
+
+  if (
+    key &&
+    !Object.prototype.hasOwnProperty.call(
+      lookup,
+      key
+    )
+  ) {
+    lookup[key] = name
+  }
+}
+
+function normalizeLookupKey(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[’`]/g, "'")
+    .replace(/[^A-Z0-9']/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase()
 }
 
 function normalizeBreaks(sourceBreaks) {
