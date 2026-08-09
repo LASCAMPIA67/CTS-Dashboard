@@ -45,7 +45,10 @@
   },
   "GACE": {
     "name": "Gare Centrale",
-    "type": "relief"
+    "type": "relief",
+    "aliases": [
+      "GACE_O"
+    ]
   },
   "REPU": {
     "name": "République",
