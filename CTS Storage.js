@@ -1,18 +1,11 @@
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
-// icon-color: deep-blue; icon-glyph: magic;
-// Variables used by Scriptable.
-// These must be at the very top of the file. Do not edit.
-// icon-color: deep-blue; icon-glyph: magic;
-// Variables used by Scriptable.
-// These must be at the very top of the file. Do not edit.
 // icon-color: brown; icon-glyph: archivebox;
 
 // CTS Storage.js
-// Lecture, écriture, sauvegarde et journalisation des données CTS.
+// Accès centralisé au stockage iCloud et aux données persistantes CTS.
 
-const CONFIG =
-  importModule("CTS Config")
+const CONFIG = importModule("CTS Config")
 
 const {
   fm,
@@ -21,505 +14,281 @@ const {
 } = CONFIG
 
 const MAX_LOG_ENTRIES = 100
+const SERVICES_INDEX_VERSION = 2
 
-// =====================================================
-// TÉLÉCHARGEMENT ICLOUD
-// =====================================================
-
-async function ensureDownloaded(
-  path
-) {
+async function ensureDownloaded(path) {
   if (!fm.fileExists(path)) {
     return false
   }
 
   if (!fm.isFileDownloaded(path)) {
-    await fm.downloadFileFromiCloud(
-      path
-    )
+    await fm.downloadFileFromiCloud(path)
   }
 
   return true
 }
 
-// =====================================================
-// LECTURE
-// =====================================================
-
-async function readText(
-  path,
-  fallback = ""
-) {
+async function readText(path, fallback = "") {
   try {
-    const exists =
-      await ensureDownloaded(
-        path
-      )
-
-    if (!exists) {
+    if (!await ensureDownloaded(path)) {
       return fallback
     }
 
-    return fm.readString(
-      path
-    )
-  } catch (error) {
+    return fm.readString(path)
+  } catch (_) {
     return fallback
   }
 }
 
-async function readJson(
-  path,
-  fallback = null
-) {
+async function readJson(path, fallback = null) {
   try {
-    const content =
-      await readText(
-        path,
-        ""
-      )
+    const content = await readText(path, "")
 
     if (!content.trim()) {
       return fallback
     }
 
-    return JSON.parse(
-      content
-    )
-  } catch (error) {
+    return JSON.parse(content)
+  } catch (_) {
     return fallback
   }
 }
 
-// =====================================================
-// ÉCRITURE DIRECTE
-// =====================================================
-
-function writeText(
-  path,
-  value
-) {
+function writeText(path, value) {
   ensureDirectories()
-
-  fm.writeString(
-    path,
-    String(value)
-  )
+  fm.writeString(path, String(value))
 }
 
-function writeJson(
-  path,
-  value,
-  pretty = true
-) {
-  const content =
-    JSON.stringify(
-      value,
-      null,
-      pretty ? 2 : 0
-    )
-
+function writeJson(path, value, pretty = true) {
   writeText(
     path,
-    content
+    JSON.stringify(value, null, pretty ? 2 : 0)
   )
 }
 
-// =====================================================
-// ÉCRITURE SÉCURISÉE
-// =====================================================
-
-async function writeJsonSafely(
-  path,
-  value
-) {
-  const content =
-    JSON.stringify(
-      value,
-      null,
-      2
-    )
-
-  await writeTextSafely(
-    path,
-    content
-  )
-}
-
-async function writeTextSafely(
-  path,
-  value
-) {
+async function writeTextSafely(path, value) {
   ensureDirectories()
 
-  const content =
-    String(value)
+  const content = String(value)
+  const temporaryPath = `${path}.tmp-${buildUniqueToken()}`
 
-  const temporaryPath =
-    `${path}.tmp-${buildUniqueToken()}`
+  cleanupLegacyWriteFiles(path)
 
-  /*
-   * Supprime les anciens fichiers temporaires fixes
-   * laissés par la précédente méthode d’écriture.
-   */
-  cleanupLegacyWriteFiles(
-    path
-  )
-
-  let previousFileExisted =
-    false
-
-  let previousContent =
-    ""
+  let previousFileExisted = false
+  let previousContent = ""
 
   try {
-    const exists =
-      await ensureDownloaded(
-        path
-      )
-
-    if (exists) {
-      previousFileExisted =
-        true
-
-      previousContent =
-        fm.readString(
-          path
-        )
+    if (await ensureDownloaded(path)) {
+      previousFileExisted = true
+      previousContent = fm.readString(path)
     }
 
-    /*
-     * Écriture dans un fichier temporaire unique.
-     */
-    fm.writeString(
-      temporaryPath,
-      content
-    )
+    fm.writeString(temporaryPath, content)
 
-    const stagedContent =
-      fm.readString(
-        temporaryPath
-      )
+    const stagedContent = fm.readString(temporaryPath)
 
-    if (
-      stagedContent !==
-      content
-    ) {
+    if (stagedContent !== content) {
       throw new Error(
         "La vérification du fichier temporaire a échoué."
       )
     }
 
-    /*
-     * Remplacement direct du fichier final.
-     *
-     * Aucun fm.move() n’est utilisé afin d’éviter
-     * les conflits de noms rencontrés avec iCloud.
-     */
-    fm.writeString(
-      path,
-      stagedContent
-    )
+    fm.writeString(path, stagedContent)
 
-    const savedContent =
-      fm.readString(
-        path
-      )
-
-    if (
-      savedContent !==
-      content
-    ) {
+    if (fm.readString(path) !== content) {
       throw new Error(
         "La vérification du fichier enregistré a échoué."
       )
     }
   } catch (error) {
-    /*
-     * Restaure l’ancien contenu lorsqu’une erreur
-     * survient après le début de l’écriture.
-     */
     try {
       if (previousFileExisted) {
-        fm.writeString(
-          path,
-          previousContent
-        )
-      } else if (
-        fm.fileExists(path)
-      ) {
-        fm.remove(
-          path
-        )
+        fm.writeString(path, previousContent)
+      } else if (fm.fileExists(path)) {
+        fm.remove(path)
       }
-    } catch (restoreError) {
-      /*
-       * L’erreur initiale reste prioritaire.
-       */
-    }
+    } catch (_) {}
 
     throw error
   } finally {
-    removeFileQuietly(
-      temporaryPath
-    )
+    removeFileQuietly(temporaryPath)
   }
 }
 
-// =====================================================
-// NETTOYAGE DES ANCIENS TEMPORAIRES
-// =====================================================
-
-function cleanupLegacyWriteFiles(
-  path
-) {
-  removeFileQuietly(
-    `${path}.tmp`
+async function writeJsonSafely(path, value, pretty = true) {
+  await writeTextSafely(
+    path,
+    JSON.stringify(value, null, pretty ? 2 : 0)
   )
+}
 
-  removeFileQuietly(
-    `${path}.rollback`
-  )
+function cleanupLegacyWriteFiles(path) {
+  removeFileQuietly(`${path}.tmp`)
+  removeFileQuietly(`${path}.rollback`)
 }
 
 function buildUniqueToken() {
-  return [
-    Date.now(),
-
-    Math.random()
-      .toString(36)
-      .slice(2, 10)
-  ].join("-")
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-function removeFileQuietly(
-  path
-) {
+function removeFileQuietly(path) {
   try {
-    if (
-      path &&
-      fm.fileExists(path)
-    ) {
-      fm.remove(
-        path
-      )
+    if (path && fm.fileExists(path)) {
+      fm.remove(path)
     }
-  } catch (error) {
-    /*
-     * Un éventuel résidu sera supprimé
-     * lors d’une prochaine écriture.
-     */
-  }
+  } catch (_) {}
 }
-
-// =====================================================
-// SERVICE PRINCIPAL ET SAUVEGARDE
-// =====================================================
 
 async function backupService() {
   try {
-    const exists =
-      await ensureDownloaded(
-        files.service
-      )
-
-    if (!exists) {
+    if (!await ensureDownloaded(files.service)) {
       return false
     }
 
-    const content =
-      fm.readString(
-        files.service
-      )
-
     await writeTextSafely(
       files.serviceBackup,
-      content
+      fm.readString(files.service)
     )
 
     return true
-  } catch (error) {
+  } catch (_) {
     return false
   }
 }
 
-async function saveService(
-  service
-) {
+async function saveService(service) {
   await backupService()
-
-  await writeJsonSafely(
-    files.service,
-    service
-  )
+  await writeJsonSafely(files.service, service)
 }
 
 async function loadService() {
-  return readJson(
-    files.service,
-    null
-  )
+  return readJson(files.service, null)
 }
 
 async function loadBackupService() {
-  return readJson(
-    files.serviceBackup,
-    null
-  )
+  return readJson(files.serviceBackup, null)
 }
 
-// =====================================================
-// JOURNAL
-// =====================================================
+function emptyServicesIndex() {
+  return {
+    version: SERVICES_INDEX_VERSION,
+    updatedAt: "",
+    services: []
+  }
+}
 
-async function appendLog(
-  type,
-  message,
-  details = null
-) {
-  const current =
-    await readJson(
-      files.importLog,
-      []
-    )
+async function loadServicesIndex() {
+  const value = await readJson(files.servicesIndex, null)
 
-  const logs =
-    Array.isArray(current)
-      ? current
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    return emptyServicesIndex()
+  }
+
+  return {
+    version:
+      Number(value.version) || SERVICES_INDEX_VERSION,
+    updatedAt: String(value.updatedAt || ""),
+    services: Array.isArray(value.services)
+      ? value.services
       : []
+  }
+}
+
+async function saveServicesIndex(index) {
+  const source =
+    index && typeof index === "object" && !Array.isArray(index)
+      ? index
+      : emptyServicesIndex()
+
+  await writeJsonSafely(files.servicesIndex, {
+    version:
+      Number(source.version) || SERVICES_INDEX_VERSION,
+    updatedAt:
+      String(source.updatedAt || new Date().toISOString()),
+    services: Array.isArray(source.services)
+      ? source.services
+      : []
+  })
+}
+
+async function appendLog(type, message, details = null) {
+  const current = await readJson(files.importLog, [])
+  const logs = Array.isArray(current) ? current : []
 
   logs.push({
-    timestamp:
-      new Date().toISOString(),
-
-    type:
-      String(
-        type || "info"
-      ),
-
-    message:
-      String(
-        message || ""
-      ),
-
-    details:
-      sanitizeDetails(
-        details
-      )
+    timestamp: new Date().toISOString(),
+    type: String(type || "info"),
+    message: String(message || ""),
+    details: sanitizeDetails(details)
   })
 
   try {
     await writeJsonSafely(
       files.importLog,
-      logs.slice(
-        -MAX_LOG_ENTRIES
-      )
+      logs.slice(-MAX_LOG_ENTRIES)
     )
 
     return true
-  } catch (error) {
+  } catch (_) {
     return false
   }
 }
 
 async function clearLog() {
   try {
-    await writeJsonSafely(
-      files.importLog,
-      []
-    )
-
+    await writeJsonSafely(files.importLog, [])
     return true
-  } catch (error) {
+  } catch (_) {
     return false
   }
 }
 
 async function loadLog() {
-  const value =
-    await readJson(
-      files.importLog,
-      []
-    )
-
-  return Array.isArray(value)
-    ? value
-    : []
+  const value = await readJson(files.importLog, [])
+  return Array.isArray(value) ? value : []
 }
 
-// =====================================================
-// OUTILS PUBLICS
-// =====================================================
-
-function fileExists(
-  path
-) {
-  return fm.fileExists(
-    path
-  )
+function fileExists(path) {
+  return fm.fileExists(path)
 }
 
-function removeFile(
-  path
-) {
+function removeFile(path) {
   try {
     if (!fm.fileExists(path)) {
       return false
     }
 
-    fm.remove(
-      path
-    )
-
+    fm.remove(path)
     return true
-  } catch (error) {
+  } catch (_) {
     return false
   }
 }
 
-function sanitizeDetails(
-  value
-) {
-  if (
-    value === undefined
-  ) {
+function sanitizeDetails(value) {
+  if (value === undefined) {
     return null
   }
 
-  if (
-    value instanceof Error
-  ) {
+  if (value instanceof Error) {
     return {
-      name:
-        value.name ||
-        "Error",
-
-      message:
-        value.message ||
-        String(value),
-
-      stack:
-        value.stack ||
-        ""
+      name: value.name || "Error",
+      message: value.message || String(value),
+      stack: value.stack || ""
     }
   }
 
   try {
-    JSON.stringify(
-      value
-    )
-
+    JSON.stringify(value)
     return value
-  } catch (error) {
-    return String(
-      value
-    )
+  } catch (_) {
+    return String(value)
   }
 }
-
-// =====================================================
-// EXPORTS
-// =====================================================
 
 module.exports = {
   ensureDownloaded,
@@ -527,11 +296,14 @@ module.exports = {
   readJson,
   writeText,
   writeJson,
+  writeTextSafely,
   writeJsonSafely,
   backupService,
   saveService,
   loadService,
   loadBackupService,
+  loadServicesIndex,
+  saveServicesIndex,
   appendLog,
   clearLog,
   loadLog,
