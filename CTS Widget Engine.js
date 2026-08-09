@@ -35,6 +35,9 @@ const PENDING_SCAN_REFRESH_MS =
 const FAILED_SCAN_REFRESH_MS =
   5 * 60 * 1000
 
+const MAX_TELEMETRY_ISSUES =
+  12
+
 // =====================================================
 // CHARGEMENT DU CONTEXTE
 // =====================================================
@@ -70,9 +73,17 @@ async function loadContext(
   if (!source) {
     return buildMissingServiceFailure(
       resolution,
+      cleanup,
       currentDate
     )
   }
+
+  const telemetry =
+    buildContextTelemetry(
+      resolution,
+      cleanup,
+      true
+    )
 
   const normalized =
     SERVICE_ENGINE.normalizeService(
@@ -80,10 +91,31 @@ async function loadContext(
     )
 
   if (!normalized.valid) {
+    telemetry.serviceStatus =
+      "error"
+
+    addDiagnosticIssue(
+      telemetry,
+      {
+        severity:
+          "error",
+
+        errorCode:
+          "SERVICE_NORMALIZATION_FAILED",
+
+        module:
+          "WidgetEngine",
+
+        stage:
+          "service"
+      }
+    )
+
     return failure(
       "Service invalide",
       normalized.error,
-      currentDate
+      currentDate,
+      telemetry
     )
   }
 
@@ -108,10 +140,31 @@ async function loadContext(
     )
 
   if (!displaySlice) {
+    telemetry.serviceStatus =
+      "error"
+
+    addDiagnosticIssue(
+      telemetry,
+      {
+        severity:
+          "error",
+
+        errorCode:
+          "SERVICE_DISPLAY_SLICE_MISSING",
+
+        module:
+          "WidgetEngine",
+
+        stage:
+          "service"
+      }
+    )
+
     return failure(
       "Service invalide",
       "Aucune tranche ne peut être affichée.",
-      currentDate
+      currentDate,
+      telemetry
     )
   }
 
@@ -129,7 +182,13 @@ async function loadContext(
       cleanup.result,
 
     cleanupError:
-      cleanup.error
+      cleanup.error,
+
+    cleanupTelemetryCode:
+      cleanup.telemetryCode,
+
+    cleanupTelemetryStage:
+      cleanup.telemetryStage
   }
 
   const switchAfterDate =
@@ -180,7 +239,9 @@ async function loadContext(
       cleanup.result,
 
     servicesCleanupError:
-      cleanup.error
+      cleanup.error,
+
+    telemetry
   }
 }
 
@@ -219,8 +280,20 @@ async function resolveServiceSource(
       scanError:
         scan.error,
 
+      scanTelemetryCode:
+        scan.telemetryCode,
+
+      scanTelemetryStage:
+        scan.telemetryStage,
+
       selectionError:
-        selection.error
+        selection.error,
+
+      selectionTelemetryCode:
+        selection.telemetryCode,
+
+      selectionTelemetryStage:
+        selection.telemetryStage
     }
   }
 
@@ -249,8 +322,20 @@ async function resolveServiceSource(
       scanError:
         scan.error,
 
+      scanTelemetryCode:
+        scan.telemetryCode,
+
+      scanTelemetryStage:
+        scan.telemetryStage,
+
       selectionError:
-        selection.error
+        selection.error,
+
+      selectionTelemetryCode:
+        selection.telemetryCode,
+
+      selectionTelemetryStage:
+        selection.telemetryStage
     }
   }
 
@@ -270,8 +355,20 @@ async function resolveServiceSource(
     scanError:
       scan.error,
 
+    scanTelemetryCode:
+      scan.telemetryCode,
+
+    scanTelemetryStage:
+      scan.telemetryStage,
+
     selectionError:
-      selection.error
+      selection.error,
+
+    selectionTelemetryCode:
+      selection.telemetryCode,
+
+    selectionTelemetryStage:
+      selection.telemetryStage
   }
 }
 
@@ -295,7 +392,9 @@ async function runServicesScan() {
 
     return {
       result,
-      error: ""
+      error: "",
+      telemetryCode: "",
+      telemetryStage: ""
     }
   } catch (error) {
     const safeError =
@@ -305,11 +404,24 @@ async function runServicesScan() {
      * Une erreur de balayage ne doit jamais
      * empêcher l’affichage d’un service connu.
      */
+    const telemetry =
+      telemetryFromError(
+        error,
+        "SERVICES_SCAN_FAILED",
+        "scan"
+      )
+
     return {
       result: null,
 
       error:
-        safeError.message
+        safeError.message,
+
+      telemetryCode:
+        telemetry.code,
+
+      telemetryStage:
+        telemetry.stage
     }
   }
 }
@@ -326,17 +438,32 @@ async function resolveIndexedService(
 
     return {
       result,
-      error: ""
+      error: "",
+      telemetryCode: "",
+      telemetryStage: ""
     }
   } catch (error) {
     const safeError =
       UTILS.safeError(error)
 
+    const telemetry =
+      telemetryFromError(
+        error,
+        "SERVICE_SELECTION_FAILED",
+        "selection"
+      )
+
     return {
       result: null,
 
       error:
-        safeError.message
+        safeError.message,
+
+      telemetryCode:
+        telemetry.code,
+
+      telemetryStage:
+        telemetry.stage
     }
   }
 }
@@ -355,13 +482,26 @@ async function runServicesCleanup(
           currentDate
         )
 
+    const cleanupError =
+      extractCleanupError(
+        result
+      )
+
     return {
       result,
 
       error:
-        extractCleanupError(
-          result
-        )
+        cleanupError,
+
+      telemetryCode:
+        cleanupError
+          ? "SERVICES_CLEANUP_FAILED"
+          : "",
+
+      telemetryStage:
+        cleanupError
+          ? "archive"
+          : ""
     }
   } catch (error) {
     const safeError =
@@ -371,11 +511,24 @@ async function runServicesCleanup(
      * Une erreur d’entretien ne doit jamais
      * empêcher la création du widget.
      */
+    const telemetry =
+      telemetryFromError(
+        error,
+        "SERVICES_CLEANUP_FAILED",
+        "archive"
+      )
+
     return {
       result: null,
 
       error:
-        safeError.message
+        safeError.message,
+
+      telemetryCode:
+        telemetry.code,
+
+      telemetryStage:
+        telemetry.stage
     }
   }
 }
@@ -424,10 +577,18 @@ function extractCleanupError(
 
 function buildMissingServiceFailure(
   resolution,
+  cleanup,
   currentDate
 ) {
   const scanResult =
     resolution?.scanResult
+
+  const telemetry =
+    buildContextTelemetry(
+      resolution,
+      cleanup,
+      false
+    )
 
   const scanError =
     String(
@@ -442,7 +603,8 @@ function buildMissingServiceFailure(
         "",
         scanError
       ].join("\n"),
-      currentDate
+      currentDate,
+      telemetry
     )
   }
 
@@ -476,7 +638,8 @@ function buildMissingServiceFailure(
         error ||
           "Le fichier est peut-être indisponible dans iCloud."
       ].join("\n"),
-      currentDate
+      currentDate,
+      telemetry
     )
   }
 
@@ -541,7 +704,8 @@ function buildMissingServiceFailure(
         )
         .join("\n"),
 
-      currentDate
+      currentDate,
+      telemetry
     )
   }
 
@@ -558,7 +722,8 @@ function buildMissingServiceFailure(
         "",
         selectionError
       ].join("\n"),
-      currentDate
+      currentDate,
+      telemetry
     )
   }
 
@@ -566,6 +731,23 @@ function buildMissingServiceFailure(
     scanResult?.status ===
     "locked"
   ) {
+    addDiagnosticIssue(
+      telemetry,
+      {
+        severity:
+          "warning",
+
+        errorCode:
+          "SERVICES_SCAN_LOCKED",
+
+        module:
+          "ServicesManager",
+
+        stage:
+          "scan_lock"
+      }
+    )
+
     return failure(
       "Analyse en cours",
       [
@@ -573,7 +755,8 @@ function buildMissingServiceFailure(
         "",
         "Relance CTS Dashboard dans quelques instants."
       ].join("\n"),
-      currentDate
+      currentDate,
+      telemetry
     )
   }
 
@@ -588,6 +771,29 @@ function buildMissingServiceFailure(
     )
 
   if (detected > 0) {
+    telemetry.pdfStatus =
+      "found"
+
+    telemetry.serviceStatus =
+      "not_found"
+
+    addDiagnosticIssue(
+      telemetry,
+      {
+        severity:
+          "warning",
+
+        errorCode:
+          "SERVICE_NOT_FOUND",
+
+        module:
+          "WidgetEngine",
+
+        stage:
+          "service"
+      }
+    )
+
     return failure(
       "Aucun service exploitable",
       [
@@ -596,9 +802,33 @@ function buildMissingServiceFailure(
         "",
         "Relance CTS Dashboard. Si le problème persiste, vérifie le PDF concerné."
       ].join("\n"),
-      currentDate
+      currentDate,
+      telemetry
     )
   }
+
+  telemetry.pdfStatus =
+    "missing"
+
+  telemetry.serviceStatus =
+    "not_found"
+
+  addDiagnosticIssue(
+    telemetry,
+    {
+      severity:
+        "warning",
+
+      errorCode:
+        "PDF_NOT_FOUND",
+
+      module:
+        "WidgetEngine",
+
+      stage:
+        "source"
+    }
+  )
 
   return failure(
     "Aucun PDF",
@@ -607,7 +837,8 @@ function buildMissingServiceFailure(
       "",
       "Ajoute une carte agent HASTUS au format PDF dans Services."
     ].join("\n"),
-    currentDate
+    currentDate,
+    telemetry
   )
 }
 
@@ -673,6 +904,656 @@ function displayFileName(
 
   return fileName ||
     "Le PDF"
+}
+
+// =====================================================
+// DIAGNOSTIC STRUCTURÉ POUR ANALYTICS
+// =====================================================
+
+function buildContextTelemetry(
+  resolution,
+  cleanup,
+  hasSource
+) {
+  const telemetry = {
+    pdfStatus:
+      "not_checked",
+
+    parserStatus:
+      "not_run",
+
+    serviceStatus:
+      hasSource
+        ? "found"
+        : "not_found",
+
+    archiveStatus:
+      "not_run",
+
+    issues:
+      [],
+
+    timings:
+      null
+  }
+
+  const scanResult =
+    resolution?.scanResult
+
+  const detected =
+    Math.max(
+      0,
+      Number(
+        scanResult?.detected ??
+        scanResult?.scanned ??
+        0
+      ) || 0
+    )
+
+  if (detected > 0) {
+    telemetry.pdfStatus =
+      "found"
+  }
+
+  if (
+    resolution?.scanError
+  ) {
+    telemetry.pdfStatus =
+      "read_error"
+
+    addDiagnosticIssue(
+      telemetry,
+      {
+        severity:
+          hasSource
+            ? "warning"
+            : "error",
+
+        errorCode:
+          resolution
+            .scanTelemetryCode ||
+          "SERVICES_SCAN_FAILED",
+
+        module:
+          "ServicesManager",
+
+        stage:
+          resolution
+            .scanTelemetryStage ||
+          "scan"
+      }
+    )
+  }
+
+  const detectionErrors =
+    Array.isArray(
+      scanResult?.detectionErrors
+    )
+      ? scanResult.detectionErrors
+      : []
+
+  for (
+    const item
+    of detectionErrors
+  ) {
+    telemetry.pdfStatus =
+      "read_error"
+
+    addDiagnosticIssue(
+      telemetry,
+      {
+        severity:
+          hasSource
+            ? "warning"
+            : "error",
+
+        errorCode:
+          item?.telemetryCode ||
+          "PDF_INSPECTION_FAILED",
+
+        module:
+          "ServicesManager",
+
+        stage:
+          item?.telemetryStage ||
+          item?.stage ||
+          "inspection"
+      }
+    )
+  }
+
+  const imported =
+    Array.isArray(
+      scanResult?.imported
+    )
+      ? scanResult.imported
+      : []
+
+  if (imported.length) {
+    telemetry.pdfStatus =
+      telemetry.pdfStatus ===
+        "read_error"
+        ? "read_error"
+        : "found"
+
+    telemetry.parserStatus =
+      "success"
+
+    telemetry.timings =
+      normalizeImportTimings(
+        imported[0]
+          ?.timings
+      )
+  }
+
+  const failed =
+    Array.isArray(
+      scanResult?.failed
+    )
+      ? scanResult.failed
+      : []
+
+  for (
+    const item
+    of failed
+  ) {
+    applyImportFailureTelemetry(
+      telemetry,
+      item,
+      hasSource
+    )
+  }
+
+  if (
+    !failed.length &&
+    !hasSource
+  ) {
+    const knownFailures =
+      Array.isArray(
+        scanResult?.knownFailures
+      )
+        ? scanResult.knownFailures
+        : []
+
+    if (knownFailures.length) {
+      applyImportFailureTelemetry(
+        telemetry,
+        knownFailures[0],
+        false
+      )
+    }
+  }
+
+  if (
+    resolution?.selectionError
+  ) {
+    telemetry.serviceStatus =
+      hasSource
+        ? "found"
+        : "error"
+
+    addDiagnosticIssue(
+      telemetry,
+      {
+        severity:
+          hasSource
+            ? "warning"
+            : "error",
+
+        errorCode:
+          resolution
+            .selectionTelemetryCode ||
+          "SERVICE_SELECTION_FAILED",
+
+        module:
+          "ServicesManager",
+
+        stage:
+          resolution
+            .selectionTelemetryStage ||
+          "selection"
+      }
+    )
+  }
+
+  if (
+    cleanup?.result?.status ===
+      "locked"
+  ) {
+    telemetry.archiveStatus =
+      "not_run"
+
+  } else if (
+    cleanup?.result
+  ) {
+    telemetry.archiveStatus =
+      cleanup.result.success ===
+        false
+        ? "error"
+        : "success"
+  }
+
+  if (
+    cleanup?.error
+  ) {
+    telemetry.archiveStatus =
+      "error"
+
+    addDiagnosticIssue(
+      telemetry,
+      {
+        severity:
+          "warning",
+
+        errorCode:
+          cleanup
+            .telemetryCode ||
+          "SERVICES_CLEANUP_FAILED",
+
+        module:
+          "ServicesCleaner",
+
+        stage:
+          cleanup
+            .telemetryStage ||
+          "archive"
+      }
+    )
+  }
+
+  if (
+    !hasSource &&
+    detected <= 0 &&
+    telemetry.pdfStatus ===
+      "not_checked"
+  ) {
+    telemetry.pdfStatus =
+      "missing"
+  }
+
+  return telemetry
+}
+
+function applyImportFailureTelemetry(
+  telemetry,
+  item,
+  hasSource
+) {
+  const status =
+    String(
+      item?.status ||
+      ""
+    )
+
+  const fallbackCode =
+    status ===
+      "validation-error"
+      ? "HASTUS_VALIDATION_FAILED"
+      : "SERVICE_IMPORT_FAILED"
+
+  const fallbackStage =
+    status ===
+      "validation-error"
+      ? "validation"
+      : "import"
+
+  const code =
+    normalizeTelemetryCode(
+      item?.telemetryCode,
+      fallbackCode
+    )
+
+  const stage =
+    normalizeTelemetryStage(
+      item?.telemetryStage,
+      fallbackStage
+    )
+
+  const pdfStages =
+    new Set([
+      "source",
+      "metadata",
+      "inspection",
+      "engine",
+      "engine_install",
+      "extraction"
+    ])
+
+  const parsedStages =
+    new Set([
+      "validation",
+      "registration",
+      "cache",
+      "text_cache",
+      "canonicalize",
+      "index",
+      "activation"
+    ])
+
+  if (
+    pdfStages.has(
+      stage
+    )
+  ) {
+    telemetry.pdfStatus =
+      "read_error"
+  } else if (
+    telemetry.pdfStatus !==
+      "read_error"
+  ) {
+    telemetry.pdfStatus =
+      "found"
+  }
+
+  if (
+    stage ===
+      "parser"
+  ) {
+    telemetry.parserStatus =
+      "error"
+  } else if (
+    parsedStages.has(
+      stage
+    )
+  ) {
+    telemetry.parserStatus =
+      "success"
+  }
+
+  if (
+    stage ===
+      "validation"
+  ) {
+    telemetry.serviceStatus =
+      hasSource
+        ? "found"
+        : "not_found"
+  } else if (
+    stage ===
+      "registration" ||
+    stage ===
+      "cache" ||
+    stage ===
+      "text_cache" ||
+    stage ===
+      "canonicalize" ||
+    stage ===
+      "index" ||
+    stage ===
+      "activation" ||
+    stage ===
+      "database" ||
+    stage ===
+      "import"
+  ) {
+    telemetry.serviceStatus =
+      hasSource
+        ? "found"
+        : "error"
+  }
+
+  if (
+    !telemetry.timings &&
+    item?.timings
+  ) {
+    telemetry.timings =
+      normalizeImportTimings(
+        item.timings
+      )
+  }
+
+  addDiagnosticIssue(
+    telemetry,
+    {
+      severity:
+        hasSource
+          ? "warning"
+          : "error",
+
+      errorCode:
+        code,
+
+      module:
+        "Importer",
+
+      stage
+    }
+  )
+}
+
+function addDiagnosticIssue(
+  telemetry,
+  issue
+) {
+  if (
+    !telemetry ||
+    !Array.isArray(
+      telemetry.issues
+    ) ||
+    telemetry.issues.length >=
+      MAX_TELEMETRY_ISSUES
+  ) {
+    return
+  }
+
+  const normalized = {
+    severity:
+      normalizeIssueSeverity(
+        issue?.severity
+      ),
+
+    errorCode:
+      normalizeTelemetryCode(
+        issue?.errorCode,
+        "DASHBOARD_UNKNOWN_ERROR"
+      ),
+
+    module:
+      normalizeTelemetryLabel(
+        issue?.module,
+        "WidgetEngine"
+      ),
+
+    stage:
+      normalizeTelemetryStage(
+        issue?.stage,
+        "unknown"
+      )
+  }
+
+  const duplicate =
+    telemetry.issues.some(
+      current =>
+        current.errorCode ===
+          normalized.errorCode &&
+        current.module ===
+          normalized.module &&
+        current.stage ===
+          normalized.stage
+    )
+
+  if (!duplicate) {
+    telemetry.issues.push(
+      normalized
+    )
+  }
+}
+
+function normalizeIssueSeverity(
+  value
+) {
+  const severity =
+    String(
+      value ||
+      "error"
+    )
+      .trim()
+      .toLowerCase()
+
+  return [
+    "warning",
+    "error",
+    "fatal"
+  ].includes(
+    severity
+  )
+    ? severity
+    : "error"
+}
+
+function telemetryFromError(
+  error,
+  fallbackCode,
+  fallbackStage
+) {
+  return {
+    code:
+      normalizeTelemetryCode(
+        error
+          ?.telemetryCode,
+        fallbackCode
+      ),
+
+    stage:
+      normalizeTelemetryStage(
+        error
+          ?.telemetryStage,
+        fallbackStage
+      )
+  }
+}
+
+function normalizeTelemetryCode(
+  value,
+  fallback
+) {
+  const normalized =
+    String(
+      value ||
+      fallback ||
+      "DASHBOARD_UNKNOWN_ERROR"
+    )
+      .trim()
+      .toUpperCase()
+      .replace(
+        /[^A-Z0-9_]/g,
+        "_"
+      )
+      .slice(
+        0,
+        64
+      )
+
+  return normalized ||
+    "DASHBOARD_UNKNOWN_ERROR"
+}
+
+function normalizeTelemetryStage(
+  value,
+  fallback
+) {
+  const normalized =
+    String(
+      value ||
+      fallback ||
+      "unknown"
+    )
+      .trim()
+      .replace(
+        /[^a-zA-Z0-9._-]/g,
+        "_"
+      )
+      .slice(
+        0,
+        50
+      )
+
+  return normalized ||
+    "unknown"
+}
+
+function normalizeTelemetryLabel(
+  value,
+  fallback
+) {
+  return normalizeTelemetryStage(
+    value,
+    fallback
+  )
+}
+
+function normalizeImportTimings(
+  value
+) {
+  if (
+    !value ||
+    typeof value !==
+      "object" ||
+    Array.isArray(
+      value
+    )
+  ) {
+    return null
+  }
+
+  return {
+    sourceInspectionMs:
+      finiteOrNull(
+        value
+          .sourceInspectionMs
+      ),
+
+    pdfExtractionMs:
+      finiteOrNull(
+        value
+          .pdfExtractionMs
+      ),
+
+    databaseReloadMs:
+      finiteOrNull(
+        value
+          .databaseReloadMs
+      ),
+
+    parserMs:
+      finiteOrNull(
+        value.parserMs
+      ),
+
+    registrationMs:
+      finiteOrNull(
+        value
+          .registrationMs
+      ),
+
+    totalMs:
+      finiteOrNull(
+        value.totalMs
+      )
+  }
+}
+
+function finiteOrNull(
+  value
+) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return null
+  }
+
+  const number =
+    Number(
+      value
+    )
+
+  return Number.isFinite(
+    number
+  )
+    ? number
+    : null
 }
 
 // =====================================================
@@ -1043,7 +1924,8 @@ function getWidgetFamily() {
 function failure(
   title,
   message,
-  currentDate = new Date()
+  currentDate = new Date(),
+  telemetry = null
 ) {
   return {
     valid: false,
@@ -1095,7 +1977,28 @@ function failure(
       null,
 
     servicesCleanupError:
-      ""
+      "",
+
+    telemetry:
+      telemetry || {
+        pdfStatus:
+          "not_checked",
+
+        parserStatus:
+          "not_run",
+
+        serviceStatus:
+          "error",
+
+        archiveStatus:
+          "not_run",
+
+        issues:
+          [],
+
+        timings:
+          null
+      }
   }
 }
 
