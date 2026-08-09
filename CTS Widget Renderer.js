@@ -22,13 +22,33 @@ function createWidget(family, context) {
     case "small":
       return createSmallWidget(context)
     case "medium":
-      return createMediumWidget(context)
+      return createCanvasWidget("medium", context)
     default:
-      return createLargeWidget(context)
+      return createCanvasWidget("large", context)
   }
 }
 
+function createMediumWidget(context) {
+  return createCanvasWidget("medium", context)
+}
+
 function createLargeWidget(context) {
+  return createCanvasWidget("large", context)
+}
+
+function createCanvasWidget(family, context) {
+  const widget = new ListWidget()
+  widget.setPadding(0, 0, 0, 0)
+
+  const image = family === "medium"
+    ? renderMediumCanvas(context)
+    : renderLargeCanvas(context)
+
+  widget.backgroundImage = image
+  return widget
+}
+
+function renderMediumCanvas(context) {
   const {
     service,
     state,
@@ -36,129 +56,868 @@ function createLargeWidget(context) {
     displaySlice: focus
   } = context
 
-  const profile = getScreenProfile()
-  const density = getLargeDensity(
-    service.slices,
-    profile
+  const size = getCanvasSize("medium")
+  const ctx = createCanvas(size)
+  const accentHex = THEME.getAccentHex(state.type)
+
+  drawGradientBackground(
+    ctx,
+    size,
+    THEME.getGradientColors(state.type)
   )
 
-  const widget = THEME.createBaseWidget(
-    state.type
+  const sx = size.width / 338
+  const sy = size.height / 158
+  const s = Math.min(sx, sy)
+  const x = value => value * sx
+  const y = value => value * sy
+  const u = value => value * s
+
+  const primary = THEME.getPrimaryTextColor()
+  const secondaryColor = THEME.getSecondaryColor()
+  const accentColor = new Color(accentHex)
+
+  const iconRect = new Rect(x(16), y(12), u(31), u(31))
+  fillRoundedRect(
+    ctx,
+    iconRect,
+    u(15.5),
+    new Color("#FFFFFF", 0.075),
+    new Color("#FFFFFF", 0.09),
+    u(0.5)
   )
 
-  widget.setPadding(
-    density.paddingTop,
-    density.paddingHorizontal,
-    density.paddingBottom,
-    density.paddingHorizontal
+  drawText(
+    ctx,
+    getTransportLetter(service),
+    iconRect,
+    Font.boldSystemFont(u(12)),
+    accentColor,
+    "center"
   )
 
-  addHeader(
-    widget,
-    service,
-    state,
-    density.header
+  drawText(
+    ctx,
+    service.number,
+    new Rect(x(56), y(11), x(154), y(21)),
+    Font.boldSystemFont(u(18)),
+    primary,
+    "left"
   )
 
-  widget.addSpacer(density.sectionGap)
-  addLargeTimingCard(
-    widget,
-    focus,
-    state,
-    density
+  drawText(
+    ctx,
+    WIDGET_ENGINE.formatServiceDate(service),
+    new Rect(x(56), y(31), x(158), y(12)),
+    Font.mediumSystemFont(u(9)),
+    secondaryColor,
+    "left"
   )
 
-  widget.addSpacer(density.sectionGap)
-  addSlicesList(
-    widget,
-    service,
-    state,
-    density
+  const statusWidth = Math.min(
+    x(104),
+    Math.max(x(64), x(12 + String(state.label || "").length * 5.4))
   )
 
-  widget.addSpacer(density.sectionGap)
-  addStatsSummary(
-    widget,
-    stats,
-    density
+  const statusRect = new Rect(
+    size.width - x(16) - statusWidth,
+    y(16),
+    statusWidth,
+    y(24)
   )
 
-  return widget
-}
-
-function addLargeTimingCard(
-  widget,
-  focus,
-  state,
-  density
-) {
-  const card = addSurface(
-    widget,
-    {
-      padding: [
-        density.timingPadding,
-        density.surfacePaddingHorizontal,
-        density.timingPadding,
-        density.surfacePaddingHorizontal
-      ],
-      radius: density.surfaceRadius,
-      backgroundAlpha: 0.055,
-      borderAlpha: 0.085,
-      vertical: true
-    }
+  fillRoundedRect(
+    ctx,
+    statusRect,
+    u(10),
+    new Color(accentHex, 0.1),
+    new Color(accentHex, 0.22),
+    u(0.5)
   )
 
-  const row = card.addStack()
-  row.centerAlignContent()
-
-  addTimeColumn(
-    row,
-    {
-      label: getTimingStartLabel(state),
-      time: focus.start,
-      place: focus.from,
-      timeSize: density.timeSize,
-      placeSize: density.placeSize,
-      align: "left",
-      fontLimit: density.placeSoftLimit
-    }
+  drawText(
+    ctx,
+    state.label,
+    statusRect,
+    Font.semiboldSystemFont(u(9)),
+    accentColor,
+    "center"
   )
 
-  row.addSpacer(density.timingGap)
-  addArrowBadge(
-    row,
-    state,
-    density.arrowSize
-  )
-  row.addSpacer(density.timingGap)
-
-  addTimeColumn(
-    row,
-    {
-      label: "FIN DE TRANCHE",
-      time: focus.end,
-      place: focus.to,
-      timeSize: density.timeSize,
-      placeSize: density.placeSize,
-      align: "right",
-      fontLimit: density.placeSoftLimit
-    }
+  const cardRect = new Rect(x(16), y(51), x(306), y(79))
+  fillRoundedRect(
+    ctx,
+    cardRect,
+    u(15),
+    new Color("#FFFFFF", 0.055),
+    new Color("#FFFFFF", 0.08),
+    u(0.5)
   )
 
-  if (!hasDepartureDetails(focus)) {
-    return
+  drawText(
+    ctx,
+    `Ligne ${focus.line}`,
+    new Rect(x(29), y(58), x(132), y(22)),
+    Font.boldSystemFont(
+      fitFontSize(24 * s, `Ligne ${focus.line}`, 14, 9 * s)
+    ),
+    primary,
+    "left"
+  )
+
+  drawText(
+    ctx,
+    `Voiture ${focus.vehicle}`,
+    new Rect(x(29), y(80), x(132), y(15)),
+    Font.semiboldSystemFont(u(13)),
+    accentColor,
+    "left"
+  )
+
+  drawText(
+    ctx,
+    `${focus.start} → ${focus.end}`,
+    new Rect(x(168), y(58), x(140), y(20)),
+    Font.boldMonospacedSystemFont(u(15)),
+    primary,
+    "right"
+  )
+
+  drawText(
+    ctx,
+    UTILS.formatDuration(
+      UTILS.durationMinutes(focus.start, focus.end)
+    ),
+    new Rect(x(168), y(80), x(140), y(14)),
+    Font.semiboldSystemFont(u(10)),
+    accentColor,
+    "right"
+  )
+
+  ctx.setFillColor(new Color("#FFFFFF", 0.07))
+  ctx.fillRect(new Rect(x(29), y(98), x(279), Math.max(1, y(0.7))))
+
+  drawText(
+    ctx,
+    focus.from,
+    new Rect(x(29), y(103), x(279), y(14)),
+    Font.mediumSystemFont(
+      fitFontSize(11 * s, focus.from, 31, 7.5 * s)
+    ),
+    secondaryColor,
+    "left"
+  )
+
+  const summary = buildDepartureSummary(focus)
+  if (summary.length) {
+    const summaryLine = summary.join(" · ")
+    drawText(
+      ctx,
+      summaryLine,
+      new Rect(x(29), y(116), x(279), y(11)),
+      Font.semiboldSystemFont(
+        fitFontSize(8.5 * s, summaryLine, 52, 6.2 * s)
+      ),
+      accentColor,
+      "left"
+    )
   }
 
-  card.addSpacer(density.departureSectionGap)
-  addDivider(card)
-  card.addSpacer(density.departureSectionGap)
-
-  addLargeDeparturePanel(
-    card,
-    focus,
-    state,
-    density
+  drawText(
+    ctx,
+    `${stats.count} tranches · ${UTILS.formatDuration(stats.work)}`,
+    new Rect(x(17), y(137), x(185), y(13)),
+    Font.semiboldSystemFont(u(9)),
+    secondaryColor,
+    "left"
   )
+
+  drawText(
+    ctx,
+    `Fin ${stats.end}`,
+    new Rect(x(208), y(137), x(113), y(13)),
+    Font.boldMonospacedSystemFont(u(10)),
+    accentColor,
+    "right"
+  )
+
+  return ctx.getImage()
+}
+
+function renderLargeCanvas(context) {
+  const {
+    service,
+    state,
+    stats,
+    displaySlice: focus
+  } = context
+
+  const size = getCanvasSize("large")
+  const ctx = createCanvas(size)
+  const accentHex = THEME.getAccentHex(state.type)
+
+  drawGradientBackground(
+    ctx,
+    size,
+    THEME.getGradientColors(state.type)
+  )
+
+  const sx = size.width / 338
+  const sy = size.height / 354
+  const s = Math.min(sx, sy)
+  const x = value => value * sx
+  const y = value => value * sy
+  const u = value => value * s
+
+  const primary = THEME.getPrimaryTextColor()
+  const secondaryColor = THEME.getSecondaryColor()
+  const inactiveText = THEME.getInactiveTextColor()
+  const inactiveTime = THEME.getInactiveTimeColor()
+  const accentColor = new Color(accentHex)
+
+  const iconRect = new Rect(x(17), y(15), u(38), u(38))
+  fillRoundedRect(
+    ctx,
+    iconRect,
+    u(19),
+    new Color("#FFFFFF", 0.075),
+    new Color("#FFFFFF", 0.09),
+    u(0.5)
+  )
+
+  drawText(
+    ctx,
+    getTransportLetter(service),
+    iconRect,
+    Font.boldSystemFont(u(14)),
+    accentColor,
+    "center"
+  )
+
+  drawText(
+    ctx,
+    service.number,
+    new Rect(x(67), y(14), x(150), y(24)),
+    Font.boldSystemFont(u(21)),
+    primary,
+    "left"
+  )
+
+  drawText(
+    ctx,
+    WIDGET_ENGINE.formatServiceDate(service),
+    new Rect(x(67), y(38), x(160), y(13)),
+    Font.mediumSystemFont(u(10)),
+    secondaryColor,
+    "left"
+  )
+
+  const statusWidth = Math.min(
+    x(110),
+    Math.max(x(70), x(12 + String(state.label || "").length * 5.7))
+  )
+  const statusRect = new Rect(
+    size.width - x(17) - statusWidth,
+    y(21),
+    statusWidth,
+    y(25)
+  )
+
+  fillRoundedRect(
+    ctx,
+    statusRect,
+    u(10),
+    new Color(accentHex, 0.1),
+    new Color(accentHex, 0.22),
+    u(0.5)
+  )
+
+  drawText(
+    ctx,
+    state.label,
+    statusRect,
+    Font.semiboldSystemFont(u(10)),
+    accentColor,
+    "center"
+  )
+
+  const departureLines = buildCanvasDepartureLines(focus)
+  const extraRows = Math.min(2, departureLines.length)
+  const timingHeightBase = 92
+  const timingHeight = timingHeightBase + extraRows * 10
+  const timingTop = 61
+
+  const timingRect = new Rect(
+    x(17),
+    y(timingTop),
+    x(304),
+    y(timingHeight)
+  )
+
+  fillRoundedRect(
+    ctx,
+    timingRect,
+    u(17),
+    new Color("#FFFFFF", 0.055),
+    new Color("#FFFFFF", 0.085),
+    u(0.5)
+  )
+
+  const leftX = 29
+  const rightX = 177
+  const columnW = 132
+
+  drawText(
+    ctx,
+    getTimingStartLabel(state),
+    new Rect(x(leftX), y(timingTop + 8), x(columnW), y(12)),
+    Font.semiboldSystemFont(u(8)),
+    secondaryColor,
+    "left"
+  )
+
+  drawText(
+    ctx,
+    "FIN DE TRANCHE",
+    new Rect(x(rightX), y(timingTop + 8), x(columnW), y(12)),
+    Font.semiboldSystemFont(u(8)),
+    secondaryColor,
+    "left"
+  )
+
+  drawText(
+    ctx,
+    focus.start,
+    new Rect(x(leftX), y(timingTop + 22), x(columnW), y(30)),
+    Font.boldMonospacedSystemFont(u(27)),
+    primary,
+    "left"
+  )
+
+  drawText(
+    ctx,
+    focus.end,
+    new Rect(x(rightX), y(timingTop + 22), x(columnW), y(30)),
+    Font.boldMonospacedSystemFont(u(27)),
+    primary,
+    "left"
+  )
+
+  const arrowRect = new Rect(x(151), y(timingTop + 25), u(28), u(28))
+  fillRoundedRect(
+    ctx,
+    arrowRect,
+    u(14),
+    new Color(accentHex, 0.11),
+    new Color(accentHex, 0.24),
+    u(0.5)
+  )
+  drawText(
+    ctx,
+    "→",
+    arrowRect,
+    Font.mediumSystemFont(u(18)),
+    accentColor,
+    "center"
+  )
+
+  drawText(
+    ctx,
+    focus.from,
+    new Rect(x(leftX), y(timingTop + 56), x(columnW), y(15)),
+    Font.mediumSystemFont(
+      fitFontSize(10.5 * s, focus.from, 18, 7.5 * s)
+    ),
+    secondaryColor,
+    "left"
+  )
+
+  drawText(
+    ctx,
+    focus.to,
+    new Rect(x(rightX), y(timingTop + 56), x(columnW), y(15)),
+    Font.mediumSystemFont(
+      fitFontSize(10.5 * s, focus.to, 18, 7.5 * s)
+    ),
+    secondaryColor,
+    "left"
+  )
+
+  if (extraRows) {
+    ctx.setFillColor(new Color("#FFFFFF", 0.07))
+    ctx.fillRect(
+      new Rect(
+        x(29),
+        y(timingTop + 75),
+        x(280),
+        Math.max(1, y(0.7))
+      )
+    )
+
+    departureLines
+      .slice(0, extraRows)
+      .forEach((line, index) => {
+        drawText(
+          ctx,
+          line,
+          new Rect(
+            x(29),
+            y(timingTop + 80 + index * 10),
+            x(280),
+            y(10)
+          ),
+          Font.semiboldSystemFont(
+            fitFontSize(8.5 * s, line, 48, 6.5 * s)
+          ),
+          accentColor,
+          "left"
+        )
+      })
+  }
+
+  const programTop = timingTop + timingHeight + 7
+  const statsTop = 309
+  const programHeight = Math.max(92, statsTop - programTop - 7)
+  const programRect = new Rect(
+    x(17),
+    y(programTop),
+    x(304),
+    y(programHeight)
+  )
+
+  fillRoundedRect(
+    ctx,
+    programRect,
+    u(16),
+    new Color("#FFFFFF", 0.05),
+    new Color("#FFFFFF", 0.075),
+    u(0.5)
+  )
+
+  drawText(
+    ctx,
+    "PROGRAMME",
+    new Rect(x(27), y(programTop + 8), x(125), y(12)),
+    Font.semiboldSystemFont(u(8)),
+    secondaryColor,
+    "left"
+  )
+
+  const countLabel = `${service.slices.length} tranche${service.slices.length > 1 ? "s" : ""}`
+  drawText(
+    ctx,
+    countLabel,
+    new Rect(x(196), y(programTop + 8), x(112), y(12)),
+    Font.mediumSystemFont(u(8)),
+    secondaryColor,
+    "right"
+  )
+
+  const slices = service.slices
+  const rowGap = 5
+  const rowsTop = programTop + 25
+  const rowsBottom = programTop + programHeight - 8
+  const availableRows = Math.max(30, rowsBottom - rowsTop)
+  const rowH = Math.max(
+    17,
+    (availableRows - rowGap * Math.max(0, slices.length - 1)) /
+      Math.max(1, slices.length)
+  )
+
+  slices.forEach((slice, index) => {
+    const active = isSliceActive(slice, state)
+    const top = rowsTop + index * (rowH + rowGap)
+
+    const rowRect = new Rect(
+      x(26),
+      y(top),
+      x(286),
+      y(rowH)
+    )
+
+    fillRoundedRect(
+      ctx,
+      rowRect,
+      u(Math.min(11, rowH / 3)),
+      active
+        ? new Color(accentHex, 0.085)
+        : new Color("#FFFFFF", 0.018),
+      active
+        ? new Color(accentHex, 0.18)
+        : new Color("#FFFFFF", 0.035),
+      u(0.5)
+    )
+
+    const numberSize = Math.min(25, Math.max(16, rowH - 8))
+    const numberRect = new Rect(
+      x(31),
+      y(top + (rowH - numberSize) / 2),
+      u(numberSize),
+      u(numberSize)
+    )
+
+    fillRoundedRect(
+      ctx,
+      numberRect,
+      u(numberSize / 2),
+      active
+        ? new Color(accentHex, 0.2)
+        : new Color("#FFFFFF", 0.065),
+      active
+        ? new Color(accentHex, 0.28)
+        : new Color("#FFFFFF", 0.06),
+      u(0.5)
+    )
+
+    drawText(
+      ctx,
+      String(slice.index),
+      numberRect,
+      Font.boldSystemFont(u(Math.min(10.5, numberSize * 0.4))),
+      active ? accentColor : secondaryColor,
+      "center"
+    )
+
+    const bodyX = 65
+    const timeW = 85
+    const bodyW = 236
+    const titleSize = Math.max(7, Math.min(12, rowH * 0.31))
+    const detailSize = Math.max(6, Math.min(9.8, rowH * 0.25))
+
+    drawText(
+      ctx,
+      `Ligne ${slice.line} · Voiture ${slice.vehicle}`,
+      new Rect(
+        x(bodyX),
+        y(top + 4),
+        x(bodyW - timeW),
+        y(Math.max(8, rowH * 0.43))
+      ),
+      Font.boldSystemFont(
+        fitFontSize(
+          titleSize * s,
+          `Ligne ${slice.line} · Voiture ${slice.vehicle}`,
+          27,
+          7 * s
+        )
+      ),
+      active ? primary : inactiveText,
+      "left"
+    )
+
+    drawText(
+      ctx,
+      `${slice.start}–${slice.end}`,
+      new Rect(
+        x(222),
+        y(top + 4),
+        x(82),
+        y(Math.max(8, rowH * 0.43))
+      ),
+      Font.boldMonospacedSystemFont(u(Math.max(7, Math.min(11, rowH * 0.28)))),
+      active ? accentColor : inactiveTime,
+      "right"
+    )
+
+    drawText(
+      ctx,
+      `${slice.from} → ${slice.to}`,
+      new Rect(
+        x(bodyX),
+        y(top + rowH * 0.52),
+        x(bodyW - 52),
+        y(Math.max(8, rowH * 0.35))
+      ),
+      Font.mediumSystemFont(
+        fitFontSize(
+          detailSize * s,
+          `${slice.from} → ${slice.to}`,
+          36,
+          6 * s
+        )
+      ),
+      secondaryColor,
+      "left"
+    )
+
+    drawText(
+      ctx,
+      UTILS.formatDuration(
+        UTILS.durationMinutes(slice.start, slice.end)
+      ),
+      new Rect(
+        x(248),
+        y(top + rowH * 0.52),
+        x(56),
+        y(Math.max(8, rowH * 0.35))
+      ),
+      Font.mediumSystemFont(u(Math.max(6, Math.min(9, rowH * 0.24)))),
+      secondaryColor,
+      "right"
+    )
+  })
+
+  const statY = 316
+  const statH = 28
+  const statGap = 8
+  const statW = (304 - statGap) / 2
+
+  drawStatCanvas(
+    ctx,
+    new Rect(x(17), y(statY), x(statW), y(statH)),
+    UTILS.formatDuration(stats.work),
+    "Travail",
+    s
+  )
+
+  drawStatCanvas(
+    ctx,
+    new Rect(x(17 + statW + statGap), y(statY), x(statW), y(statH)),
+    UTILS.formatDuration(stats.amplitude),
+    "Amplitude",
+    s
+  )
+
+  return ctx.getImage()
+}
+
+function createCanvas(size) {
+  const ctx = new DrawContext()
+  ctx.size = size
+  ctx.opaque = true
+  ctx.respectScreenScale = true
+  return ctx
+}
+
+function getCanvasSize(family) {
+  let screen
+
+  try {
+    screen = Device.screenSize()
+  } catch (_) {
+    screen = new Size(390, 844)
+  }
+
+  const width = Math.min(
+    Number(screen?.width) || 390,
+    Number(screen?.height) || 844
+  )
+
+  if (width <= 375) {
+    return family === "medium"
+      ? new Size(329, 155)
+      : new Size(329, 345)
+  }
+
+  if (width <= 393) {
+    return family === "medium"
+      ? new Size(338, 158)
+      : new Size(338, 354)
+  }
+
+  if (width <= 414) {
+    return family === "medium"
+      ? new Size(360, 169)
+      : new Size(360, 379)
+  }
+
+  return family === "medium"
+    ? new Size(364, 170)
+    : new Size(364, 382)
+}
+
+function drawGradientBackground(ctx, size, colors) {
+  const parsed = colors.map(parseHexColor)
+  const stops = [0, 0.32, 0.68, 1]
+  const bands = Math.max(80, Math.round(size.height))
+
+  for (let index = 0; index < bands; index++) {
+    const t = index / Math.max(1, bands - 1)
+    const color = sampleGradient(parsed, stops, t)
+    ctx.setFillColor(
+      new Color(rgbToHex(color.r, color.g, color.b))
+    )
+
+    const top = size.height * index / bands
+    const bottom = size.height * (index + 1) / bands
+    ctx.fillRect(
+      new Rect(
+        0,
+        top,
+        size.width,
+        Math.max(1, bottom - top + 0.5)
+      )
+    )
+  }
+}
+
+function sampleGradient(colors, stops, t) {
+  let rightIndex = 1
+
+  while (
+    rightIndex < stops.length - 1 &&
+    t > stops[rightIndex]
+  ) {
+    rightIndex++
+  }
+
+  const leftIndex = Math.max(0, rightIndex - 1)
+  const leftStop = stops[leftIndex]
+  const rightStop = stops[rightIndex]
+  const range = Math.max(0.0001, rightStop - leftStop)
+  const local = clamp((t - leftStop) / range, 0, 1)
+  const left = colors[leftIndex]
+  const right = colors[rightIndex]
+
+  return {
+    r: Math.round(left.r + (right.r - left.r) * local),
+    g: Math.round(left.g + (right.g - left.g) * local),
+    b: Math.round(left.b + (right.b - left.b) * local)
+  }
+}
+
+function parseHexColor(hex) {
+  const value = String(hex || "#000000")
+    .replace("#", "")
+    .padEnd(6, "0")
+    .slice(0, 6)
+
+  return {
+    r: parseInt(value.slice(0, 2), 16) || 0,
+    g: parseInt(value.slice(2, 4), 16) || 0,
+    b: parseInt(value.slice(4, 6), 16) || 0
+  }
+}
+
+function rgbToHex(r, g, b) {
+  const part = value =>
+    Math.max(0, Math.min(255, value))
+      .toString(16)
+      .padStart(2, "0")
+
+  return `#${part(r)}${part(g)}${part(b)}`
+}
+
+function fillRoundedRect(
+  ctx,
+  rect,
+  radius,
+  fillColor,
+  strokeColor = null,
+  strokeWidth = 0
+) {
+  const path = new Path()
+  path.addRoundedRect(
+    rect,
+    radius,
+    radius
+  )
+
+  ctx.addPath(path)
+  ctx.setFillColor(fillColor)
+  ctx.fillPath()
+
+  if (strokeColor && strokeWidth > 0) {
+    const strokePath = new Path()
+    strokePath.addRoundedRect(
+      rect,
+      radius,
+      radius
+    )
+    ctx.addPath(strokePath)
+    ctx.setStrokeColor(strokeColor)
+    ctx.setLineWidth(strokeWidth)
+    ctx.strokePath()
+  }
+}
+
+function drawText(
+  ctx,
+  value,
+  rect,
+  font,
+  color,
+  alignment = "left"
+) {
+  ctx.setFont(font)
+  ctx.setTextColor(color)
+
+  if (alignment === "right") {
+    ctx.setTextAlignedRight()
+  } else if (alignment === "center") {
+    ctx.setTextAlignedCenter()
+  } else {
+    ctx.setTextAlignedLeft()
+  }
+
+  ctx.drawTextInRect(
+    String(value ?? ""),
+    rect
+  )
+}
+
+function drawStatCanvas(ctx, rect, value, label, scale) {
+  fillRoundedRect(
+    ctx,
+    rect,
+    Math.max(8, 12 * scale),
+    new Color("#FFFFFF", 0.05),
+    new Color("#FFFFFF", 0.065),
+    Math.max(0.5, 0.5 * scale)
+  )
+
+  drawText(
+    ctx,
+    value,
+    new Rect(
+      rect.x,
+      rect.y + rect.height * 0.18,
+      rect.width,
+      rect.height * 0.46
+    ),
+    Font.boldSystemFont(Math.max(10, 14 * scale)),
+    THEME.getPrimaryTextColor(),
+    "center"
+  )
+
+  drawText(
+    ctx,
+    label,
+    new Rect(
+      rect.x,
+      rect.y + rect.height * 0.62,
+      rect.width,
+      rect.height * 0.28
+    ),
+    Font.mediumSystemFont(Math.max(6.5, 7.5 * scale)),
+    THEME.getSecondaryColor(),
+    "center"
+  )
+}
+
+function fitFontSize(baseSize, value, softLimit, minimumSize) {
+  const safeBase = Math.max(1, Number(baseSize) || 1)
+  const safeMinimum = Math.max(
+    1,
+    Math.min(safeBase, Number(minimumSize) || safeBase * 0.7)
+  )
+  const length = String(value ?? "").trim().length
+  const limit = Math.max(1, Number(softLimit) || 1)
+
+  if (length <= limit) {
+    return safeBase
+  }
+
+  return Math.max(
+    safeMinimum,
+    safeBase * Math.max(0.64, limit / length)
+  )
+}
+
+function getTransportLetter(service) {
+  return service?.slices?.some(slice => isTramSlice(slice))
+    ? "T"
+    : "B"
 }
 
 function getTimingStartLabel(state) {
@@ -172,718 +931,6 @@ function getTimingStartLabel(state) {
   }
 }
 
-function addTimeColumn(parent, options) {
-  const column = parent.addStack()
-  column.layoutVertically()
-
-  const labelText = addText(
-    column,
-    options.label,
-    Font.semiboldSystemFont(
-      options.labelSize || 8
-    ),
-    secondary(),
-    1
-  )
-
-  column.addSpacer(3)
-
-  const timeText = addText(
-    column,
-    options.time,
-    Font.boldMonospacedSystemFont(
-      options.timeSize
-    ),
-    THEME.getPrimaryTextColor(),
-    1
-  )
-
-  column.addSpacer(3)
-
-  const placeText = addText(
-    column,
-    options.place,
-    Font.mediumSystemFont(
-      adaptiveFontSize(
-        options.placeSize,
-        options.place,
-        options.fontLimit || 18,
-        Math.max(
-          7,
-          options.placeSize - 3
-        )
-      )
-    ),
-    secondary(),
-    1
-  )
-
-  alignText(labelText, options.align)
-  alignText(timeText, options.align)
-  alignText(placeText, options.align)
-}
-
-function addLargeDeparturePanel(
-  parent,
-  slice,
-  state,
-  density
-) {
-  const entries = []
-
-  if (hasDepotTiming(slice)) {
-    entries.push({
-      label: "PRISE DE SERVICE",
-      value: slice.dutyStart,
-      time: true
-    })
-
-    entries.push({
-      label: "SORTIE DÉPÔT",
-      value: slice.depotExitAt,
-      time: true
-    })
-  }
-
-  if (slice.lineUpAt) {
-    entries.push({
-      label: getOperationStartLabel(slice),
-      value: slice.lineUpAt,
-      time: false
-    })
-  }
-
-  if (slice.direction) {
-    entries.push({
-      label: "DIRECTION",
-      value: slice.direction,
-      time: false
-    })
-  }
-
-  if (!entries.length) {
-    return
-  }
-
-  if (density.departureVertical) {
-    entries.forEach((entry, index) => {
-      addDepartureLine(
-        parent,
-        entry,
-        state,
-        density
-      )
-
-      if (index < entries.length - 1) {
-        parent.addSpacer(
-          density.departureRowGap
-        )
-      }
-    })
-
-    return
-  }
-
-  for (
-    let index = 0;
-    index < entries.length;
-    index += 2
-  ) {
-    const row = parent.addStack()
-    row.centerAlignContent()
-
-    addDepartureBlock(
-      row,
-      entries[index],
-      state,
-      density,
-      "left"
-    )
-
-    row.addSpacer(
-      density.departurePairGap
-    )
-
-    if (entries[index + 1]) {
-      addDepartureBlock(
-        row,
-        entries[index + 1],
-        state,
-        density,
-        "right"
-      )
-    }
-
-    if (index + 2 < entries.length) {
-      parent.addSpacer(
-        density.departureRowGap
-      )
-    }
-  }
-}
-
-function addDepartureLine(
-  parent,
-  entry,
-  state,
-  density
-) {
-  const row = parent.addStack()
-  row.centerAlignContent()
-
-  const label = addText(
-    row,
-    entry.label,
-    Font.semiboldSystemFont(
-      density.departureLabelSize
-    ),
-    secondary(),
-    1
-  )
-
-  label.leftAlignText()
-  row.addSpacer()
-
-  const value = addText(
-    row,
-    entry.value,
-    entry.time
-      ? Font.boldMonospacedSystemFont(
-          density.departureValueSize
-        )
-      : Font.semiboldSystemFont(
-          adaptiveFontSize(
-            density.departureValueSize,
-            entry.value,
-            density.departureSoftLimit,
-            Math.max(
-              7,
-              density.departureValueSize - 2.5
-            )
-          )
-        ),
-    accent(state),
-    1
-  )
-
-  value.rightAlignText()
-}
-
-function addDepartureBlock(
-  parent,
-  entry,
-  state,
-  density,
-  align
-) {
-  const block = parent.addStack()
-  block.layoutVertically()
-
-  const label = addText(
-    block,
-    entry.label,
-    Font.semiboldSystemFont(
-      density.departureLabelSize
-    ),
-    secondary(),
-    1
-  )
-
-  block.addSpacer(2)
-
-  const valueSize = entry.time
-    ? density.departureTimeSize
-    : adaptiveFontSize(
-        density.departureValueSize,
-        entry.value,
-        density.departureSoftLimit,
-        Math.max(
-          7,
-          density.departureValueSize - 2.5
-        )
-      )
-
-  const value = addText(
-    block,
-    entry.value,
-    entry.time
-      ? Font.boldMonospacedSystemFont(valueSize)
-      : Font.semiboldSystemFont(valueSize),
-    accent(state),
-    1
-  )
-
-  alignText(label, align)
-  alignText(value, align)
-}
-
-function addArrowBadge(parent, state, size) {
-  const badge = parent.addStack()
-
-  badge.size = new Size(size, size)
-  badge.cornerRadius = size / 2
-  badge.backgroundColor = accentAlpha(
-    state,
-    0.11
-  )
-  badge.borderWidth = 0.5
-  badge.borderColor = accentAlpha(
-    state,
-    0.24
-  )
-  badge.centerAlignContent()
-  badge.addSpacer()
-
-  addSymbol(
-    badge,
-    "arrow.right",
-    Math.max(10, size * 0.48),
-    accent(state)
-  )
-
-  badge.addSpacer()
-}
-
-function addSlicesList(
-  widget,
-  service,
-  state,
-  density
-) {
-  const list = addSurface(
-    widget,
-    {
-      padding: [
-        density.listPadding,
-        density.listPadding,
-        density.listPadding,
-        density.listPadding
-      ],
-      radius: density.listRadius,
-      backgroundAlpha: 0.05,
-      borderAlpha: 0.075,
-      vertical: true
-    }
-  )
-
-  addSectionHeader(
-    list,
-    "PROGRAMME",
-    `${service.slices.length} tranche${
-      service.slices.length > 1
-        ? "s"
-        : ""
-    }`,
-    density.sectionHeaderSize
-  )
-
-  list.addSpacer(density.headerGap)
-
-  service.slices.forEach(
-    (slice, index) => {
-      addSliceRow(
-        list,
-        slice,
-        state,
-        density
-      )
-
-      if (
-        index <
-        service.slices.length - 1
-      ) {
-        list.addSpacer(
-          density.rowGap
-        )
-      }
-    }
-  )
-}
-
-function addSliceRow(
-  parent,
-  slice,
-  state,
-  density
-) {
-  const active = isSliceActive(
-    slice,
-    state
-  )
-
-  const duration = UTILS.durationMinutes(
-    slice.start,
-    slice.end
-  )
-
-  const row = parent.addStack()
-  row.centerAlignContent()
-
-  row.setPadding(
-    density.rowPadding,
-    density.rowPadding,
-    density.rowPadding,
-    density.rowPadding
-  )
-
-  row.cornerRadius = density.rowRadius
-  row.backgroundColor = active
-    ? accentAlpha(state, 0.085)
-    : THEME.translucentWhite(0.018)
-  row.borderWidth = 0.5
-  row.borderColor = active
-    ? accentAlpha(state, 0.18)
-    : THEME.translucentWhite(0.035)
-
-  addSliceNumber(
-    row,
-    slice,
-    active,
-    state,
-    density
-  )
-
-  row.addSpacer(density.itemGap)
-
-  const body = row.addStack()
-  body.layoutVertically()
-
-  const top = body.addStack()
-  top.centerAlignContent()
-
-  const title = addText(
-    top,
-    `Ligne ${slice.line} · Voiture ${slice.vehicle}`,
-    Font.boldSystemFont(
-      adaptiveFontSize(
-        density.sliceTitleSize,
-        `Ligne ${slice.line} · Voiture ${slice.vehicle}`,
-        density.titleSoftLimit,
-        density.titleMinimumSize
-      )
-    ),
-    active
-      ? THEME.getPrimaryTextColor()
-      : THEME.getInactiveTextColor(),
-    1
-  )
-
-  title.leftAlignText()
-  top.addSpacer()
-
-  const range = addText(
-    top,
-    `${slice.start}–${slice.end}`,
-    Font.boldMonospacedSystemFont(
-      density.rangeSize
-    ),
-    active
-      ? accent(state)
-      : THEME.getInactiveTimeColor(),
-    1
-  )
-
-  range.rightAlignText()
-
-  body.addSpacer(density.detailGap)
-
-  const bottom = body.addStack()
-  bottom.centerAlignContent()
-
-  const route = addText(
-    bottom,
-    `${slice.from} → ${slice.to}`,
-    Font.mediumSystemFont(
-      adaptiveFontSize(
-        density.sliceDetailSize,
-        `${slice.from} → ${slice.to}`,
-        density.routeSoftLimit,
-        density.routeMinimumSize
-      )
-    ),
-    secondary(),
-    1
-  )
-
-  route.leftAlignText()
-  bottom.addSpacer()
-
-  const durationText = addText(
-    bottom,
-    UTILS.formatDuration(duration),
-    Font.mediumSystemFont(
-      density.durationSize
-    ),
-    secondary(),
-    1
-  )
-
-  durationText.rightAlignText()
-}
-
-function addSliceNumber(
-  row,
-  slice,
-  active,
-  state,
-  density
-) {
-  const badge = row.addStack()
-
-  badge.size = new Size(
-    density.numberSize,
-    density.numberSize
-  )
-  badge.cornerRadius = density.numberSize / 2
-  badge.backgroundColor = active
-    ? accentAlpha(state, 0.2)
-    : THEME.translucentWhite(0.065)
-  badge.borderWidth = 0.5
-  badge.borderColor = active
-    ? accentAlpha(state, 0.28)
-    : THEME.translucentWhite(0.06)
-  badge.centerAlignContent()
-  badge.addSpacer()
-
-  addText(
-    badge,
-    slice.index,
-    Font.boldSystemFont(
-      density.numberFont
-    ),
-    active
-      ? accent(state)
-      : secondary(),
-    1
-  )
-
-  badge.addSpacer()
-}
-
-function addStatsSummary(
-  widget,
-  stats,
-  density
-) {
-  const summary = widget.addStack()
-  summary.centerAlignContent()
-  summary.addSpacer()
-
-  addStatCard(
-    summary,
-    UTILS.formatDuration(stats.work),
-    "Travail",
-    {
-      paddingHorizontal:
-        density.statPaddingHorizontal,
-      paddingVertical:
-        density.statPaddingVertical,
-      valueSize:
-        density.statValueSize,
-      labelSize:
-        density.statLabelSize
-    }
-  )
-
-  summary.addSpacer(density.statGap)
-
-  addStatCard(
-    summary,
-    UTILS.formatDuration(stats.amplitude),
-    "Amplitude",
-    {
-      paddingHorizontal:
-        density.statPaddingHorizontal,
-      paddingVertical:
-        density.statPaddingVertical,
-      valueSize:
-        density.statValueSize,
-      labelSize:
-        density.statLabelSize
-    }
-  )
-
-  summary.addSpacer()
-}
-
-function createMediumWidget(context) {
-  const {
-    service,
-    state,
-    stats,
-    displaySlice: focus
-  } = context
-
-  const profile = getScreenProfile()
-  const density = getMediumDensity(profile)
-
-  const widget = THEME.createBaseWidget(
-    state.type
-  )
-
-  widget.setPadding(
-    density.paddingTop,
-    density.paddingHorizontal,
-    density.paddingBottom,
-    density.paddingHorizontal
-  )
-
-  addHeader(
-    widget,
-    service,
-    state,
-    density.header
-  )
-
-  widget.addSpacer(density.sectionGap)
-
-  const card = addSurface(
-    widget,
-    {
-      padding: [
-        density.cardPaddingVertical,
-        density.cardPaddingHorizontal,
-        density.cardPaddingVertical,
-        density.cardPaddingHorizontal
-      ],
-      radius: density.surfaceRadius,
-      backgroundAlpha: 0.055,
-      borderAlpha: 0.08,
-      vertical: true
-    }
-  )
-
-  const identity = card.addStack()
-  identity.centerAlignContent()
-
-  const serviceInfo = identity.addStack()
-  serviceInfo.layoutVertically()
-
-  addText(
-    serviceInfo,
-    `Ligne ${focus.line}`,
-    Font.boldSystemFont(
-      density.lineSize
-    ),
-    THEME.getPrimaryTextColor(),
-    1
-  )
-
-  serviceInfo.addSpacer(2)
-
-  addText(
-    serviceInfo,
-    `Voiture ${focus.vehicle}`,
-    Font.semiboldSystemFont(
-      density.vehicleSize
-    ),
-    accent(state),
-    1
-  )
-
-  identity.addSpacer()
-
-  const timeInfo = identity.addStack()
-  timeInfo.layoutVertically()
-
-  const range = addText(
-    timeInfo,
-    `${focus.start} → ${focus.end}`,
-    Font.boldMonospacedSystemFont(
-      density.rangeSize
-    ),
-    THEME.getPrimaryTextColor(),
-    1
-  )
-  range.rightAlignText()
-
-  timeInfo.addSpacer(3)
-
-  const duration = addText(
-    timeInfo,
-    UTILS.formatDuration(
-      UTILS.durationMinutes(
-        focus.start,
-        focus.end
-      )
-    ),
-    Font.semiboldSystemFont(
-      density.durationSize
-    ),
-    accent(state),
-    1
-  )
-  duration.rightAlignText()
-
-  card.addSpacer(density.cardGap)
-  addDivider(card)
-  card.addSpacer(density.routeGap)
-
-  addText(
-    card,
-    focus.from,
-    Font.mediumSystemFont(
-      adaptiveFontSize(
-        density.routeSize,
-        focus.from,
-        density.routeSoftLimit,
-        density.routeMinimumSize
-      )
-    ),
-    secondary(),
-    1
-  )
-
-  if (hasDepartureDetails(focus)) {
-    card.addSpacer(density.departureGap)
-
-    addDepartureSummary(
-      card,
-      focus,
-      state,
-      {
-        fontSize:
-          density.departureSize,
-        softLimit:
-          density.departureSoftLimit,
-        minimumSize:
-          density.departureMinimumSize
-      }
-    )
-  }
-
-  widget.addSpacer(density.footerGap)
-
-  const footer = widget.addStack()
-  footer.centerAlignContent()
-
-  addText(
-    footer,
-    `${stats.count} tranches · ${UTILS.formatDuration(
-      stats.work
-    )}`,
-    Font.semiboldSystemFont(
-      density.footerSize
-    ),
-    secondary(),
-    1
-  )
-
-  footer.addSpacer()
-
-  addText(
-    footer,
-    `Fin ${stats.end}`,
-    Font.boldMonospacedSystemFont(
-      density.footerTimeSize
-    ),
-    accent(state),
-    1
-  )
-
-  return widget
-}
-
 function createSmallWidget(context) {
   const {
     service,
@@ -892,19 +939,8 @@ function createSmallWidget(context) {
     displaySlice: focus
   } = context
 
-  const profile = getScreenProfile()
-  const density = getSmallDensity(profile)
-
-  const widget = THEME.createBaseWidget(
-    state.type
-  )
-
-  widget.setPadding(
-    density.paddingTop,
-    density.paddingHorizontal,
-    density.paddingBottom,
-    density.paddingHorizontal
-  )
+  const widget = THEME.createBaseWidget(state.type)
+  widget.setPadding(12, 13, 11, 13)
 
   const header = widget.addStack()
   header.centerAlignContent()
@@ -912,30 +948,20 @@ function createSmallWidget(context) {
   addText(
     header,
     service.number,
-    Font.boldSystemFont(
-      density.serviceSize
-    ),
+    Font.boldSystemFont(15),
     THEME.getPrimaryTextColor(),
     1
   )
 
   header.addSpacer()
+  addStatusPill(header, state, 8, [3, 6, 3, 6])
 
-  addStatusPill(
-    header,
-    state,
-    density.badgeSize,
-    density.badgePadding
-  )
-
-  widget.addSpacer(density.sectionGap)
+  widget.addSpacer(7)
 
   addText(
     widget,
     `Ligne ${focus.line}`,
-    Font.boldSystemFont(
-      density.lineSize
-    ),
+    Font.boldSystemFont(21),
     THEME.getPrimaryTextColor(),
     1
   )
@@ -945,25 +971,18 @@ function createSmallWidget(context) {
   addText(
     widget,
     `Voiture ${focus.vehicle}`,
-    Font.semiboldSystemFont(
-      density.vehicleSize
-    ),
+    Font.semiboldSystemFont(10),
     accent(state),
     1
   )
 
-  widget.addSpacer(density.sectionGap)
+  widget.addSpacer(7)
 
   const timingCard = addSurface(
     widget,
     {
-      padding: [
-        density.timePaddingVertical,
-        density.timePaddingHorizontal,
-        density.timePaddingVertical,
-        density.timePaddingHorizontal
-      ],
-      radius: density.surfaceRadius,
+      padding: [6, 8, 6, 8],
+      radius: 11,
       backgroundAlpha: 0.05,
       borderAlpha: 0.075
     }
@@ -973,30 +992,26 @@ function createSmallWidget(context) {
     timingCard,
     "DÉBUT",
     focus.start,
-    "left",
-    density
+    "left"
   )
 
   timingCard.addSpacer()
-
   addSymbol(
     timingCard,
     "arrow.right",
-    density.arrowSize,
-    secondary()
+    10,
+    THEME.getSecondaryColor()
   )
-
   timingCard.addSpacer()
 
   addSmallTime(
     timingCard,
     "FIN",
     focus.end,
-    "right",
-    density
+    "right"
   )
 
-  widget.addSpacer(density.sectionGap)
+  widget.addSpacer(7)
 
   if (hasDepartureDetails(focus)) {
     addDepartureSummary(
@@ -1004,31 +1019,47 @@ function createSmallWidget(context) {
       focus,
       state,
       {
-        fontSize:
-          density.departureSize,
-        softLimit:
-          density.departureSoftLimit,
-        minimumSize:
-          density.departureMinimumSize
+        fontSize: 8.5,
+        softLimit: 30,
+        minimumSize: 6.5
       }
     )
-
-    widget.addSpacer(density.departureGap)
+    widget.addSpacer(4)
   }
 
   addText(
     widget,
-    `${stats.count} tranches · ${UTILS.formatDuration(
-      stats.work
-    )}`,
-    Font.mediumSystemFont(
-      density.footerSize
-    ),
-    secondary(),
+    `${stats.count} tranches · ${UTILS.formatDuration(stats.work)}`,
+    Font.mediumSystemFont(9),
+    THEME.getSecondaryColor(),
     1
   )
 
   return widget
+}
+
+function addSmallTime(parent, label, time, align) {
+  const block = parent.addStack()
+  block.layoutVertically()
+
+  const labelText = addText(
+    block,
+    label,
+    Font.semiboldSystemFont(6.5),
+    THEME.getSecondaryColor(),
+    1
+  )
+
+  const timeText = addText(
+    block,
+    time,
+    Font.boldMonospacedSystemFont(14),
+    THEME.getPrimaryTextColor(),
+    1
+  )
+
+  alignText(labelText, align)
+  alignText(timeText, align)
 }
 
 function hasDepotTiming(slice) {
@@ -1054,20 +1085,36 @@ function isTramSlice(slice) {
     slice?.lineCode || ""
   ).trim()
 
-  return [
-    "80",
-    "81",
-    "82",
-    "83",
-    "84",
-    "85"
-  ].includes(lineCode)
+  return ["80", "81", "82", "83", "84", "85"]
+    .includes(lineCode)
 }
 
-function getOperationStartLabel(slice) {
-  return isTramSlice(slice)
-    ? "DÉBUT EXPLOITATION"
-    : "MISE EN LIGNE"
+function buildCanvasDepartureLines(slice) {
+  const lines = []
+
+  if (hasDepotTiming(slice)) {
+    lines.push(
+      `Prise ${slice.dutyStart} · Sortie dépôt ${slice.depotExitAt}`
+    )
+  }
+
+  const operation = []
+
+  if (slice?.lineUpAt) {
+    operation.push(
+      `${isTramSlice(slice) ? "Début exploitation" : "Mise en ligne"} : ${slice.lineUpAt}`
+    )
+  }
+
+  if (slice?.direction) {
+    operation.push(`Direction : ${slice.direction}`)
+  }
+
+  if (operation.length) {
+    lines.push(operation.join(" · "))
+  }
+
+  return lines
 }
 
 function buildDepartureSummary(slice) {
@@ -1081,29 +1128,18 @@ function buildDepartureSummary(slice) {
 
   if (slice?.lineUpAt) {
     lines.push(
-      `${
-        isTramSlice(slice)
-          ? "Début exploitation"
-          : "Mise en ligne"
-      } : ${slice.lineUpAt}`
+      `${isTramSlice(slice) ? "Début exploitation" : "Mise en ligne"} : ${slice.lineUpAt}`
     )
   }
 
   if (slice?.direction) {
-    lines.push(
-      `Direction : ${slice.direction}`
-    )
+    lines.push(`Direction : ${slice.direction}`)
   }
 
   return lines
 }
 
-function addDepartureSummary(
-  parent,
-  slice,
-  state,
-  options = {}
-) {
+function addDepartureSummary(parent, slice, state, options = {}) {
   const lines = buildDepartureSummary(slice)
 
   if (!lines.length) {
@@ -1112,7 +1148,6 @@ function addDepartureSummary(
 
   const container = parent.addStack()
   container.layoutVertically()
-
   const baseFontSize = options.fontSize || 9
 
   lines.forEach((line, index) => {
@@ -1120,15 +1155,11 @@ function addDepartureSummary(
       container,
       line,
       Font.semiboldSystemFont(
-        adaptiveFontSize(
+        fitFontSize(
           baseFontSize,
           line,
           options.softLimit || 40,
-          options.minimumSize ||
-            Math.max(
-              6.5,
-              baseFontSize - 3
-            )
+          options.minimumSize || Math.max(6.5, baseFontSize - 3)
         )
       ),
       accent(state),
@@ -1143,134 +1174,8 @@ function addDepartureSummary(
   return container
 }
 
-function addSmallTime(
-  parent,
-  label,
-  time,
-  align,
-  density
-) {
-  const block = parent.addStack()
-  block.layoutVertically()
-
-  const labelText = addText(
-    block,
-    label,
-    Font.semiboldSystemFont(
-      density.timeLabelSize
-    ),
-    secondary(),
-    1
-  )
-
-  const timeText = addText(
-    block,
-    time,
-    Font.boldMonospacedSystemFont(
-      density.timeSize
-    ),
-    THEME.getPrimaryTextColor(),
-    1
-  )
-
-  alignText(labelText, align)
-  alignText(timeText, align)
-}
-
-function addHeader(
-  parent,
-  service,
-  state,
-  options
-) {
-  const header = parent.addStack()
-  header.centerAlignContent()
-
-  const icon = header.addStack()
-  icon.size = new Size(
-    options.iconSize,
-    options.iconSize
-  )
-  icon.cornerRadius = options.iconSize / 2
-  icon.backgroundColor = THEME.translucentWhite(
-    0.075
-  )
-  icon.borderWidth = 0.5
-  icon.borderColor = THEME.translucentWhite(
-    0.09
-  )
-  icon.centerAlignContent()
-  icon.addSpacer()
-
-  addSymbol(
-    icon,
-    getServiceTransportIcon(service),
-    options.symbolSize,
-    accent(state)
-  )
-
-  icon.addSpacer()
-  header.addSpacer(options.iconGap)
-
-  const identity = header.addStack()
-  identity.layoutVertically()
-
-  addText(
-    identity,
-    service.number,
-    Font.boldSystemFont(
-      options.titleSize
-    ),
-    THEME.getPrimaryTextColor(),
-    1
-  )
-
-  identity.addSpacer(1)
-
-  addText(
-    identity,
-    WIDGET_ENGINE.formatServiceDate(
-      service
-    ),
-    Font.mediumSystemFont(
-      options.dateSize
-    ),
-    secondary(),
-    1
-  )
-
-  header.addSpacer()
-
-  addStatusPill(
-    header,
-    state,
-    options.badgeSize,
-    options.badgePadding
-  )
-}
-
-function getServiceTransportIcon(service) {
-  const slices = Array.isArray(
-    service?.slices
-  )
-    ? service.slices
-    : []
-
-  return slices.some(
-    slice => isTramSlice(slice)
-  )
-    ? "tram.fill"
-    : "bus.fill"
-}
-
-function addStatusPill(
-  parent,
-  state,
-  fontSize,
-  padding = [5, 8, 5, 8]
-) {
+function addStatusPill(parent, state, fontSize, padding) {
   const pill = parent.addStack()
-
   pill.setPadding(
     padding[0],
     padding[1],
@@ -1278,13 +1183,13 @@ function addStatusPill(
     padding[3]
   )
   pill.cornerRadius = 10
-  pill.backgroundColor = accentAlpha(
-    state,
+  pill.backgroundColor = new Color(
+    THEME.getAccentHex(state.type),
     0.1
   )
   pill.borderWidth = 0.5
-  pill.borderColor = accentAlpha(
-    state,
+  pill.borderColor = new Color(
+    THEME.getAccentHex(state.type),
     0.22
   )
 
@@ -1299,50 +1204,9 @@ function addStatusPill(
   return pill
 }
 
-function addSectionHeader(
-  parent,
-  title,
-  detail,
-  fontSize = 8
-) {
-  const row = parent.addStack()
-  row.centerAlignContent()
-
-  addText(
-    row,
-    title,
-    Font.semiboldSystemFont(fontSize),
-    secondary(),
-    1
-  )
-
-  row.addSpacer()
-
-  addText(
-    row,
-    detail,
-    Font.mediumSystemFont(fontSize),
-    secondary(),
-    1
-  )
-}
-
-function addDivider(parent) {
-  const divider = parent.addStack()
-  divider.size = new Size(0, 1)
-  divider.backgroundColor =
-    THEME.translucentWhite(0.07)
-  divider.addSpacer()
-  return divider
-}
-
-function addSurface(
-  parent,
-  options = {}
-) {
+function addSurface(parent, options = {}) {
   const stack = parent.addStack()
-  const padding = options.padding ||
-    [0, 0, 0, 0]
+  const padding = options.padding || [0, 0, 0, 0]
 
   if (options.vertical) {
     stack.layoutVertically()
@@ -1354,27 +1218,101 @@ function addSurface(
     padding[2],
     padding[3]
   )
-  stack.cornerRadius =
-    options.radius ?? 14
-  stack.backgroundColor =
-    THEME.translucentWhite(
-      options.backgroundAlpha ?? 0.05
-    )
+  stack.cornerRadius = options.radius ?? 14
+  stack.backgroundColor = new Color(
+    "#FFFFFF",
+    options.backgroundAlpha ?? 0.05
+  )
   stack.borderWidth = 0.5
-  stack.borderColor =
-    THEME.translucentWhite(
-      options.borderAlpha ?? 0.07
-    )
+  stack.borderColor = new Color(
+    "#FFFFFF",
+    options.borderAlpha ?? 0.07
+  )
 
   return stack
 }
 
-function addStatCard(
-  parent,
-  value,
-  label,
-  options = {}
-) {
+function createErrorWidget(title, message) {
+  const widget = new ListWidget()
+  widget.backgroundColor = THEME.getErrorBackgroundColor()
+  widget.setPadding(18, 18, 18, 18)
+
+  const header = widget.addStack()
+  header.centerAlignContent()
+
+  const icon = header.addStack()
+  icon.size = new Size(34, 34)
+  icon.cornerRadius = 17
+  icon.backgroundColor = new Color("#FFFFFF", 0.08)
+  icon.centerAlignContent()
+  icon.addSpacer()
+
+  addSymbol(
+    icon,
+    "exclamationmark.triangle.fill",
+    15,
+    THEME.getPrimaryTextColor()
+  )
+
+  icon.addSpacer()
+  header.addSpacer(10)
+
+  addText(
+    header,
+    title,
+    Font.boldSystemFont(17),
+    THEME.getPrimaryTextColor(),
+    1
+  )
+
+  widget.addSpacer(10)
+
+  const card = addSurface(
+    widget,
+    {
+      padding: [11, 12, 11, 12],
+      radius: 14,
+      backgroundAlpha: 0.05,
+      borderAlpha: 0.07
+    }
+  )
+
+  addText(
+    card,
+    message,
+    Font.mediumSystemFont(11),
+    THEME.getSecondaryColor(),
+    4
+  )
+
+  return widget
+}
+
+function addSymbol(parent, name, size, color) {
+  const symbol = SFSymbol.named(name)
+
+  if (!symbol) {
+    return null
+  }
+
+  symbol.applyFont(Font.systemFont(size))
+
+  const image = parent.addImage(symbol.image)
+  image.imageSize = new Size(size, size)
+  image.tintColor = color
+
+  return image
+}
+
+function addText(parent, value, font, color, lines = 1) {
+  const element = parent.addText(String(value ?? ""))
+  element.font = font
+  element.textColor = color
+  element.lineLimit = lines
+  return element
+}
+
+function addStatCard(parent, value, label, options = {}) {
   const card = addSurface(
     parent,
     {
@@ -1392,181 +1330,23 @@ function addStatCard(
   )
 
   card.centerAlignContent()
-
-  addCenteredText(
-    card,
-    value,
-    Font.boldSystemFont(
-      options.valueSize || 14
-    ),
-    THEME.getPrimaryTextColor()
-  )
-
-  card.addSpacer(1)
-
-  addCenteredText(
-    card,
-    label,
-    Font.mediumSystemFont(
-      options.labelSize || 7.5
-    ),
-    secondary()
-  )
-
-  return card
-}
-
-function addCenteredText(
-  parent,
-  value,
-  font,
-  color
-) {
-  const row = parent.addStack()
-  row.centerAlignContent()
-  row.addSpacer()
-
-  const text = addText(
-    row,
-    value,
-    font,
-    color,
-    1
-  )
-
-  text.centerAlignText()
-  row.addSpacer()
-
-  return text
-}
-
-function createErrorWidget(title, message) {
-  const widget = new ListWidget()
-  const profile = getScreenProfile()
-  const scale = profile.uiScale
-
-  widget.backgroundColor =
-    THEME.getErrorBackgroundColor()
-  widget.setPadding(
-    scaled(18, scale),
-    scaled(18, scale),
-    scaled(18, scale),
-    scaled(18, scale)
-  )
-
-  const header = widget.addStack()
-  header.centerAlignContent()
-
-  const iconSize = scaled(34, scale)
-  const icon = header.addStack()
-  icon.size = new Size(
-    iconSize,
-    iconSize
-  )
-  icon.cornerRadius = iconSize / 2
-  icon.backgroundColor =
-    THEME.translucentWhite(0.08)
-  icon.centerAlignContent()
-  icon.addSpacer()
-
-  addSymbol(
-    icon,
-    "exclamationmark.triangle.fill",
-    scaled(15, scale),
-    THEME.getPrimaryTextColor()
-  )
-
-  icon.addSpacer()
-  header.addSpacer(
-    scaled(10, scale)
-  )
-
   addText(
-    header,
-    title,
-    Font.boldSystemFont(
-      scaled(17, scale)
-    ),
+    card,
+    value,
+    Font.boldSystemFont(options.valueSize || 14),
     THEME.getPrimaryTextColor(),
     1
-  )
-
-  widget.addSpacer(
-    scaled(10, scale)
-  )
-
-  const card = addSurface(
-    widget,
-    {
-      padding: [
-        scaled(11, scale),
-        scaled(12, scale),
-        scaled(11, scale),
-        scaled(12, scale)
-      ],
-      radius: scaled(14, scale),
-      backgroundAlpha: 0.05,
-      borderAlpha: 0.07
-    }
-  )
-
+  ).centerAlignText()
+  card.addSpacer(1)
   addText(
     card,
-    message,
-    Font.mediumSystemFont(
-      scaled(11, scale)
-    ),
-    secondary(),
-    4
-  )
+    label,
+    Font.mediumSystemFont(options.labelSize || 7.5),
+    THEME.getSecondaryColor(),
+    1
+  ).centerAlignText()
 
-  return widget
-}
-
-function addSymbol(
-  parent,
-  name,
-  size,
-  color
-) {
-  const symbol = SFSymbol.named(name)
-
-  if (!symbol) {
-    return null
-  }
-
-  symbol.applyFont(
-    Font.systemFont(size)
-  )
-
-  const image = parent.addImage(
-    symbol.image
-  )
-  image.imageSize = new Size(
-    size,
-    size
-  )
-  image.tintColor = color
-
-  return image
-}
-
-function addText(
-  parent,
-  value,
-  font,
-  color,
-  lines = 1
-) {
-  const element = parent.addText(
-    String(value ?? "")
-  )
-
-  element.font = font
-  element.textColor = color
-  element.lineLimit = lines
-
-  return element
+  return card
 }
 
 function alignText(text, alignment) {
@@ -1582,34 +1362,16 @@ function alignText(text, alignment) {
 function isSliceActive(slice, state) {
   return Boolean(
     state.current?.index === slice.index ||
-    (
-      !state.current &&
-      state.next?.index === slice.index
-    )
+    (!state.current && state.next?.index === slice.index)
   )
 }
 
 function accent(state) {
-  return THEME.getAccentColor(
-    state.type
-  )
-}
-
-function accentAlpha(state, alpha) {
-  return new Color(
-    THEME.getAccentHex(state.type),
-    alpha
-  )
-}
-
-function secondary() {
-  return THEME.getSecondaryColor()
+  return THEME.getAccentColor(state.type)
 }
 
 function normalizeFamily(value) {
-  const family = String(
-    value || ""
-  )
+  const family = String(value || "")
     .trim()
     .toLowerCase()
 
@@ -1618,379 +1380,12 @@ function normalizeFamily(value) {
     : "large"
 }
 
-function getScreenProfile() {
-  let size
-
-  try {
-    size = Device.screenSize()
-  } catch (_) {
-    size = new Size(390, 844)
-  }
-
-  const rawWidth = Number(size?.width) || 390
-  const rawHeight = Number(size?.height) || 844
-  const width = Math.min(rawWidth, rawHeight)
-  const height = Math.max(rawWidth, rawHeight)
-
-  const widthScale = clamp(
-    width / 390,
-    0.82,
-    1
-  )
-
-  const heightScale = clamp(
-    height / 844,
-    0.82,
-    1
-  )
-
-  const uiScale = clamp(
-    Math.min(widthScale, heightScale),
-    0.82,
-    1
-  )
-
-  return {
-    width,
-    height,
-    widthScale,
-    heightScale,
-    uiScale,
-    compact:
-      width <= 375 || height <= 736,
-    narrow:
-      width < 390,
-    spacious:
-      width >= 428 && height >= 900
-  }
-}
-
-function getLargeDensity(slices, profile) {
-  const list = Array.isArray(slices)
-    ? slices
-    : []
-
-  const sliceCount = Math.max(
-    1,
-    list.length
-  )
-
-  const scale = profile.uiScale
-  const horizontalScale = profile.widthScale
-
-  let base
-
-  if (sliceCount >= 5) {
-    base = {
-      sectionGap: 5,
-      timingPadding: 6,
-      timeSize: 23,
-      placeSize: 9,
-      arrowSize: 24,
-      departureSectionGap: 3,
-      departureRowGap: 3,
-      departureLabelSize: 7,
-      departureValueSize: 8.5,
-      departureTimeSize: 10,
-      listPadding: 7,
-      headerGap: 5,
-      rowGap: 3,
-      rowPadding: 3,
-      itemGap: 6,
-      numberSize: 20,
-      numberFont: 8.5,
-      sliceTitleSize: 10,
-      sliceDetailSize: 8,
-      titleSoftLimit: 25,
-      titleMinimumSize: 8,
-      routeSoftLimit: 30,
-      routeMinimumSize: 6.8,
-      rangeSize: 9.5,
-      durationSize: 7.5,
-      detailGap: 1,
-      statValueSize: 14,
-      statLabelSize: 7.5,
-      statPaddingVertical: 4,
-      statPaddingHorizontal: 20
-    }
-  } else if (sliceCount >= 3) {
-    base = {
-      sectionGap: 6,
-      timingPadding: 7,
-      timeSize: 25,
-      placeSize: 9.5,
-      arrowSize: 26,
-      departureSectionGap: 4,
-      departureRowGap: 4,
-      departureLabelSize: 7.5,
-      departureValueSize: 9,
-      departureTimeSize: 10.5,
-      listPadding: 8,
-      headerGap: 6,
-      rowGap: 5,
-      rowPadding: 4,
-      itemGap: 7,
-      numberSize: 23,
-      numberFont: 9.5,
-      sliceTitleSize: 11,
-      sliceDetailSize: 8.8,
-      titleSoftLimit: 26,
-      titleMinimumSize: 8.5,
-      routeSoftLimit: 32,
-      routeMinimumSize: 7,
-      rangeSize: 10.5,
-      durationSize: 8,
-      detailGap: 2,
-      statValueSize: 14,
-      statLabelSize: 7.5,
-      statPaddingVertical: 5,
-      statPaddingHorizontal: 22
-    }
-  } else {
-    base = {
-      sectionGap: 7,
-      timingPadding: 7,
-      timeSize: 27,
-      placeSize: 10.5,
-      arrowSize: 28,
-      departureSectionGap: 4,
-      departureRowGap: 5,
-      departureLabelSize: 7.5,
-      departureValueSize: 10.5,
-      departureTimeSize: 11.5,
-      listPadding: 9,
-      headerGap: 6,
-      rowGap: 6,
-      rowPadding: 5,
-      itemGap: 8,
-      numberSize: 25,
-      numberFont: 10.5,
-      sliceTitleSize: 12,
-      sliceDetailSize: 9.8,
-      titleSoftLimit: 27,
-      titleMinimumSize: 9,
-      routeSoftLimit: 34,
-      routeMinimumSize: 7.4,
-      rangeSize: 11,
-      durationSize: 9,
-      detailGap: 3,
-      statValueSize: 14,
-      statLabelSize: 7.5,
-      statPaddingVertical: 5,
-      statPaddingHorizontal: 24
-    }
-  }
-
-  return {
-    paddingTop: scaled(17, scale),
-    paddingBottom: scaled(14, scale),
-    paddingHorizontal: scaled(18, horizontalScale),
-    sectionGap: scaled(base.sectionGap, scale),
-    surfacePaddingHorizontal: scaled(12, horizontalScale),
-    surfaceRadius: scaled(17, scale),
-    timingPadding: scaled(base.timingPadding, scale),
-    timingGap: scaled(7, horizontalScale),
-    timeSize: scaled(base.timeSize, scale),
-    placeSize: scaled(base.placeSize, scale),
-    placeSoftLimit: profile.narrow ? 15 : 18,
-    arrowSize: scaled(base.arrowSize, scale),
-    departureSectionGap:
-      scaled(base.departureSectionGap, scale),
-    departureRowGap:
-      scaled(base.departureRowGap, scale),
-    departurePairGap: scaled(22, horizontalScale),
-    departureLabelSize:
-      scaled(base.departureLabelSize, scale),
-    departureValueSize:
-      scaled(base.departureValueSize, scale),
-    departureTimeSize:
-      scaled(base.departureTimeSize, scale),
-    departureSoftLimit: profile.narrow ? 18 : 24,
-    departureVertical: profile.width < 375,
-    listPadding: scaled(base.listPadding, scale),
-    listRadius: scaled(16, scale),
-    sectionHeaderSize: scaled(8, scale),
-    headerGap: scaled(base.headerGap, scale),
-    rowGap: scaled(base.rowGap, scale),
-    rowPadding: scaled(base.rowPadding, scale),
-    rowRadius: scaled(11, scale),
-    itemGap: scaled(base.itemGap, horizontalScale),
-    numberSize: scaled(base.numberSize, scale),
-    numberFont: scaled(base.numberFont, scale),
-    sliceTitleSize: scaled(base.sliceTitleSize, scale),
-    sliceDetailSize: scaled(base.sliceDetailSize, scale),
-    titleSoftLimit: base.titleSoftLimit,
-    titleMinimumSize: scaled(base.titleMinimumSize, scale),
-    routeSoftLimit: base.routeSoftLimit,
-    routeMinimumSize: scaled(base.routeMinimumSize, scale),
-    rangeSize: scaled(base.rangeSize, scale),
-    durationSize: scaled(base.durationSize, scale),
-    detailGap: scaled(base.detailGap, scale),
-    statPaddingHorizontal:
-      scaled(base.statPaddingHorizontal, horizontalScale),
-    statPaddingVertical:
-      scaled(base.statPaddingVertical, scale),
-    statGap: scaled(8, horizontalScale),
-    statValueSize: scaled(base.statValueSize, scale),
-    statLabelSize: scaled(base.statLabelSize, scale),
-    header: {
-      iconSize: scaled(38, scale),
-      symbolSize: scaled(18, scale),
-      titleSize: scaled(21, scale),
-      dateSize: scaled(10, scale),
-      badgeSize: scaled(10, scale),
-      iconGap: scaled(11, horizontalScale),
-      badgePadding: [
-        scaled(5, scale),
-        scaled(8, horizontalScale),
-        scaled(5, scale),
-        scaled(8, horizontalScale)
-      ]
-    }
-  }
-}
-
-function getMediumDensity(profile) {
-  const scale = profile.uiScale
-  const horizontalScale = profile.widthScale
-
-  return {
-    paddingTop: scaled(14, scale),
-    paddingBottom: scaled(12, scale),
-    paddingHorizontal: scaled(16, horizontalScale),
-    sectionGap: scaled(9, scale),
-    cardPaddingVertical: scaled(10, scale),
-    cardPaddingHorizontal: scaled(12, horizontalScale),
-    surfaceRadius: scaled(15, scale),
-    lineSize: scaled(24, scale),
-    vehicleSize: scaled(13, scale),
-    rangeSize: scaled(15, scale),
-    durationSize: scaled(10, scale),
-    cardGap: scaled(7, scale),
-    routeGap: scaled(6, scale),
-    routeSize: scaled(11, scale),
-    routeSoftLimit: profile.narrow ? 26 : 30,
-    routeMinimumSize: scaled(8, scale),
-    departureGap: scaled(3, scale),
-    departureSize: scaled(10, scale),
-    departureSoftLimit: profile.narrow ? 38 : 48,
-    departureMinimumSize: scaled(7.5, scale),
-    footerGap: scaled(8, scale),
-    footerSize: scaled(9, scale),
-    footerTimeSize: scaled(10, scale),
-    header: {
-      iconSize: scaled(31, scale),
-      symbolSize: scaled(14, scale),
-      titleSize: scaled(18, scale),
-      dateSize: scaled(9, scale),
-      badgeSize: scaled(9, scale),
-      iconGap: scaled(9, horizontalScale),
-      badgePadding: [
-        scaled(5, scale),
-        scaled(8, horizontalScale),
-        scaled(5, scale),
-        scaled(8, horizontalScale)
-      ]
-    }
-  }
-}
-
-function getSmallDensity(profile) {
-  const scale = profile.uiScale
-  const horizontalScale = profile.widthScale
-
-  return {
-    paddingTop: scaled(12, scale),
-    paddingBottom: scaled(11, scale),
-    paddingHorizontal: scaled(13, horizontalScale),
-    serviceSize: scaled(15, scale),
-    badgeSize: scaled(8, scale),
-    badgePadding: [
-      scaled(3, scale),
-      scaled(6, horizontalScale),
-      scaled(3, scale),
-      scaled(6, horizontalScale)
-    ],
-    sectionGap: scaled(7, scale),
-    lineSize: scaled(21, scale),
-    vehicleSize: scaled(10, scale),
-    surfaceRadius: scaled(11, scale),
-    timePaddingVertical: scaled(6, scale),
-    timePaddingHorizontal: scaled(8, horizontalScale),
-    timeLabelSize: scaled(6.5, scale),
-    timeSize: scaled(14, scale),
-    arrowSize: scaled(10, scale),
-    departureSize: scaled(8.5, scale),
-    departureSoftLimit: profile.narrow ? 26 : 30,
-    departureMinimumSize: scaled(6.5, scale),
-    departureGap: scaled(4, scale),
-    footerSize: scaled(9, scale)
-  }
-}
-
-function scaled(value, scale) {
-  return Math.max(
-    1,
-    Math.round(value * scale * 2) / 2
-  )
-}
-
 function clamp(value, minimum, maximum) {
-  return Math.min(
-    maximum,
-    Math.max(minimum, value)
-  )
-}
-
-function adaptiveFontSize(
-  baseSize,
-  value,
-  softLimit,
-  minimumSize
-) {
-  const safeBaseSize = Math.max(
-    1,
-    Number(baseSize) || 1
-  )
-  const safeMinimumSize = Math.min(
-    safeBaseSize,
-    Math.max(
-      1,
-      Number(minimumSize) ||
-        safeBaseSize * 0.7
-    )
-  )
-
-  const length = String(
-    value ?? ""
-  ).trim().length
-  const limit = Math.max(
-    1,
-    Number(softLimit) || 1
-  )
-
-  if (length <= limit) {
-    return safeBaseSize
-  }
-
-  const ratio = Math.max(
-    0.66,
-    limit / length
-  )
-
-  return Math.round(
-    Math.max(
-      safeMinimumSize,
-      safeBaseSize * ratio
-    ) * 2
-  ) / 2
+  return Math.min(maximum, Math.max(minimum, value))
 }
 
 function validateContext(context) {
-  if (
-    !context ||
-    typeof context !== "object"
-  ) {
+  if (!context || typeof context !== "object") {
     return {
       valid: false,
       error: "Le contexte du widget est absent."
@@ -2010,9 +1405,7 @@ function validateContext(context) {
   }
 
   if (
-    !Array.isArray(
-      context.service.slices
-    ) ||
+    !Array.isArray(context.service.slices) ||
     !context.service.slices.length
   ) {
     return {
