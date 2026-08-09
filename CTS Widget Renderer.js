@@ -6,8 +6,6 @@ const UTILS = importModule("CTS Utils")
 const WIDGET_ENGINE = importModule("CTS Widget Engine")
 const THEME = importModule("CTS Widget Theme")
 
-const VALID_FAMILIES = ["small", "medium", "large"]
-
 function createWidget(family, context) {
   const validation = validateContext(context)
 
@@ -18,14 +16,13 @@ function createWidget(family, context) {
     )
   }
 
-  switch (normalizeFamily(family)) {
-    case "small":
-      return createSmallWidget(context)
-    case "medium":
-      return createMediumWidget(context)
-    default:
-      return createLargeWidget(context)
+  const normalizedFamily = normalizeFamily(family)
+
+  if (normalizedFamily !== "large") {
+    return createLargeOnlyWidget(normalizedFamily)
   }
+
+  return createLargeWidget(context)
 }
 
 function createLargeWidget(context) {
@@ -48,11 +45,99 @@ function createLargeWidget(context) {
 
   addHeader(widget, service, state, density.header)
   widget.addSpacer(density.sectionGap)
-  addLargeTimingCard(widget, focus, state, density)
+
+  addLargeTimingCard(
+    widget,
+    focus,
+    state,
+    density
+  )
+
   widget.addSpacer(density.sectionGap)
-  addSlicesList(widget, service, state, density)
+
+  addSlicesList(
+    widget,
+    service,
+    state,
+    density
+  )
+
   widget.addSpacer(density.sectionGap)
-  addStatsSummary(widget, stats, density)
+
+  addStatsSummary(
+    widget,
+    stats,
+    density
+  )
+
+  return widget
+}
+
+function createMediumWidget() {
+  return createLargeOnlyWidget("medium")
+}
+
+function createSmallWidget() {
+  return createLargeOnlyWidget("small")
+}
+
+function createLargeOnlyWidget(family) {
+  const widget = new ListWidget()
+  widget.backgroundColor = new Color("#0B1726")
+  widget.setPadding(16, 16, 16, 16)
+
+  const row = widget.addStack()
+  row.centerAlignContent()
+
+  const icon = row.addStack()
+  icon.size = new Size(34, 34)
+  icon.cornerRadius = 17
+  icon.backgroundColor = new Color("#FFFFFF", 0.07)
+  icon.centerAlignContent()
+  icon.addSpacer()
+
+  addSymbol(
+    icon,
+    "rectangle.3.group.fill",
+    15,
+    new Color("#9EC8FF")
+  )
+
+  icon.addSpacer()
+  row.addSpacer(10)
+
+  const text = row.addStack()
+  text.layoutVertically()
+
+  addText(
+    text,
+    "CTS Dashboard",
+    Font.boldSystemFont(family === "small" ? 13 : 16),
+    Color.white(),
+    1
+  )
+
+  text.addSpacer(2)
+
+  addText(
+    text,
+    "Widget grand requis",
+    Font.semiboldSystemFont(family === "small" ? 8 : 10),
+    new Color("#9EC8FF"),
+    1
+  )
+
+  if (family !== "small") {
+    widget.addSpacer(10)
+
+    addText(
+      widget,
+      "CTS Dashboard est conçu exclusivement pour le format grand afin de garantir un affichage complet et lisible.",
+      Font.mediumSystemFont(10),
+      new Color("#AAB5C4"),
+      3
+    )
+  }
 
   return widget
 }
@@ -71,35 +156,59 @@ function addLargeTimingCard(widget, focus, state, density) {
     vertical: true
   })
 
-  const labels = card.addStack()
-  labels.centerAlignContent()
+  addTimingLabels(card, state, density)
+  card.addSpacer(density.timingLabelGap)
+  addTimingValues(card, focus, state, density)
+  card.addSpacer(density.placeGap)
+  addTimingPlaces(card, focus, density)
+
+  if (!hasDepartureDetails(focus)) {
+    return
+  }
+
+  card.addSpacer(density.departureSectionGap)
+  addDivider(card)
+  card.addSpacer(density.departureSectionGap)
+
+  addOperationalDetails(
+    card,
+    focus,
+    state,
+    density
+  )
+}
+
+function addTimingLabels(parent, state, density) {
+  const row = parent.addStack()
+  row.centerAlignContent()
 
   const startLabel = addText(
-    labels,
+    row,
     getTimingStartLabel(state),
     Font.semiboldSystemFont(density.timingLabelSize),
     secondary(),
     1
   )
   startLabel.leftAlignText()
-  labels.addSpacer()
+
+  row.addSpacer()
 
   const endLabel = addText(
-    labels,
+    row,
     "FIN DE TRANCHE",
     Font.semiboldSystemFont(density.timingLabelSize),
     secondary(),
     1
   )
   endLabel.rightAlignText()
+}
 
-  card.addSpacer(density.timingLabelGap)
-
-  const times = card.addStack()
-  times.centerAlignContent()
+function addTimingValues(parent, focus, state, density) {
+  const row = parent.addStack()
+  row.centerAlignContent()
 
   const startTime = addText(
-    times,
+    row,
     focus.start,
     Font.boldMonospacedSystemFont(density.timeSize),
     THEME.getPrimaryTextColor(),
@@ -107,26 +216,26 @@ function addLargeTimingCard(widget, focus, state, density) {
   )
   startTime.leftAlignText()
 
-  times.addSpacer(density.timingGap)
-  addArrowBadge(times, state, density.arrowSize)
-  times.addSpacer(density.timingGap)
+  row.addSpacer(density.timingGap)
+  addArrowBadge(row, state, density.arrowSize)
+  row.addSpacer(density.timingGap)
 
   const endTime = addText(
-    times,
+    row,
     focus.end,
     Font.boldMonospacedSystemFont(density.timeSize),
     THEME.getPrimaryTextColor(),
     1
   )
   endTime.rightAlignText()
+}
 
-  card.addSpacer(density.placeGap)
-
-  const places = card.addStack()
-  places.centerAlignContent()
+function addTimingPlaces(parent, focus, density) {
+  const row = parent.addStack()
+  row.centerAlignContent()
 
   const from = addText(
-    places,
+    row,
     focus.from,
     Font.mediumSystemFont(
       fitFont(
@@ -140,10 +249,11 @@ function addLargeTimingCard(widget, focus, state, density) {
     1
   )
   from.leftAlignText()
-  places.addSpacer(density.placePairGap)
+
+  row.addSpacer(density.placePairGap)
 
   const to = addText(
-    places,
+    row,
     focus.to,
     Font.mediumSystemFont(
       fitFont(
@@ -157,15 +267,117 @@ function addLargeTimingCard(widget, focus, state, density) {
     1
   )
   to.rightAlignText()
+}
 
-  if (!hasDepartureDetails(focus)) {
-    return
+function addOperationalDetails(parent, slice, state, density) {
+  if (hasDepotTiming(slice)) {
+    const row = parent.addStack()
+    row.centerAlignContent()
+
+    addDetailBlock(
+      row,
+      "PRISE DE SERVICE",
+      slice.dutyStart,
+      state,
+      density,
+      {
+        time: true,
+        alignment: "left"
+      }
+    )
+
+    row.addSpacer()
+
+    addDetailBlock(
+      row,
+      "SORTIE DÉPÔT",
+      slice.depotExitAt,
+      state,
+      density,
+      {
+        time: true,
+        alignment: "right"
+      }
+    )
+
+    if (slice.lineUpAt || slice.direction) {
+      parent.addSpacer(density.departureGroupGap)
+    }
   }
 
-  card.addSpacer(density.departureSectionGap)
-  addDivider(card)
-  card.addSpacer(density.departureSectionGap)
-  addDepartureRows(card, focus, state, density)
+  if (slice.lineUpAt) {
+    addDetailBlock(
+      parent,
+      getOperationStartLabel(slice),
+      slice.lineUpAt,
+      state,
+      density,
+      {
+        alignment: "left"
+      }
+    )
+
+    if (slice.direction) {
+      parent.addSpacer(density.departureGroupGap)
+    }
+  }
+
+  if (slice.direction) {
+    addDetailBlock(
+      parent,
+      "DIRECTION",
+      slice.direction,
+      state,
+      density,
+      {
+        alignment: "left",
+        emphasized: true
+      }
+    )
+  }
+}
+
+function addDetailBlock(parent, label, value, state, density, options = {}) {
+  const block = parent.addStack()
+  block.layoutVertically()
+
+  const labelText = addText(
+    block,
+    label,
+    Font.semiboldSystemFont(density.departureLabelSize),
+    secondary(),
+    1
+  )
+
+  block.addSpacer(density.departureValueGap)
+
+  const valueText = addText(
+    block,
+    value,
+    options.time
+      ? Font.boldMonospacedSystemFont(density.departureTimeSize)
+      : Font.semiboldSystemFont(
+          fitFont(
+            options.emphasized
+              ? density.directionValueSize
+              : density.departureValueSize,
+            value,
+            options.emphasized
+              ? density.directionSoftLimit
+              : density.departureSoftLimit,
+            density.departureMinimumSize
+          )
+        ),
+    options.emphasized
+      ? accent(state)
+      : THEME.getPrimaryTextColor(),
+    1
+  )
+
+  alignText(labelText, options.alignment || "left")
+  alignText(valueText, options.alignment || "left")
+
+  return block
 }
 
 function getTimingStartLabel(state) {
@@ -177,77 +389,6 @@ function getTimingStartLabel(state) {
     default:
       return "PROCHAINE TRANCHE"
   }
-}
-
-function addDepartureRows(parent, slice, state, density) {
-  const entries = []
-
-  if (hasDepotTiming(slice)) {
-    entries.push({
-      label: "PRISE DE SERVICE",
-      value: slice.dutyStart,
-      time: true
-    })
-    entries.push({
-      label: "SORTIE DÉPÔT",
-      value: slice.depotExitAt,
-      time: true
-    })
-  }
-
-  if (slice.lineUpAt) {
-    entries.push({
-      label: getOperationStartLabel(slice),
-      value: slice.lineUpAt,
-      time: false
-    })
-  }
-
-  if (slice.direction) {
-    entries.push({
-      label: "DIRECTION",
-      value: slice.direction,
-      time: false
-    })
-  }
-
-  entries.forEach((entry, index) => {
-    const row = parent.addStack()
-    row.centerAlignContent()
-
-    const label = addText(
-      row,
-      entry.label,
-      Font.semiboldSystemFont(density.departureLabelSize),
-      secondary(),
-      1
-    )
-    label.leftAlignText()
-
-    row.addSpacer()
-
-    const value = addText(
-      row,
-      entry.value,
-      entry.time
-        ? Font.boldMonospacedSystemFont(density.departureTimeSize)
-        : Font.semiboldSystemFont(
-            fitFont(
-              density.departureValueSize,
-              entry.value,
-              density.departureSoftLimit,
-              density.departureMinimumSize
-            )
-          ),
-      accent(state),
-      1
-    )
-    value.rightAlignText()
-
-    if (index < entries.length - 1) {
-      parent.addSpacer(density.departureRowGap)
-    }
-  })
 }
 
 function addArrowBadge(parent, state, size) {
@@ -287,16 +428,19 @@ function addSlicesList(widget, service, state, density) {
   addSectionHeader(
     list,
     "PROGRAMME",
-    `${service.slices.length} tranche${
-      service.slices.length > 1 ? "s" : ""
-    }`,
+    `${service.slices.length} tranche${service.slices.length > 1 ? "s" : ""}`,
     density.sectionHeaderSize
   )
 
   list.addSpacer(density.headerGap)
 
   service.slices.forEach((slice, index) => {
-    addSliceRow(list, slice, state, density)
+    addSliceRow(
+      list,
+      slice,
+      state,
+      density
+    )
 
     if (index < service.slices.length - 1) {
       list.addSpacer(density.rowGap)
@@ -325,7 +469,14 @@ function addSliceRow(parent, slice, state, density) {
     ? accentAlpha(state, 0.18)
     : THEME.translucentWhite(0.035)
 
-  addSliceNumber(row, slice, active, state, density)
+  addSliceNumber(
+    row,
+    slice,
+    active,
+    state,
+    density
+  )
+
   row.addSpacer(density.itemGap)
 
   const body = row.addStack()
@@ -426,7 +577,6 @@ function addSliceNumber(row, slice, active, state, density) {
 function addStatsSummary(widget, stats, density) {
   const summary = widget.addStack()
   summary.centerAlignContent()
-  summary.addSpacer()
 
   addStatCard(
     summary,
@@ -453,246 +603,6 @@ function addStatsSummary(widget, stats, density) {
       labelSize: density.statLabelSize
     }
   )
-
-  summary.addSpacer()
-}
-
-function createMediumWidget(context) {
-  const {
-    service,
-    state,
-    stats,
-    displaySlice: focus
-  } = context
-
-  const density = getMediumDensity()
-  const widget = THEME.createBaseWidget(state.type)
-
-  widget.setPadding(
-    density.paddingTop,
-    density.paddingHorizontal,
-    density.paddingBottom,
-    density.paddingHorizontal
-  )
-
-  addHeader(widget, service, state, density.header)
-  widget.addSpacer(density.sectionGap)
-
-  const card = addSurface(widget, {
-    padding: [
-      density.cardPaddingVertical,
-      density.cardPaddingHorizontal,
-      density.cardPaddingVertical,
-      density.cardPaddingHorizontal
-    ],
-    radius: density.surfaceRadius,
-    backgroundAlpha: 0.055,
-    borderAlpha: 0.08,
-    vertical: true
-  })
-
-  const top = card.addStack()
-  top.centerAlignContent()
-
-  const titleValue = `Ligne ${focus.line} · Voiture ${focus.vehicle}`
-  const title = addText(
-    top,
-    titleValue,
-    Font.boldSystemFont(
-      fitFont(
-        density.titleSize,
-        titleValue,
-        density.titleSoftLimit,
-        density.titleMinimumSize
-      )
-    ),
-    THEME.getPrimaryTextColor(),
-    1
-  )
-  title.leftAlignText()
-
-  top.addSpacer()
-
-  const range = addText(
-    top,
-    `${focus.start} → ${focus.end}`,
-    Font.boldMonospacedSystemFont(density.rangeSize),
-    THEME.getPrimaryTextColor(),
-    1
-  )
-  range.rightAlignText()
-
-  card.addSpacer(density.detailGap)
-
-  const second = card.addStack()
-  second.centerAlignContent()
-
-  const route = addText(
-    second,
-    focus.from,
-    Font.mediumSystemFont(
-      fitFont(
-        density.routeSize,
-        focus.from,
-        density.routeSoftLimit,
-        density.routeMinimumSize
-      )
-    ),
-    secondary(),
-    1
-  )
-  route.leftAlignText()
-
-  second.addSpacer()
-
-  const duration = addText(
-    second,
-    UTILS.formatDuration(
-      UTILS.durationMinutes(focus.start, focus.end)
-    ),
-    Font.semiboldSystemFont(density.durationSize),
-    accent(state),
-    1
-  )
-  duration.rightAlignText()
-
-  if (hasDepartureDetails(focus)) {
-    card.addSpacer(density.departureGap)
-    addDivider(card)
-    card.addSpacer(density.departureGap)
-    addDepartureRows(card, focus, state, density)
-  }
-
-  widget.addSpacer(density.footerGap)
-
-  const footer = widget.addStack()
-  footer.centerAlignContent()
-
-  addText(
-    footer,
-    `${stats.count} tranches · ${UTILS.formatDuration(stats.work)}`,
-    Font.semiboldSystemFont(density.footerSize),
-    secondary(),
-    1
-  )
-
-  footer.addSpacer()
-
-  addText(
-    footer,
-    `Fin ${stats.end}`,
-    Font.boldMonospacedSystemFont(density.footerTimeSize),
-    accent(state),
-    1
-  )
-
-  return widget
-}
-
-function createSmallWidget(context) {
-  const {
-    service,
-    state,
-    stats,
-    displaySlice: focus
-  } = context
-
-  const density = getSmallDensity()
-  const widget = THEME.createBaseWidget(state.type)
-
-  widget.setPadding(
-    density.paddingTop,
-    density.paddingHorizontal,
-    density.paddingBottom,
-    density.paddingHorizontal
-  )
-
-  const header = widget.addStack()
-  header.centerAlignContent()
-
-  addText(
-    header,
-    service.number,
-    Font.boldSystemFont(density.serviceSize),
-    THEME.getPrimaryTextColor(),
-    1
-  )
-
-  header.addSpacer()
-  addStatusPill(
-    header,
-    state,
-    density.badgeSize,
-    density.badgePadding
-  )
-
-  widget.addSpacer(density.sectionGap)
-
-  addText(
-    widget,
-    `Ligne ${focus.line}`,
-    Font.boldSystemFont(density.lineSize),
-    THEME.getPrimaryTextColor(),
-    1
-  )
-
-  widget.addSpacer(2)
-
-  addText(
-    widget,
-    `Voiture ${focus.vehicle}`,
-    Font.semiboldSystemFont(density.vehicleSize),
-    accent(state),
-    1
-  )
-
-  widget.addSpacer(density.sectionGap)
-
-  const timingCard = addSurface(widget, {
-    padding: [
-      density.timePaddingVertical,
-      density.timePaddingHorizontal,
-      density.timePaddingVertical,
-      density.timePaddingHorizontal
-    ],
-    radius: density.surfaceRadius,
-    backgroundAlpha: 0.05,
-    borderAlpha: 0.075
-  })
-
-  addSmallTime(timingCard, "DÉBUT", focus.start, "left", density)
-  timingCard.addSpacer()
-
-  addSymbol(
-    timingCard,
-    "arrow.right",
-    density.arrowSize,
-    secondary()
-  )
-
-  timingCard.addSpacer()
-  addSmallTime(timingCard, "FIN", focus.end, "right", density)
-
-  widget.addSpacer(density.sectionGap)
-
-  if (hasDepartureDetails(focus)) {
-    addDepartureSummary(widget, focus, state, {
-      fontSize: density.departureSize,
-      softLimit: density.departureSoftLimit,
-      minimumSize: density.departureMinimumSize
-    })
-    widget.addSpacer(density.departureGap)
-  }
-
-  addText(
-    widget,
-    `${stats.count} tranches · ${UTILS.formatDuration(stats.work)}`,
-    Font.mediumSystemFont(density.footerSize),
-    secondary(),
-    1
-  )
-
-  return widget
 }
 
 function hasDepotTiming(slice) {
@@ -715,87 +625,6 @@ function getOperationStartLabel(slice) {
   return isTramSlice(slice)
     ? "DÉBUT EXPLOITATION"
     : "MISE EN LIGNE"
-}
-
-function buildDepartureSummary(slice) {
-  const lines = []
-
-  if (hasDepotTiming(slice)) {
-    lines.push(
-      `Prise ${slice.dutyStart} · Sortie dépôt ${slice.depotExitAt}`
-    )
-  }
-
-  if (slice?.lineUpAt) {
-    lines.push(
-      `${isTramSlice(slice) ? "Début exploitation" : "Mise en ligne"} : ${slice.lineUpAt}`
-    )
-  }
-
-  if (slice?.direction) {
-    lines.push(`Direction : ${slice.direction}`)
-  }
-
-  return lines
-}
-
-function addDepartureSummary(parent, slice, state, options = {}) {
-  const lines = buildDepartureSummary(slice)
-
-  if (!lines.length) {
-    return null
-  }
-
-  const container = parent.addStack()
-  container.layoutVertically()
-  const baseFontSize = options.fontSize || 9
-
-  lines.forEach((line, index) => {
-    addText(
-      container,
-      line,
-      Font.semiboldSystemFont(
-        fitFont(
-          baseFontSize,
-          line,
-          options.softLimit || 40,
-          options.minimumSize || Math.max(6.5, baseFontSize - 3)
-        )
-      ),
-      accent(state),
-      1
-    )
-
-    if (index < lines.length - 1) {
-      container.addSpacer(1)
-    }
-  })
-
-  return container
-}
-
-function addSmallTime(parent, label, time, align, density) {
-  const block = parent.addStack()
-  block.layoutVertically()
-
-  const labelText = addText(
-    block,
-    label,
-    Font.semiboldSystemFont(density.timeLabelSize),
-    secondary(),
-    1
-  )
-
-  const timeText = addText(
-    block,
-    time,
-    Font.boldMonospacedSystemFont(density.timeSize),
-    THEME.getPrimaryTextColor(),
-    1
-  )
-
-  alignText(labelText, align)
-  alignText(timeText, align)
 }
 
 function addHeader(parent, service, state, options) {
@@ -843,6 +672,7 @@ function addHeader(parent, service, state, options) {
   )
 
   header.addSpacer()
+
   addStatusPill(
     header,
     state,
@@ -861,14 +691,17 @@ function getServiceTransportIcon(service) {
     : "bus.fill"
 }
 
-function addStatusPill(parent, state, fontSize, padding = [5, 8, 5, 8]) {
-  const pill = parent.addStack()
+function addStatusPill(parent, state, fontSize, padding) {
+  const safePadding = Array.isArray(padding)
+    ? padding
+    : [5, 8, 5, 8]
 
+  const pill = parent.addStack()
   pill.setPadding(
-    padding[0],
-    padding[1],
-    padding[2],
-    padding[3]
+    safePadding[0],
+    safePadding[1],
+    safePadding[2],
+    safePadding[3]
   )
   pill.cornerRadius = 10
   pill.backgroundColor = accentAlpha(state, 0.1)
@@ -886,7 +719,7 @@ function addStatusPill(parent, state, fontSize, padding = [5, 8, 5, 8]) {
   return pill
 }
 
-function addSectionHeader(parent, title, detail, fontSize = 8) {
+function addSectionHeader(parent, title, detail, fontSize) {
   const row = parent.addStack()
   row.centerAlignContent()
 
@@ -985,8 +818,8 @@ function addCenteredText(parent, value, font, color) {
 
   const text = addText(row, value, font, color, 1)
   text.centerAlignText()
-  row.addSpacer()
 
+  row.addSpacer()
   return text
 }
 
@@ -1101,16 +934,18 @@ function normalizeFamily(value) {
     .trim()
     .toLowerCase()
 
-  return VALID_FAMILIES.includes(family)
-    ? family
-    : "large"
+  if (["small", "medium", "large"].includes(family)) {
+    return family
+  }
+
+  return "large"
 }
 
 function getLargeDensity(sliceCountValue) {
   const sliceCount = Math.max(1, Number(sliceCountValue) || 1)
 
   if (sliceCount >= 5) {
-    return {
+    return createDensity({
       paddingTop: 13,
       paddingBottom: 11,
       paddingHorizontal: 15,
@@ -1129,11 +964,14 @@ function getLargeDensity(sliceCountValue) {
       placeSoftLimit: 18,
       placeMinimumSize: 7,
       departureSectionGap: 3,
-      departureRowGap: 2,
+      departureGroupGap: 3,
+      departureValueGap: 1,
       departureLabelSize: 6.5,
       departureValueSize: 7.5,
+      directionValueSize: 8,
       departureTimeSize: 8.5,
       departureSoftLimit: 22,
+      directionSoftLimit: 28,
       departureMinimumSize: 6.5,
       listPadding: 6,
       listRadius: 14,
@@ -1169,11 +1007,11 @@ function getLargeDensity(sliceCountValue) {
         iconGap: 8,
         badgePadding: [4, 7, 4, 7]
       }
-    }
+    })
   }
 
   if (sliceCount >= 3) {
-    return {
+    return createDensity({
       paddingTop: 15,
       paddingBottom: 12,
       paddingHorizontal: 16,
@@ -1192,11 +1030,14 @@ function getLargeDensity(sliceCountValue) {
       placeSoftLimit: 18,
       placeMinimumSize: 7.2,
       departureSectionGap: 3,
-      departureRowGap: 3,
+      departureGroupGap: 3,
+      departureValueGap: 1,
       departureLabelSize: 7,
       departureValueSize: 8.5,
+      directionValueSize: 9,
       departureTimeSize: 9.5,
       departureSoftLimit: 24,
+      directionSoftLimit: 30,
       departureMinimumSize: 7,
       listPadding: 7,
       listRadius: 15,
@@ -1232,10 +1073,10 @@ function getLargeDensity(sliceCountValue) {
         iconGap: 9,
         badgePadding: [4, 7, 4, 7]
       }
-    }
+    })
   }
 
-  return {
+  return createDensity({
     paddingTop: 17,
     paddingBottom: 14,
     paddingHorizontal: 18,
@@ -1254,11 +1095,14 @@ function getLargeDensity(sliceCountValue) {
     placeSoftLimit: 18,
     placeMinimumSize: 7.5,
     departureSectionGap: 4,
-    departureRowGap: 4,
+    departureGroupGap: 4,
+    departureValueGap: 1,
     departureLabelSize: 7.5,
     departureValueSize: 10,
+    directionValueSize: 10.5,
     departureTimeSize: 11,
     departureSoftLimit: 26,
+    directionSoftLimit: 34,
     departureMinimumSize: 7.5,
     listPadding: 9,
     listRadius: 16,
@@ -1294,72 +1138,11 @@ function getLargeDensity(sliceCountValue) {
       iconGap: 11,
       badgePadding: [5, 8, 5, 8]
     }
-  }
+  })
 }
 
-function getMediumDensity() {
-  return {
-    paddingTop: 14,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
-    sectionGap: 9,
-    cardPaddingVertical: 10,
-    cardPaddingHorizontal: 12,
-    surfaceRadius: 15,
-    titleSize: 15,
-    titleSoftLimit: 28,
-    titleMinimumSize: 11,
-    rangeSize: 13,
-    detailGap: 5,
-    routeSize: 10.5,
-    routeSoftLimit: 30,
-    routeMinimumSize: 8,
-    durationSize: 9.5,
-    departureGap: 5,
-    departureLabelSize: 7,
-    departureValueSize: 9,
-    departureTimeSize: 9.5,
-    departureSoftLimit: 28,
-    departureMinimumSize: 7,
-    departureRowGap: 3,
-    footerGap: 8,
-    footerSize: 9,
-    footerTimeSize: 10,
-    header: {
-      iconSize: 31,
-      symbolSize: 14,
-      titleSize: 18,
-      dateSize: 9,
-      badgeSize: 9,
-      iconGap: 9,
-      badgePadding: [5, 8, 5, 8]
-    }
-  }
-}
-
-function getSmallDensity() {
-  return {
-    paddingTop: 12,
-    paddingBottom: 11,
-    paddingHorizontal: 13,
-    serviceSize: 15,
-    badgeSize: 8,
-    badgePadding: [3, 6, 3, 6],
-    sectionGap: 7,
-    lineSize: 21,
-    vehicleSize: 10,
-    surfaceRadius: 11,
-    timePaddingVertical: 6,
-    timePaddingHorizontal: 8,
-    timeLabelSize: 6.5,
-    timeSize: 14,
-    arrowSize: 10,
-    departureSize: 8.5,
-    departureSoftLimit: 30,
-    departureMinimumSize: 6.5,
-    departureGap: 4,
-    footerSize: 9
-  }
+function createDensity(value) {
+  return value
 }
 
 function fitFont(baseSize, value, softLimit, minimumSize) {
@@ -1377,6 +1160,7 @@ function fitFont(baseSize, value, softLimit, minimumSize) {
   }
 
   const ratio = Math.max(0.7, limit / length)
+
   return Math.round(
     Math.max(safeMinimumSize, safeBaseSize * ratio) * 2
   ) / 2
