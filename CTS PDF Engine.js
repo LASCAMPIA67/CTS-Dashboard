@@ -1,8 +1,5 @@
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
-// icon-color: deep-blue; icon-glyph: magic;
-// Variables used by Scriptable.
-// These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: doc.text.magnifyingglass;
 
 // CTS PDF Engine.js
@@ -53,6 +50,18 @@ const ENGINE_START_TIMEOUT_MS =
 
 const MINIMUM_LIBRARY_SIZE_KB =
   40
+
+const FILE_READ_ATTEMPTS =
+  4
+
+const FILE_READ_RETRY_MS =
+  250
+
+const ICLOUD_READY_ATTEMPTS =
+  8
+
+const ICLOUD_READY_RETRY_MS =
+  150
 
 
 // =====================================================
@@ -610,21 +619,20 @@ async function validatePdfPath(
     }
   )
 
-  let fileSizeKilobytes
+  const fileSizeKilobytes =
+    await readFileSizeWithRetry(
+      path,
+      {
+        code:
+          "PDF_METADATA_READ_FAILED",
 
-  try {
-    fileSizeKilobytes =
-      fm.fileSize(
-        path
-      )
-  } catch (error) {
-    throw createTelemetryError(
-      "PDF_METADATA_READ_FAILED",
-      "source",
-      `La taille du fichier PDF ne peut pas être lue : ${errorMessage(error)}`,
-      error
+        stage:
+          "source",
+
+        label:
+          "La taille du fichier PDF"
+      }
     )
-  }
 
   if (
     !Number.isFinite(
@@ -635,7 +643,7 @@ async function validatePdfPath(
     throw createTelemetryError(
       "PDF_EMPTY_OR_INACCESSIBLE",
       "source",
-      "Le fichier PDF est vide ou inaccessible."
+      "Le fichier PDF reste vide ou inaccessible après plusieurs tentatives."
     )
   }
 
@@ -693,32 +701,12 @@ async function readFileAsBase64(
     }
   )
 
-  let data
-
-  try {
-    data =
-      fm.read(
-        path
-      )
-  } catch (error) {
-    throw createTelemetryError(
-      codes.readCode,
-      codes.stage,
-
-      `${label} ne peut pas être lu : ${errorMessage(error)}`,
-
-      error
+  const data =
+    await readFileDataWithRetry(
+      path,
+      label,
+      codes
     )
-  }
-
-  if (!data) {
-    throw createTelemetryError(
-      codes.readCode,
-      codes.stage,
-
-      `${label} est vide ou inaccessible.`
-    )
-  }
 
   let base64
 
@@ -746,6 +734,169 @@ async function readFileAsBase64(
   }
 
   return base64
+}
+
+
+async function readFileDataWithRetry(
+  path,
+  label,
+  codes
+) {
+  let lastError =
+    null
+
+  for (
+    let attempt = 1;
+    attempt <= FILE_READ_ATTEMPTS;
+    attempt++
+  ) {
+    try {
+      if (
+        !fm.fileExists(
+          path
+        )
+      ) {
+        throw createTelemetryError(
+          codes.missingCode,
+          codes.stage,
+          `${label} est introuvable.`
+        )
+      }
+
+      if (
+        !fm.isFileDownloaded(
+          path
+        )
+      ) {
+        await ensureDownloaded(
+          path,
+          {
+            missingCode:
+              codes.missingCode,
+
+            downloadCode:
+              codes.downloadCode,
+
+            stage:
+              codes.stage
+          }
+        )
+      }
+
+      const data =
+        fm.read(
+          path
+        )
+
+      if (data) {
+        return data
+      }
+
+      lastError =
+        new Error(
+          `${label} est momentanément indisponible.`
+        )
+
+    } catch (error) {
+      if (
+        error?.telemetryCode ===
+          codes.missingCode ||
+        error?.telemetryCode ===
+          codes.downloadCode
+      ) {
+        throw error
+      }
+
+      lastError =
+        error
+    }
+
+    if (
+      attempt <
+      FILE_READ_ATTEMPTS
+    ) {
+      await sleep(
+        FILE_READ_RETRY_MS *
+        attempt
+      )
+    }
+  }
+
+  throw createTelemetryError(
+    codes.readCode,
+    codes.stage,
+
+    lastError
+      ? `${label} ne peut pas être lu après ${FILE_READ_ATTEMPTS} tentatives : ${errorMessage(lastError)}`
+      : `${label} reste vide ou inaccessible après ${FILE_READ_ATTEMPTS} tentatives.`,
+
+    lastError
+  )
+}
+
+
+async function readFileSizeWithRetry(
+  path,
+  {
+    code,
+    stage,
+    label
+  }
+) {
+  let lastError =
+    null
+
+  for (
+    let attempt = 1;
+    attempt <= FILE_READ_ATTEMPTS;
+    attempt++
+  ) {
+    try {
+      const value =
+        fm.fileSize(
+          path
+        )
+
+      if (
+        Number.isFinite(
+          value
+        ) &&
+        value > 0
+      ) {
+        return value
+      }
+
+      lastError =
+        new Error(
+          `${label} est momentanément indisponible.`
+        )
+
+    } catch (error) {
+      lastError =
+        error
+    }
+
+    if (
+      attempt <
+      FILE_READ_ATTEMPTS
+    ) {
+      await sleep(
+        FILE_READ_RETRY_MS *
+        attempt
+      )
+    }
+  }
+
+  if (lastError) {
+    throw createTelemetryError(
+      code,
+      stage,
+      `${label} ne peut pas être lue après plusieurs tentatives : ${errorMessage(lastError)}`,
+      lastError
+    )
+  }
+
+  return 0
 }
 
 
@@ -1071,7 +1222,7 @@ function buildRuntimeHtml(
         currentLine
           .join(" ")
           .replace(
-            /\\s+/g,
+            /\s+/g,
             " "
           )
           .trim()
@@ -1123,7 +1274,7 @@ function buildRuntimeHtml(
       const value =
         item.str
           .replace(
-            /\\s+/g,
+            /\s+/g,
             " "
           )
           .trim()
@@ -1151,7 +1302,7 @@ function buildRuntimeHtml(
     flushLine()
 
     return lines.join(
-      "\\n"
+      "\n"
     )
   }
 
@@ -1325,18 +1476,18 @@ function buildRuntimeHtml(
 
             const text =
               pages
-                .join("\\n")
+                .join("\n")
                 .replace(
-                  /[ \\t]+/g,
+                  /[ \t]+/g,
                   " "
                 )
                 .replace(
-                  / *\\n */g,
-                  "\\n"
+                  / *\n */g,
+                  "\n"
                 )
                 .replace(
-                  /\\n{3,}/g,
-                  "\\n\\n"
+                  /\n{3,}/g,
+                  "\n\n"
                 )
                 .trim()
 
@@ -1496,6 +1647,53 @@ async function ensureDownloaded(
       )
     }
   }
+
+  for (
+    let attempt = 1;
+    attempt <= ICLOUD_READY_ATTEMPTS;
+    attempt++
+  ) {
+    try {
+      if (
+        fm.isFileDownloaded(
+          path
+        )
+      ) {
+        return
+      }
+    } catch (_) {}
+
+    if (
+      attempt <
+      ICLOUD_READY_ATTEMPTS
+    ) {
+      await sleep(
+        ICLOUD_READY_RETRY_MS
+      )
+    }
+  }
+
+  throw createTelemetryError(
+    downloadCode,
+    stage,
+    "Le fichier est présent dans iCloud mais n’est pas encore disponible localement."
+  )
+}
+
+
+async function sleep(
+  milliseconds
+) {
+  await new Promise(resolve => {
+    Timer.schedule(
+      Math.max(
+        0,
+        Number(milliseconds) || 0
+      ) / 1000,
+      false,
+      resolve
+    )
+  })
 }
 
 
