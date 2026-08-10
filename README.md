@@ -1,186 +1,91 @@
-# 🚌 CTS Dashboard
+# CTS Dashboard
 
-> Widget iPhone permettant aux conducteurs CTS de consulter leur service directement depuis l'écran d'accueil.
+Widget Scriptable pour iPhone permettant aux conducteurs CTS de consulter leur service depuis l’écran d’accueil.
 
-**Développé et maintenu par Emilio IPPOLITO (Matricule 6124).**
+**Développé et maintenu par Emilio IPPOLITO.**
 
----
+> CTS Dashboard est un projet indépendant. Les documents de service officiels restent la référence.
 
-## ✨ Présentation
+## Compatibilité
 
-CTS Dashboard est un projet développé pour **Scriptable** permettant aux conducteurs de la CTS de consulter rapidement leur service directement depuis un widget iPhone.
+CTS Dashboard est conçu exclusivement pour **iPhone** et pour le **widget grand format de Scriptable**.
 
-Le projet analyse automatiquement les feuilles de service PDF, affiche les informations importantes en temps réel et gère automatiquement les services ainsi que leurs archives.
+Cible de validation actuelle :
 
-> ⚠️ CTS Dashboard est un projet indépendant. Il ne remplace en aucun cas les documents de service officiels fournis par la CTS.
+- versions iOS actuellement maintenues par Apple ;
+- Scriptable à jour ;
+- iCloud Drive activé pour Scriptable ;
+- connexion Internet requise pour l’installation, les mises à jour et la réparation des ressources.
 
----
+Le rendu du widget adapte automatiquement ses espacements aux écrans iPhone plus étroits et réduit les textes longs avant toute troncature.
 
-# 🚀 Installation
+## Installation recommandée
 
-## 1. Installer Scriptable
+1. Installer **Scriptable** depuis l’App Store et l’ouvrir une première fois.
+2. Recevoir le fichier **`CTS Installer.scriptable`** fourni par le mainteneur.
+3. Ouvrir le fichier puis utiliser **Partager → Scriptable → Add to My Scripts**.
+4. Dans Scriptable, exécuter **CTS Installer**.
+5. Choisir **Installer la version disponible** et attendre la validation complète.
+6. Sur l’écran d’accueil, ajouter un widget **Scriptable grand format**.
+7. Configurer le widget avec **Script : CTS Dashboard** et **When Interacting / Open App : Run Script**.
 
-Téléchargez gratuitement l'application **Scriptable** depuis l'App Store.
+Les libellés ou icônes d’iOS peuvent légèrement varier selon la version du système. Les trois tutoriels dédiés Safari, Google et Brave détaillent ensuite le dépôt quotidien des cartes d’agent.
 
-Ouvrez ensuite l'application une première fois puis refermez-la.
+## Déposer un service
 
----
+Enregistrer la carte d’agent PDF dans :
 
-## 2. Recevoir CTS Installer
-
-Le fichier d'installation **CTS Installer.js** est fourni directement par **Emilio IPPOLITO**.
-
-Vous pouvez le recevoir par :
-
-- AirDrop
-- Messages
-- Mail
-- WhatsApp
-- Discord
-- ou tout autre moyen permettant d'envoyer un fichier
-
----
-
-## 3. Importer CTS Installer
-
-Enregistrez le fichier :
-
-```
+```text
 iCloud Drive
 └── Scriptable
-    └── CTS Installer.js
+    └── CTS Dashboard
+        └── Services
 ```
 
-Le nom du fichier doit rester exactement :
+Plusieurs cartes peuvent être déposées à l’avance. CTS Dashboard importe et sélectionne automatiquement le service correspondant à la date utile.
 
-```
-CTS Installer.js
-```
+## Mises à jour
 
----
+Relancer **CTS Installer** puis choisir **Mettre à jour** ou **Vérifier les fichiers**. L’Installer compare les 22 fichiers distribués au snapshot GitHub courant et conserve les PDF, les archives et les données protégées.
 
-## 4. Lancer l'installation
+## Diagnostic
 
-Ouvrez Scriptable.
+En cas de problème :
 
-Le script **CTS Installer** apparaît automatiquement.
+1. exécuter **CTS Installer** ;
+2. ouvrir **Diagnostic** ;
+3. copier le rapport technique ;
+4. transmettre ce rapport dans le canal d’assistance prévu.
 
-Exécutez-le puis choisissez :
+Le rapport est conçu pour exclure le nom du conducteur, le matricule, les horaires, le numéro de service et le contenu des PDF.
 
-> ✅ Installer / Mettre à jour
+## Fonctions principales
 
-L'installation est entièrement automatique.
+- import automatique des cartes agent PDF HASTUS ;
+- sélection automatique du service selon la date et les horaires après minuit ;
+- états Avant le service / En service / Pause / Coupure / Service terminé ;
+- affichage des tranches, directions, dépôts et mises en ligne ;
+- archivage automatique et rétention des archives ;
+- récupération iCloud avec nouvelles tentatives ;
+- réparation et vérification automatiques des fichiers ;
+- diagnostic anonymisé.
 
-Le gestionnaire télécharge :
+## Structure créée automatiquement
 
-- tous les scripts
-- toutes les ressources
-- les bibliothèques PDF
-- la structure complète du projet
-
----
-
-# 📂 Déposer un service
-
-Une fois l'installation terminée :
-
-ouvrez le dossier
-
-```
+```text
 CTS Dashboard
-└── Services
-```
-
-Déposez simplement votre feuille de service PDF.
-
-Aucune autre manipulation n'est nécessaire.
-
-CTS Dashboard détecte automatiquement :
-
-- la date du service
-- les horaires
-- les tranches
-- les directions
-- les pauses
-- les dépôts
-- les mises en ligne
-
----
-
-# 🔄 Mises à jour
-
-Les nouvelles versions sont distribuées automatiquement.
-
-Il suffit de relancer :
-
-```
-CTS Installer
-```
-
-puis de choisir
-
-> ✅ Installer / Mettre à jour
-
-Aucune réinstallation complète n'est nécessaire.
-
----
-
-# 🛠 Fonctions principales
-
-- Import automatique des services PDF
-- Détection automatique des dates
-- Widget iPhone en temps réel
-- Affichage intelligent des tranches
-- Gestion des pauses
-- Gestion des mises en ligne
-- Gestion des directions
-- Gestion des dépôts
-- Archivage automatique des anciens services
-- Nettoyage automatique
-- Réparation automatique du projet
-- Mise à jour automatique
-
----
-
-# 📁 Structure du projet
-
-```
-CTS Dashboard
+├── Analytics
 ├── Cache
 ├── Data
 ├── Database
 ├── Libraries
-├── Services
-├── Archives
-└── Logs
+└── Services
+    ├── Archive
+    └── Rejected
 ```
 
-Cette structure est créée automatiquement lors de l'installation.
-
----
-
-# 🔒 Compatibilité
-
-- iPhone
-- iOS
-- Scriptable
-
----
-
-# 👨‍💻 Développeur
+## Développeur
 
 **Emilio IPPOLITO**
 
-Matricule CTS : **6124**
-
 Projet développé et maintenu indépendamment.
-
----
-
-# 📜 Licence
-
-Ce projet est distribué gratuitement.
-
-Toute modification ou redistribution doit conserver la mention de l'auteur.
-
-© Emilio IPPOLITO
