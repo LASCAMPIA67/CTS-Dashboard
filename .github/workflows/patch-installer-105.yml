@@ -1,0 +1,226 @@
+name: Patch CTS Installer 1.0.5
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  patch-installer:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch installer and manifest
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          installer_path = Path("CTS Installer.js")
+          manifest_path = Path("version.json")
+
+          source = installer_path.read_text(encoding="utf-8")
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected 1 occurrence, found {count}")
+              return text.replace(old, new, 1)
+
+          source = replace_once(
+              source,
+              'const INSTALLER_VERSION = "1.0.4"',
+              'const INSTALLER_VERSION = "1.0.5"',
+              "installer version",
+          )
+
+          source = replace_once(
+              source,
+              '''      await textMatches(
+                entry.destination,
+                remote
+              )''',
+              '''      await textMatches(
+                entry.destination,
+                remote,
+                entry.name
+              )''',
+              "sync comparison call",
+          )
+
+          source = replace_once(
+              source,
+              '''  if (!result.valid) {
+            throw new Error(
+              `${entry.name} invalide après écriture : ${result.reason}`
+            )
+          }
+
+          if (!existed) {''',
+              '''  if (!result.valid) {
+            throw new Error(
+              `${entry.name} invalide après écriture : ${result.reason}`
+            )
+          }
+
+          if (!await textMatches(
+            entry.destination,
+            remote,
+            entry.name
+          )) {
+            throw new Error(
+              `${entry.name} ne correspond pas au snapshot GitHub après écriture.`
+            )
+          }
+
+          if (!existed) {''',
+              "post-write verification",
+          )
+
+          source = replace_once(
+              source,
+              '''    normalize(canonical.content) !==
+              normalize(selected.content)''',
+              '''    normalize(
+              canonical.content,
+              INSTALLER_FILE
+            ) !==
+              normalize(
+                selected.content,
+                INSTALLER_FILE
+              )''',
+              "installer preservation comparison",
+          )
+
+          source = replace_once(
+              source,
+              '''async function textMatches(path, remote) {
+            const local = await readText(path)
+
+            return normalize(local) === normalize(remote)
+          }''',
+              '''async function textMatches(path, remote, name = "") {
+            const local = await readText(path)
+
+            return (
+              normalize(local, name) ===
+              normalize(remote, name)
+            )
+          }''',
+              "textMatches helper",
+          )
+
+          source = replace_once(
+              source,
+              '''function normalize(value) {
+            return String(value ?? "")
+              .replace(/\\r\\n/g, "\\n")
+              .replace(/\\r/g, "\\n")
+          }''',
+              '''function normalize(value, name = "") {
+            let text = String(value ?? "")
+              .replace(/^\\uFEFF/, "")
+              .replace(/\\r\\n/g, "\\n")
+              .replace(/\\r/g, "\\n")
+
+            if (/\\.js$/i.test(String(name || ""))) {
+              text = stripScriptableMetadata(text)
+            }
+
+            return text
+              .split("\\n")
+              .map(line =>
+                line.replace(/[ \\t]+$/g, "")
+              )
+              .join("\\n")
+              .replace(/\\n+$/g, "")
+          }
+
+          function stripScriptableMetadata(value) {
+            const lines = String(value ?? "")
+              .split("\\n")
+
+            let index = 0
+
+            while (index < lines.length) {
+              while (
+                index < lines.length &&
+                !lines[index].trim()
+              ) {
+                index++
+              }
+
+              const first = lines[index]?.trim?.() || ""
+              const second = lines[index + 1]?.trim?.() || ""
+              const third = lines[index + 2]?.trim?.() || ""
+
+              const metadataBlock =
+                first === "// Variables used by Scriptable." &&
+                second === "// These must be at the very top of the file. Do not edit." &&
+                /^\\/\\/ icon-color:\\s*[^;]+;\\s*icon-glyph:\\s*[^;]+;\\s*$/.test(third)
+
+              if (!metadataBlock) {
+                break
+              }
+
+              index += 3
+            }
+
+            while (
+              index < lines.length &&
+              !lines[index].trim()
+            ) {
+              index++
+            }
+
+            return lines.slice(index).join("\\n")
+          }''',
+              "normalization helper",
+          )
+
+          installer_path.write_text(source, encoding="utf-8")
+
+          manifest = manifest_path.read_text(encoding="utf-8")
+          manifest = replace_once(
+              manifest,
+              '"installerVersion": "1.0.4"',
+              '"installerVersion": "1.0.5"',
+              "manifest installerVersion",
+          )
+          manifest = replace_once(
+              manifest,
+              '"minimumInstaller": "1.0.4"',
+              '"minimumInstaller": "1.0.5"',
+              "manifest minimumInstaller",
+          )
+          manifest_path.write_text(manifest, encoding="utf-8")
+          PY
+
+      - name: Verify patch
+        shell: bash
+        run: |
+          grep -F 'const INSTALLER_VERSION = "1.0.5"' "CTS Installer.js"
+          grep -F '"installerVersion": "1.0.5"' version.json
+          grep -F '"minimumInstaller": "1.0.5"' version.json
+          grep -F 'function stripScriptableMetadata(value)' "CTS Installer.js"
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          if git diff --quiet -- "CTS Installer.js" version.json; then
+            echo "Nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "CTS Installer.js" version.json
+          git commit -m "Fix installer comparison and bump to 1.0.5"
+          git push origin HEAD:main
