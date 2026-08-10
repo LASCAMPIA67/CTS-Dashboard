@@ -923,12 +923,19 @@ function resolveServiceDisplayTiming(source, currentDate) {
 }
 
 function isUsableServiceEntry(entry) {
+  if (
+    !entry ||
+    typeof entry !== "object" ||
+    Array.isArray(entry) ||
+    !String(entry.cacheFile || "").trim()
+  ) {
+    return false
+  }
+
   return Boolean(
-    entry &&
-    typeof entry === "object" &&
-    !Array.isArray(entry) &&
-    /^\d{4}-\d{2}-\d{2}$/.test(String(entry.date || "")) &&
-    String(entry.cacheFile || "").trim()
+    UTILS.parseDate(
+      String(entry.date || "")
+    )
   )
 }
 
