@@ -174,6 +174,10 @@ function addTimingCard(parent, focus, state, density) {
     density
   )
 
+  // Léger retrait visuel pour éviter que le bloc droit colle au bord.
+  // Il reste indépendant de la taille ou du modèle d’iPhone.
+  timing.addSpacer(8)
+
   if (!hasOperationalDetails(focus)) {
     return
   }
