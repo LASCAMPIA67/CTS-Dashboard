@@ -4,7 +4,7 @@
 
 const fm = FileManager.iCloud()
 
-const DASHBOARD_VERSION = "1.0.6"
+const DASHBOARD_VERSION = "1.0.7"
 
 const SECOND_MS = 1000
 const MINUTE_MS = 60 * SECOND_MS
