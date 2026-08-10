@@ -12,10 +12,13 @@ CTS Dashboard est conçu exclusivement pour **iPhone** et pour le **widget grand
 
 Cible de validation actuelle :
 
-- versions iOS actuellement maintenues par Apple ;
-- Scriptable à jour ;
+- **iOS 18** sur les iPhone encore compatibles avec cette branche, notamment iPhone XR, XS et XS Max ;
+- **iOS 26 et versions majeures Apple suivantes prises en charge par le même matériel**, à partir de l’iPhone 11 et de l’iPhone SE 2e génération ;
+- Scriptable à jour, qui nécessite iOS 15.5 ou ultérieur ;
 - iCloud Drive activé pour Scriptable ;
 - connexion Internet requise pour l’installation, les mises à jour et la réparation des ressources.
+
+Les versions bêta d’iOS ne constituent pas une cible de garantie. Elles peuvent être testées, mais la compatibilité officielle du projet vise les versions publiques récentes.
 
 Le rendu du widget adapte automatiquement ses espacements aux écrans iPhone plus étroits et réduit les textes longs avant toute troncature.
 
@@ -29,7 +32,9 @@ Le rendu du widget adapte automatiquement ses espacements aux écrans iPhone plu
 6. Sur l’écran d’accueil, ajouter un widget **Scriptable grand format**.
 7. Configurer le widget avec **Script : CTS Dashboard** et **When Interacting / Open App : Run Script**.
 
-Les libellés ou icônes d’iOS peuvent légèrement varier selon la version du système. Les trois tutoriels dédiés Safari, Google et Brave détaillent ensuite le dépôt quotidien des cartes d’agent.
+Selon la version d’iOS, le bouton de modification de l’écran d’accueil peut être affiché avec un libellé ou une icône différente. La procédure compatible à retenir est **Modifier → Ajouter un widget**. Pour reconfigurer un widget existant, utiliser **appui long sur le widget → Modifier le widget**.
+
+Les trois tutoriels dédiés Safari, Google et Brave détaillent ensuite le dépôt quotidien des cartes d’agent.
 
 ## Déposer un service
 
