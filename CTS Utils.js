@@ -150,8 +150,15 @@ function parseDate(value) {
   return date
 }
 
+function isValidDate(value) {
+  return Boolean(
+    value instanceof Date &&
+    Number.isFinite(value.getTime())
+  )
+}
+
 function startOfDay(date) {
-  if (!(date instanceof Date)) {
+  if (!isValidDate(date)) {
     return null
   }
 
@@ -183,7 +190,7 @@ function dayDifference(
 }
 
 function formatDateLong(date) {
-  if (!(date instanceof Date)) {
+  if (!isValidDate(date)) {
     return UNKNOWN_DATE
   }
 
@@ -198,7 +205,7 @@ function formatDateLong(date) {
 }
 
 function formatDateFull(date) {
-  if (!(date instanceof Date)) {
+  if (!isValidDate(date)) {
     return UNKNOWN_DATE
   }
 
@@ -484,6 +491,7 @@ module.exports = {
   durationMinutes,
   formatDuration,
   parseDate,
+  isValidDate,
   startOfDay,
   dayDifference,
   formatDateLong,
