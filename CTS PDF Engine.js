@@ -10,6 +10,11 @@ const CONFIG =
     "CTS Config"
   )
 
+const UTILS =
+  importModule(
+    "CTS Utils"
+  )
+
 const {
   fm,
   paths,
@@ -1753,35 +1758,25 @@ function createTelemetryError(
   message,
   cause = null
 ) {
-  const error =
-    new Error(
-      String(
-        message ||
-        code ||
-        "Erreur PDF inconnue."
-      )
-    )
-
-  error.telemetryCode =
+  const safeMessage =
     String(
+      message ||
       code ||
+      "Erreur PDF inconnue."
+    )
+
+  return UTILS.createTelemetryError(
+    UTILS.normalizeTelemetryCode(
+      code,
       "PDF_UNKNOWN_ERROR"
-    )
-
-  error.telemetryStage =
-    String(
-      stage ||
+    ),
+    UTILS.normalizeTelemetryStage(
+      stage,
       "pdf"
-    )
-
-  if (cause) {
-    try {
-      error.cause =
-        cause
-    } catch (_) {}
-  }
-
-  return error
+    ),
+    safeMessage,
+    cause
+  )
 }
 
 
@@ -1805,18 +1800,8 @@ function removeFileQuietly(
 function errorMessage(
   error
 ) {
-  if (
-    error &&
-    typeof error.message ===
-      "string" &&
-    error.message.trim()
-  ) {
-    return error.message.trim()
-  }
-
-  return String(
-    error ||
-    "Erreur inconnue"
+  return UTILS.errorMessage(
+    error
   )
 }
 
