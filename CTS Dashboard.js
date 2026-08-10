@@ -374,7 +374,7 @@ async function presentWidget(widget, widgetFamily) {
 function delay(milliseconds) {
   return new Promise(resolve =>
     Timer.schedule(
-      milliseconds,
+      Math.max(0, Number(milliseconds) || 0) / 1000,
       false,
       resolve
     )
