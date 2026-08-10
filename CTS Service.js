@@ -147,7 +147,7 @@ function resolvePlaceLabel(code, fallback) {
 }
 
 function getPlaceName(code) {
-  const key = normalizeLookupKey(code)
+  const key = UTILS.normalizeKey(code)
 
   if (!key) {
     return ""
@@ -251,7 +251,7 @@ function addPlaceLookupEntry(
   code,
   name
 ) {
-  const key = normalizeLookupKey(code)
+  const key = UTILS.normalizeKey(code)
 
   if (
     key &&
@@ -262,17 +262,6 @@ function addPlaceLookupEntry(
   ) {
     lookup[key] = name
   }
-}
-
-function normalizeLookupKey(value) {
-  return String(value || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[’`]/g, "'")
-    .replace(/[^A-Z0-9']/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toUpperCase()
 }
 
 function normalizeBreaks(sourceBreaks) {
