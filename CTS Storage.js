@@ -81,15 +81,17 @@ async function writeTextSafely(path, value) {
   const token = buildUniqueToken()
   const temporaryPath = `${path}.tmp-${token}`
   const rollbackPath = `${path}.rollback-${token}`
+  const originalExisted = fm.fileExists(path)
 
   cleanupLegacyWriteFiles(path)
   removeFileQuietly(temporaryPath)
   removeFileQuietly(rollbackPath)
 
   let previousMoved = false
+  let preserveRollback = false
 
   try {
-    if (fm.fileExists(path)) {
+    if (originalExisted) {
       await ensureDownloaded(path)
     }
 
@@ -104,7 +106,7 @@ async function writeTextSafely(path, value) {
       )
     }
 
-    if (fm.fileExists(path)) {
+    if (originalExisted) {
       fm.move(path, rollbackPath)
       previousMoved = true
     }
@@ -133,15 +135,20 @@ async function writeTextSafely(path, value) {
         if (fm.fileExists(rollbackPath)) {
           fm.move(rollbackPath, path)
         }
-      } catch (_) {}
-    } else {
+      } catch (_) {
+        preserveRollback = true
+      }
+    } else if (!originalExisted) {
       removeFileQuietly(path)
     }
 
     throw error
   } finally {
     removeFileQuietly(temporaryPath)
-    removeFileQuietly(rollbackPath)
+
+    if (!preserveRollback) {
+      removeFileQuietly(rollbackPath)
+    }
   }
 }
 
