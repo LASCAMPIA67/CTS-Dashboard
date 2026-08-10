@@ -16,6 +16,10 @@ const {
 const MAX_LOG_ENTRIES = 100
 const SERVICES_INDEX_VERSION = 2
 
+// =====================================================
+// LECTURE
+// =====================================================
+
 async function ensureDownloaded(path) {
   if (!fm.fileExists(path)) {
     return false
@@ -54,6 +58,10 @@ async function readJson(path, fallback = null) {
   }
 }
 
+// =====================================================
+// ÉCRITURE
+// =====================================================
+
 function writeText(path, value) {
   ensureDirectories()
   fm.writeString(path, String(value))
@@ -70,48 +78,70 @@ async function writeTextSafely(path, value) {
   ensureDirectories()
 
   const content = String(value)
-  const temporaryPath = `${path}.tmp-${buildUniqueToken()}`
+  const token = buildUniqueToken()
+  const temporaryPath = `${path}.tmp-${token}`
+  const rollbackPath = `${path}.rollback-${token}`
 
   cleanupLegacyWriteFiles(path)
+  removeFileQuietly(temporaryPath)
+  removeFileQuietly(rollbackPath)
 
-  let previousFileExisted = false
-  let previousContent = ""
+  let previousMoved = false
 
   try {
-    if (await ensureDownloaded(path)) {
-      previousFileExisted = true
-      previousContent = fm.readString(path)
+    if (fm.fileExists(path)) {
+      await ensureDownloaded(path)
     }
 
     fm.writeString(temporaryPath, content)
 
-    const stagedContent = fm.readString(temporaryPath)
-
-    if (stagedContent !== content) {
+    if (
+      !fm.fileExists(temporaryPath) ||
+      fm.readString(temporaryPath) !== content
+    ) {
       throw new Error(
         "La vérification du fichier temporaire a échoué."
       )
     }
 
-    fm.writeString(path, stagedContent)
+    if (fm.fileExists(path)) {
+      fm.move(path, rollbackPath)
+      previousMoved = true
+    }
 
-    if (fm.readString(path) !== content) {
+    fm.move(temporaryPath, path)
+
+    if (
+      !fm.fileExists(path) ||
+      fm.readString(path) !== content
+    ) {
       throw new Error(
         "La vérification du fichier enregistré a échoué."
       )
     }
+
+    removeFileQuietly(rollbackPath)
   } catch (error) {
-    try {
-      if (previousFileExisted) {
-        fm.writeString(path, previousContent)
-      } else if (fm.fileExists(path)) {
-        fm.remove(path)
-      }
-    } catch (_) {}
+    removeFileQuietly(temporaryPath)
+
+    if (previousMoved) {
+      try {
+        if (fm.fileExists(path)) {
+          fm.remove(path)
+        }
+
+        if (fm.fileExists(rollbackPath)) {
+          fm.move(rollbackPath, path)
+        }
+      } catch (_) {}
+    } else {
+      removeFileQuietly(path)
+    }
 
     throw error
   } finally {
     removeFileQuietly(temporaryPath)
+    removeFileQuietly(rollbackPath)
   }
 }
 
@@ -122,22 +152,9 @@ async function writeJsonSafely(path, value, pretty = true) {
   )
 }
 
-function cleanupLegacyWriteFiles(path) {
-  removeFileQuietly(`${path}.tmp`)
-  removeFileQuietly(`${path}.rollback`)
-}
-
-function buildUniqueToken() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-}
-
-function removeFileQuietly(path) {
-  try {
-    if (path && fm.fileExists(path)) {
-      fm.remove(path)
-    }
-  } catch (_) {}
-}
+// =====================================================
+// SERVICE ACTIF
+// =====================================================
 
 async function backupService() {
   try {
@@ -168,6 +185,10 @@ async function loadService() {
 async function loadBackupService() {
   return readJson(files.serviceBackup, null)
 }
+
+// =====================================================
+// INDEX DES SERVICES
+// =====================================================
 
 function emptyServicesIndex() {
   return {
@@ -200,7 +221,9 @@ async function loadServicesIndex() {
 
 async function saveServicesIndex(index) {
   const source =
-    index && typeof index === "object" && !Array.isArray(index)
+    index &&
+    typeof index === "object" &&
+    !Array.isArray(index)
       ? index
       : emptyServicesIndex()
 
@@ -214,6 +237,10 @@ async function saveServicesIndex(index) {
       : []
   })
 }
+
+// =====================================================
+// JOURNAL LOCAL
+// =====================================================
 
 async function appendLog(type, message, details = null) {
   const current = await readJson(files.importLog, [])
@@ -252,6 +279,10 @@ async function loadLog() {
   return Array.isArray(value) ? value : []
 }
 
+// =====================================================
+// FICHIERS
+// =====================================================
+
 function fileExists(path) {
   return fm.fileExists(path)
 }
@@ -267,6 +298,26 @@ function removeFile(path) {
   } catch (_) {
     return false
   }
+}
+
+function cleanupLegacyWriteFiles(path) {
+  removeFileQuietly(`${path}.tmp`)
+  removeFileQuietly(`${path}.rollback`)
+}
+
+function removeFileQuietly(path) {
+  try {
+    if (path && fm.fileExists(path)) {
+      fm.remove(path)
+    }
+  } catch (_) {}
+}
+
+function buildUniqueToken() {
+  return [
+    Date.now(),
+    Math.random().toString(36).slice(2, 10)
+  ].join("-")
 }
 
 function sanitizeDetails(value) {
@@ -289,6 +340,10 @@ function sanitizeDetails(value) {
     return String(value)
   }
 }
+
+// =====================================================
+// EXPORTS
+// =====================================================
 
 module.exports = {
   ensureDownloaded,
