@@ -7,6 +7,7 @@
 
 const CONFIG = importModule("CTS Config")
 const STORAGE = importModule("CTS Storage")
+const UTILS = importModule("CTS Utils")
 
 const {
   fm,
@@ -123,7 +124,7 @@ async function downloadDatabase(name) {
     content = await request.loadString()
   } catch (error) {
     throw new Error(
-      `${name} impossible à télécharger : ${messageOf(error)}`
+      `${name} impossible à télécharger : ${UTILS.errorMessage(error)}`
     )
   }
 
@@ -157,7 +158,7 @@ function parseDatabase(content, name) {
     return value
   } catch (error) {
     throw new Error(
-      `${name} invalide : ${messageOf(error)}`
+      `${name} invalide : ${UTILS.errorMessage(error)}`
     )
   }
 }
@@ -170,10 +171,6 @@ function rawUrl(name) {
     encodeURIComponent(repository.branch),
     encodeURIComponent(name)
   ].join("/") + `?t=${Date.now()}`
-}
-
-function messageOf(error) {
-  return error?.message?.trim?.() || String(error || "Erreur inconnue")
 }
 
 module.exports = {
