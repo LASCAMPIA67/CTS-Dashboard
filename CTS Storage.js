@@ -15,6 +15,8 @@ const {
 
 const MAX_LOG_ENTRIES = 100
 const SERVICES_INDEX_VERSION = 2
+const ICLOUD_DOWNLOAD_ATTEMPTS = 4
+const ICLOUD_DOWNLOAD_RETRY_MS = 250
 
 // =====================================================
 // LECTURE
@@ -25,11 +27,41 @@ async function ensureDownloaded(path) {
     return false
   }
 
-  if (!fm.isFileDownloaded(path)) {
-    await fm.downloadFileFromiCloud(path)
+  let lastError = null
+
+  for (
+    let attempt = 1;
+    attempt <= ICLOUD_DOWNLOAD_ATTEMPTS;
+    attempt++
+  ) {
+    try {
+      if (fm.isFileDownloaded(path)) {
+        return true
+      }
+
+      await fm.downloadFileFromiCloud(path)
+
+      if (fm.isFileDownloaded(path)) {
+        return true
+      }
+    } catch (error) {
+      lastError = error
+    }
+
+    if (attempt < ICLOUD_DOWNLOAD_ATTEMPTS) {
+      await sleep(
+        ICLOUD_DOWNLOAD_RETRY_MS * attempt
+      )
+    }
   }
 
-  return true
+  if (lastError) {
+    throw lastError
+  }
+
+  throw new Error(
+    "Le fichier iCloud est présent mais n’est pas encore disponible localement."
+  )
 }
 
 async function readText(path, fallback = "") {
@@ -325,6 +357,16 @@ function buildUniqueToken() {
     Date.now(),
     Math.random().toString(36).slice(2, 10)
   ].join("-")
+}
+
+async function sleep(milliseconds) {
+  await new Promise(resolve => {
+    Timer.schedule(
+      Math.max(0, Number(milliseconds) || 0) / 1000,
+      false,
+      resolve
+    )
+  })
 }
 
 function sanitizeDetails(value) {
