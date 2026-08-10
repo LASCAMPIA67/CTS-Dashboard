@@ -3,9 +3,7 @@
 // icon-color: gray; icon-glyph: gear;
 
 const fm = FileManager.iCloud()
-
 const DASHBOARD_VERSION = "1.0.7"
-
 const SECOND_MS = 1000
 const MINUTE_MS = 60 * SECOND_MS
 const HOUR_MS = 60 * MINUTE_MS
@@ -17,14 +15,8 @@ const repository = Object.freeze({
   branch: "main"
 })
 
-const joinPath = (parent, child) =>
-  fm.joinPath(parent, child)
-
-const root = joinPath(
-  fm.documentsDirectory(),
-  "CTS Dashboard"
-)
-
+const joinPath = (parent, child) => fm.joinPath(parent, child)
+const root = joinPath(fm.documentsDirectory(), "CTS Dashboard")
 const paths = Object.freeze({
   root,
   data: joinPath(root, "Data"),
@@ -39,51 +31,21 @@ const resolvedPaths = Object.freeze({
   servicesArchive: joinPath(paths.services, "Archive"),
   servicesRejected: joinPath(paths.services, "Rejected"),
   servicesCache: joinPath(paths.cache, "Services"),
-  servicesTextCache: joinPath(
-    joinPath(paths.cache, "Services"),
-    "Text"
-  ),
+  servicesTextCache: joinPath(joinPath(paths.cache, "Services"), "Text"),
   pdfEngine: joinPath(paths.libraries, "PDF")
 })
 
 const files = Object.freeze({
   service: joinPath(resolvedPaths.data, "service.json"),
-  serviceBackup: joinPath(
-    resolvedPaths.data,
-    "service-backup.json"
-  ),
-  importLog: joinPath(
-    resolvedPaths.data,
-    "import-log.json"
-  ),
-  servicesIndex: joinPath(
-    resolvedPaths.data,
-    "services-index.json"
-  ),
-  servicesScanState: joinPath(
-    resolvedPaths.data,
-    "services-scan-state.json"
-  ),
-  pdfJs: joinPath(
-    resolvedPaths.pdfEngine,
-    "pdf.min.mjs"
-  ),
-  pdfWorker: joinPath(
-    resolvedPaths.pdfEngine,
-    "pdf.worker.min.mjs"
-  ),
-  stops: joinPath(
-    resolvedPaths.database,
-    "stops.json"
-  ),
-  places: joinPath(
-    resolvedPaths.database,
-    "places.json"
-  ),
-  lines: joinPath(
-    resolvedPaths.database,
-    "lines.json"
-  )
+  serviceBackup: joinPath(resolvedPaths.data, "service-backup.json"),
+  importLog: joinPath(resolvedPaths.data, "import-log.json"),
+  servicesIndex: joinPath(resolvedPaths.data, "services-index.json"),
+  servicesScanState: joinPath(resolvedPaths.data, "services-scan-state.json"),
+  pdfJs: joinPath(resolvedPaths.pdfEngine, "pdf.min.mjs"),
+  pdfWorker: joinPath(resolvedPaths.pdfEngine, "pdf.worker.min.mjs"),
+  stops: joinPath(resolvedPaths.database, "stops.json"),
+  places: joinPath(resolvedPaths.database, "places.json"),
+  lines: joinPath(resolvedPaths.database, "lines.json")
 })
 
 const refresh = Object.freeze({
@@ -119,9 +81,7 @@ const requiredDirectories = Object.freeze([
 
 function ensureDirectories() {
   for (const directory of requiredDirectories) {
-    if (!fm.fileExists(directory)) {
-      fm.createDirectory(directory, true)
-    }
+    if (!fm.fileExists(directory)) fm.createDirectory(directory, true)
   }
 }
 
