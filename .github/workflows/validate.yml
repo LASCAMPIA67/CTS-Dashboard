@@ -3,10 +3,14 @@ name: Validate CTS Dashboard
 on:
   push:
     branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: cts-validation-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   validate:
@@ -18,58 +22,62 @@ jobs:
         with:
           node-version: 22
 
-      - name: Validate JavaScript syntax
-        shell: bash
-        run: |
-          set -euo pipefail
-          while IFS= read -r -d '' file; do
-            echo "Checking $file"
-            node --input-type=module --check < "$file"
-          done < <(find . -maxdepth 1 -type f \( -name '*.js' -o -name '*.mjs' \) -print0)
-
-      - name: Validate manifest, metadata and resources
+      - name: Validate repository
         shell: bash
         run: |
           node <<'NODE'
           const fs = require('fs')
+          const { spawnSync } = require('child_process')
+
+          const fail = message => { throw new Error(message) }
           const manifest = JSON.parse(fs.readFileSync('version.json', 'utf8'))
           const scripts = Array.isArray(manifest.scripts) ? manifest.scripts : []
           const resources = Array.isArray(manifest.resources) ? manifest.resources : []
           const required = [...scripts, ...resources.map(item => item.name)]
 
           if (scripts.length !== 17 || resources.length !== 5 || required.length !== 22) {
-            throw new Error(`Expected 17 scripts + 5 resources, found ${scripts.length} + ${resources.length}`)
+            fail(`Expected 17 scripts + 5 resources, found ${scripts.length} + ${resources.length}`)
           }
 
           const duplicates = required.filter((name, index) => required.indexOf(name) !== index)
           if (duplicates.length) {
-            throw new Error(`Duplicate manifest entries: ${[...new Set(duplicates)].join(', ')}`)
+            fail(`Duplicate manifest entries: ${[...new Set(duplicates)].join(', ')}`)
           }
 
           if (!scripts.includes(manifest.entryPoint)) {
-            throw new Error(`Entry point missing from scripts: ${manifest.entryPoint || 'undefined'}`)
+            fail(`Entry point missing from scripts: ${manifest.entryPoint || 'undefined'}`)
           }
 
           const destinations = resources.map(item => item.destination)
           const duplicateDestinations = destinations.filter((value, index) => destinations.indexOf(value) !== index)
           if (duplicateDestinations.length) {
-            throw new Error(`Duplicate resource destinations: ${[...new Set(duplicateDestinations)].join(', ')}`)
+            fail(`Duplicate resource destinations: ${[...new Set(duplicateDestinations)].join(', ')}`)
           }
 
           for (const file of required) {
-            if (!fs.existsSync(file)) throw new Error(`Missing manifest file: ${file}`)
-            if (fs.statSync(file).size <= 0) throw new Error(`Empty manifest file: ${file}`)
+            if (!fs.existsSync(file)) fail(`Missing manifest file: ${file}`)
+            if (fs.statSync(file).size <= 0) fail(`Empty manifest file: ${file}`)
           }
 
           const metadataMarker = '// Variables used by Scriptable.'
-          for (const file of fs.readdirSync('.').filter(name => name.endsWith('.js'))) {
+          for (const file of scripts) {
             const content = fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')
             if (!content.startsWith(metadataMarker)) {
-              throw new Error(`Scriptable metadata must be at the top of ${file}`)
+              fail(`Scriptable metadata must be at the top of ${file}`)
             }
             const occurrences = content.split(metadataMarker).length - 1
             if (occurrences !== 1) {
-              throw new Error(`Expected one Scriptable metadata block in ${file}, found ${occurrences}`)
+              fail(`Expected one Scriptable metadata block in ${file}, found ${occurrences}`)
+            }
+
+            const syntax = spawnSync(
+              process.execPath,
+              ['--input-type=module', '--check'],
+              { input: content, encoding: 'utf8' }
+            )
+            if (syntax.status !== 0) {
+              process.stderr.write(syntax.stderr || '')
+              fail(`JavaScript syntax error in ${file}`)
             }
           }
 
@@ -78,16 +86,24 @@ jobs:
           }
 
           const config = fs.readFileSync('CTS Config.js', 'utf8')
-          const match = config.match(/const DASHBOARD_VERSION = "([^"]+)"/)
-          if (!match || match[1] !== manifest.version) {
-            throw new Error(`Version mismatch: manifest=${manifest.version}, config=${match?.[1] || 'missing'}`)
+          const versionMatch = config.match(/const DASHBOARD_VERSION = "([^"]+)"/)
+          if (!versionMatch || versionMatch[1] !== manifest.version) {
+            fail(`Version mismatch: manifest=${manifest.version}, config=${versionMatch?.[1] || 'missing'}`)
           }
 
           for (const file of ['pdf.min.mjs', 'pdf.worker.min.mjs']) {
-            if (fs.statSync(file).size < 40 * 1024) {
-              throw new Error(`${file} is unexpectedly small`)
+            if (fs.statSync(file).size < 40 * 1024) fail(`${file} is unexpectedly small`)
+            const content = fs.readFileSync(file, 'utf8')
+            const syntax = spawnSync(
+              process.execPath,
+              ['--input-type=module', '--check'],
+              { input: content, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 }
+            )
+            if (syntax.status !== 0) {
+              process.stderr.write(syntax.stderr || '')
+              fail(`Module syntax error in ${file}`)
             }
           }
 
-          console.log(`CTS Dashboard ${manifest.version}: repository validation passed`)
+          console.log(`CTS Dashboard ${manifest.version}: 17 scripts + 5 resources validated`)
           NODE
