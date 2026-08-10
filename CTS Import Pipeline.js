@@ -816,35 +816,22 @@ function createTelemetryError(
   message,
   cause = null
 ) {
-  const error = new Error(
-    String(message || code || "Erreur d’import inconnue.")
+  return UTILS.createTelemetryError(
+    UTILS.normalizeTelemetryCode(
+      code,
+      "SERVICE_IMPORT_FAILED"
+    ),
+    UTILS.normalizeTelemetryStage(
+      stage,
+      "import"
+    ),
+    message,
+    cause
   )
-
-  error.telemetryCode = normalizeTelemetryCode(
-    code,
-    "SERVICE_IMPORT_FAILED"
-  )
-  error.telemetryStage = normalizeTelemetryStage(
-    stage,
-    "import"
-  )
-
-  if (cause) {
-    try {
-      error.cause = cause
-    } catch (_) {}
-  }
-
-  return error
 }
 
 function hasTelemetryError(error) {
-  return Boolean(
-    error &&
-    typeof error === "object" &&
-    typeof error.telemetryCode === "string" &&
-    error.telemetryCode.trim()
-  )
+  return UTILS.hasTelemetryError(error)
 }
 
 function telemetryFromError(
@@ -852,39 +839,11 @@ function telemetryFromError(
   fallbackCode,
   fallbackStage
 ) {
-  return {
-    code: normalizeTelemetryCode(
-      error?.telemetryCode,
-      fallbackCode
-    ),
-    stage: normalizeTelemetryStage(
-      error?.telemetryStage,
-      fallbackStage
-    )
-  }
-}
-
-function normalizeTelemetryCode(value, fallback) {
-  const normalized = String(
-    value || fallback || "SERVICE_IMPORT_FAILED"
+  return UTILS.telemetryFromError(
+    error,
+    fallbackCode,
+    fallbackStage
   )
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9_]/g, "_")
-    .slice(0, 64)
-
-  return normalized || "SERVICE_IMPORT_FAILED"
-}
-
-function normalizeTelemetryStage(value, fallback) {
-  const normalized = String(
-    value || fallback || "import"
-  )
-    .trim()
-    .replace(/[^a-zA-Z0-9._-]/g, "_")
-    .slice(0, 50)
-
-  return normalized || "import"
 }
 
 function elapsedMs(startedAt) {
@@ -938,15 +897,7 @@ function timestampForFileName() {
 }
 
 function errorMessage(error) {
-  if (
-    error &&
-    typeof error.message === "string" &&
-    error.message.trim()
-  ) {
-    return error.message.trim()
-  }
-
-  return String(error || "Erreur inconnue")
+  return UTILS.errorMessage(error)
 }
 
 module.exports = {
