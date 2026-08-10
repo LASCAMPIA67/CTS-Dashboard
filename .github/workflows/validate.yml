@@ -1,0 +1,63 @@
+name: Validate CTS Dashboard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+          done < <(find . -maxdepth 1 -type f -name '*.js' -print0)
+
+      - name: Validate manifest and resources
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs')
+          const manifest = JSON.parse(fs.readFileSync('version.json', 'utf8'))
+          const required = [
+            ...(manifest.scripts || []),
+            ...(manifest.resources || []).map(item => item.name)
+          ]
+          if (required.length !== 22) {
+            throw new Error(`Expected 22 distributed files, found ${required.length}`)
+          }
+          const duplicates = required.filter((name, index) => required.indexOf(name) !== index)
+          if (duplicates.length) {
+            throw new Error(`Duplicate manifest entries: ${[...new Set(duplicates)].join(', ')}`)
+          }
+          for (const file of required) {
+            if (!fs.existsSync(file)) throw new Error(`Missing manifest file: ${file}`)
+          }
+          for (const file of ['version.json', 'lines.json', 'stops.json', 'places.json']) {
+            JSON.parse(fs.readFileSync(file, 'utf8'))
+          }
+          const config = fs.readFileSync('CTS Config.js', 'utf8')
+          const match = config.match(/const DASHBOARD_VERSION = "([^"]+)"/)
+          if (!match || match[1] !== manifest.version) {
+            throw new Error(`Version mismatch: manifest=${manifest.version}, config=${match?.[1] || 'missing'}`)
+          }
+          for (const file of ['pdf.min.mjs', 'pdf.worker.min.mjs']) {
+            if (fs.statSync(file).size < 40 * 1024) {
+              throw new Error(`${file} is unexpectedly small`)
+            }
+          }
+          console.log(`CTS Dashboard ${manifest.version}: manifest and resources valid`)
+          NODE
