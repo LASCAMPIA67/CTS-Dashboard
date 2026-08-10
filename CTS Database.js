@@ -2,18 +2,11 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: teal; icon-glyph: database;
 
-// CTS Database.js
-// Chargement et résolution des lignes, lieux et arrêts CTS.
-
 const CONFIG = importModule("CTS Config")
 const RESOURCES = importModule("CTS Resources")
+const STORAGE = importModule("CTS Storage")
 const UTILS = importModule("CTS Utils")
-
-const {
-  fm,
-  files,
-  ensureDirectories
-} = CONFIG
+const { fm, files, ensureDirectories } = CONFIG
 
 const DATABASE_LABELS = Object.freeze({
   stops: "stops.json",
@@ -25,50 +18,28 @@ let cache = null
 let lookupIndexes = null
 
 async function load() {
-  if (cache) {
-    return cache
-  }
+  if (cache) return cache
 
   ensureDirectories()
   await RESOURCES.ensureInstalled()
 
   const warnings = []
-
   const [stops, places, lines] = await Promise.all([
-    readDatabaseFile(
-      files.stops,
-      DATABASE_LABELS.stops,
-      warnings
-    ),
-    readDatabaseFile(
-      files.places,
-      DATABASE_LABELS.places,
-      warnings
-    ),
-    readDatabaseFile(
-      files.lines,
-      DATABASE_LABELS.lines,
-      warnings
-    )
+    readDatabaseFile(files.stops, DATABASE_LABELS.stops, warnings),
+    readDatabaseFile(files.places, DATABASE_LABELS.places, warnings),
+    readDatabaseFile(files.lines, DATABASE_LABELS.lines, warnings)
   ])
 
-  cache = {
-    stops,
-    places,
-    lines,
-    warnings
-  }
-
+  cache = { stops, places, lines, warnings }
   lookupIndexes = {
     stops: buildLookupIndex(stops),
     places: buildLookupIndex(places),
     lines: buildLookupIndex(lines)
   }
-
   return cache
 }
 
-async function reload() {
+function reload() {
   cache = null
   lookupIndexes = null
   return load()
@@ -81,24 +52,18 @@ async function readDatabaseFile(path, label, warnings) {
   }
 
   try {
-    if (!fm.isFileDownloaded(path)) {
-      await fm.downloadFileFromiCloud(path)
-    }
-
+    await STORAGE.ensureDownloaded(path)
     const content = fm.readString(path).trim()
-
     if (!content) {
       warnings.push(`Base vide : ${label}`)
       return {}
     }
 
     const parsed = JSON.parse(content)
-
     if (!isPlainObject(parsed)) {
       warnings.push(`Format invalide : ${label}`)
       return {}
     }
-
     return parsed
   } catch (_) {
     warnings.push(`Lecture impossible : ${label}`)
@@ -123,44 +88,24 @@ async function getLine(code) {
 
 async function formatStop(value) {
   const name = getEntryName(await getStop(value))
-
-  return name || formatFallbackName(
-    cleanStopName(value)
-  )
+  return name || formatFallbackName(cleanStopName(value))
 }
 
 async function formatPlace(code) {
   const name = getEntryName(await getPlace(code))
-
-  if (name) {
-    return name
-  }
-
+  if (name) return name
   const normalizedCode = UTILS.normalizeCode(code)
-
-  return normalizedCode
-    ? `Code ${normalizedCode}`
-    : "Lieu inconnu"
+  return normalizedCode ? `Code ${normalizedCode}` : "Lieu inconnu"
 }
 
 async function formatLine(code) {
   const name = getEntryName(await getLine(code))
-
-  if (name) {
-    return name
-  }
+  if (name) return name
 
   const normalizedCode = UTILS.normalizeCode(code)
-
-  if (!normalizedCode) {
-    return "?"
-  }
-
+  if (!normalizedCode) return "?"
   const numeric = Number(normalizedCode)
-
-  return Number.isFinite(numeric)
-    ? String(numeric)
-    : normalizedCode
+  return Number.isFinite(numeric) ? String(numeric) : normalizedCode
 }
 
 async function isDepot(code) {
@@ -172,130 +117,73 @@ async function isReliefPoint(code) {
 }
 
 async function getWarnings() {
-  const database = await load()
-  return [...database.warnings]
+  return [...(await load()).warnings]
 }
 
 function buildLookupIndex(collection) {
   const index = Object.create(null)
-
-  if (!isPlainObject(collection)) {
-    return index
-  }
+  if (!isPlainObject(collection)) return index
 
   for (const [key, rawEntry] of Object.entries(collection)) {
     const entry = normalizeEntry(rawEntry)
-
-    if (!entry) {
-      continue
-    }
-
+    if (!entry) continue
     addIndexEntry(index, key, rawEntry)
-
-    for (const alias of normalizeAliases(entry)) {
-      addIndexEntry(index, alias, rawEntry)
-    }
+    for (const alias of normalizeAliases(entry)) addIndexEntry(index, alias, rawEntry)
   }
-
   return index
 }
 
 function addIndexEntry(index, value, rawEntry) {
   const key = UTILS.normalizeKey(value)
-
-  if (
-    key &&
-    !Object.prototype.hasOwnProperty.call(index, key)
-  ) {
-    index[key] = rawEntry
-  }
+  if (key && !Object.prototype.hasOwnProperty.call(index, key)) index[key] = rawEntry
 }
 
 function resolveIndexedEntry(index, value) {
   const key = UTILS.normalizeKey(value)
-
-  if (
-    !key ||
-    !index ||
-    !Object.prototype.hasOwnProperty.call(index, key)
-  ) {
-    return null
-  }
-
+  if (!key || !index || !Object.prototype.hasOwnProperty.call(index, key)) return null
   return normalizeEntry(index[key])
 }
 
 function normalizeEntry(entry) {
-  if (typeof entry === "string") {
-    return { name: entry }
-  }
-
-  return isPlainObject(entry)
-    ? entry
-    : null
+  if (typeof entry === "string") return { name: entry }
+  return isPlainObject(entry) ? entry : null
 }
 
 function normalizeAliases(entry) {
-  if (!entry) {
-    return []
-  }
-
-  if (typeof entry.aliases === "string") {
-    return [entry.aliases]
-  }
-
+  if (!entry) return []
+  if (typeof entry.aliases === "string") return [entry.aliases]
   return Array.isArray(entry.aliases)
     ? entry.aliases.filter(value => typeof value === "string")
     : []
 }
 
 function getEntryName(entry) {
-  return entry && typeof entry.name === "string"
-    ? entry.name.trim()
-    : ""
+  return entry && typeof entry.name === "string" ? entry.name.trim() : ""
 }
 
 function hasEntryType(entry, type) {
-  return Boolean(
-    entry &&
-    String(entry.type || "")
-      .trim()
-      .toLowerCase() === type
-  )
+  return Boolean(entry && String(entry.type || "").trim().toLowerCase() === type)
 }
 
 function isPlainObject(value) {
-  return Boolean(
-    value &&
-    typeof value === "object" &&
-    !Array.isArray(value)
-  )
+  return Boolean(value && typeof value === "object" && !Array.isArray(value))
 }
 
 function cleanStopName(value) {
   return String(value || "")
     .replace(/^-\s*\/\s*-\s+/, "")
-    .replace(
-      /^(Régulier|Haut-le-pied|Entrée|Sortie)\s*\/\s*\S+\s+/i,
-      ""
-    )
+    .replace(/^(Régulier|Haut-le-pied|Entrée|Sortie)\s*\/\s*\S+\s+/i, "")
     .replace(/\s+/g, " ")
     .trim()
 }
 
 function formatFallbackName(value) {
   const cleaned = String(value || "").trim()
-
-  if (!cleaned) {
-    return "Arrêt inconnu"
-  }
-
+  if (!cleaned) return "Arrêt inconnu"
   return cleaned
     .toLocaleLowerCase("fr-FR")
-    .replace(
-      /(^|[\s'-])([a-zà-öø-ÿ])/g,
-      (match, separator, letter) =>
-        separator + letter.toLocaleUpperCase("fr-FR")
+    .replace(/(^|[\s'-])([a-zà-öø-ÿ])/g, (_, separator, letter) =>
+      separator + letter.toLocaleUpperCase("fr-FR")
     )
 }
 
