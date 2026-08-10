@@ -1,17 +1,17 @@
 name: Patch CTS Installer 1.0.5
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
+  issues:
+    types:
+      - opened
 
 permissions:
   contents: write
 
 jobs:
   patch-installer:
-    if: github.actor != 'github-actions[bot]'
+    if: github.event_name == 'workflow_dispatch' || github.event.issue.title == '[automation] patch installer 1.0.5'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
