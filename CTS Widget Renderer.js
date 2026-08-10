@@ -158,12 +158,13 @@ function addTimingCard(parent, focus, state, density) {
     focus.start,
     focus.from,
     "left",
-    density
+    density,
+    density.timingStartWidth
   )
 
-  timing.addSpacer()
+  timing.addSpacer(density.timingArrowGapBefore)
   addArrowBadge(timing, state, density.arrowSize)
-  timing.addSpacer(density.timingEndGap)
+  timing.addSpacer(density.timingArrowGapAfter)
 
   addTimingSide(
     timing,
@@ -171,11 +172,13 @@ function addTimingCard(parent, focus, state, density) {
     focus.end,
     focus.to,
     "left",
-    density
+    density,
+    density.timingEndWidth
   )
 
-  // Le bloc de fin reste proche de la flèche, comme dans le rendu
-  // d'origine, tandis que l'espace restant est absorbé à droite.
+  // La grille horaire est volontairement ancrée à gauche.
+  // L'espace restant est absorbé après le bloc de fin afin de
+  // conserver les mêmes axes quelle que soit la longueur du texte.
   timing.addSpacer()
 
   if (!hasOperationalDetails(focus)) {
@@ -194,10 +197,15 @@ function addTimingSide(
   time,
   place,
   alignment,
-  density
+  density,
+  width = 0
 ) {
   const block = parent.addStack()
   block.layoutVertically()
+
+  if (width > 0) {
+    block.size = new Size(width, 0)
+  }
 
   const labelText = addText(
     block,
@@ -205,6 +213,7 @@ function addTimingSide(
     Font.semiboldSystemFont(density.timingLabelSize),
     secondary()
   )
+  labelText.minimumScaleFactor = 0.85
 
   block.addSpacer(density.timingLabelGap)
 
@@ -214,6 +223,7 @@ function addTimingSide(
     Font.boldMonospacedSystemFont(density.timeSize),
     THEME.getPrimaryTextColor()
   )
+  timeText.minimumScaleFactor = 0.9
 
   block.addSpacer(density.placeGap)
 
@@ -230,6 +240,7 @@ function addTimingSide(
     ),
     secondary()
   )
+  placeText.minimumScaleFactor = 0.75
 
   alignText(labelText, alignment)
   alignText(timeText, alignment)
@@ -336,6 +347,8 @@ function addDetailBlock(
       : THEME.getPrimaryTextColor()
   )
 
+  valueText.minimumScaleFactor = 0.75
+
   const alignment = options.alignment || "left"
   alignText(labelText, alignment)
   alignText(valueText, alignment)
@@ -399,15 +412,17 @@ function addSliceRow(parent, slice, state, density) {
   addSliceNumber(row, slice, active, state, density)
   row.addSpacer(density.itemGap)
 
+  // Deux vraies colonnes : informations à gauche, métriques à droite.
+  // Les deux lignes d'une même colonne partagent exactement le même axe.
   const body = row.addStack()
-  body.layoutVertically()
+  body.centerAlignContent()
 
-  const top = body.addStack()
-  top.centerAlignContent()
+  const info = body.addStack()
+  info.layoutVertically()
 
   const titleValue = `Ligne ${slice.line} · Voiture ${slice.vehicle}`
   const title = addText(
-    top,
+    info,
     titleValue,
     Font.boldSystemFont(
       fitFont(
@@ -422,27 +437,13 @@ function addSliceRow(parent, slice, state, density) {
       : THEME.getInactiveTextColor()
   )
   title.leftAlignText()
+  title.minimumScaleFactor = 0.78
 
-  top.addSpacer()
-
-  addMetricColumnText(
-    top,
-    `${slice.start}–${slice.end}`,
-    Font.boldMonospacedSystemFont(density.rangeSize),
-    active
-      ? accent(state)
-      : THEME.getInactiveTimeColor(),
-    density.sliceMetricsWidth
-  )
-
-  body.addSpacer(density.sliceDetailGap)
-
-  const bottom = body.addStack()
-  bottom.centerAlignContent()
+  info.addSpacer(density.sliceDetailGap)
 
   const routeValue = `${slice.from} → ${slice.to}`
   const route = addText(
-    bottom,
+    info,
     routeValue,
     Font.mediumSystemFont(
       fitFont(
@@ -455,16 +456,33 @@ function addSliceRow(parent, slice, state, density) {
     secondary()
   )
   route.leftAlignText()
+  route.minimumScaleFactor = 0.75
 
-  bottom.addSpacer()
+  body.addSpacer()
 
-  addMetricColumnText(
-    bottom,
+  const metrics = body.addStack()
+  metrics.layoutVertically()
+  metrics.size = new Size(density.sliceMetricsWidth, 0)
+
+  const range = addCenteredMetric(
+    metrics,
+    `${slice.start}–${slice.end}`,
+    Font.boldMonospacedSystemFont(density.rangeSize),
+    active
+      ? accent(state)
+      : THEME.getInactiveTimeColor()
+  )
+  range.minimumScaleFactor = 0.78
+
+  metrics.addSpacer(density.sliceDetailGap)
+
+  const durationText = addCenteredMetric(
+    metrics,
     UTILS.formatDuration(duration),
     Font.mediumSystemFont(density.durationSize),
-    secondary(),
-    density.sliceMetricsWidth
+    secondary()
   )
+  durationText.minimumScaleFactor = 0.85
 }
 
 function addSliceNumber(parent, slice, active, state, density) {
@@ -649,16 +667,15 @@ function addCenteredText(parent, value, font, color) {
   row.addSpacer()
 }
 
-function addMetricColumnText(parent, value, font, color, width) {
-  const column = parent.addStack()
-  column.size = new Size(width, 0)
-  column.centerAlignContent()
-  column.addSpacer()
+function addCenteredMetric(parent, value, font, color) {
+  const row = parent.addStack()
+  row.centerAlignContent()
+  row.addSpacer()
 
-  const text = addText(column, value, font, color)
+  const text = addText(row, value, font, color)
   text.centerAlignText()
 
-  column.addSpacer()
+  row.addSpacer()
   return text
 }
 
@@ -825,7 +842,10 @@ function densityComfortable() {
     timingLabelGap: 3,
     timeSize: 27,
     arrowSize: 28,
-    timingEndGap: 9,
+    timingStartWidth: 126,
+    timingEndWidth: 100,
+    timingArrowGapBefore: 3,
+    timingArrowGapAfter: 6,
     placeGap: 3,
     placeSize: 10.5,
     placeSoftLimit: 18,
@@ -857,9 +877,9 @@ function densityComfortable() {
     titleMinimumSize: 9,
     routeSoftLimit: 36,
     routeMinimumSize: 7.4,
-    rangeSize: 11,
+    rangeSize: 10.5,
     durationSize: 9,
-    sliceMetricsWidth: 82,
+    sliceMetricsWidth: 96,
     sliceDetailGap: 3,
     statPaddingHorizontal: 24,
     statPaddingVertical: 5,
@@ -891,7 +911,10 @@ function densityStandard() {
     timingLabelSize: 7.2,
     timeSize: 23,
     arrowSize: 24,
-    timingEndGap: 8,
+    timingStartWidth: 112,
+    timingEndWidth: 92,
+    timingArrowGapBefore: 3,
+    timingArrowGapAfter: 6,
     placeSize: 9,
     detailsSectionGap: 3,
     detailGroupGap: 3,
@@ -919,9 +942,9 @@ function densityStandard() {
     titleMinimumSize: 8,
     routeSoftLimit: 35,
     routeMinimumSize: 6.8,
-    rangeSize: 9.5,
+    rangeSize: 9,
     durationSize: 7.5,
-    sliceMetricsWidth: 72,
+    sliceMetricsWidth: 86,
     sliceDetailGap: 2,
     statPaddingHorizontal: 19,
     statPaddingVertical: 4,
@@ -950,7 +973,10 @@ function densityCompact() {
     timingLabelSize: 6.8,
     timeSize: 21,
     arrowSize: 22,
-    timingEndGap: 7,
+    timingStartWidth: 104,
+    timingEndWidth: 85,
+    timingArrowGapBefore: 3,
+    timingArrowGapAfter: 5,
     placeSize: 8.5,
     placeMinimumSize: 7,
     detailLabelSize: 6.5,
@@ -976,9 +1002,9 @@ function densityCompact() {
     titleMinimumSize: 7.5,
     routeSoftLimit: 34,
     routeMinimumSize: 6.5,
-    rangeSize: 8.5,
+    rangeSize: 8,
     durationSize: 7,
-    sliceMetricsWidth: 66,
+    sliceMetricsWidth: 78,
     sliceDetailGap: 1,
     statPaddingHorizontal: 17,
     statGap: 6,
