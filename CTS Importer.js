@@ -63,7 +63,18 @@ async function readCurrentIndex() {
 }
 
 function pipeline() {
-  const module = importModule("CTS Import Pipeline")
+  let module
+
+  try {
+    module = importModule("CTS Import Pipeline")
+  } catch (error) {
+    throw UTILS.createTelemetryError(
+      "IMPORT_PIPELINE_UNAVAILABLE",
+      "import",
+      `CTS Import Pipeline est absent ou illisible : ${UTILS.errorMessage(error)}`,
+      error
+    )
+  }
 
   if (
     !module ||
