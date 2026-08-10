@@ -13,7 +13,10 @@
   },
   "ELSA": {
     "name": "Elsau",
-    "type": "relief"
+    "type": "relief",
+    "aliases": [
+      "ELSA_A"
+    ]
   },
   "ELSA_1": {
     "name": "Elsau",
