@@ -1,8 +1,5 @@
 // Variables used by Scriptable.
 // These must be at the very top of the file. Do not edit.
-// icon-color: cyan; icon-glyph: magic;
-// Variables used by Scriptable.
-// These must be at the very top of the file. Do not edit.
 // icon-color: gray; icon-glyph: wrench;
 
 // CTS Utils.js
@@ -252,6 +249,95 @@ function normalizeKey(value) {
     .toUpperCase()
 }
 
+function errorMessage(error) {
+  if (
+    error &&
+    typeof error.message === "string" &&
+    error.message.trim()
+  ) {
+    return error.message.trim()
+  }
+
+  return String(error || "Erreur inconnue")
+}
+
+function normalizeTelemetryCode(
+  value,
+  fallback = "UNKNOWN_ERROR"
+) {
+  const normalized = String(
+    value || fallback || "UNKNOWN_ERROR"
+  )
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_]/g, "_")
+    .slice(0, 64)
+
+  return normalized || "UNKNOWN_ERROR"
+}
+
+function normalizeTelemetryStage(
+  value,
+  fallback = "runtime"
+) {
+  const normalized = String(
+    value || fallback || "runtime"
+  )
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .slice(0, 50)
+
+  return normalized || "runtime"
+}
+
+function createTelemetryError(
+  code,
+  stage,
+  message,
+  cause = null
+) {
+  const error = new Error(
+    String(message || code || "Erreur inconnue.")
+  )
+
+  error.telemetryCode = normalizeTelemetryCode(code)
+  error.telemetryStage = normalizeTelemetryStage(stage)
+
+  if (cause) {
+    try {
+      error.cause = cause
+    } catch (_) {}
+  }
+
+  return error
+}
+
+function hasTelemetryError(error) {
+  return Boolean(
+    error &&
+    typeof error === "object" &&
+    typeof error.telemetryCode === "string" &&
+    error.telemetryCode.trim()
+  )
+}
+
+function telemetryFromError(
+  error,
+  fallbackCode,
+  fallbackStage
+) {
+  return {
+    code: normalizeTelemetryCode(
+      error?.telemetryCode,
+      fallbackCode
+    ),
+    stage: normalizeTelemetryStage(
+      error?.telemetryStage,
+      fallbackStage
+    )
+  }
+}
+
 function hasPlainTextInput() {
   return (
     Array.isArray(args.plainTexts) &&
@@ -405,6 +491,12 @@ module.exports = {
   escapeRegex,
   normalizeCode,
   normalizeKey,
+  errorMessage,
+  normalizeTelemetryCode,
+  normalizeTelemetryStage,
+  createTelemetryError,
+  hasTelemetryError,
+  telemetryFromError,
   isShortcutExecution,
   getShortcutInput,
   finishWithResult,
