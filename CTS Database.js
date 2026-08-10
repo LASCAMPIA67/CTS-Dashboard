@@ -39,7 +39,7 @@ async function load() {
   return cache
 }
 
-function reload() {
+async function reload() {
   cache = null
   lookupIndexes = null
   return load()
