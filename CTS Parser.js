@@ -39,7 +39,7 @@ async function parseService(rawText) {
   const driver = extractDriver(text)
 
   if (!service) errors.push("Numéro de service introuvable")
-  if (!date) errors.push("Date du service introuvable")
+  if (!date) errors.push("Date du service introuvable ou invalide")
   if (!driver.name) warnings.push("Nom du conducteur introuvable")
 
   let slices = await extractSlices(text)
@@ -199,9 +199,12 @@ function extractServiceDate(text) {
       "0"
     )
 
-  return (
+  const date =
     `${match[3]}-${month}-${day}`
-  )
+
+  return UTILS.parseDate(date)
+    ? date
+    : null
 }
 
 function extractDriver(text) {
