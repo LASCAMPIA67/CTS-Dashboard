@@ -224,11 +224,11 @@ async function finishWithResult({ success, title, message, output = {} }) {
   return result
 }
 
-function finishSuccess(title, message, output = {}) {
+async function finishSuccess(title, message, output = {}) {
   return finishWithResult({ success: true, title, message, output })
 }
 
-function finishError(title, message, output = {}) {
+async function finishError(title, message, output = {}) {
   return finishWithResult({ success: false, title, message, output })
 }
 
