@@ -2,37 +2,19 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: cyan; icon-glyph: rectangle.3.group;
 
-// CTS Widget Renderer.js
-// Rendu natif du widget CTS Dashboard, exclusivement au format large.
-
 const UTILS = importModule("CTS Utils")
 const THEME = importModule("CTS Widget Theme")
 
 function createWidget(family, context) {
   const validation = validateContext(context)
-
-  if (!validation.valid) {
-    return createErrorWidget(
-      "Service invalide",
-      validation.error
-    )
-  }
-
-  if (normalizeFamily(family) !== "large") {
-    return createLargeOnlyWidget()
-  }
-
-  return createLargeWidget(context)
+  if (!validation.valid) return createErrorWidget("Service invalide", validation.error)
+  return normalizeFamily(family) === "large"
+    ? createLargeWidget(context)
+    : createLargeOnlyWidget()
 }
 
 function createLargeWidget(context) {
-  const {
-    service,
-    state,
-    stats,
-    displaySlice: focus
-  } = context
-
+  const { service, state, stats, displaySlice: focus } = context
   const density = getDensity(service.slices.length)
   const widget = THEME.createBaseWidget(state.type)
 
@@ -45,15 +27,11 @@ function createLargeWidget(context) {
 
   addHeader(widget, service, state, density)
   widget.addSpacer(density.sectionGap)
-
   addTimingCard(widget, focus, state, density)
   widget.addSpacer(density.sectionGap)
-
   addProgram(widget, service, state, density)
   widget.addSpacer(density.sectionGap)
-
   addStats(widget, stats, density)
-
   return widget
 }
 
@@ -75,18 +53,11 @@ function createLargeOnlyWidget() {
   icon.addSpacer()
 
   row.addSpacer(10)
-
   const text = row.addStack()
   text.layoutVertically()
   addText(text, "CTS Dashboard", Font.boldSystemFont(15), Color.white())
   text.addSpacer(2)
-  addText(
-    text,
-    "Widget grand requis",
-    Font.semiboldSystemFont(9),
-    new Color("#9EC8FF")
-  )
-
+  addText(text, "Widget grand requis", Font.semiboldSystemFont(9), new Color("#9EC8FF"))
   return widget
 }
 
@@ -102,16 +73,10 @@ function addHeader(parent, service, state, density) {
   icon.borderColor = THEME.translucentWhite(0.09)
   icon.centerAlignContent()
   icon.addSpacer()
-  addSymbol(
-    icon,
-    getTransportIcon(service),
-    density.iconSymbolSize,
-    accent(state)
-  )
+  addSymbol(icon, getTransportIcon(service), density.iconSymbolSize, accent(state))
   icon.addSpacer()
 
   row.addSpacer(density.iconGap)
-
   const identity = row.addStack()
   identity.layoutVertically()
 
@@ -119,16 +84,18 @@ function addHeader(parent, service, state, density) {
     identity,
     service.number,
     Font.boldSystemFont(density.serviceSize),
-    THEME.getPrimaryTextColor()
+    THEME.getPrimaryTextColor(),
+    1,
+    0.82
   )
-
   identity.addSpacer(1)
-
   addText(
     identity,
     UTILS.formatDateLong(service.dateObject),
     Font.mediumSystemFont(density.dateSize),
-    secondary()
+    secondary(),
+    1,
+    0.8
   )
 
   row.addSpacer()
@@ -157,7 +124,6 @@ function addTimingCard(parent, focus, state, density) {
     getTimingStartLabel(state),
     focus.start,
     focus.from,
-    "left",
     density,
     density.timingStartWidth
   )
@@ -171,82 +137,53 @@ function addTimingCard(parent, focus, state, density) {
     "FIN DE TRANCHE",
     focus.end,
     focus.to,
-    "left",
     density,
     density.timingEndWidth
   )
-
-  // La grille horaire est volontairement ancrée à gauche.
-  // L'espace restant est absorbé après le bloc de fin afin de
-  // conserver les mêmes axes quelle que soit la longueur du texte.
   timing.addSpacer()
 
-  if (!hasOperationalDetails(focus)) {
-    return
-  }
-
+  if (!hasOperationalDetails(focus)) return
   card.addSpacer(density.detailsSectionGap)
   addDivider(card)
   card.addSpacer(density.detailsSectionGap)
   addOperationalDetails(card, focus, state, density)
 }
 
-function addTimingSide(
-  parent,
-  label,
-  time,
-  place,
-  alignment,
-  density,
-  width = 0
-) {
+function addTimingSide(parent, label, time, place, density, width) {
   const block = parent.addStack()
   block.layoutVertically()
+  block.size = new Size(width, 0)
 
-  if (width > 0) {
-    block.size = new Size(width, 0)
-  }
-
-  const labelText = addText(
+  addText(
     block,
     label,
     Font.semiboldSystemFont(density.timingLabelSize),
-    secondary()
-  )
-  labelText.minimumScaleFactor = 0.85
+    secondary(),
+    1,
+    0.72
+  ).leftAlignText()
 
   block.addSpacer(density.timingLabelGap)
-
-  const timeText = addText(
+  addText(
     block,
     time,
     Font.boldMonospacedSystemFont(density.timeSize),
-    THEME.getPrimaryTextColor()
-  )
-  timeText.minimumScaleFactor = 0.9
+    THEME.getPrimaryTextColor(),
+    1,
+    0.78
+  ).leftAlignText()
 
   block.addSpacer(density.placeGap)
-
-  const placeText = addText(
+  addText(
     block,
     place,
     Font.mediumSystemFont(
-      fitFont(
-        density.placeSize,
-        place,
-        density.placeSoftLimit,
-        density.placeMinimumSize
-      )
+      fitFont(density.placeSize, place, density.placeSoftLimit, density.placeMinimumSize)
     ),
-    secondary()
-  )
-  placeText.minimumScaleFactor = 0.75
-
-  alignText(labelText, alignment)
-  alignText(timeText, alignment)
-  alignText(placeText, alignment)
-
-  return block
+    secondary(),
+    1,
+    0.7
+  ).leftAlignText()
 }
 
 function addOperationalDetails(parent, slice, state, density) {
@@ -254,65 +191,30 @@ function addOperationalDetails(parent, slice, state, density) {
     const row = parent.addStack()
     row.centerAlignContent()
 
-    addDetailBlock(
-      row,
-      "PRISE DE SERVICE",
-      slice.dutyStart,
-      state,
-      density,
-      { time: true, alignment: "left" }
-    )
-
+    addDetailBlock(row, "PRISE DE SERVICE", slice.dutyStart, state, density, {
+      time: true,
+      alignment: "left"
+    })
     row.addSpacer()
+    addDetailBlock(row, "SORTIE DÉPÔT", slice.depotExitAt, state, density, {
+      time: true,
+      alignment: "right"
+    })
 
-    addDetailBlock(
-      row,
-      "SORTIE DÉPÔT",
-      slice.depotExitAt,
-      state,
-      density,
-      { time: true, alignment: "right" }
-    )
-
-    if (slice.lineUpAt || slice.direction) {
-      parent.addSpacer(density.detailGroupGap)
-    }
+    if (slice.lineUpAt || slice.direction) parent.addSpacer(density.detailGroupGap)
   }
 
   if (slice.lineUpAt) {
-    addDetailBlock(
-      parent,
-      getOperationStartLabel(slice),
-      slice.lineUpAt,
-      state,
-      density
-    )
-
-    if (slice.direction) {
-      parent.addSpacer(density.detailGroupGap)
-    }
+    addDetailBlock(parent, getOperationStartLabel(slice), slice.lineUpAt, state, density)
+    if (slice.direction) parent.addSpacer(density.detailGroupGap)
   }
 
   if (slice.direction) {
-    addDetailBlock(
-      parent,
-      "DIRECTION",
-      slice.direction,
-      state,
-      density,
-      { emphasized: true }
-    )
+    addDetailBlock(parent, "DIRECTION", slice.direction, state, density, { emphasized: true })
   }
 }
 
-function addDetailBlock(
-  parent,
-  label,
-  value,
-  state,
-  density,
-  options = {}
-) {
+function addDetailBlock(parent, label, value, state, density, options = {}) {
   const block = parent.addStack()
   block.layoutVertically()
 
@@ -320,11 +222,12 @@ function addDetailBlock(
     block,
     label,
     Font.semiboldSystemFont(density.detailLabelSize),
-    secondary()
+    secondary(),
+    1,
+    0.72
   )
 
   block.addSpacer(density.detailValueGap)
-
   const valueText = addText(
     block,
     value,
@@ -332,38 +235,25 @@ function addDetailBlock(
       ? Font.boldMonospacedSystemFont(density.detailTimeSize)
       : Font.semiboldSystemFont(
           fitFont(
-            options.emphasized
-              ? density.directionSize
-              : density.detailValueSize,
+            options.emphasized ? density.directionSize : density.detailValueSize,
             value,
-            options.emphasized
-              ? density.directionSoftLimit
-              : density.detailSoftLimit,
+            options.emphasized ? density.directionSoftLimit : density.detailSoftLimit,
             density.detailMinimumSize
           )
         ),
-    options.emphasized
-      ? accent(state)
-      : THEME.getPrimaryTextColor()
+    options.emphasized ? accent(state) : THEME.getPrimaryTextColor(),
+    1,
+    0.68
   )
-
-  valueText.minimumScaleFactor = 0.75
 
   const alignment = options.alignment || "left"
   alignText(labelText, alignment)
   alignText(valueText, alignment)
-
-  return block
 }
 
 function addProgram(parent, service, state, density) {
   const card = addSurface(parent, {
-    padding: [
-      density.programPadding,
-      density.programPadding,
-      density.programPadding,
-      density.programPadding
-    ],
+    padding: [density.programPadding, density.programPadding, density.programPadding, density.programPadding],
     radius: density.programRadius,
     backgroundAlpha: 0.05,
     borderAlpha: 0.075,
@@ -376,22 +266,17 @@ function addProgram(parent, service, state, density) {
     `${service.slices.length} tranche${service.slices.length > 1 ? "s" : ""}`,
     density.sectionHeaderSize
   )
-
   card.addSpacer(density.programHeaderGap)
 
   service.slices.forEach((slice, index) => {
     addSliceRow(card, slice, state, density)
-
-    if (index < service.slices.length - 1) {
-      card.addSpacer(density.rowGap)
-    }
+    if (index < service.slices.length - 1) card.addSpacer(density.rowGap)
   })
 }
 
 function addSliceRow(parent, slice, state, density) {
   const active = isSliceActive(slice, state)
   const duration = UTILS.durationMinutes(slice.start, slice.end)
-
   const row = parent.addStack()
   row.centerAlignContent()
   row.setPadding(
@@ -402,18 +287,24 @@ function addSliceRow(parent, slice, state, density) {
   )
   row.cornerRadius = density.rowRadius
   row.backgroundColor = active
-    ? accentAlpha(state, 0.085)
+    ? accentAlpha(state, 0.09)
     : THEME.translucentWhite(0.018)
   row.borderWidth = 0.5
   row.borderColor = active
-    ? accentAlpha(state, 0.18)
-    : THEME.translucentWhite(0.035)
+    ? accentAlpha(state, 0.21)
+    : THEME.translucentWhite(0.04)
+
+  const rail = row.addStack()
+  rail.size = new Size(density.railWidth, density.railHeight)
+  rail.cornerRadius = density.railWidth / 2
+  rail.backgroundColor = active
+    ? accentAlpha(state, 0.9)
+    : THEME.translucentWhite(0.09)
+  row.addSpacer(density.railGap)
 
   addSliceNumber(row, slice, active, state, density)
   row.addSpacer(density.itemGap)
 
-  // Deux vraies colonnes : informations à gauche, métriques à droite.
-  // Les deux lignes d'une même colonne partagent exactement le même axe.
   const body = row.addStack()
   body.centerAlignContent()
 
@@ -421,68 +312,51 @@ function addSliceRow(parent, slice, state, density) {
   info.layoutVertically()
 
   const titleValue = `Ligne ${slice.line} · Voiture ${slice.vehicle}`
-  const title = addText(
+  addText(
     info,
     titleValue,
     Font.boldSystemFont(
-      fitFont(
-        density.sliceTitleSize,
-        titleValue,
-        density.titleSoftLimit,
-        density.titleMinimumSize
-      )
+      fitFont(density.sliceTitleSize, titleValue, density.titleSoftLimit, density.titleMinimumSize)
     ),
-    active
-      ? THEME.getPrimaryTextColor()
-      : THEME.getInactiveTextColor()
-  )
-  title.leftAlignText()
-  title.minimumScaleFactor = 0.78
+    active ? THEME.getPrimaryTextColor() : THEME.getInactiveTextColor(),
+    1,
+    0.68
+  ).leftAlignText()
 
   info.addSpacer(density.sliceDetailGap)
-
   const routeValue = `${slice.from} → ${slice.to}`
-  const route = addText(
+  addText(
     info,
     routeValue,
     Font.mediumSystemFont(
-      fitFont(
-        density.sliceDetailSize,
-        routeValue,
-        density.routeSoftLimit,
-        density.routeMinimumSize
-      )
+      fitFont(density.sliceDetailSize, routeValue, density.routeSoftLimit, density.routeMinimumSize)
     ),
-    secondary()
-  )
-  route.leftAlignText()
-  route.minimumScaleFactor = 0.75
+    secondary(),
+    1,
+    0.64
+  ).leftAlignText()
 
-  body.addSpacer()
+  body.addSpacer(density.metricsGap)
 
   const metrics = body.addStack()
   metrics.layoutVertically()
   metrics.size = new Size(density.sliceMetricsWidth, 0)
 
-  const range = addCenteredMetric(
+  addCenteredMetric(
     metrics,
     `${slice.start}–${slice.end}`,
     Font.boldMonospacedSystemFont(density.rangeSize),
-    active
-      ? accent(state)
-      : THEME.getInactiveTimeColor()
+    active ? accent(state) : THEME.getInactiveTimeColor(),
+    0.7
   )
-  range.minimumScaleFactor = 0.78
-
   metrics.addSpacer(density.sliceDetailGap)
-
-  const durationText = addCenteredMetric(
+  addCenteredMetric(
     metrics,
     UTILS.formatDuration(duration),
     Font.mediumSystemFont(density.durationSize),
-    secondary()
+    secondary(),
+    0.78
   )
-  durationText.minimumScaleFactor = 0.85
 }
 
 function addSliceNumber(parent, slice, active, state, density) {
@@ -494,18 +368,16 @@ function addSliceNumber(parent, slice, active, state, density) {
     : THEME.translucentWhite(0.065)
   badge.borderWidth = 0.5
   badge.borderColor = active
-    ? accentAlpha(state, 0.28)
+    ? accentAlpha(state, 0.3)
     : THEME.translucentWhite(0.06)
   badge.centerAlignContent()
   badge.addSpacer()
-
   addText(
     badge,
     slice.index,
     Font.boldSystemFont(density.numberFont),
     active ? accent(state) : secondary()
   )
-
   badge.addSpacer()
 }
 
@@ -513,23 +385,9 @@ function addStats(parent, stats, density) {
   const row = parent.addStack()
   row.centerAlignContent()
   row.addSpacer()
-
-  addStatCard(
-    row,
-    UTILS.formatDuration(stats.work),
-    "Travail",
-    density
-  )
-
+  addStatCard(row, UTILS.formatDuration(stats.work), "Travail", density)
   row.addSpacer(density.statGap)
-
-  addStatCard(
-    row,
-    UTILS.formatDuration(stats.amplitude),
-    "Amplitude",
-    density
-  )
-
+  addStatCard(row, UTILS.formatDuration(stats.amplitude), "Amplitude", density)
   row.addSpacer()
 }
 
@@ -543,26 +401,13 @@ function addStatCard(parent, value, label, density) {
     ],
     radius: density.statRadius,
     backgroundAlpha: 0.05,
-    borderAlpha: 0.065,
+    borderAlpha: 0.07,
     vertical: true
   })
-
   card.centerAlignContent()
-  addCenteredText(
-    card,
-    value,
-    Font.boldSystemFont(density.statValueSize),
-    THEME.getPrimaryTextColor()
-  )
-
+  addCenteredText(card, value, Font.boldSystemFont(density.statValueSize), THEME.getPrimaryTextColor())
   card.addSpacer(1)
-
-  addCenteredText(
-    card,
-    label,
-    Font.mediumSystemFont(density.statLabelSize),
-    secondary()
-  )
+  addCenteredText(card, label, Font.mediumSystemFont(density.statLabelSize), secondary())
 }
 
 function addStatusPill(parent, state, density) {
@@ -577,13 +422,7 @@ function addStatusPill(parent, state, density) {
   pill.backgroundColor = accentAlpha(state, 0.1)
   pill.borderWidth = 0.5
   pill.borderColor = accentAlpha(state, 0.22)
-
-  addText(
-    pill,
-    state.label,
-    Font.semiboldSystemFont(density.badgeSize),
-    accent(state)
-  )
+  addText(pill, state.label, Font.semiboldSystemFont(density.badgeSize), accent(state), 1, 0.72)
 }
 
 function addArrowBadge(parent, state, size) {
@@ -595,59 +434,27 @@ function addArrowBadge(parent, state, size) {
   badge.borderColor = accentAlpha(state, 0.24)
   badge.centerAlignContent()
   badge.addSpacer()
-  addSymbol(
-    badge,
-    "arrow.right",
-    Math.max(10, size * 0.48),
-    accent(state)
-  )
+  addSymbol(badge, "arrow.right", Math.max(10, size * 0.48), accent(state))
   badge.addSpacer()
 }
 
 function addSectionHeader(parent, title, detail, fontSize) {
   const row = parent.addStack()
   row.centerAlignContent()
-
-  addText(
-    row,
-    title,
-    Font.semiboldSystemFont(fontSize),
-    secondary()
-  )
-
+  addText(row, title, Font.semiboldSystemFont(fontSize), secondary(), 1, 0.75)
   row.addSpacer()
-
-  addText(
-    row,
-    detail,
-    Font.mediumSystemFont(fontSize),
-    secondary()
-  )
+  addText(row, detail, Font.mediumSystemFont(fontSize), secondary(), 1, 0.75)
 }
 
 function addSurface(parent, options = {}) {
   const stack = parent.addStack()
+  if (options.vertical) stack.layoutVertically()
   const padding = options.padding || [0, 0, 0, 0]
-
-  if (options.vertical) {
-    stack.layoutVertically()
-  }
-
-  stack.setPadding(
-    padding[0],
-    padding[1],
-    padding[2],
-    padding[3]
-  )
+  stack.setPadding(padding[0], padding[1], padding[2], padding[3])
   stack.cornerRadius = options.radius ?? 14
-  stack.backgroundColor = THEME.translucentWhite(
-    options.backgroundAlpha ?? 0.05
-  )
+  stack.backgroundColor = THEME.translucentWhite(options.backgroundAlpha ?? 0.05)
   stack.borderWidth = 0.5
-  stack.borderColor = THEME.translucentWhite(
-    options.borderAlpha ?? 0.07
-  )
-
+  stack.borderColor = THEME.translucentWhite(options.borderAlpha ?? 0.07)
   return stack
 }
 
@@ -662,40 +469,31 @@ function addCenteredText(parent, value, font, color) {
   const row = parent.addStack()
   row.centerAlignContent()
   row.addSpacer()
-  const text = addText(row, value, font, color)
-  text.centerAlignText()
+  addText(row, value, font, color, 1, 0.75).centerAlignText()
   row.addSpacer()
 }
 
-function addCenteredMetric(parent, value, font, color) {
+function addCenteredMetric(parent, value, font, color, scale = 0.72) {
   const row = parent.addStack()
   row.centerAlignContent()
   row.addSpacer()
-
-  const text = addText(row, value, font, color)
-  text.centerAlignText()
-
+  addText(row, value, font, color, 1, scale).centerAlignText()
   row.addSpacer()
-  return text
 }
 
-function addText(parent, value, font, color, lines = 1) {
+function addText(parent, value, font, color, lines = 1, scale = 0.72) {
   const text = parent.addText(String(value ?? ""))
   text.font = font
   text.textColor = color
   text.lineLimit = lines
+  text.minimumScaleFactor = Math.max(0.5, Math.min(1, Number(scale) || 0.72))
   return text
 }
 
 function addSymbol(parent, name, size, color) {
   const symbol = SFSymbol.named(name)
-
-  if (!symbol) {
-    return null
-  }
-
+  if (!symbol) return null
   symbol.applyFont(Font.systemFont(size))
-
   const image = parent.addImage(symbol.image)
   image.imageSize = new Size(size, size)
   image.tintColor = color
@@ -703,29 +501,18 @@ function addSymbol(parent, name, size, color) {
 }
 
 function alignText(text, alignment) {
-  if (alignment === "right") {
-    text.rightAlignText()
-  } else if (alignment === "center") {
-    text.centerAlignText()
-  } else {
-    text.leftAlignText()
-  }
+  if (alignment === "right") text.rightAlignText()
+  else if (alignment === "center") text.centerAlignText()
+  else text.leftAlignText()
 }
 
 function getTransportIcon(service) {
-  const slices = Array.isArray(service?.slices)
-    ? service.slices
-    : []
-
-  return slices.some(isTramSlice)
-    ? "tram.fill"
-    : "bus.fill"
+  const slices = Array.isArray(service?.slices) ? service.slices : []
+  return slices.some(isTramSlice) ? "tram.fill" : "bus.fill"
 }
 
 function isTramSlice(slice) {
-  return ["80", "81", "82", "83", "84", "85"].includes(
-    String(slice?.lineCode || "").trim()
-  )
+  return ["80", "81", "82", "83", "84", "85"].includes(String(slice?.lineCode || "").trim())
 }
 
 function hasDepotTiming(slice) {
@@ -733,27 +520,16 @@ function hasDepotTiming(slice) {
 }
 
 function hasOperationalDetails(slice) {
-  return Boolean(
-    slice &&
-    (slice.depotExitAt || slice.lineUpAt || slice.direction)
-  )
+  return Boolean(slice && (slice.depotExitAt || slice.lineUpAt || slice.direction))
 }
 
 function getOperationStartLabel(slice) {
-  return isTramSlice(slice)
-    ? "DÉBUT EXPLOITATION"
-    : "MISE EN LIGNE"
+  return isTramSlice(slice) ? "DÉBUT EXPLOITATION" : "MISE EN LIGNE"
 }
 
 function getTimingStartLabel(state) {
-  if (state?.type === "WORK") {
-    return "DÉBUT DE TRANCHE"
-  }
-
-  if (state?.type === "DONE") {
-    return "DERNIÈRE TRANCHE"
-  }
-
+  if (state?.type === "WORK") return "DÉBUT DE TRANCHE"
+  if (state?.type === "DONE") return "DERNIÈRE TRANCHE"
   return "PROCHAINE TRANCHE"
 }
 
@@ -764,61 +540,64 @@ function isSliceActive(slice, state) {
   )
 }
 
-function accent(state) {
-  return THEME.getAccentColor(state.type)
-}
-
-function accentAlpha(state, alpha) {
-  return new Color(
-    THEME.getAccentHex(state.type),
-    alpha
-  )
-}
-
-function secondary() {
-  return THEME.getSecondaryColor()
-}
+function accent(state) { return THEME.getAccentColor(state.type) }
+function accentAlpha(state, alpha) { return new Color(THEME.getAccentHex(state.type), alpha) }
+function secondary() { return THEME.getSecondaryColor() }
 
 function normalizeFamily(value) {
-  const family = String(value || "")
-    .trim()
-    .toLowerCase()
-
-  return family || "large"
+  return String(value || "").trim().toLowerCase() || "large"
 }
 
 function fitFont(baseSize, value, softLimit, minimumSize) {
   const base = Math.max(1, Number(baseSize) || 1)
-  const minimum = Math.min(
-    base,
-    Math.max(1, Number(minimumSize) || base * 0.7)
-  )
+  const minimum = Math.min(base, Math.max(1, Number(minimumSize) || base * 0.7))
   const length = String(value ?? "").trim().length
   const limit = Math.max(1, Number(softLimit) || 1)
+  if (length <= limit) return base
+  return Math.round(Math.max(minimum, base * Math.max(0.7, limit / length)) * 2) / 2
+}
 
-  if (length <= limit) {
-    return base
+function getDeviceWidth() {
+  try {
+    const size = Device.screenSize()
+    const width = Math.min(Number(size?.width) || 0, Number(size?.height) || 0)
+    return width > 0 ? width : 390
+  } catch (_) {
+    return 390
   }
-
-  const ratio = Math.max(0.7, limit / length)
-
-  return Math.round(
-    Math.max(minimum, base * ratio) * 2
-  ) / 2
 }
 
 function getDensity(sliceCountValue) {
   const count = Math.max(1, Number(sliceCountValue) || 1)
+  const base = count >= 5
+    ? densityCompact()
+    : count >= 3
+      ? densityStandard()
+      : densityComfortable()
+  return adaptDensity(base, getDeviceWidth())
+}
 
-  if (count >= 5) {
-    return densityCompact()
+function adaptDensity(base, width) {
+  if (width > 375) return base
+  return {
+    ...base,
+    paddingHorizontal: Math.max(13, base.paddingHorizontal - 2),
+    iconGap: Math.max(7, base.iconGap - 1),
+    badgePaddingHorizontal: Math.max(6, base.badgePaddingHorizontal - 1),
+    timingPaddingHorizontal: Math.max(9, base.timingPaddingHorizontal - 1),
+    timingStartWidth: Math.max(96, base.timingStartWidth - 12),
+    timingEndWidth: Math.max(78, base.timingEndWidth - 8),
+    timingArrowGapBefore: Math.max(2, base.timingArrowGapBefore - 1),
+    timingArrowGapAfter: Math.max(3, base.timingArrowGapAfter - 1),
+    arrowSize: Math.max(20, base.arrowSize - 2),
+    programPadding: Math.max(6, base.programPadding - 1),
+    rowPaddingHorizontal: Math.max(4, base.rowPaddingHorizontal - 1),
+    itemGap: Math.max(5, base.itemGap - 1),
+    railGap: Math.max(3, base.railGap - 1),
+    sliceMetricsWidth: Math.max(76, base.sliceMetricsWidth - 8),
+    metricsGap: Math.max(4, base.metricsGap - 1),
+    statPaddingHorizontal: Math.max(16, base.statPaddingHorizontal - 3)
   }
-
-  if (count >= 3) {
-    return densityStandard()
-  }
-
-  return densityComfortable()
 }
 
 function densityComfortable() {
@@ -868,6 +647,9 @@ function densityComfortable() {
     rowPaddingVertical: 5,
     rowPaddingHorizontal: 6,
     rowRadius: 11,
+    railWidth: 2,
+    railHeight: 24,
+    railGap: 5,
     itemGap: 8,
     numberSize: 25,
     numberFont: 10.5,
@@ -880,6 +662,7 @@ function densityComfortable() {
     rangeSize: 10.5,
     durationSize: 9,
     sliceMetricsWidth: 96,
+    metricsGap: 6,
     sliceDetailGap: 3,
     statPaddingHorizontal: 24,
     statPaddingVertical: 5,
@@ -933,6 +716,8 @@ function densityStandard() {
     rowPaddingVertical: 4,
     rowPaddingHorizontal: 5,
     rowRadius: 10,
+    railHeight: 20,
+    railGap: 4,
     itemGap: 6,
     numberSize: 21,
     numberFont: 9,
@@ -945,6 +730,7 @@ function densityStandard() {
     rangeSize: 9,
     durationSize: 7.5,
     sliceMetricsWidth: 86,
+    metricsGap: 5,
     sliceDetailGap: 2,
     statPaddingHorizontal: 19,
     statPaddingVertical: 4,
@@ -993,6 +779,8 @@ function densityCompact() {
     rowGap: 3,
     rowPaddingVertical: 3,
     rowPaddingHorizontal: 4,
+    railHeight: 17,
+    railGap: 3,
     itemGap: 5,
     numberSize: 18,
     numberFont: 8,
@@ -1005,6 +793,7 @@ function densityCompact() {
     rangeSize: 8,
     durationSize: 7,
     sliceMetricsWidth: 78,
+    metricsGap: 4,
     sliceDetailGap: 1,
     statPaddingHorizontal: 17,
     statGap: 6,
@@ -1015,38 +804,15 @@ function densityCompact() {
 
 function validateContext(context) {
   if (!context || typeof context !== "object") {
-    return {
-      valid: false,
-      error: "Le contexte du widget est absent."
-    }
+    return { valid: false, error: "Le contexte du widget est absent." }
   }
-
-  if (
-    !context.service ||
-    !context.state ||
-    !context.stats ||
-    !context.displaySlice
-  ) {
-    return {
-      valid: false,
-      error: "Les données nécessaires au widget sont incomplètes."
-    }
+  if (!context.service || !context.state || !context.stats || !context.displaySlice) {
+    return { valid: false, error: "Les données nécessaires au widget sont incomplètes." }
   }
-
-  if (
-    !Array.isArray(context.service.slices) ||
-    !context.service.slices.length
-  ) {
-    return {
-      valid: false,
-      error: "Aucune tranche ne peut être affichée."
-    }
+  if (!Array.isArray(context.service.slices) || !context.service.slices.length) {
+    return { valid: false, error: "Aucune tranche ne peut être affichée." }
   }
-
-  return {
-    valid: true,
-    error: ""
-  }
+  return { valid: true, error: "" }
 }
 
 function createErrorWidget(title, message) {
@@ -1056,47 +822,25 @@ function createErrorWidget(title, message) {
 
   const header = widget.addStack()
   header.centerAlignContent()
-
   const icon = header.addStack()
   icon.size = new Size(34, 34)
   icon.cornerRadius = 17
   icon.backgroundColor = THEME.translucentWhite(0.08)
   icon.centerAlignContent()
   icon.addSpacer()
-  addSymbol(
-    icon,
-    "exclamationmark.triangle.fill",
-    15,
-    THEME.getPrimaryTextColor()
-  )
+  addSymbol(icon, "exclamationmark.triangle.fill", 15, THEME.getPrimaryTextColor())
   icon.addSpacer()
-
   header.addSpacer(10)
-
-  addText(
-    header,
-    title,
-    Font.boldSystemFont(17),
-    THEME.getPrimaryTextColor()
-  )
+  addText(header, title, Font.boldSystemFont(17), THEME.getPrimaryTextColor(), 1, 0.72)
 
   widget.addSpacer(10)
-
   const card = addSurface(widget, {
     padding: [11, 12, 11, 12],
     radius: 14,
     backgroundAlpha: 0.05,
     borderAlpha: 0.07
   })
-
-  addText(
-    card,
-    message,
-    Font.mediumSystemFont(11),
-    secondary(),
-    4
-  )
-
+  addText(card, message, Font.mediumSystemFont(11), secondary(), 4, 0.72)
   return widget
 }
 
