@@ -7,11 +7,11 @@ const STORAGE = importModule("CTS Storage")
 const UTILS = importModule("CTS Utils")
 const INDEX_VERSION = 2
 
-function importPdf(pdfPath, options = {}) {
+async function importPdf(pdfPath, options = {}) {
   return pipeline().importPdf(pdfPath, options)
 }
 
-function activateService(service) {
+async function activateService(service) {
   return pipeline().activateService(service)
 }
 
