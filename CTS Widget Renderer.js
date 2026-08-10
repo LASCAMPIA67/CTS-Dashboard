@@ -163,20 +163,20 @@ function addTimingCard(parent, focus, state, density) {
 
   timing.addSpacer()
   addArrowBadge(timing, state, density.arrowSize)
-  timing.addSpacer()
+  timing.addSpacer(density.timingEndGap)
 
   addTimingSide(
     timing,
     "FIN DE TRANCHE",
     focus.end,
     focus.to,
-    "right",
+    "left",
     density
   )
 
-  // Léger retrait visuel pour éviter que le bloc droit colle au bord.
-  // Il reste indépendant de la taille ou du modèle d’iPhone.
-  timing.addSpacer(8)
+  // Le bloc de fin reste proche de la flèche, comme dans le rendu
+  // d'origine, tandis que l'espace restant est absorbé à droite.
+  timing.addSpacer()
 
   if (!hasOperationalDetails(focus)) {
     return
@@ -425,15 +425,15 @@ function addSliceRow(parent, slice, state, density) {
 
   top.addSpacer()
 
-  const range = addText(
+  addMetricColumnText(
     top,
     `${slice.start}–${slice.end}`,
     Font.boldMonospacedSystemFont(density.rangeSize),
     active
       ? accent(state)
-      : THEME.getInactiveTimeColor()
+      : THEME.getInactiveTimeColor(),
+    density.sliceMetricsWidth
   )
-  range.rightAlignText()
 
   body.addSpacer(density.sliceDetailGap)
 
@@ -458,13 +458,13 @@ function addSliceRow(parent, slice, state, density) {
 
   bottom.addSpacer()
 
-  const durationText = addText(
+  addMetricColumnText(
     bottom,
     UTILS.formatDuration(duration),
     Font.mediumSystemFont(density.durationSize),
-    secondary()
+    secondary(),
+    density.sliceMetricsWidth
   )
-  durationText.rightAlignText()
 }
 
 function addSliceNumber(parent, slice, active, state, density) {
@@ -649,6 +649,19 @@ function addCenteredText(parent, value, font, color) {
   row.addSpacer()
 }
 
+function addMetricColumnText(parent, value, font, color, width) {
+  const column = parent.addStack()
+  column.size = new Size(width, 0)
+  column.centerAlignContent()
+  column.addSpacer()
+
+  const text = addText(column, value, font, color)
+  text.centerAlignText()
+
+  column.addSpacer()
+  return text
+}
+
 function addText(parent, value, font, color, lines = 1) {
   const text = parent.addText(String(value ?? ""))
   text.font = font
@@ -812,6 +825,7 @@ function densityComfortable() {
     timingLabelGap: 3,
     timeSize: 27,
     arrowSize: 28,
+    timingEndGap: 9,
     placeGap: 3,
     placeSize: 10.5,
     placeSoftLimit: 18,
@@ -845,6 +859,7 @@ function densityComfortable() {
     routeMinimumSize: 7.4,
     rangeSize: 11,
     durationSize: 9,
+    sliceMetricsWidth: 82,
     sliceDetailGap: 3,
     statPaddingHorizontal: 24,
     statPaddingVertical: 5,
@@ -876,6 +891,7 @@ function densityStandard() {
     timingLabelSize: 7.2,
     timeSize: 23,
     arrowSize: 24,
+    timingEndGap: 8,
     placeSize: 9,
     detailsSectionGap: 3,
     detailGroupGap: 3,
@@ -905,6 +921,7 @@ function densityStandard() {
     routeMinimumSize: 6.8,
     rangeSize: 9.5,
     durationSize: 7.5,
+    sliceMetricsWidth: 72,
     sliceDetailGap: 2,
     statPaddingHorizontal: 19,
     statPaddingVertical: 4,
@@ -933,6 +950,7 @@ function densityCompact() {
     timingLabelSize: 6.8,
     timeSize: 21,
     arrowSize: 22,
+    timingEndGap: 7,
     placeSize: 8.5,
     placeMinimumSize: 7,
     detailLabelSize: 6.5,
@@ -960,6 +978,7 @@ function densityCompact() {
     routeMinimumSize: 6.5,
     rangeSize: 8.5,
     durationSize: 7,
+    sliceMetricsWidth: 66,
     sliceDetailGap: 1,
     statPaddingHorizontal: 17,
     statGap: 6,
