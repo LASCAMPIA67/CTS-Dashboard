@@ -420,7 +420,15 @@ function addSliceRow(parent, slice, state, density) {
   const info = body.addStack()
   info.layoutVertically()
 
-  const titleValue = `Ligne ${slice.line} · Voiture ${slice.vehicle}`
+  const lineCode = String(slice.lineCode || slice.line || "")
+    .replace(/\D/g, "")
+    .padStart(2, "0")
+    .slice(-2)
+  const vehicleCode = String(slice.vehicle || "")
+    .replace(/\D/g, "")
+    .padStart(2, "0")
+    .slice(-2)
+  const titleValue = `Ligne ${slice.line} · LIVO ${lineCode}${vehicleCode}`
   const title = addText(
     info,
     titleValue,
