@@ -115,8 +115,8 @@ async function writeTextSafely(path, value) {
   }
 }
 
-function writeJsonSafely(path, value, pretty = true) {
-  return writeTextSafely(path, JSON.stringify(value, null, pretty ? 2 : 0))
+async function writeJsonSafely(path, value, pretty = true) {
+  await writeTextSafely(path, JSON.stringify(value, null, pretty ? 2 : 0))
 }
 
 async function backupService() {
@@ -134,11 +134,11 @@ async function saveService(service) {
   await writeJsonSafely(files.service, service)
 }
 
-function loadService() {
+async function loadService() {
   return readJson(files.service, null)
 }
 
-function loadBackupService() {
+async function loadBackupService() {
   return readJson(files.serviceBackup, null)
 }
 
@@ -158,12 +158,12 @@ async function loadServicesIndex() {
   }
 }
 
-function saveServicesIndex(index) {
+async function saveServicesIndex(index) {
   const source = index && typeof index === "object" && !Array.isArray(index)
     ? index
     : emptyServicesIndex()
 
-  return writeJsonSafely(files.servicesIndex, {
+  await writeJsonSafely(files.servicesIndex, {
     version: Number(source.version) || SERVICES_INDEX_VERSION,
     updatedAt: String(source.updatedAt || new Date().toISOString()),
     services: Array.isArray(source.services) ? source.services : []
