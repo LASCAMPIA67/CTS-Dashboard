@@ -74,7 +74,6 @@ Le rapport est conçu pour exclure le nom du conducteur, le matricule, les horai
 
 ```text
 CTS Dashboard
-├── Analytics
 ├── Cache
 ├── Data
 ├── Database
