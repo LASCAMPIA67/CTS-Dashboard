@@ -27,38 +27,67 @@ jobs:
             node --input-type=module --check < "$file"
           done < <(find . -maxdepth 1 -type f -name '*.js' -print0)
 
-      - name: Validate manifest and resources
+      - name: Validate manifest, metadata and resources
         shell: bash
         run: |
           node <<'NODE'
           const fs = require('fs')
           const manifest = JSON.parse(fs.readFileSync('version.json', 'utf8'))
-          const required = [
-            ...(manifest.scripts || []),
-            ...(manifest.resources || []).map(item => item.name)
-          ]
-          if (required.length !== 22) {
-            throw new Error(`Expected 22 distributed files, found ${required.length}`)
+          const scripts = Array.isArray(manifest.scripts) ? manifest.scripts : []
+          const resources = Array.isArray(manifest.resources) ? manifest.resources : []
+          const required = [...scripts, ...resources.map(item => item.name)]
+
+          if (scripts.length !== 17 || resources.length !== 5 || required.length !== 22) {
+            throw new Error(`Expected 17 scripts + 5 resources, found ${scripts.length} + ${resources.length}`)
           }
+
           const duplicates = required.filter((name, index) => required.indexOf(name) !== index)
           if (duplicates.length) {
             throw new Error(`Duplicate manifest entries: ${[...new Set(duplicates)].join(', ')}`)
           }
+
+          if (!scripts.includes(manifest.entryPoint)) {
+            throw new Error(`Entry point missing from scripts: ${manifest.entryPoint || 'undefined'}`)
+          }
+
+          const destinations = resources.map(item => item.destination)
+          const duplicateDestinations = destinations.filter((value, index) => destinations.indexOf(value) !== index)
+          if (duplicateDestinations.length) {
+            throw new Error(`Duplicate resource destinations: ${[...new Set(duplicateDestinations)].join(', ')}`)
+          }
+
           for (const file of required) {
             if (!fs.existsSync(file)) throw new Error(`Missing manifest file: ${file}`)
+            if (fs.statSync(file).size <= 0) throw new Error(`Empty manifest file: ${file}`)
           }
+
+          const metadataMarker = '// Variables used by Scriptable.'
+          for (const file of fs.readdirSync('.').filter(name => name.endsWith('.js'))) {
+            const content = fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '')
+            if (!content.startsWith(metadataMarker)) {
+              throw new Error(`Scriptable metadata must be at the top of ${file}`)
+            }
+            const occurrences = content.split(metadataMarker).length - 1
+            if (occurrences !== 1) {
+              throw new Error(`Expected one Scriptable metadata block in ${file}, found ${occurrences}`)
+            }
+          }
+
           for (const file of ['version.json', 'lines.json', 'stops.json', 'places.json']) {
             JSON.parse(fs.readFileSync(file, 'utf8'))
           }
+
           const config = fs.readFileSync('CTS Config.js', 'utf8')
           const match = config.match(/const DASHBOARD_VERSION = "([^"]+)"/)
           if (!match || match[1] !== manifest.version) {
             throw new Error(`Version mismatch: manifest=${manifest.version}, config=${match?.[1] || 'missing'}`)
           }
+
           for (const file of ['pdf.min.mjs', 'pdf.worker.min.mjs']) {
             if (fs.statSync(file).size < 40 * 1024) {
               throw new Error(`${file} is unexpectedly small`)
             }
           }
-          console.log(`CTS Dashboard ${manifest.version}: manifest and resources valid`)
+
+          console.log(`CTS Dashboard ${manifest.version}: repository validation passed`)
           NODE
