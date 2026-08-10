@@ -660,12 +660,17 @@ async function writeJsonAtomically(
 // =====================================================
 
 function isUsableIndexEntry(entry) {
+  if (
+    !entry ||
+    typeof entry !== "object" ||
+    Array.isArray(entry) ||
+    !String(entry.id || "").trim()
+  ) {
+    return false
+  }
+
   return Boolean(
-    entry &&
-    typeof entry === "object" &&
-    !Array.isArray(entry) &&
-    String(entry.id || "").trim() &&
-    /^\d{4}-\d{2}-\d{2}$/.test(
+    UTILS.parseDate(
       String(entry.date || "")
     )
   )
