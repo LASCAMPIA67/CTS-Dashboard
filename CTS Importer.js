@@ -7,6 +7,7 @@
 
 const CONFIG = importModule("CTS Config")
 const STORAGE = importModule("CTS Storage")
+const UTILS = importModule("CTS Utils")
 
 const INDEX_VERSION = 2
 
@@ -42,8 +43,9 @@ async function readCurrentIndex() {
     Array.isArray(value) ||
     !Array.isArray(value.services)
   ) {
-    throw createIndexError(
+    throw UTILS.createTelemetryError(
       "SERVICE_INDEX_INVALID",
+      "index",
       "L’index des services est invalide. Il n’a pas été remplacé."
     )
   }
@@ -68,19 +70,14 @@ function pipeline() {
     typeof module.importPdf !== "function" ||
     typeof module.activateService !== "function"
   ) {
-    throw new Error(
+    throw UTILS.createTelemetryError(
+      "IMPORT_PIPELINE_UNAVAILABLE",
+      "import",
       "CTS Import Pipeline est absent ou invalide."
     )
   }
 
   return module
-}
-
-function createIndexError(code, message) {
-  const error = new Error(message)
-  error.telemetryCode = code
-  error.telemetryStage = "index"
-  return error
 }
 
 module.exports = {
