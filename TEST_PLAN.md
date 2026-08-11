@@ -20,7 +20,7 @@ Les versions bêta d’iOS sont testables mais ne constituent pas une cible de v
 Préconditions : Scriptable à jour, iCloud Drive activé, aucun dossier CTS Dashboard existant.
 
 1. Importer `CTS Installer.scriptable` via la feuille de partage iOS.
-2. Exécuter CTS Installer.
+2. Exécuter CTS Installer. Vérifier qu'il annonce bien sa version et n'exige aucune étape de migration préalable.
 3. Installer la version proposée.
 4. Vérifier la création de l’arborescence CTS Dashboard.
 5. Vérifier la présence des 17 scripts et 5 ressources distribués.

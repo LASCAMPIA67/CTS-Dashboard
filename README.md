@@ -32,6 +32,8 @@ Le rendu du widget adapte automatiquement ses espacements aux écrans iPhone plu
 6. Sur l’écran d’accueil, ajouter un widget **Scriptable grand format**.
 7. Configurer le widget avec **Script : CTS Dashboard** et **When Interacting / Open App : Run Script**.
 
+Si CTS Installer annonce une version plus récente, choisir **Installer la version proposée**, puis relancer CTS Installer une seconde fois : l’installateur se met à jour lui-même avant d’installer le Dashboard.
+
 Selon la version d’iOS, le bouton de modification de l’écran d’accueil peut être affiché avec un libellé ou une icône différente. La procédure compatible à retenir est **Modifier → Ajouter un widget**. Pour reconfigurer un widget existant, utiliser **appui long sur le widget → Modifier le widget**.
 
 Les trois tutoriels dédiés Safari, Google et Brave détaillent ensuite le dépôt quotidien des cartes d’agent.
