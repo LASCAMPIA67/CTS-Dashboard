@@ -75,7 +75,7 @@ Vérifier également les règles d’archivage : +1 h après la fin du service p
 
 ## 6. Rendu du widget
 
-Tester des services comportant 1–2, 3–4 et 5 tranches ou plus.
+Tester des services comportant 1, 2 et 3 tranches. Trois tranches est le maximum d’un service CTS : 1 et 2 utilisent la densité confortable, 3 la densité standard. La densité compacte n’est atteinte qu’au-delà, en filet de sécurité contre un PDF mal formé, et n’a donc pas à être testée sur un service réel.
 
 Contrôler sur chaque profil d’écran :
 

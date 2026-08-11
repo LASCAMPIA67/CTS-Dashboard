@@ -143,7 +143,8 @@ function addTimingCard(parent, focus, state, density) {
     "FIN DE TRANCHE",
     focus.end,
     focus.to,
-    density
+    density,
+    "right"
   )
 
   if (!hasOperationalDetails(focus)) return
@@ -158,41 +159,54 @@ function addTimingCard(parent, focus, state, density) {
  * ce qui permet à la flèche d'être centrée entre ce que l'on voit
  * réellement, et non entre deux réserves de place invisibles.
  * fitFont borne la largeur des noms de lieux longs.
+ *
+ * Le départ se cale à gauche et l'arrivée à droite : les trois lignes
+ * de chaque bloc partagent alors le même bord, et le bandeau se lit
+ * comme un trajet.
  */
-function addTimingSide(parent, label, time, place, density) {
+function addTimingSide(parent, label, time, place, density, alignment = "left") {
   const block = parent.addStack()
   block.layoutVertically()
 
-  addText(
-    block,
-    label,
-    Font.semiboldSystemFont(density.timingLabelSize),
-    secondary(),
-    1,
-    0.72
-  ).leftAlignText()
+  alignText(
+    addText(
+      block,
+      label,
+      Font.semiboldSystemFont(density.timingLabelSize),
+      secondary(),
+      1,
+      0.72
+    ),
+    alignment
+  )
 
   block.addSpacer(density.timingLabelGap)
-  addText(
-    block,
-    time,
-    Font.boldMonospacedSystemFont(density.timeSize),
-    THEME.getPrimaryTextColor(),
-    1,
-    0.78
-  ).leftAlignText()
+  alignText(
+    addText(
+      block,
+      time,
+      Font.boldMonospacedSystemFont(density.timeSize),
+      THEME.getPrimaryTextColor(),
+      1,
+      0.78
+    ),
+    alignment
+  )
 
   block.addSpacer(density.placeGap)
-  addText(
-    block,
-    place,
-    Font.mediumSystemFont(
-      fitFont(density.placeSize, place, density.placeSoftLimit, density.placeMinimumSize)
+  alignText(
+    addText(
+      block,
+      place,
+      Font.mediumSystemFont(
+        fitFont(density.placeSize, place, density.placeSoftLimit, density.placeMinimumSize)
+      ),
+      secondary(),
+      1,
+      0.7
     ),
-    secondary(),
-    1,
-    0.7
-  ).leftAlignText()
+    alignment
+  )
 }
 
 function addOperationalDetails(parent, slice, state, density) {
@@ -589,9 +603,16 @@ function getDeviceWidth() {
   }
 }
 
+/*
+ * Un service CTS ne dépasse pas trois tranches : seules les densités
+ * confortable et standard sont atteintes en exploitation. La densité
+ * compacte reste un filet de sécurité, au cas où un PDF mal formé ou
+ * une erreur de parsing produirait davantage de tranches — la densité
+ * standard déborderait alors la hauteur du widget.
+ */
 function getDensity(sliceCountValue) {
   const count = Math.max(1, Number(sliceCountValue) || 1)
-  const base = count >= 5
+  const base = count >= 4
     ? densityCompact()
     : count >= 3
       ? densityStandard()
