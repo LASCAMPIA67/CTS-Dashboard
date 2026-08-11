@@ -3035,7 +3035,17 @@ async function writeText(destination, content) {
   ensureParent(destination)
 
   const temporary = `${destination}.download`
+  const rollback = `${destination}.rollback`
+
   removeQuietly(temporary)
+  removeQuietly(rollback)
+
+  /*
+   * L'ancien fichier est mis de côté au lieu d'être supprimé :
+   * un déplacement raté ne doit jamais laisser la destination vide,
+   * a fortiori quand la destination est CTS Installer lui-même.
+   */
+  let movedAside = false
 
   try {
     fm.writeString(
@@ -3050,7 +3060,15 @@ async function writeText(destination, content) {
     }
 
     await sleep(80)
-    removeQuietly(destination)
+
+    if (fm.fileExists(destination)) {
+      fm.move(
+        destination,
+        rollback
+      )
+
+      movedAside = true
+    }
 
     fm.move(
       temporary,
@@ -3066,8 +3084,31 @@ async function writeText(destination, content) {
     }
 
     await ensureDownloaded(destination)
+    removeQuietly(rollback)
   } catch (error) {
     removeQuietly(temporary)
+
+    if (
+      movedAside &&
+      fm.fileExists(rollback) &&
+      !fm.fileExists(destination)
+    ) {
+      try {
+        fm.move(
+          rollback,
+          destination
+        )
+      } catch (_) {}
+    }
+
+    /*
+     * Le fichier de secours n'est effacé que si la destination
+     * est réellement présente, jamais au prix du contenu d'origine.
+     */
+    if (fm.fileExists(destination)) {
+      removeQuietly(rollback)
+    }
+
     throw error
   }
 }
