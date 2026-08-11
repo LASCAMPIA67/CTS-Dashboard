@@ -263,17 +263,21 @@ async function maintainActivePdfEntry(
     return skippedResult(entry, "pdf-already-absent")
   }
 
-  if (!fm.isFileDownloaded(sourcePath)) {
-    try {
-      await fm.downloadFileFromiCloud(sourcePath)
-    } catch (error) {
-      throw UTILS.createTelemetryError(
-        "ARCHIVE_ICLOUD_DOWNLOAD_FAILED",
-        "archive",
-        `Le PDF à archiver n’a pas pu être téléchargé depuis iCloud : ${UTILS.errorMessage(error)}`,
-        error
-      )
+  /*
+   * Un PDF encore en cours de synchronisation iCloud ne doit
+   * jamais être déplacé : l’archivage est simplement reporté.
+   */
+  try {
+    if (!await STORAGE.ensureDownloaded(sourcePath)) {
+      return skippedResult(entry, "pdf-already-absent")
     }
+  } catch (error) {
+    throw UTILS.createTelemetryError(
+      "ARCHIVE_ICLOUD_DOWNLOAD_FAILED",
+      "archive",
+      `Le PDF à archiver n’a pas pu être téléchargé depuis iCloud : ${UTILS.errorMessage(error)}`,
+      error
+    )
   }
 
   const archiveFileName = uniqueArchiveFileName(pdfFileName)

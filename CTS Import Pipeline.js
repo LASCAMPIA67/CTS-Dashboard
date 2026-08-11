@@ -257,10 +257,18 @@ async function inspectSourcePdf(pdfPath) {
   }
 
   try {
-    if (!fm.isFileDownloaded(normalizedPath)) {
-      await fm.downloadFileFromiCloud(normalizedPath)
+    if (!await STORAGE.ensureDownloaded(normalizedPath)) {
+      throw createTelemetryError(
+        "PDF_SOURCE_NOT_FOUND",
+        "source",
+        "Le PDF à importer est introuvable."
+      )
     }
   } catch (error) {
+    if (hasTelemetryError(error)) {
+      throw error
+    }
+
     throw createTelemetryError(
       "PDF_ICLOUD_DOWNLOAD_FAILED",
       "source",
@@ -490,9 +498,7 @@ async function movePdfToCanonicalName(plan) {
 
   if (fm.fileExists(plan.pdfPath)) {
     try {
-      if (!fm.isFileDownloaded(plan.pdfPath)) {
-        await fm.downloadFileFromiCloud(plan.pdfPath)
-      }
+      await STORAGE.ensureDownloaded(plan.pdfPath)
     } catch (error) {
       throw createTelemetryError(
         "PDF_CANONICAL_ICLOUD_FAILED",
@@ -755,15 +761,11 @@ function buildValidationFailure(
 }
 
 async function snapshotTextFile(path) {
-  if (!fm.fileExists(path)) {
+  if (!await STORAGE.ensureDownloaded(path)) {
     return {
       existed: false,
       content: ""
     }
-  }
-
-  if (!fm.isFileDownloaded(path)) {
-    await fm.downloadFileFromiCloud(path)
   }
 
   return {

@@ -284,10 +284,18 @@ async function inspectPdf(path) {
   }
 
   try {
-    if (!fm.isFileDownloaded(path)) {
-      await fm.downloadFileFromiCloud(path)
+    if (!await STORAGE.ensureDownloaded(path)) {
+      throw createTelemetryError(
+        "PDF_SOURCE_NOT_FOUND",
+        "inspection",
+        "Le PDF est introuvable."
+      )
     }
   } catch (error) {
+    if (hasTelemetryError(error)) {
+      throw error
+    }
+
     throw createTelemetryError(
       "PDF_ICLOUD_DOWNLOAD_FAILED",
       "inspection",
