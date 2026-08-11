@@ -526,8 +526,9 @@ async function extractText(
 
       "extraction",
 
-      result.error ||
-        "L’extraction du PDF a échoué."
+      describeExtractionFailure(
+        result
+      )
     )
   }
 
@@ -1145,6 +1146,40 @@ function buildRuntimeHtml(
   window.__ctsPdfLib = null
   window.__ctsLibraryUrl = ""
   window.__ctsWorkerUrl = ""
+  window.__ctsWorkerMode = "unknown"
+  window.__ctsPdfVersion = ""
+
+  /*
+   * Détail technique joint à chaque échec. Le message brut de
+   * JavaScriptCore, seul, ne permet pas de localiser la panne.
+   */
+  function failureDetails(error, extra) {
+    const details = {
+      errorName:
+        (error && error.name) ||
+        "",
+
+      stack:
+        String(
+          (error && error.stack) ||
+          ""
+        )
+          .split("\n")
+          .slice(0, 4)
+          .join(" | "),
+
+      workerMode:
+        window.__ctsWorkerMode,
+
+      pdfVersion:
+        window.__ctsPdfVersion
+    }
+
+    return Object.assign(
+      details,
+      extra || {}
+    )
+  }
 
   function errorText(error) {
     if (
@@ -1381,6 +1416,43 @@ function buildRuntimeHtml(
         .workerSrc =
           window.__ctsWorkerUrl
 
+      window.__ctsPdfVersion =
+        String(
+          pdfjsLib.version ||
+          ""
+        )
+
+      /*
+       * PDF.js construit son worker avec
+       * new Worker(url, { type: "module" }).
+       * Certaines WebView refusent un worker de
+       * module servi depuis une URL blob et PDF.js
+       * bascule alors silencieusement sur un worker
+       * de repli. Savoir lequel a servi est
+       * déterminant pour diagnostiquer un échec.
+       *
+       * Cette sonde ne doit jamais empêcher le
+       * démarrage du moteur.
+       */
+      try {
+        const probe =
+          new Worker(
+            window.__ctsWorkerUrl,
+            {
+              type: "module"
+            }
+          )
+
+        probe.terminate()
+
+        window.__ctsWorkerMode =
+          "module-worker"
+      } catch (error) {
+        window.__ctsWorkerMode =
+          "fallback:" +
+          errorText(error)
+      }
+
       window.__ctsPdfLib =
         pdfjsLib
 
@@ -1474,7 +1546,18 @@ function buildRuntimeHtml(
                     "PDF_PAGE_TEXT_EXTRACTION_FAILED",
 
                   error:
-                    errorText(error)
+                    errorText(error),
+
+                  details:
+                    failureDetails(
+                      error,
+                      {
+                        pageNumber,
+
+                        totalPages:
+                          document.numPages
+                      }
+                    )
                 }
               }
             }
@@ -1527,7 +1610,12 @@ function buildRuntimeHtml(
                 "PDF_EXTRACTION_FAILED",
 
               error:
-                errorText(error)
+                errorText(error),
+
+              details:
+                failureDetails(
+                  error
+                )
             }
 
           } finally {
@@ -1699,6 +1787,66 @@ async function sleep(
       resolve
     )
   })
+}
+
+
+/*
+ * Le message brut de JavaScriptCore ne suffit pas à localiser une panne
+ * d'extraction : il faut savoir quelle page a échoué, quel type
+ * d'erreur, quel mode de worker et quelle version de PDF.js. Ce
+ * complément part dans le journal d'import, donc dans le rapport
+ * Diagnostic de l'Installer.
+ */
+function describeExtractionFailure(
+  result
+) {
+  const message =
+    String(
+      result?.error ||
+      "L’extraction du PDF a échoué."
+    ).trim()
+
+  const details =
+    result?.details &&
+    typeof result.details === "object" &&
+    !Array.isArray(result.details)
+      ? result.details
+      : {}
+
+  const parts = []
+
+  if (
+    Number.isFinite(
+      Number(details.pageNumber)
+    )
+  ) {
+    parts.push(
+      `page ${details.pageNumber}/${details.totalPages || "?"}`
+    )
+  }
+
+  for (
+    const [label, value]
+    of [
+      ["type", details.errorName],
+      ["worker", details.workerMode],
+      ["PDF.js", details.pdfVersion],
+      ["pile", details.stack]
+    ]
+  ) {
+    const text =
+      String(value || "").trim()
+
+    if (text) {
+      parts.push(
+        `${label} ${text}`
+      )
+    }
+  }
+
+  return parts.length
+    ? `${message} [${parts.join(" · ").slice(0, 500)}]`
+    : message
 }
 
 
