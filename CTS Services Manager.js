@@ -304,7 +304,7 @@ async function inspectPdf(path) {
     )
   }
 
-  const fileName = fileNameFromPath(path)
+  const fileName = UTILS.fileNameFromPath(path)
   let sizeKilobytes
 
   try {
@@ -326,7 +326,7 @@ async function inspectPdf(path) {
     )
   }
 
-  const modificationDate = safeModificationDate(path)
+  const modificationDate = STORAGE.safeModificationDate(path)
   const modifiedAt = modificationDate
     ? modificationDate.toISOString()
     : ""
@@ -337,7 +337,7 @@ async function inspectPdf(path) {
     sizeKilobytes,
     modifiedAt,
     canonical: isCanonicalPdfName(fileName),
-    fingerprint: buildFingerprint({
+    fingerprint: UTILS.buildFingerprint({
       fileName,
       sizeKilobytes,
       modifiedAt
@@ -661,7 +661,7 @@ async function acquireScanLock() {
     removeFileQuietly(SCAN_LOCK_PATH)
   }
 
-  const token = buildUniqueToken()
+  const token = STORAGE.buildUniqueToken()
 
   try {
     fm.writeString(
@@ -700,7 +700,7 @@ async function releaseScanLock(lock) {
 }
 
 async function writeJsonAtomically(path, value) {
-  const token = buildUniqueToken()
+  const token = STORAGE.buildUniqueToken()
   const temporaryPath = `${path}.tmp-${token}`
   const rollbackPath = `${path}.rollback-${token}`
   const content = JSON.stringify(value, null, 2)
@@ -1078,32 +1078,6 @@ function compareCandidates(first, second) {
   })
 }
 
-function safeModificationDate(path) {
-  try {
-    const value = fm.modificationDate(path)
-
-    return value &&
-      typeof value.getTime === "function" &&
-      Number.isFinite(value.getTime())
-      ? value
-      : null
-  } catch (_) {
-    return null
-  }
-}
-
-function buildFingerprint({ fileName, sizeKilobytes, modifiedAt }) {
-  return [
-    String(fileName || "").toLowerCase(),
-    Number(sizeKilobytes) || 0,
-    String(modifiedAt || "")
-  ].join("|")
-}
-
-function buildUniqueToken() {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-}
-
 function isPdfFileName(fileName) {
   return /\.pdf$/i.test(String(fileName || ""))
 }
@@ -1112,13 +1086,6 @@ function isCanonicalPdfName(fileName) {
   return /^Service_\d{4}-\d{2}-\d{2}_[A-Z0-9_-]+\.pdf$/i.test(
     String(fileName || "")
   )
-}
-
-function fileNameFromPath(path) {
-  return String(path || "")
-    .split(/[\\/]/)
-    .pop()
-    .trim()
 }
 
 function removeFileQuietly(path) {

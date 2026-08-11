@@ -227,6 +227,20 @@ function removeFileQuietly(path) {
   } catch (_) {}
 }
 
+function safeModificationDate(path) {
+  try {
+    const value = fm.modificationDate(path)
+
+    return value &&
+      typeof value.getTime === "function" &&
+      Number.isFinite(value.getTime())
+      ? value
+      : null
+  } catch (_) {
+    return null
+  }
+}
+
 function buildUniqueToken() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
@@ -260,5 +274,7 @@ module.exports = {
   clearLog,
   loadLog,
   fileExists,
-  removeFile
+  removeFile,
+  buildUniqueToken,
+  safeModificationDate
 }

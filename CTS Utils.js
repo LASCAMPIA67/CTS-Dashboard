@@ -232,6 +232,21 @@ async function finishError(title, message, output = {}) {
   return finishWithResult({ success: false, title, message, output })
 }
 
+function fileNameFromPath(path) {
+  return String(path || "")
+    .split(/[\\/]/)
+    .pop()
+    .trim()
+}
+
+function buildFingerprint({ fileName, sizeKilobytes, modifiedAt }) {
+  return [
+    String(fileName || "").toLowerCase(),
+    Number(sizeKilobytes) || 0,
+    String(modifiedAt || "")
+  ].join("|")
+}
+
 function safeError(error) {
   if (error instanceof Error) {
     return {
@@ -271,5 +286,7 @@ module.exports = {
   finishWithResult,
   finishSuccess,
   finishError,
-  safeError
+  safeError,
+  fileNameFromPath,
+  buildFingerprint
 }

@@ -246,7 +246,7 @@ async function inspectSourcePdf(pdfPath) {
     )
   }
 
-  const fileName = fileNameFromPath(normalizedPath)
+  const fileName = UTILS.fileNameFromPath(normalizedPath)
 
   if (!/\.pdf$/i.test(fileName)) {
     throw createTelemetryError(
@@ -310,7 +310,7 @@ async function inspectSourcePdf(pdfPath) {
     )
   }
 
-  const modificationDate = safeModificationDate(normalizedPath)
+  const modificationDate = STORAGE.safeModificationDate(normalizedPath)
   const modifiedAt = modificationDate
     ? modificationDate.toISOString()
     : ""
@@ -320,25 +320,11 @@ async function inspectSourcePdf(pdfPath) {
     fileName,
     sizeKilobytes,
     modifiedAt,
-    fingerprint: buildFingerprint({
+    fingerprint: UTILS.buildFingerprint({
       fileName,
       sizeKilobytes,
       modifiedAt
     })
-  }
-}
-
-function safeModificationDate(path) {
-  try {
-    const value = fm.modificationDate(path)
-
-    return value &&
-      typeof value.getTime === "function" &&
-      Number.isFinite(value.getTime())
-      ? value
-      : null
-  } catch (_) {
-    return null
   }
 }
 
@@ -870,25 +856,6 @@ function cloneTimings(timings) {
 function finiteOrNull(value) {
   const number = Number(value)
   return Number.isFinite(number) ? number : null
-}
-
-function buildFingerprint({
-  fileName,
-  sizeKilobytes,
-  modifiedAt
-}) {
-  return [
-    String(fileName || "").toLowerCase(),
-    Number(sizeKilobytes) || 0,
-    String(modifiedAt || "")
-  ].join("|")
-}
-
-function fileNameFromPath(path) {
-  return String(path || "")
-    .split(/[\\/]/)
-    .pop()
-    .trim()
 }
 
 function timestampForFileName() {
