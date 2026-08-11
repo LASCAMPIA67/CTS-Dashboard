@@ -5,53 +5,36 @@
 // CTS Widget Engine.js
 // Préparation centralisée des données du widget CTS.
 
-const CONFIG =
-  importModule("CTS Config")
+const CONFIG = importModule("CTS Config")
 
-const STORAGE =
-  importModule("CTS Storage")
+const STORAGE = importModule("CTS Storage")
 
-const UTILS =
-  importModule("CTS Utils")
+const UTILS = importModule("CTS Utils")
 
-const SERVICE_ENGINE =
-  importModule("CTS Service")
+const SERVICE_ENGINE = importModule("CTS Service")
 
-const SERVICES_MANAGER =
-  importModule("CTS Services Manager")
+const SERVICES_MANAGER = importModule("CTS Services Manager")
 
-const SERVICES_CLEANER =
-  importModule("CTS Services Cleaner")
+const SERVICES_CLEANER = importModule("CTS Services Cleaner")
 
-const SERVICES_SCAN_REFRESH_MS =
-  15 * 60 * 1000
+const SERVICES_SCAN_REFRESH_MS = 15 * 60 * 1000
 
-const PENDING_SCAN_REFRESH_MS =
-  60 * 1000
+const PENDING_SCAN_REFRESH_MS = 60 * 1000
 
-const FAILED_SCAN_REFRESH_MS =
-  5 * 60 * 1000
+const FAILED_SCAN_REFRESH_MS = 5 * 60 * 1000
 
-const MAX_TELEMETRY_ISSUES =
-  12
+const MAX_TELEMETRY_ISSUES = 12
 
-// =====================================================
 // CHARGEMENT DU CONTEXTE
-// =====================================================
 
-async function loadContext(
-  currentDate = new Date()
-) {
+async function loadContext(currentDate = new Date()) {
   CONFIG.ensureDirectories()
 
   /*
    * 1. Détection et importation des PDF.
    * 2. Sélection du service approprié.
    */
-  const resolution =
-    await resolveServiceSource(
-      currentDate
-    )
+  const resolution = await resolveServiceSource(currentDate)
 
   /*
    * 3. Archivage et suppression des anciens PDF.
@@ -59,103 +42,48 @@ async function loadContext(
    * Une erreur de nettoyage ne doit jamais
    * empêcher l’affichage du widget.
    */
-  const cleanup =
-    await runServicesCleanup(
-      currentDate
-    )
+  const cleanup = await runServicesCleanup(currentDate)
 
-  const source =
-    resolution.source
+  const source = resolution.source
 
   if (!source) {
-    return buildMissingServiceFailure(
-      resolution,
-      cleanup,
-      currentDate
-    )
+    return buildMissingServiceFailure(resolution, cleanup, currentDate)
   }
 
-  const telemetry =
-    buildContextTelemetry(
-      resolution,
-      cleanup,
-      true
-    )
+  const telemetry = buildContextTelemetry(resolution, cleanup, true)
 
-  const normalized =
-    SERVICE_ENGINE.normalizeService(
-      source
-    )
+  const normalized = SERVICE_ENGINE.normalizeService(source)
 
   if (!normalized.valid) {
-    telemetry.serviceStatus =
-      "error"
+    telemetry.serviceStatus = "error"
 
-    addDiagnosticIssue(
-      telemetry,
-      {
-        severity:
-          "error",
+    addDiagnosticIssue(telemetry, {
+      severity: "error",
+      errorCode: "SERVICE_NORMALIZATION_FAILED",
+      module: "WidgetEngine",
+      stage: "service"
+    })
 
-        errorCode:
-          "SERVICE_NORMALIZATION_FAILED",
-
-        module:
-          "WidgetEngine",
-
-        stage:
-          "service"
-      }
-    )
-
-    return failure(
-      "Service invalide",
-      normalized.error,
-      currentDate,
-      telemetry
-    )
+    return failure("Service invalide", normalized.error, currentDate, telemetry)
   }
 
-  const service =
-    normalized.service
+  const service = normalized.service
 
-  const state =
-    SERVICE_ENGINE.computeState(
-      service,
-      currentDate
-    )
+  const state = SERVICE_ENGINE.computeState(service, currentDate)
 
-  const stats =
-    SERVICE_ENGINE.computeStats(
-      service
-    )
+  const stats = SERVICE_ENGINE.computeStats(service)
 
-  const displaySlice =
-    SERVICE_ENGINE.getDisplaySlice(
-      service,
-      state
-    )
+  const displaySlice = SERVICE_ENGINE.getDisplaySlice(service, state)
 
   if (!displaySlice) {
-    telemetry.serviceStatus =
-      "error"
+    telemetry.serviceStatus = "error"
 
-    addDiagnosticIssue(
-      telemetry,
-      {
-        severity:
-          "error",
-
-        errorCode:
-          "SERVICE_DISPLAY_SLICE_MISSING",
-
-        module:
-          "WidgetEngine",
-
-        stage:
-          "service"
-      }
-    )
+    addDiagnosticIssue(telemetry, {
+      severity: "error",
+      errorCode: "SERVICE_DISPLAY_SLICE_MISSING",
+      module: "WidgetEngine",
+      stage: "service"
+    })
 
     return failure(
       "Service invalide",
@@ -165,132 +93,66 @@ async function loadContext(
     )
   }
 
-  const serviceRefreshAfterDate =
-    computeNextRefreshDate(
-      service,
-      state,
-      currentDate
-    )
+  const serviceRefreshAfterDate = computeNextRefreshDate(service, state, currentDate)
 
   const automaticResolution = {
     ...resolution,
-
-    cleanupResult:
-      cleanup.result,
-
-    cleanupError:
-      cleanup.error,
-
-    cleanupTelemetryCode:
-      cleanup.telemetryCode,
-
-    cleanupTelemetryStage:
-      cleanup.telemetryStage
+    cleanupResult: cleanup.result,
+    cleanupError: cleanup.error,
+    cleanupTelemetryCode: cleanup.telemetryCode,
+    cleanupTelemetryStage: cleanup.telemetryStage
   }
 
-  const switchAfterDate =
-    computeSelectionSwitchDate(
-      automaticResolution,
-      currentDate
-    )
+  const switchAfterDate = computeSelectionSwitchDate(automaticResolution, currentDate)
 
-  const refreshAfterDate =
-    computeAutomaticRefreshDate(
-      serviceRefreshAfterDate,
-      automaticResolution,
-      currentDate
-    )
+  const refreshAfterDate = computeAutomaticRefreshDate(
+    serviceRefreshAfterDate,
+    automaticResolution,
+    currentDate
+  )
 
   return {
     valid: true,
-
     errorTitle: "",
     errorMessage: "",
-
     source,
     service,
     state,
     stats,
     displaySlice,
-
     currentDate,
     refreshAfterDate,
     switchAfterDate,
-
-    sourceOrigin:
-      resolution.origin,
-
-    serviceSelection:
-      resolution.selection,
-
-    servicesScan:
-      resolution.scanResult,
-
-    servicesScanError:
-      resolution.scanError,
-
-    serviceSelectionError:
-      resolution.selectionError,
-
-    servicesCleanup:
-      cleanup.result,
-
-    servicesCleanupError:
-      cleanup.error,
-
+    sourceOrigin: resolution.origin,
+    serviceSelection: resolution.selection,
+    servicesScan: resolution.scanResult,
+    servicesScanError: resolution.scanError,
+    serviceSelectionError: resolution.selectionError,
+    servicesCleanup: cleanup.result,
+    servicesCleanupError: cleanup.error,
     telemetry
   }
 }
 
-// =====================================================
 // DÉTECTION ET SÉLECTION DU SERVICE
-// =====================================================
 
-async function resolveServiceSource(
-  currentDate
-) {
-  const scan =
-    await runServicesScan()
+async function resolveServiceSource(currentDate) {
+  const scan = await runServicesScan()
 
-  const selection =
-    await resolveIndexedService(
-      currentDate
-    )
+  const selection = await resolveIndexedService(currentDate)
 
-  if (
-    selection.result?.found &&
-    selection.result.source
-  ) {
+  if (selection.result?.found && selection.result.source) {
     return {
-      source:
-        selection.result.source,
-
-      origin:
-        "services-index",
-
-      selection:
-        selection.result,
-
-      scanResult:
-        scan.result,
-
-      scanError:
-        scan.error,
-
-      scanTelemetryCode:
-        scan.telemetryCode,
-
-      scanTelemetryStage:
-        scan.telemetryStage,
-
-      selectionError:
-        selection.error,
-
-      selectionTelemetryCode:
-        selection.telemetryCode,
-
-      selectionTelemetryStage:
-        selection.telemetryStage
+      source: selection.result.source,
+      origin: "services-index",
+      selection: selection.result,
+      scanResult: scan.result,
+      scanError: scan.error,
+      scanTelemetryCode: scan.telemetryCode,
+      scanTelemetryStage: scan.telemetryStage,
+      selectionError: selection.error,
+      selectionTelemetryCode: selection.telemetryCode,
+      selectionTelemetryStage: selection.telemetryStage
     }
   }
 
@@ -299,93 +161,47 @@ async function resolveServiceSource(
    * si l’index ou le balayage rencontre un problème,
    * le dernier service valide reste affichable.
    */
-  const legacySource =
-    await STORAGE.loadService()
+  const legacySource = await STORAGE.loadService()
 
   if (legacySource) {
     return {
-      source:
-        legacySource,
-
-      origin:
-        "service-json-fallback",
-
-      selection:
-        selection.result,
-
-      scanResult:
-        scan.result,
-
-      scanError:
-        scan.error,
-
-      scanTelemetryCode:
-        scan.telemetryCode,
-
-      scanTelemetryStage:
-        scan.telemetryStage,
-
-      selectionError:
-        selection.error,
-
-      selectionTelemetryCode:
-        selection.telemetryCode,
-
-      selectionTelemetryStage:
-        selection.telemetryStage
+      source: legacySource,
+      origin: "service-json-fallback",
+      selection: selection.result,
+      scanResult: scan.result,
+      scanError: scan.error,
+      scanTelemetryCode: scan.telemetryCode,
+      scanTelemetryStage: scan.telemetryStage,
+      selectionError: selection.error,
+      selectionTelemetryCode: selection.telemetryCode,
+      selectionTelemetryStage: selection.telemetryStage
     }
   }
 
   return {
-    source:
-      null,
-
-    origin:
-      "none",
-
-    selection:
-      selection.result,
-
-    scanResult:
-      scan.result,
-
-    scanError:
-      scan.error,
-
-    scanTelemetryCode:
-      scan.telemetryCode,
-
-    scanTelemetryStage:
-      scan.telemetryStage,
-
-    selectionError:
-      selection.error,
-
-    selectionTelemetryCode:
-      selection.telemetryCode,
-
-    selectionTelemetryStage:
-      selection.telemetryStage
+    source: null,
+    origin: "none",
+    selection: selection.result,
+    scanResult: scan.result,
+    scanError: scan.error,
+    scanTelemetryCode: scan.telemetryCode,
+    scanTelemetryStage: scan.telemetryStage,
+    selectionError: selection.error,
+    selectionTelemetryCode: selection.telemetryCode,
+    selectionTelemetryStage: selection.telemetryStage
   }
 }
 
 async function runServicesScan() {
   try {
-    const maximumFiles =
-      Math.max(
-        1,
+    const maximumFiles = Math.max(
+      1,
+      Number(CONFIG.pdf?.maximumFilesPerRun) || 1
+    )
 
-        Number(
-          CONFIG.pdf
-            ?.maximumFilesPerRun
-        ) || 1
-      )
-
-    const result =
-      await SERVICES_MANAGER
-        .scanServices({
-          maximumFiles
-        })
+    const result = await SERVICES_MANAGER.scanServices({
+      maximumFiles
+    })
 
     return {
       result,
@@ -394,44 +210,26 @@ async function runServicesScan() {
       telemetryStage: ""
     }
   } catch (error) {
-    const safeError =
-      UTILS.safeError(error)
+    const safeError = UTILS.safeError(error)
 
     /*
      * Une erreur de balayage ne doit jamais
      * empêcher l’affichage d’un service connu.
      */
-    const telemetry =
-      telemetryFromError(
-        error,
-        "SERVICES_SCAN_FAILED",
-        "scan"
-      )
+    const telemetry = telemetryFromError(error, "SERVICES_SCAN_FAILED", "scan")
 
     return {
       result: null,
-
-      error:
-        safeError.message,
-
-      telemetryCode:
-        telemetry.code,
-
-      telemetryStage:
-        telemetry.stage
+      error: safeError.message,
+      telemetryCode: telemetry.code,
+      telemetryStage: telemetry.stage
     }
   }
 }
 
-async function resolveIndexedService(
-  currentDate
-) {
+async function resolveIndexedService(currentDate) {
   try {
-    const result =
-      await SERVICES_MANAGER
-        .resolveServiceForDate(
-          currentDate
-        )
+    const result = await SERVICES_MANAGER.resolveServiceForDate(currentDate)
 
     return {
       result,
@@ -440,287 +238,146 @@ async function resolveIndexedService(
       telemetryStage: ""
     }
   } catch (error) {
-    const safeError =
-      UTILS.safeError(error)
+    const safeError = UTILS.safeError(error)
 
-    const telemetry =
-      telemetryFromError(
-        error,
-        "SERVICE_SELECTION_FAILED",
-        "selection"
-      )
+    const telemetry = telemetryFromError(error, "SERVICE_SELECTION_FAILED", "selection")
 
     return {
       result: null,
-
-      error:
-        safeError.message,
-
-      telemetryCode:
-        telemetry.code,
-
-      telemetryStage:
-        telemetry.stage
+      error: safeError.message,
+      telemetryCode: telemetry.code,
+      telemetryStage: telemetry.stage
     }
   }
 }
 
-// =====================================================
 // NETTOYAGE AUTOMATIQUE
-// =====================================================
 
-async function runServicesCleanup(
-  currentDate
-) {
+async function runServicesCleanup(currentDate) {
   try {
-    const result =
-      await SERVICES_CLEANER
-        .maintainServices(
-          currentDate
-        )
+    const result = await SERVICES_CLEANER.maintainServices(currentDate)
 
-    const cleanupError =
-      extractCleanupError(
-        result
-      )
+    const cleanupError = extractCleanupError(result)
 
-    const telemetryIssues =
-      extractCleanupTelemetryIssues(
-        result
-      )
+    const telemetryIssues = extractCleanupTelemetryIssues(result)
 
-    const primaryTelemetry =
-      telemetryIssues[0] ||
-      null
+    const primaryTelemetry = telemetryIssues[0] || null
 
     return {
       result,
-
-      error:
-        cleanupError,
-
-      telemetryCode:
-        cleanupError
-          ? primaryTelemetry
-              ?.errorCode ||
-            "SERVICES_CLEANUP_FAILED"
-          : "",
-
-      telemetryStage:
-        cleanupError
-          ? primaryTelemetry
-              ?.stage ||
-            "archive"
-          : "",
-
+      error: cleanupError,
+      telemetryCode: cleanupError
+        ? primaryTelemetry?.errorCode || "SERVICES_CLEANUP_FAILED"
+        : "",
+      telemetryStage: cleanupError ? primaryTelemetry?.stage || "archive" : "",
       telemetryIssues
     }
   } catch (error) {
-    const safeError =
-      UTILS.safeError(error)
+    const safeError = UTILS.safeError(error)
 
     /*
      * Une erreur d’entretien ne doit jamais
      * empêcher la création du widget.
      */
-    const telemetry =
-      telemetryFromError(
-        error,
-        "SERVICES_CLEANUP_FAILED",
-        "archive"
-      )
+    const telemetry = telemetryFromError(error, "SERVICES_CLEANUP_FAILED", "archive")
 
     return {
       result: null,
-
-      error:
-        safeError.message,
-
-      telemetryCode:
-        telemetry.code,
-
-      telemetryStage:
-        telemetry.stage,
-
+      error: safeError.message,
+      telemetryCode: telemetry.code,
+      telemetryStage: telemetry.stage,
       telemetryIssues: [
         {
-          errorCode:
-            telemetry.code,
-
-          stage:
-            telemetry.stage
+          errorCode: telemetry.code,
+          stage: telemetry.stage
         }
       ]
     }
   }
 }
 
-function extractCleanupError(
-  result
-) {
-  if (
-    !result ||
-    result.success !== false
-  ) {
+function extractCleanupError(result) {
+  if (!result || result.success !== false) {
     return ""
   }
 
-  const errors =
-    Array.isArray(
-      result.errors
-    )
-      ? result.errors
-      : []
+  const errors = Array.isArray(result.errors) ? result.errors : []
 
-  const messages =
-    errors
-      .map(
-        item =>
-          String(
-            item?.error || ""
-          ).trim()
-      )
-      .filter(Boolean)
+  const messages = errors.map(item => String(item?.error || "").trim()).filter(Boolean)
 
   if (messages.length) {
-    return messages.join(
-      " · "
-    )
+    return messages.join(" · ")
   }
 
-  return (
-    "L’entretien automatique des services a rencontré une erreur."
-  )
+  return "L’entretien automatique des services a rencontré une erreur."
 }
 
-function extractCleanupTelemetryIssues(
-  result
-) {
-  if (
-    !result ||
-    result.success !== false
-  ) {
+function extractCleanupTelemetryIssues(result) {
+  if (!result || result.success !== false) {
     return []
   }
 
-  const errors =
-    Array.isArray(
-      result.errors
-    )
-      ? result.errors
-      : []
+  const errors = Array.isArray(result.errors) ? result.errors : []
 
   const issues = []
 
-  for (
-    const item
-    of errors
-  ) {
+  for (const item of errors) {
     const issue = {
-      errorCode:
-        normalizeTelemetryCode(
-          item?.telemetryCode,
-          "SERVICES_CLEANUP_FAILED"
-        ),
-
-      stage:
-        normalizeTelemetryStage(
-          item?.telemetryStage,
-          "archive"
-        )
+      errorCode: normalizeTelemetryCode(item?.telemetryCode, "SERVICES_CLEANUP_FAILED"),
+      stage: normalizeTelemetryStage(item?.telemetryStage, "archive")
     }
 
-    const duplicate =
-      issues.some(
-        current =>
-          current.errorCode ===
-            issue.errorCode &&
-          current.stage ===
-            issue.stage
-      )
+    const duplicate = issues.some(
+      current => current.errorCode === issue.errorCode && current.stage === issue.stage
+    )
 
     if (!duplicate) {
       issues.push(issue)
     }
 
-    if (
-      issues.length >=
-      MAX_TELEMETRY_ISSUES
-    ) {
+    if (issues.length >= MAX_TELEMETRY_ISSUES) {
       break
     }
   }
 
   if (!issues.length) {
     issues.push({
-      errorCode:
-        "SERVICES_CLEANUP_FAILED",
-
-      stage:
-        "archive"
+      errorCode: "SERVICES_CLEANUP_FAILED",
+      stage: "archive"
     })
   }
 
   return issues
 }
 
-// =====================================================
 // DIAGNOSTIC D'ABSENCE DE SERVICE
-// =====================================================
 
-function buildMissingServiceFailure(
-  resolution,
-  cleanup,
-  currentDate
-) {
-  const scanResult =
-    resolution?.scanResult
+function buildMissingServiceFailure(resolution, cleanup, currentDate) {
+  const scanResult = resolution?.scanResult
 
-  const telemetry =
-    buildContextTelemetry(
-      resolution,
-      cleanup,
-      false
-    )
+  const telemetry = buildContextTelemetry(resolution, cleanup, false)
 
-  const scanError =
-    String(
-      resolution?.scanError || ""
-    ).trim()
+  const scanError = String(resolution?.scanError || "").trim()
 
   if (scanError) {
     return failure(
       "Erreur d’analyse PDF",
-      [
-        "Le dossier Services n’a pas pu être analysé.",
-        "",
-        scanError
-      ].join("\n"),
+      ["Le dossier Services n’a pas pu être analysé.", "", scanError].join("\n"),
       currentDate,
       telemetry
     )
   }
 
-  const detectionErrors =
-    Array.isArray(
-      scanResult?.detectionErrors
-    )
-      ? scanResult.detectionErrors
-      : []
+  const detectionErrors = Array.isArray(scanResult?.detectionErrors)
+    ? scanResult.detectionErrors
+    : []
 
   if (detectionErrors.length) {
-    const first =
-      detectionErrors[0]
+    const first = detectionErrors[0]
 
-    const fileName =
-      displayFileName(
-        first?.fileName
-      )
+    const fileName = displayFileName(first?.fileName)
 
-    const error =
-      firstUsefulError(
-        first
-      )
+    const error = firstUsefulError(first)
 
     return failure(
       "PDF inaccessible",
@@ -728,58 +385,30 @@ function buildMissingServiceFailure(
         `${fileName} a bien été détecté dans le dossier Services,`,
         "mais CTS Dashboard n’arrive pas à lire ce fichier.",
         "",
-        error ||
-          "Le fichier est peut-être indisponible dans iCloud."
+        error || "Le fichier est peut-être indisponible dans iCloud."
       ].join("\n"),
       currentDate,
       telemetry
     )
   }
 
-  const currentFailures =
-    Array.isArray(
-      scanResult?.failed
-    )
-      ? scanResult.failed
-      : []
+  const currentFailures = Array.isArray(scanResult?.failed) ? scanResult.failed : []
 
-  const knownFailures =
-    Array.isArray(
-      scanResult?.knownFailures
-    )
-      ? scanResult.knownFailures
-      : []
+  const knownFailures = Array.isArray(scanResult?.knownFailures) ? scanResult.knownFailures : []
 
-  const failedImports =
-    currentFailures.length
-      ? currentFailures
-      : knownFailures
+  const failedImports = currentFailures.length ? currentFailures : knownFailures
 
   if (failedImports.length) {
-    const first =
-      failedImports[0]
+    const first = failedImports[0]
 
-    const fileName =
-      displayFileName(
-        first?.detectedFileName ||
-        first?.sourceFileName
-      )
+    const fileName = displayFileName(first?.detectedFileName || first?.sourceFileName)
 
-    const error =
-      firstUsefulError(
-        first
-      )
+    const error = firstUsefulError(first)
 
-    const validationFailure =
-      String(
-        first?.status || ""
-      ) === "validation-error"
+    const validationFailure = String(first?.status || "") === "validation-error"
 
     return failure(
-      validationFailure
-        ? "PDF HASTUS non reconnu"
-        : "Erreur d’import PDF",
-
+      validationFailure ? "PDF HASTUS non reconnu" : "Erreur d’import PDF",
       [
         `${fileName} a bien été détecté dans le dossier Services.`,
         "",
@@ -789,23 +418,14 @@ function buildMissingServiceFailure(
         "",
         error
       ]
-        .filter(
-          value =>
-            String(
-              value || ""
-            ).length > 0
-        )
+        .filter(value => String(value || "").length > 0)
         .join("\n"),
-
       currentDate,
       telemetry
     )
   }
 
-  const selectionError =
-    String(
-      resolution?.selectionError || ""
-    ).trim()
+  const selectionError = String(resolution?.selectionError || "").trim()
 
   if (selectionError) {
     return failure(
@@ -820,26 +440,13 @@ function buildMissingServiceFailure(
     )
   }
 
-  if (
-    scanResult?.status ===
-    "locked"
-  ) {
-    addDiagnosticIssue(
-      telemetry,
-      {
-        severity:
-          "warning",
-
-        errorCode:
-          "SERVICES_SCAN_LOCKED",
-
-        module:
-          "ServicesManager",
-
-        stage:
-          "scan_lock"
-      }
-    )
+  if (scanResult?.status === "locked") {
+    addDiagnosticIssue(telemetry, {
+      severity: "warning",
+      errorCode: "SERVICES_SCAN_LOCKED",
+      module: "ServicesManager",
+      stage: "scan_lock"
+    })
 
     return failure(
       "Analyse en cours",
@@ -853,39 +460,19 @@ function buildMissingServiceFailure(
     )
   }
 
-  const detected =
-    Math.max(
-      0,
-      Number(
-        scanResult?.detected ??
-        scanResult?.scanned ??
-        0
-      ) || 0
-    )
+  const detected = Math.max(0, Number(scanResult?.detected ?? scanResult?.scanned ?? 0) || 0)
 
   if (detected > 0) {
-    telemetry.pdfStatus =
-      "found"
+    telemetry.pdfStatus = "found"
 
-    telemetry.serviceStatus =
-      "not_found"
+    telemetry.serviceStatus = "not_found"
 
-    addDiagnosticIssue(
-      telemetry,
-      {
-        severity:
-          "warning",
-
-        errorCode:
-          "SERVICE_NOT_FOUND",
-
-        module:
-          "WidgetEngine",
-
-        stage:
-          "service"
-      }
-    )
+    addDiagnosticIssue(telemetry, {
+      severity: "warning",
+      errorCode: "SERVICE_NOT_FOUND",
+      module: "WidgetEngine",
+      stage: "service"
+    })
 
     return failure(
       "Aucun service exploitable",
@@ -900,28 +487,16 @@ function buildMissingServiceFailure(
     )
   }
 
-  telemetry.pdfStatus =
-    "missing"
+  telemetry.pdfStatus = "missing"
 
-  telemetry.serviceStatus =
-    "not_found"
+  telemetry.serviceStatus = "not_found"
 
-  addDiagnosticIssue(
-    telemetry,
-    {
-      severity:
-        "warning",
-
-      errorCode:
-        "PDF_NOT_FOUND",
-
-      module:
-        "WidgetEngine",
-
-      stage:
-        "source"
-    }
-  )
+  addDiagnosticIssue(telemetry, {
+    severity: "warning",
+    errorCode: "PDF_NOT_FOUND",
+    module: "WidgetEngine",
+    stage: "source"
+  })
 
   return failure(
     "Aucun PDF",
@@ -935,50 +510,25 @@ function buildMissingServiceFailure(
   )
 }
 
-function firstUsefulError(
-  value
-) {
-  const direct =
-    String(
-      value?.error || ""
-    ).trim()
+function firstUsefulError(value) {
+  const direct = String(value?.error || "").trim()
 
   if (direct) {
     return direct
   }
 
-  const errors =
-    Array.isArray(
-      value?.errors
-    )
-      ? value.errors
-          .map(
-            item =>
-              typeof item === "string"
-                ? item
-                : item?.message ||
-                  item?.error ||
-                  ""
-          )
-          .map(
-            item =>
-              String(
-                item || ""
-              ).trim()
-          )
-          .filter(Boolean)
-      : []
+  const errors = Array.isArray(value?.errors)
+    ? value.errors
+        .map(item => (typeof item === "string" ? item : item?.message || item?.error || ""))
+        .map(item => String(item || "").trim())
+        .filter(Boolean)
+    : []
 
   if (errors.length) {
-    return errors.join(
-      " · "
-    )
+    return errors.join(" · ")
   }
 
-  const detailsMessage =
-    String(
-      value?.details?.message || ""
-    ).trim()
+  const detailsMessage = String(value?.details?.message || "").trim()
 
   if (detailsMessage) {
     return detailsMessage
@@ -987,753 +537,316 @@ function firstUsefulError(
   return ""
 }
 
-function displayFileName(
-  value
-) {
-  const fileName =
-    String(
-      value || ""
-    ).trim()
+function displayFileName(value) {
+  const fileName = String(value || "").trim()
 
-  return fileName ||
-    "Le PDF"
+  return fileName || "Le PDF"
 }
 
-// =====================================================
 // DIAGNOSTIC STRUCTURÉ POUR ANALYTICS
-// =====================================================
 
-function buildContextTelemetry(
-  resolution,
-  cleanup,
-  hasSource
-) {
+function buildContextTelemetry(resolution, cleanup, hasSource) {
   const telemetry = {
-    pdfStatus:
-      "not_checked",
-
-    parserStatus:
-      "not_run",
-
-    serviceStatus:
-      hasSource
-        ? "found"
-        : "not_found",
-
-    archiveStatus:
-      "not_run",
-
-    issues:
-      [],
-
-    timings:
-      null
+    pdfStatus: "not_checked",
+    parserStatus: "not_run",
+    serviceStatus: hasSource ? "found" : "not_found",
+    archiveStatus: "not_run",
+    issues: [],
+    timings: null
   }
 
-  const scanResult =
-    resolution?.scanResult
+  const scanResult = resolution?.scanResult
 
-  const detected =
-    Math.max(
-      0,
-      Number(
-        scanResult?.detected ??
-        scanResult?.scanned ??
-        0
-      ) || 0
-    )
+  const detected = Math.max(0, Number(scanResult?.detected ?? scanResult?.scanned ?? 0) || 0)
 
   if (detected > 0) {
-    telemetry.pdfStatus =
-      "found"
+    telemetry.pdfStatus = "found"
   }
 
-  if (
-    resolution?.scanError
-  ) {
-    telemetry.pdfStatus =
-      "read_error"
+  if (resolution?.scanError) {
+    telemetry.pdfStatus = "read_error"
 
-    addDiagnosticIssue(
-      telemetry,
-      {
-        severity:
-          hasSource
-            ? "warning"
-            : "error",
-
-        errorCode:
-          resolution
-            .scanTelemetryCode ||
-          "SERVICES_SCAN_FAILED",
-
-        module:
-          "ServicesManager",
-
-        stage:
-          resolution
-            .scanTelemetryStage ||
-          "scan"
-      }
-    )
+    addDiagnosticIssue(telemetry, {
+      severity: hasSource ? "warning" : "error",
+      errorCode: resolution.scanTelemetryCode || "SERVICES_SCAN_FAILED",
+      module: "ServicesManager",
+      stage: resolution.scanTelemetryStage || "scan"
+    })
   }
 
-  const detectionErrors =
-    Array.isArray(
-      scanResult?.detectionErrors
-    )
-      ? scanResult.detectionErrors
-      : []
+  const detectionErrors = Array.isArray(scanResult?.detectionErrors)
+    ? scanResult.detectionErrors
+    : []
 
-  for (
-    const item
-    of detectionErrors
-  ) {
-    telemetry.pdfStatus =
-      "read_error"
+  for (const item of detectionErrors) {
+    telemetry.pdfStatus = "read_error"
 
-    addDiagnosticIssue(
-      telemetry,
-      {
-        severity:
-          hasSource
-            ? "warning"
-            : "error",
-
-        errorCode:
-          item?.telemetryCode ||
-          "PDF_INSPECTION_FAILED",
-
-        module:
-          "ServicesManager",
-
-        stage:
-          item?.telemetryStage ||
-          item?.stage ||
-          "inspection"
-      }
-    )
+    addDiagnosticIssue(telemetry, {
+      severity: hasSource ? "warning" : "error",
+      errorCode: item?.telemetryCode || "PDF_INSPECTION_FAILED",
+      module: "ServicesManager",
+      stage: item?.telemetryStage || item?.stage || "inspection"
+    })
   }
 
-  const imported =
-    Array.isArray(
-      scanResult?.imported
-    )
-      ? scanResult.imported
-      : []
+  const imported = Array.isArray(scanResult?.imported) ? scanResult.imported : []
 
   if (imported.length) {
-    telemetry.pdfStatus =
-      telemetry.pdfStatus ===
-        "read_error"
-        ? "read_error"
-        : "found"
+    telemetry.pdfStatus = telemetry.pdfStatus === "read_error" ? "read_error" : "found"
 
-    telemetry.parserStatus =
-      "success"
+    telemetry.parserStatus = "success"
 
-    telemetry.timings =
-      normalizeImportTimings(
-        imported[0]
-          ?.timings
-      )
+    telemetry.timings = normalizeImportTimings(imported[0]?.timings)
   }
 
-  const failed =
-    Array.isArray(
-      scanResult?.failed
-    )
-      ? scanResult.failed
+  const failed = Array.isArray(scanResult?.failed) ? scanResult.failed : []
+
+  for (const item of failed) {
+    applyImportFailureTelemetry(telemetry, item, hasSource)
+  }
+
+  if (!failed.length && !hasSource) {
+    const knownFailures = Array.isArray(scanResult?.knownFailures)
+      ? scanResult.knownFailures
       : []
 
-  for (
-    const item
-    of failed
-  ) {
-    applyImportFailureTelemetry(
-      telemetry,
-      item,
-      hasSource
-    )
-  }
-
-  if (
-    !failed.length &&
-    !hasSource
-  ) {
-    const knownFailures =
-      Array.isArray(
-        scanResult?.knownFailures
-      )
-        ? scanResult.knownFailures
-        : []
-
     if (knownFailures.length) {
-      applyImportFailureTelemetry(
-        telemetry,
-        knownFailures[0],
-        false
-      )
+      applyImportFailureTelemetry(telemetry, knownFailures[0], false)
     }
   }
 
-  if (
-    resolution?.selectionError
-  ) {
-    telemetry.serviceStatus =
-      hasSource
-        ? "found"
-        : "error"
+  if (resolution?.selectionError) {
+    telemetry.serviceStatus = hasSource ? "found" : "error"
 
-    addDiagnosticIssue(
-      telemetry,
-      {
-        severity:
-          hasSource
-            ? "warning"
-            : "error",
-
-        errorCode:
-          resolution
-            .selectionTelemetryCode ||
-          "SERVICE_SELECTION_FAILED",
-
-        module:
-          "ServicesManager",
-
-        stage:
-          resolution
-            .selectionTelemetryStage ||
-          "selection"
-      }
-    )
+    addDiagnosticIssue(telemetry, {
+      severity: hasSource ? "warning" : "error",
+      errorCode: resolution.selectionTelemetryCode || "SERVICE_SELECTION_FAILED",
+      module: "ServicesManager",
+      stage: resolution.selectionTelemetryStage || "selection"
+    })
   }
 
-  if (
-    cleanup?.result?.status ===
-      "locked"
-  ) {
-    telemetry.archiveStatus =
-      "not_run"
-
-  } else if (
-    cleanup?.result
-  ) {
-    telemetry.archiveStatus =
-      cleanup.result.success ===
-        false
-        ? "error"
-        : "success"
+  if (cleanup?.result?.status === "locked") {
+    telemetry.archiveStatus = "not_run"
+  } else if (cleanup?.result) {
+    telemetry.archiveStatus = cleanup.result.success === false ? "error" : "success"
   }
 
-  if (
-    cleanup?.error
-  ) {
-    telemetry.archiveStatus =
-      "error"
+  if (cleanup?.error) {
+    telemetry.archiveStatus = "error"
 
     const cleanupIssues =
-      Array.isArray(
-        cleanup?.telemetryIssues
-      ) &&
-      cleanup.telemetryIssues.length
+      Array.isArray(cleanup?.telemetryIssues) && cleanup.telemetryIssues.length
         ? cleanup.telemetryIssues
         : [
             {
-              errorCode:
-                cleanup
-                  .telemetryCode ||
-                "SERVICES_CLEANUP_FAILED",
-
-              stage:
-                cleanup
-                  .telemetryStage ||
-                "archive"
+              errorCode: cleanup.telemetryCode || "SERVICES_CLEANUP_FAILED",
+              stage: cleanup.telemetryStage || "archive"
             }
           ]
 
-    for (
-      const item
-      of cleanupIssues
-    ) {
-      addDiagnosticIssue(
-        telemetry,
-        {
-          severity:
-            "warning",
-
-          errorCode:
-            item?.errorCode ||
-            "SERVICES_CLEANUP_FAILED",
-
-          module:
-            "ServicesCleaner",
-
-          stage:
-            item?.stage ||
-            "archive"
-        }
-      )
+    for (const item of cleanupIssues) {
+      addDiagnosticIssue(telemetry, {
+        severity: "warning",
+        errorCode: item?.errorCode || "SERVICES_CLEANUP_FAILED",
+        module: "ServicesCleaner",
+        stage: item?.stage || "archive"
+      })
     }
   }
 
-  if (
-    !hasSource &&
-    detected <= 0 &&
-    telemetry.pdfStatus ===
-      "not_checked"
-  ) {
-    telemetry.pdfStatus =
-      "missing"
+  if (!hasSource && detected <= 0 && telemetry.pdfStatus === "not_checked") {
+    telemetry.pdfStatus = "missing"
   }
 
   return telemetry
 }
 
-function applyImportFailureTelemetry(
-  telemetry,
-  item,
-  hasSource
-) {
-  const status =
-    String(
-      item?.status ||
-      ""
-    )
+function applyImportFailureTelemetry(telemetry, item, hasSource) {
+  const status = String(item?.status || "")
 
   const fallbackCode =
-    status ===
-      "validation-error"
-      ? "HASTUS_VALIDATION_FAILED"
-      : "SERVICE_IMPORT_FAILED"
+    status === "validation-error" ? "HASTUS_VALIDATION_FAILED" : "SERVICE_IMPORT_FAILED"
 
-  const fallbackStage =
-    status ===
-      "validation-error"
-      ? "validation"
-      : "import"
+  const fallbackStage = status === "validation-error" ? "validation" : "import"
 
-  const code =
-    normalizeTelemetryCode(
-      item?.telemetryCode,
-      fallbackCode
-    )
+  const code = normalizeTelemetryCode(item?.telemetryCode, fallbackCode)
 
-  const stage =
-    normalizeTelemetryStage(
-      item?.telemetryStage,
-      fallbackStage
-    )
+  const stage = normalizeTelemetryStage(item?.telemetryStage, fallbackStage)
 
-  const pdfStages =
-    new Set([
-      "source",
-      "metadata",
-      "inspection",
-      "engine",
-      "engine_install",
-      "extraction"
-    ])
+  const pdfStages = new Set([
+    "source",
+    "metadata",
+    "inspection",
+    "engine",
+    "engine_install",
+    "extraction"
+  ])
 
-  const parsedStages =
-    new Set([
-      "validation",
-      "registration",
-      "cache",
-      "text_cache",
-      "canonicalize",
-      "index",
-      "activation"
-    ])
+  const parsedStages = new Set([
+    "validation",
+    "registration",
+    "cache",
+    "text_cache",
+    "canonicalize",
+    "index",
+    "activation"
+  ])
 
-  if (
-    pdfStages.has(
-      stage
-    )
-  ) {
-    telemetry.pdfStatus =
-      "read_error"
+  if (pdfStages.has(stage)) {
+    telemetry.pdfStatus = "read_error"
+  } else if (telemetry.pdfStatus !== "read_error") {
+    telemetry.pdfStatus = "found"
+  }
+
+  if (stage === "parser") {
+    telemetry.parserStatus = "error"
+  } else if (parsedStages.has(stage)) {
+    telemetry.parserStatus = "success"
+  }
+
+  if (stage === "validation") {
+    telemetry.serviceStatus = hasSource ? "found" : "not_found"
   } else if (
-    telemetry.pdfStatus !==
-      "read_error"
+    stage === "registration" ||
+    stage === "cache" ||
+    stage === "text_cache" ||
+    stage === "canonicalize" ||
+    stage === "index" ||
+    stage === "activation" ||
+    stage === "database" ||
+    stage === "import"
   ) {
-    telemetry.pdfStatus =
-      "found"
+    telemetry.serviceStatus = hasSource ? "found" : "error"
   }
 
-  if (
-    stage ===
-      "parser"
-  ) {
-    telemetry.parserStatus =
-      "error"
-  } else if (
-    parsedStages.has(
-      stage
-    )
-  ) {
-    telemetry.parserStatus =
-      "success"
+  if (!telemetry.timings && item?.timings) {
+    telemetry.timings = normalizeImportTimings(item.timings)
   }
 
-  if (
-    stage ===
-      "validation"
-  ) {
-    telemetry.serviceStatus =
-      hasSource
-        ? "found"
-        : "not_found"
-  } else if (
-    stage ===
-      "registration" ||
-    stage ===
-      "cache" ||
-    stage ===
-      "text_cache" ||
-    stage ===
-      "canonicalize" ||
-    stage ===
-      "index" ||
-    stage ===
-      "activation" ||
-    stage ===
-      "database" ||
-    stage ===
-      "import"
-  ) {
-    telemetry.serviceStatus =
-      hasSource
-        ? "found"
-        : "error"
-  }
-
-  if (
-    !telemetry.timings &&
-    item?.timings
-  ) {
-    telemetry.timings =
-      normalizeImportTimings(
-        item.timings
-      )
-  }
-
-  addDiagnosticIssue(
-    telemetry,
-    {
-      severity:
-        hasSource
-          ? "warning"
-          : "error",
-
-      errorCode:
-        code,
-
-      module:
-        "Importer",
-
-      stage
-    }
-  )
+  addDiagnosticIssue(telemetry, {
+    severity: hasSource ? "warning" : "error",
+    errorCode: code,
+    module: "Importer",
+    stage
+  })
 }
 
-function addDiagnosticIssue(
-  telemetry,
-  issue
-) {
+function addDiagnosticIssue(telemetry, issue) {
   if (
     !telemetry ||
-    !Array.isArray(
-      telemetry.issues
-    ) ||
-    telemetry.issues.length >=
-      MAX_TELEMETRY_ISSUES
+    !Array.isArray(telemetry.issues) ||
+    telemetry.issues.length >= MAX_TELEMETRY_ISSUES
   ) {
     return
   }
 
   const normalized = {
-    severity:
-      normalizeIssueSeverity(
-        issue?.severity
-      ),
-
-    errorCode:
-      normalizeTelemetryCode(
-        issue?.errorCode,
-        "DASHBOARD_UNKNOWN_ERROR"
-      ),
-
-    module:
-      normalizeTelemetryLabel(
-        issue?.module,
-        "WidgetEngine"
-      ),
-
-    stage:
-      normalizeTelemetryStage(
-        issue?.stage,
-        "unknown"
-      )
+    severity: normalizeIssueSeverity(issue?.severity),
+    errorCode: normalizeTelemetryCode(issue?.errorCode, "DASHBOARD_UNKNOWN_ERROR"),
+    module: normalizeTelemetryLabel(issue?.module, "WidgetEngine"),
+    stage: normalizeTelemetryStage(issue?.stage, "unknown")
   }
 
-  const duplicate =
-    telemetry.issues.some(
-      current =>
-        current.errorCode ===
-          normalized.errorCode &&
-        current.module ===
-          normalized.module &&
-        current.stage ===
-          normalized.stage
-    )
+  const duplicate = telemetry.issues.some(
+    current =>
+      current.errorCode === normalized.errorCode &&
+      current.module === normalized.module &&
+      current.stage === normalized.stage
+  )
 
   if (!duplicate) {
-    telemetry.issues.push(
-      normalized
-    )
+    telemetry.issues.push(normalized)
   }
 }
 
-function normalizeIssueSeverity(
-  value
-) {
-  const severity =
-    String(
-      value ||
-      "error"
-    )
-      .trim()
-      .toLowerCase()
+function normalizeIssueSeverity(value) {
+  const severity = String(value || "error")
+    .trim()
+    .toLowerCase()
 
-  return [
-    "warning",
-    "error",
-    "fatal"
-  ].includes(
-    severity
-  )
-    ? severity
-    : "error"
+  return ["warning", "error", "fatal"].includes(severity) ? severity : "error"
 }
 
-function telemetryFromError(
-  error,
-  fallbackCode,
-  fallbackStage
-) {
+function telemetryFromError(error, fallbackCode, fallbackStage) {
   return {
-    code:
-      normalizeTelemetryCode(
-        error
-          ?.telemetryCode,
-        fallbackCode
-      ),
-
-    stage:
-      normalizeTelemetryStage(
-        error
-          ?.telemetryStage,
-        fallbackStage
-      )
+    code: normalizeTelemetryCode(error?.telemetryCode, fallbackCode),
+    stage: normalizeTelemetryStage(error?.telemetryStage, fallbackStage)
   }
 }
 
-function normalizeTelemetryCode(
-  value,
-  fallback
-) {
-  const normalized =
-    String(
-      value ||
-      fallback ||
-      "DASHBOARD_UNKNOWN_ERROR"
-    )
-      .trim()
-      .toUpperCase()
-      .replace(
-        /[^A-Z0-9_]/g,
-        "_"
-      )
-      .slice(
-        0,
-        64
-      )
+function normalizeTelemetryCode(value, fallback) {
+  const normalized = String(value || fallback || "DASHBOARD_UNKNOWN_ERROR")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_]/g, "_")
+    .slice(0, 64)
 
-  return normalized ||
-    "DASHBOARD_UNKNOWN_ERROR"
+  return normalized || "DASHBOARD_UNKNOWN_ERROR"
 }
 
-function normalizeTelemetryStage(
-  value,
-  fallback
-) {
-  const normalized =
-    String(
-      value ||
-      fallback ||
-      "unknown"
-    )
-      .trim()
-      .replace(
-        /[^a-zA-Z0-9._-]/g,
-        "_"
-      )
-      .slice(
-        0,
-        50
-      )
+function normalizeTelemetryStage(value, fallback) {
+  const normalized = String(value || fallback || "unknown")
+    .trim()
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .slice(0, 50)
 
-  return normalized ||
-    "unknown"
+  return normalized || "unknown"
 }
 
-function normalizeTelemetryLabel(
-  value,
-  fallback
-) {
-  return normalizeTelemetryStage(
-    value,
-    fallback
-  )
+function normalizeTelemetryLabel(value, fallback) {
+  return normalizeTelemetryStage(value, fallback)
 }
 
-function normalizeImportTimings(
-  value
-) {
-  if (
-    !value ||
-    typeof value !==
-      "object" ||
-    Array.isArray(
-      value
-    )
-  ) {
+function normalizeImportTimings(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null
   }
 
   return {
-    sourceInspectionMs:
-      finiteOrNull(
-        value
-          .sourceInspectionMs
-      ),
-
-    pdfExtractionMs:
-      finiteOrNull(
-        value
-          .pdfExtractionMs
-      ),
-
-    databaseReloadMs:
-      finiteOrNull(
-        value
-          .databaseReloadMs
-      ),
-
-    parserMs:
-      finiteOrNull(
-        value.parserMs
-      ),
-
-    registrationMs:
-      finiteOrNull(
-        value
-          .registrationMs
-      ),
-
-    totalMs:
-      finiteOrNull(
-        value.totalMs
-      )
+    sourceInspectionMs: finiteOrNull(value.sourceInspectionMs),
+    pdfExtractionMs: finiteOrNull(value.pdfExtractionMs),
+    databaseReloadMs: finiteOrNull(value.databaseReloadMs),
+    parserMs: finiteOrNull(value.parserMs),
+    registrationMs: finiteOrNull(value.registrationMs),
+    totalMs: finiteOrNull(value.totalMs)
   }
 }
 
-function finiteOrNull(
-  value
-) {
-  if (
-    value === null ||
-    value === undefined ||
-    value === ""
-  ) {
+function finiteOrNull(value) {
+  if (value === null || value === undefined || value === "") {
     return null
   }
 
-  const number =
-    Number(
-      value
-    )
+  const number = Number(value)
 
-  return Number.isFinite(
-    number
-  )
-    ? number
-    : null
+  return Number.isFinite(number) ? number : null
 }
 
-// =====================================================
 // ACTUALISATION AUTOMATIQUE
-// =====================================================
 
-function computeAutomaticRefreshDate(
-  serviceRefreshAfterDate,
-  resolution,
-  currentDate
-) {
-  const scanRefreshAfterDate =
-    computeScanRefreshDate(
-      resolution,
-      currentDate
-    )
+function computeAutomaticRefreshDate(serviceRefreshAfterDate, resolution, currentDate) {
+  const scanRefreshAfterDate = computeScanRefreshDate(resolution, currentDate)
 
-  const switchAfterDate =
-    computeSelectionSwitchDate(
-      resolution,
-      currentDate
-    )
+  const switchAfterDate = computeSelectionSwitchDate(resolution, currentDate)
 
   return earliestValidDate(
-    [
-      serviceRefreshAfterDate,
-      scanRefreshAfterDate,
-      switchAfterDate
-    ],
-
-    new Date(
-      currentDate.getTime() +
-      SERVICES_SCAN_REFRESH_MS
-    ),
-
+    [serviceRefreshAfterDate, scanRefreshAfterDate, switchAfterDate],
+    new Date(currentDate.getTime() + SERVICES_SCAN_REFRESH_MS),
     currentDate
   )
 }
 
-function computeSelectionSwitchDate(
-  resolution,
-  currentDate
-) {
-  const rawSwitchAfter =
-    String(
-      resolution?.selection
-        ?.switchAfter ||
-      ""
-    ).trim()
+function computeSelectionSwitchDate(resolution, currentDate) {
+  const rawSwitchAfter = String(resolution?.selection?.switchAfter || "").trim()
 
   if (!rawSwitchAfter) {
     return null
   }
 
-  const switchAfterDate =
-    new Date(
-      rawSwitchAfter
-    )
+  const switchAfterDate = new Date(rawSwitchAfter)
 
-  if (
-    !isValidDate(
-      switchAfterDate
-    )
-  ) {
+  if (!isValidDate(switchAfterDate)) {
     return null
   }
 
@@ -1741,39 +854,24 @@ function computeSelectionSwitchDate(
    * Une date déjà passée ne doit pas provoquer
    * une boucle d’actualisations immédiates.
    */
-  if (
-    switchAfterDate.getTime() <=
-    currentDate.getTime()
-  ) {
+  if (switchAfterDate.getTime() <= currentDate.getTime()) {
     return null
   }
 
   return switchAfterDate
 }
 
-function computeScanRefreshDate(
-  resolution,
-  currentDate
-) {
-  const scanResult =
-    resolution?.scanResult
+function computeScanRefreshDate(resolution, currentDate) {
+  const scanResult = resolution?.scanResult
 
-  let delay =
-    SERVICES_SCAN_REFRESH_MS
+  let delay = SERVICES_SCAN_REFRESH_MS
 
   /*
    * Une nouvelle tentative est demandée
    * rapidement si un traitement est en attente.
    */
-  if (
-    scanResult?.status ===
-      "locked" ||
-    Number(
-      scanResult?.remaining
-    ) > 0
-  ) {
-    delay =
-      PENDING_SCAN_REFRESH_MS
+  if (scanResult?.status === "locked" || Number(scanResult?.remaining) > 0) {
+    delay = PENDING_SCAN_REFRESH_MS
   }
 
   /*
@@ -1781,49 +879,23 @@ function computeScanRefreshDate(
    * ou d’entretien déclenche une nouvelle
    * tentative au bout de cinq minutes.
    */
-  if (
-    resolution?.scanError ||
-    resolution?.selectionError ||
-    resolution?.cleanupError
-  ) {
-    delay =
-      FAILED_SCAN_REFRESH_MS
+  if (resolution?.scanError || resolution?.selectionError || resolution?.cleanupError) {
+    delay = FAILED_SCAN_REFRESH_MS
   }
 
-  return new Date(
-    currentDate.getTime() +
-    delay
-  )
+  return new Date(currentDate.getTime() + delay)
 }
 
 /*
  * Une date déjà passée provoquerait des actualisations en boucle :
  * seules les échéances réellement à venir sont retenues.
  */
-function earliestValidDate(
-  values,
-  fallback,
-  after
-) {
-  const validDates =
-    values
-      .filter(
-        value =>
-          isValidDate(value) &&
-          (
-            !isValidDate(after) ||
-            value.getTime() >
-              after.getTime()
-          )
-      )
-      .sort(
-        (
-          first,
-          second
-        ) =>
-          first.getTime() -
-          second.getTime()
-      )
+function earliestValidDate(values, fallback, after) {
+  const validDates = values
+    .filter(
+      value => isValidDate(value) && (!isValidDate(after) || value.getTime() > after.getTime())
+    )
+    .sort((first, second) => first.getTime() - second.getTime())
 
   if (validDates.length) {
     return validDates[0]
@@ -1832,83 +904,45 @@ function earliestValidDate(
   return fallback
 }
 
-// =====================================================
 // ACTUALISATION SELON L’ÉTAT DU SERVICE
-// =====================================================
 
-function computeNextRefreshDate(
-  service,
-  state,
-  currentDate = new Date()
-) {
-  const fallbackRefreshDate =
-    new Date(
-      currentDate.getTime() +
-      CONFIG.refresh.unknownMs
-    )
+function computeNextRefreshDate(service, state, currentDate = new Date()) {
+  const fallbackRefreshDate = new Date(currentDate.getTime() + CONFIG.refresh.unknownMs)
 
-  if (
-    !service ||
-    !state ||
-    !Array.isArray(
-      service.slices
-    ) ||
-    service.slices.length === 0
-  ) {
+  if (!service || !state || !Array.isArray(service.slices) || service.slices.length === 0) {
     return fallbackRefreshDate
   }
 
-  const serviceDate =
-    UTILS.parseDate(
-      service.date
-    )
+  const serviceDate = UTILS.parseDate(service.date)
 
   if (!serviceDate) {
     return fallbackRefreshDate
   }
 
-  const firstSlice =
-    service.slices[0]
+  const firstSlice = service.slices[0]
 
   switch (state.type) {
     case "NEXT":
     case "BEFORE":
-      return computeBeforeRefreshDate(
-        serviceDate,
-        firstSlice,
-        currentDate
-      )
+      return computeBeforeRefreshDate(serviceDate, firstSlice, currentDate)
 
     case "WORK":
-      return computeWorkRefreshDate(
-        serviceDate,
-        state,
-        currentDate
-      )
+      return computeWorkRefreshDate(serviceDate, state, currentDate)
 
     case "PAUSE":
     case "CUT":
-      if (
-        state.next &&
-        UTILS.isValidTime(
-          state.next.start
-        )
-      ) {
+      if (state.next && UTILS.isValidTime(state.next.start)) {
         return dateForServiceTime(
           serviceDate,
           state.next.start,
-          CONFIG.refresh
-            .transitionDelaySeconds
+          CONFIG.refresh.transitionDelaySeconds
         )
       }
 
       return fallbackRefreshDate
 
     case "DONE":
-      return new Date(
-        currentDate.getTime() +
-        CONFIG.refresh.inactiveMs
-      )
+      return new Date(currentDate.getTime() + CONFIG.refresh.inactiveMs)
 
     default:
       return fallbackRefreshDate
@@ -1920,102 +954,54 @@ function computeNextRefreshDate(
  * ligne. Le widget se réveille à la prochaine de ces deux transitions
  * qui soit encore à venir, jamais sur une heure déjà passée.
  */
-function computeBeforeRefreshDate(
-  serviceDate,
-  firstSlice,
-  currentDate
-) {
-  const transitions = [
-    firstSlice.dutyStart,
-    firstSlice.start
-  ]
+function computeBeforeRefreshDate(serviceDate, firstSlice, currentDate) {
+  const transitions = [firstSlice.dutyStart, firstSlice.start]
 
   for (const time of transitions) {
-    if (
-      !UTILS.isValidTime(time)
-    ) {
+    if (!UTILS.isValidTime(time)) {
       continue
     }
 
-    const transitionDate =
-      dateForServiceTime(
-        serviceDate,
-        time,
-        CONFIG.refresh
-          .transitionDelaySeconds
-      )
+    const transitionDate = dateForServiceTime(
+      serviceDate,
+      time,
+      CONFIG.refresh.transitionDelaySeconds
+    )
 
-    if (
-      transitionDate.getTime() >
-      currentDate.getTime()
-    ) {
+    if (transitionDate.getTime() > currentDate.getTime()) {
       return transitionDate
     }
   }
 
-  return new Date(
-    currentDate.getTime() +
-    CONFIG.refresh.activeMs
-  )
+  return new Date(currentDate.getTime() + CONFIG.refresh.activeMs)
 }
 
-function computeWorkRefreshDate(
-  serviceDate,
-  state,
-  currentDate
-) {
-  const activeRefreshDate =
-    new Date(
-      currentDate.getTime() +
-      CONFIG.refresh.activeMs
-    )
+function computeWorkRefreshDate(serviceDate, state, currentDate) {
+  const activeRefreshDate = new Date(currentDate.getTime() + CONFIG.refresh.activeMs)
 
-  if (
-    !state.current ||
-    !UTILS.isValidTime(
-      state.current.end
-    )
-  ) {
+  if (!state.current || !UTILS.isValidTime(state.current.end)) {
     return activeRefreshDate
   }
 
-  const sliceEndDate =
-    dateForServiceTime(
-      serviceDate,
-      state.current.end,
-      CONFIG.refresh
-        .transitionDelaySeconds
-    )
-
-  return (
-    activeRefreshDate <
-    sliceEndDate
+  const sliceEndDate = dateForServiceTime(
+    serviceDate,
+    state.current.end,
+    CONFIG.refresh.transitionDelaySeconds
   )
-    ? activeRefreshDate
-    : sliceEndDate
+
+  return activeRefreshDate < sliceEndDate ? activeRefreshDate : sliceEndDate
 }
 
-function dateForServiceTime(
-  serviceDate,
-  time,
-  extraSeconds = 0
-) {
+function dateForServiceTime(serviceDate, time, extraSeconds = 0) {
   if (
     !serviceDate ||
-    typeof serviceDate
-      .getFullYear !==
-      "function" ||
+    typeof serviceDate.getFullYear !== "function" ||
     !UTILS.isValidTime(time)
   ) {
     return new Date()
   }
 
-  const [
-    hours,
-    minutes
-  ] = time
-    .split(":")
-    .map(Number)
+  const [hours, minutes] = time.split(":").map(Number)
 
   return new Date(
     serviceDate.getFullYear(),
@@ -2028,13 +1014,9 @@ function dateForServiceTime(
   )
 }
 
-// =====================================================
 // INFORMATIONS D’AFFICHAGE
-// =====================================================
 
-function departureInfoText(
-  slice
-) {
+function departureInfoText(slice) {
   if (!slice) {
     return ""
   }
@@ -2042,158 +1024,74 @@ function departureInfoText(
   const information = []
 
   if (slice.lineUpAt) {
-    information.push(
-      `Mise en ligne à ${slice.lineUpAt}`
-    )
+    information.push(`Mise en ligne à ${slice.lineUpAt}`)
   }
 
   if (slice.direction) {
-    information.push(
-      `Direction ${slice.direction}`
-    )
+    information.push(`Direction ${slice.direction}`)
   }
 
-  return information.join(
-    " · "
-  )
+  return information.join(" · ")
 }
 
-function formatServiceDate(
-  service
-) {
-  const serviceDate =
-    UTILS.parseDate(
-      service?.date
-    )
+function formatServiceDate(service) {
+  const serviceDate = UTILS.parseDate(service?.date)
 
-  return UTILS.formatDateLong(
-    serviceDate
-  )
+  return UTILS.formatDateLong(serviceDate)
 }
 
 function getWidgetFamily() {
-  const family =
-    String(
-      config.widgetFamily ||
-      "large"
-    )
+  const family = String(config.widgetFamily || "large")
 
-  if (
-    family === "small" ||
-    family === "medium" ||
-    family === "large"
-  ) {
+  if (family === "small" || family === "medium" || family === "large") {
     return family
   }
 
   return "large"
 }
 
-// =====================================================
 // ÉCHEC SÉCURISÉ
-// =====================================================
 
-function failure(
-  title,
-  message,
-  currentDate = new Date(),
-  telemetry = null
-) {
+function failure(title, message, currentDate = new Date(), telemetry = null) {
   return {
     valid: false,
-
-    errorTitle:
-      String(
-        title || "Erreur"
-      ),
-
-    errorMessage:
-      String(
-        message ||
-        "Une erreur inconnue est survenue."
-      ),
-
+    errorTitle: String(title || "Erreur"),
+    errorMessage: String(message || "Une erreur inconnue est survenue."),
     source: null,
     service: null,
     state: null,
     stats: null,
     displaySlice: null,
-
     currentDate,
-
-    refreshAfterDate:
-      new Date(
-        currentDate.getTime() +
-        CONFIG.refresh.unknownMs
-      ),
-
-    switchAfterDate:
-      null,
-
-    sourceOrigin:
-      "none",
-
-    serviceSelection:
-      null,
-
-    servicesScan:
-      null,
-
-    servicesScanError:
-      "",
-
-    serviceSelectionError:
-      "",
-
-    servicesCleanup:
-      null,
-
-    servicesCleanupError:
-      "",
-
-    telemetry:
-      telemetry || {
-        pdfStatus:
-          "not_checked",
-
-        parserStatus:
-          "not_run",
-
-        serviceStatus:
-          "error",
-
-        archiveStatus:
-          "not_run",
-
-        issues:
-          [],
-
-        timings:
-          null
-      }
+    refreshAfterDate: new Date(currentDate.getTime() + CONFIG.refresh.unknownMs),
+    switchAfterDate: null,
+    sourceOrigin: "none",
+    serviceSelection: null,
+    servicesScan: null,
+    servicesScanError: "",
+    serviceSelectionError: "",
+    servicesCleanup: null,
+    servicesCleanupError: "",
+    telemetry: telemetry || {
+      pdfStatus: "not_checked",
+      parserStatus: "not_run",
+      serviceStatus: "error",
+      archiveStatus: "not_run",
+      issues: [],
+      timings: null
+    }
   }
 }
 
-// =====================================================
 // OUTILS INTERNES
-// =====================================================
 
-function isValidDate(
-  value
-) {
+function isValidDate(value) {
   return Boolean(
-    value &&
-    typeof value.getTime ===
-      "function" &&
-    Number.isFinite(
-      value.getTime()
-    )
+    value && typeof value.getTime === "function" && Number.isFinite(value.getTime())
   )
 }
 
-// =====================================================
 // EXPORTS
-// =====================================================
 
 module.exports = {
   loadContext,
