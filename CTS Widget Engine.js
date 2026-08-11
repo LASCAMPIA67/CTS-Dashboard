@@ -52,6 +52,16 @@ async function loadContext(currentDate = new Date()) {
 
   const telemetry = buildContextTelemetry(resolution, cleanup, true)
 
+  /*
+   * normalizeService résout les noms de lieux en lisant places.json de
+   * façon synchrone : si iCloud n'a pas encore descendu le fichier, les
+   * lieux retombent silencieusement sur des libellés de repli. On force
+   * donc sa disponibilité avant, sans jamais bloquer l'affichage.
+   */
+  try {
+    await STORAGE.ensureDownloaded(CONFIG.files.places)
+  } catch (_) {}
+
   const normalized = SERVICE_ENGINE.normalizeService(source)
 
   if (!normalized.valid) {

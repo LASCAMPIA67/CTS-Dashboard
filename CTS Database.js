@@ -21,9 +21,21 @@ async function load() {
   if (cache) return cache
 
   ensureDirectories()
-  await RESOURCES.ensureInstalled()
 
   const warnings = []
+
+  /*
+   * La réparation des bases exige le réseau. Son échec ne doit pas
+   * empêcher un import : readDatabaseFile sait déjà se passer d'une
+   * base absente, et le Parser retombe alors sur des libellés de
+   * repli qui ne produisent que des avertissements, jamais d'erreur.
+   */
+  try {
+    await RESOURCES.ensureInstalled()
+  } catch (error) {
+    warnings.push(`Bases non vérifiées : ${UTILS.errorMessage(error)}`)
+  }
+
   const [stops, places, lines] = await Promise.all([
     readDatabaseFile(files.stops, DATABASE_LABELS.stops, warnings),
     readDatabaseFile(files.places, DATABASE_LABELS.places, warnings),
