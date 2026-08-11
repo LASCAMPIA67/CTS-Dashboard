@@ -1703,7 +1703,9 @@ function computeAutomaticRefreshDate(
     new Date(
       currentDate.getTime() +
       SERVICES_SCAN_REFRESH_MS
-    )
+    ),
+
+    currentDate
   )
 }
 
@@ -1794,14 +1796,25 @@ function computeScanRefreshDate(
   )
 }
 
+/*
+ * Une date déjà passée provoquerait des actualisations en boucle :
+ * seules les échéances réellement à venir sont retenues.
+ */
 function earliestValidDate(
   values,
-  fallback
+  fallback,
+  after
 ) {
   const validDates =
     values
       .filter(
-        isValidDate
+        value =>
+          isValidDate(value) &&
+          (
+            !isValidDate(after) ||
+            value.getTime() >
+              after.getTime()
+          )
       )
       .sort(
         (
@@ -1860,11 +1873,10 @@ function computeNextRefreshDate(
   switch (state.type) {
     case "NEXT":
     case "BEFORE":
-      return dateForServiceTime(
+      return computeBeforeRefreshDate(
         serviceDate,
-        firstSlice.dutyStart,
-        CONFIG.refresh
-          .transitionDelaySeconds
+        firstSlice,
+        currentDate
       )
 
     case "WORK":
@@ -1901,6 +1913,50 @@ function computeNextRefreshDate(
     default:
       return fallbackRefreshDate
   }
+}
+
+/*
+ * « Avant le service » couvre la prise de service puis la mise en
+ * ligne. Le widget se réveille à la prochaine de ces deux transitions
+ * qui soit encore à venir, jamais sur une heure déjà passée.
+ */
+function computeBeforeRefreshDate(
+  serviceDate,
+  firstSlice,
+  currentDate
+) {
+  const transitions = [
+    firstSlice.dutyStart,
+    firstSlice.start
+  ]
+
+  for (const time of transitions) {
+    if (
+      !UTILS.isValidTime(time)
+    ) {
+      continue
+    }
+
+    const transitionDate =
+      dateForServiceTime(
+        serviceDate,
+        time,
+        CONFIG.refresh
+          .transitionDelaySeconds
+      )
+
+    if (
+      transitionDate.getTime() >
+      currentDate.getTime()
+    ) {
+      return transitionDate
+    }
+  }
+
+  return new Date(
+    currentDate.getTime() +
+    CONFIG.refresh.activeMs
+  )
 }
 
 function computeWorkRefreshDate(

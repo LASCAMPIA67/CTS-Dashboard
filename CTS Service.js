@@ -351,10 +351,23 @@ function computeState(service, currentDate = new Date()) {
     firstSlice.dutyStart
   )
 
-  if (currentMinute < firstDutyStart) {
+  const firstOperationStart = UTILS.toMinutes(
+    firstSlice.start
+  )
+
+  /*
+   * La prise de service précède la mise en ligne. « Avant le service »
+   * couvre les deux, comme « Pause » et « Coupure » couvrent déjà la
+   * reprise de service des tranches suivantes jusqu'à leur départ.
+   */
+  if (currentMinute < firstOperationStart) {
+    const nextTransition = currentMinute < firstDutyStart
+      ? firstDutyStart
+      : firstOperationStart
+
     return createState(STATE.BEFORE, {
       next: firstSlice,
-      remaining: firstDutyStart - currentMinute,
+      remaining: nextTransition - currentMinute,
       dayDifference
     })
   }
