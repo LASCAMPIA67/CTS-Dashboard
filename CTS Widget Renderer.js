@@ -878,7 +878,5 @@ function createErrorWidget(title, message) {
 module.exports = {
   createWidget,
   createLargeWidget,
-  createMediumWidget: createLargeOnlyWidget,
-  createSmallWidget: createLargeOnlyWidget,
   createErrorWidget
 }

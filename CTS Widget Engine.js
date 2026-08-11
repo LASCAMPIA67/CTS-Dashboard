@@ -1026,30 +1026,6 @@ function dateForServiceTime(serviceDate, time, extraSeconds = 0) {
 
 // INFORMATIONS D’AFFICHAGE
 
-function departureInfoText(slice) {
-  if (!slice) {
-    return ""
-  }
-
-  const information = []
-
-  if (slice.lineUpAt) {
-    information.push(`Mise en ligne à ${slice.lineUpAt}`)
-  }
-
-  if (slice.direction) {
-    information.push(`Direction ${slice.direction}`)
-  }
-
-  return information.join(" · ")
-}
-
-function formatServiceDate(service) {
-  const serviceDate = UTILS.parseDate(service?.date)
-
-  return UTILS.formatDateLong(serviceDate)
-}
-
 function getWidgetFamily() {
   const family = String(config.widgetFamily || "large")
 
@@ -1107,7 +1083,5 @@ module.exports = {
   loadContext,
   computeNextRefreshDate,
   dateForServiceTime,
-  departureInfoText,
-  formatServiceDate,
   getWidgetFamily
 }
