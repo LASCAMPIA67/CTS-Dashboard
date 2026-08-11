@@ -51,10 +51,15 @@ async function main() {
   try {
     widget = context.valid
       ? RENDERER.createWidget(family, context)
-      : RENDERER.createErrorWidget(
-          context.errorTitle || "Erreur",
-          context.errorMessage || ERROR_MESSAGE
-        )
+      : context.informational
+        ? RENDERER.createInfoWidget(
+            context.errorTitle || "Information",
+            context.errorMessage || ""
+          )
+        : RENDERER.createErrorWidget(
+            context.errorTitle || "Erreur",
+            context.errorMessage || ERROR_MESSAGE
+          )
     setTelemetryStageSafely(analytics, telemetryRun, "render", "success")
   } catch (error) {
     console.warn("[Dashboard]", UTILS.errorMessage(error))

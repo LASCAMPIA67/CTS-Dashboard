@@ -875,8 +875,42 @@ function createErrorWidget(title, message) {
   return widget
 }
 
+/*
+ * Information, pas panne : le fond reprend le dégradé bleu des services
+ * à venir et l'icône invite au dépôt d'une carte, pour que le conducteur
+ * ne croie pas à un dysfonctionnement.
+ */
+function createInfoWidget(title, message) {
+  const widget = THEME.createBaseWidget("NEXT")
+  widget.setPadding(18, 18, 18, 18)
+
+  const header = widget.addStack()
+  header.centerAlignContent()
+  const icon = header.addStack()
+  icon.size = new Size(34, 34)
+  icon.cornerRadius = 17
+  icon.backgroundColor = THEME.translucentWhite(0.08)
+  icon.centerAlignContent()
+  icon.addSpacer()
+  addSymbol(icon, "tray.and.arrow.down.fill", 15, THEME.getAccentColor("NEXT"))
+  icon.addSpacer()
+  header.addSpacer(10)
+  addText(header, title, Font.boldSystemFont(17), THEME.getPrimaryTextColor(), 1, 0.72)
+
+  widget.addSpacer(10)
+  const card = addSurface(widget, {
+    padding: [11, 12, 11, 12],
+    radius: 14,
+    backgroundAlpha: 0.05,
+    borderAlpha: 0.07
+  })
+  addText(card, message, Font.mediumSystemFont(11), secondary(), 6, 0.72)
+  return widget
+}
+
 module.exports = {
   createWidget,
   createLargeWidget,
-  createErrorWidget
+  createErrorWidget,
+  createInfoWidget
 }

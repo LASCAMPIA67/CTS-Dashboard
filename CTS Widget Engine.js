@@ -81,6 +81,28 @@ async function loadContext(currentDate = new Date()) {
 
   const state = SERVICE_ENGINE.computeState(service, currentDate)
 
+  /*
+   * Service terminé et plus aucune carte agent à traiter : afficher
+   * indéfiniment un service passé n'apporte rien. On invite plutôt à
+   * déposer la carte suivante. Le PDF du service terminé a rejoint
+   * Services/Archive une heure après sa fin, et les sous-dossiers ne
+   * comptent pas comme des cartes.
+   */
+  if (state.type === "DONE" && servicesFolderIsEmpty(resolution)) {
+    telemetry.pdfStatus = "missing"
+
+    return information(
+      "Service terminé",
+      [
+        "Ton service est terminé et aucune carte agent ne se trouve dans le dossier Services.",
+        "",
+        "Dépose ta prochaine carte agent PDF dans Services pour voir ton prochain service."
+      ].join("\n"),
+      currentDate,
+      telemetry
+    )
+  }
+
   const stats = SERVICE_ENGINE.computeStats(service)
 
   const displaySlice = SERVICE_ENGINE.getDisplaySlice(service, state)
@@ -1038,9 +1060,37 @@ function getWidgetFamily() {
 
 // ÉCHEC SÉCURISÉ
 
+/*
+ * Le dossier Services ne contient aucune carte agent. On ne l'affirme
+ * que si le balayage a réellement pu lire le dossier : une erreur, un
+ * verrou ou un résultat absent ne valent pas « dossier vide ».
+ */
+function servicesFolderIsEmpty(resolution) {
+  const scan = resolution?.scanResult
+
+  if (!scan) return false
+  if (String(resolution?.scanError || "").trim()) return false
+  if (scan.status === "locked") return false
+
+  return Number(scan.detected) === 0
+}
+
+/*
+ * Message d'information : ce n'est pas une panne, seulement une action
+ * attendue du conducteur. Le Dashboard le présente autrement qu'une
+ * erreur.
+ */
+function information(title, message, currentDate, telemetry) {
+  return {
+    ...failure(title, message, currentDate, telemetry),
+    informational: true
+  }
+}
+
 function failure(title, message, currentDate = new Date(), telemetry = null) {
   return {
     valid: false,
+    informational: false,
     errorTitle: String(title || "Erreur"),
     errorMessage: String(message || "Une erreur inconnue est survenue."),
     source: null,

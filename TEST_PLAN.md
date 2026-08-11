@@ -65,7 +65,8 @@ Valider avec le simulateur ou des services réels :
 | Tranche en cours | `En service`, tranche active correcte |
 | Pause | `Pause`, prochaine tranche correcte |
 | Coupure | `Coupure`, prochaine tranche correcte |
-| Fin de service | `Service terminé` |
+| Fin de service, carte encore présente | `Service terminé`, programme du jour affiché |
+| Fin de service, dossier Services vide | message d’information invitant à déposer la carte suivante, sans allure d’erreur |
 | Service de demain | service suivant sélectionné au moment prévu |
 | Horaires après minuit | continuité correcte jusqu’à 47:59 |
 | Aucun PDF | message explicite sans crash |
