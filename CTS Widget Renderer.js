@@ -227,14 +227,46 @@ function addOperationalDetails(parent, slice, state, density) {
     if (slice.lineUpAt || slice.direction) parent.addSpacer(density.detailGroupGap)
   }
 
-  if (slice.lineUpAt) {
-    addDetailBlock(parent, getOperationStartLabel(slice), slice.lineUpAt, state, density)
-    if (slice.direction) parent.addSpacer(density.detailGroupGap)
+  const hasLineUp = Boolean(slice.lineUpAt)
+  const hasDirection = Boolean(slice.direction)
+
+  if (!hasLineUp && !hasDirection) return
+
+  /*
+   * Mise en ligne et direction partagent une ligne, comme le couple
+   * prise de service / sortie dépôt au-dessus : deux lignes de deux
+   * blocs au lieu de quatre lignes, sans laisser de vide à droite.
+   */
+  const row = parent.addStack()
+  row.centerAlignContent()
+
+  if (hasLineUp) {
+    addDetailBlock(row, getOperationStartLabel(slice), slice.lineUpAt, state, density, {
+      alignment: "left"
+    })
   }
 
-  if (slice.direction) {
-    addDetailBlock(parent, "DIRECTION", slice.direction, state, density, { emphasized: true })
+  if (!hasLineUp || !hasDirection) {
+    if (hasDirection) {
+      addDetailBlock(row, "DIRECTION", slice.direction, state, density, {
+        emphasized: true,
+        alignment: "left"
+      })
+    }
+    return
   }
+
+  row.addSpacer()
+
+  /*
+   * Partageant la largeur, la direction se resserre plus tôt que
+   * lorsqu'elle occupe la ligne seule.
+   */
+  addDetailBlock(row, "DIRECTION", slice.direction, state, density, {
+    emphasized: true,
+    alignment: "right",
+    softLimit: density.detailSoftLimit
+  })
 }
 
 function addDetailBlock(parent, label, value, state, density, options = {}) {
@@ -260,7 +292,8 @@ function addDetailBlock(parent, label, value, state, density, options = {}) {
           fitFont(
             options.emphasized ? density.directionSize : density.detailValueSize,
             value,
-            options.emphasized ? density.directionSoftLimit : density.detailSoftLimit,
+            options.softLimit ??
+              (options.emphasized ? density.directionSoftLimit : density.detailSoftLimit),
             density.detailMinimumSize
           )
         ),
