@@ -128,9 +128,16 @@ function addTimingCard(parent, focus, state, density) {
     density.timingStartWidth
   )
 
-  timing.addSpacer(density.timingArrowGapBefore)
+  /*
+   * Les ressorts souples de part et d'autre de la flèche répartissent
+   * l'espace restant à parts égales : la flèche est centrée et le bloc
+   * de fin arrive au bord droit au lieu de laisser un vide.
+   */
+  timing.addSpacer(density.timingArrowGap)
+  timing.addSpacer()
   addArrowBadge(timing, state, density.arrowSize)
-  timing.addSpacer(density.timingArrowGapAfter)
+  timing.addSpacer()
+  timing.addSpacer(density.timingArrowGap)
 
   addTimingSide(
     timing,
@@ -140,7 +147,6 @@ function addTimingCard(parent, focus, state, density) {
     density,
     density.timingEndWidth
   )
-  timing.addSpacer()
 
   if (!hasOperationalDetails(focus)) return
   card.addSpacer(density.detailsSectionGap)
@@ -336,7 +342,13 @@ function addSliceRow(parent, slice, state, density) {
     0.64
   ).leftAlignText()
 
+  /*
+   * L'écart fixe reste la marge minimale, le ressort souple pousse les
+   * horaires contre le bord droit et force la ligne à occuper toute la
+   * largeur de la carte, quelle que soit la longueur du texte.
+   */
   body.addSpacer(density.metricsGap)
+  body.addSpacer()
 
   const metrics = body.addStack()
   metrics.layoutVertically()
@@ -587,8 +599,7 @@ function adaptDensity(base, width) {
     timingPaddingHorizontal: Math.max(9, base.timingPaddingHorizontal - 1),
     timingStartWidth: Math.max(96, base.timingStartWidth - 12),
     timingEndWidth: Math.max(78, base.timingEndWidth - 8),
-    timingArrowGapBefore: Math.max(2, base.timingArrowGapBefore - 1),
-    timingArrowGapAfter: Math.max(3, base.timingArrowGapAfter - 1),
+    timingArrowGap: Math.max(2, base.timingArrowGap - 1),
     arrowSize: Math.max(20, base.arrowSize - 2),
     programPadding: Math.max(6, base.programPadding - 1),
     rowPaddingHorizontal: Math.max(4, base.rowPaddingHorizontal - 1),
@@ -623,8 +634,7 @@ function densityComfortable() {
     arrowSize: 28,
     timingStartWidth: 126,
     timingEndWidth: 100,
-    timingArrowGapBefore: 3,
-    timingArrowGapAfter: 6,
+    timingArrowGap: 4,
     placeGap: 3,
     placeSize: 10.5,
     placeSoftLimit: 18,
@@ -696,8 +706,7 @@ function densityStandard() {
     arrowSize: 24,
     timingStartWidth: 112,
     timingEndWidth: 92,
-    timingArrowGapBefore: 3,
-    timingArrowGapAfter: 6,
+    timingArrowGap: 4,
     placeSize: 9,
     detailsSectionGap: 3,
     detailGroupGap: 3,
@@ -761,8 +770,7 @@ function densityCompact() {
     arrowSize: 22,
     timingStartWidth: 104,
     timingEndWidth: 85,
-    timingArrowGapBefore: 3,
-    timingArrowGapAfter: 5,
+    timingArrowGap: 4,
     placeSize: 8.5,
     placeMinimumSize: 7,
     detailLabelSize: 6.5,
