@@ -201,6 +201,36 @@ for (const [label, value] of [
   }
 }
 
+// ------------------------------------------------------- libellés de lieux
+
+/*
+ * Les deux blocs du bandeau horaires se dimensionnent sur leur contenu,
+ * ce qui centre la flèche entre le texte réellement visible. fitFont
+ * borne la largeur d'un nom de lieu tant qu'il reste sous la limite où
+ * la réduction proportionnelle s'arrête (placeSoftLimit / 0.7 ≈ 26).
+ * Au-delà, le bloc recommencerait à s'élargir et déséquilibrerait le
+ * bandeau. Le plus long libellé actuel fait 21 caractères.
+ */
+const MAX_PLACE_LABEL_LENGTH = 26
+
+if (fs.existsSync('places.json')) {
+  try {
+    const places = JSON.parse(read('places.json'))
+
+    for (const [code, entry] of Object.entries(places)) {
+      const label = typeof entry === 'string' ? entry : String(entry?.name || '')
+      if (label.length > MAX_PLACE_LABEL_LENGTH) {
+        fail(
+          `Libellé de lieu trop long pour le bandeau horaires : ${code} = ` +
+          `"${label}" (${label.length} caractères, maximum ${MAX_PLACE_LABEL_LENGTH})`
+        )
+      }
+    }
+  } catch (_) {
+    // Le JSON invalide est déjà signalé plus haut.
+  }
+}
+
 // ------------------------------------------------------------------ PDF.js
 
 const engine = read('CTS PDF Engine.js')

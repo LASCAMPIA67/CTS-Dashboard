@@ -106,9 +106,9 @@ function addTimingCard(parent, focus, state, density) {
   const card = addSurface(parent, {
     padding: [
       density.timingPaddingVertical,
-      density.timingPaddingHorizontal,
+      density.cardPaddingHorizontal,
       density.timingPaddingVertical,
-      density.timingPaddingHorizontal
+      density.cardPaddingHorizontal
     ],
     radius: density.surfaceRadius,
     backgroundAlpha: 0.055,
@@ -124,8 +124,7 @@ function addTimingCard(parent, focus, state, density) {
     getTimingStartLabel(state),
     focus.start,
     focus.from,
-    density,
-    density.timingStartWidth
+    density
   )
 
   /*
@@ -144,8 +143,7 @@ function addTimingCard(parent, focus, state, density) {
     "FIN DE TRANCHE",
     focus.end,
     focus.to,
-    density,
-    density.timingEndWidth
+    density
   )
 
   if (!hasOperationalDetails(focus)) return
@@ -155,10 +153,15 @@ function addTimingCard(parent, focus, state, density) {
   addOperationalDetails(card, focus, state, density)
 }
 
-function addTimingSide(parent, label, time, place, density, width) {
+/*
+ * Le bloc se dimensionne sur son contenu, sans largeur imposée : c'est
+ * ce qui permet à la flèche d'être centrée entre ce que l'on voit
+ * réellement, et non entre deux réserves de place invisibles.
+ * fitFont borne la largeur des noms de lieux longs.
+ */
+function addTimingSide(parent, label, time, place, density) {
   const block = parent.addStack()
   block.layoutVertically()
-  block.size = new Size(width, 0)
 
   addText(
     block,
@@ -259,7 +262,12 @@ function addDetailBlock(parent, label, value, state, density, options = {}) {
 
 function addProgram(parent, service, state, density) {
   const card = addSurface(parent, {
-    padding: [density.programPadding, density.programPadding, density.programPadding, density.programPadding],
+    padding: [
+      density.programPaddingVertical,
+      density.cardPaddingHorizontal,
+      density.programPaddingVertical,
+      density.cardPaddingHorizontal
+    ],
     radius: density.programRadius,
     backgroundAlpha: 0.05,
     borderAlpha: 0.075,
@@ -393,14 +401,16 @@ function addSliceNumber(parent, slice, active, state, density) {
   badge.addSpacer()
 }
 
+/*
+ * Sans ressort extérieur, les deux cartes se partagent toute la largeur
+ * et s'alignent exactement sur les bords des cartes du dessus.
+ */
 function addStats(parent, stats, density) {
   const row = parent.addStack()
   row.centerAlignContent()
-  row.addSpacer()
   addStatCard(row, UTILS.formatDuration(stats.work), "Travail", density)
   row.addSpacer(density.statGap)
   addStatCard(row, UTILS.formatDuration(stats.amplitude), "Amplitude", density)
-  row.addSpacer()
 }
 
 function addStatCard(parent, value, label, density) {
@@ -596,12 +606,10 @@ function adaptDensity(base, width) {
     paddingHorizontal: Math.max(13, base.paddingHorizontal - 2),
     iconGap: Math.max(7, base.iconGap - 1),
     badgePaddingHorizontal: Math.max(6, base.badgePaddingHorizontal - 1),
-    timingPaddingHorizontal: Math.max(9, base.timingPaddingHorizontal - 1),
-    timingStartWidth: Math.max(96, base.timingStartWidth - 12),
-    timingEndWidth: Math.max(78, base.timingEndWidth - 8),
+    cardPaddingHorizontal: Math.max(9, base.cardPaddingHorizontal - 1),
     timingArrowGap: Math.max(2, base.timingArrowGap - 1),
     arrowSize: Math.max(20, base.arrowSize - 2),
-    programPadding: Math.max(6, base.programPadding - 1),
+    programPaddingVertical: Math.max(6, base.programPaddingVertical - 1),
     rowPaddingHorizontal: Math.max(4, base.rowPaddingHorizontal - 1),
     itemGap: Math.max(5, base.itemGap - 1),
     railGap: Math.max(3, base.railGap - 1),
@@ -627,13 +635,11 @@ function densityComfortable() {
     badgePaddingHorizontal: 8,
     surfaceRadius: 17,
     timingPaddingVertical: 8,
-    timingPaddingHorizontal: 12,
+    cardPaddingHorizontal: 12,
     timingLabelSize: 8,
     timingLabelGap: 3,
     timeSize: 27,
     arrowSize: 28,
-    timingStartWidth: 126,
-    timingEndWidth: 100,
     timingArrowGap: 4,
     placeGap: 3,
     placeSize: 10.5,
@@ -649,7 +655,7 @@ function densityComfortable() {
     detailSoftLimit: 26,
     directionSoftLimit: 34,
     detailMinimumSize: 7.5,
-    programPadding: 9,
+    programPaddingVertical: 9,
     programRadius: 16,
     sectionHeaderSize: 8,
     programHeaderGap: 6,
@@ -700,12 +706,10 @@ function densityStandard() {
     badgePaddingHorizontal: 7,
     surfaceRadius: 16,
     timingPaddingVertical: 6,
-    timingPaddingHorizontal: 11,
+    cardPaddingHorizontal: 11,
     timingLabelSize: 7.2,
     timeSize: 23,
     arrowSize: 24,
-    timingStartWidth: 112,
-    timingEndWidth: 92,
     timingArrowGap: 4,
     placeSize: 9,
     detailsSectionGap: 3,
@@ -717,7 +721,7 @@ function densityStandard() {
     detailSoftLimit: 24,
     directionSoftLimit: 30,
     detailMinimumSize: 7,
-    programPadding: 7,
+    programPaddingVertical: 7,
     programRadius: 15,
     sectionHeaderSize: 7.5,
     programHeaderGap: 5,
@@ -764,12 +768,10 @@ function densityCompact() {
     badgeSize: 8.5,
     surfaceRadius: 15,
     timingPaddingVertical: 5,
-    timingPaddingHorizontal: 10,
+    cardPaddingHorizontal: 10,
     timingLabelSize: 6.8,
     timeSize: 21,
     arrowSize: 22,
-    timingStartWidth: 104,
-    timingEndWidth: 85,
     timingArrowGap: 4,
     placeSize: 8.5,
     placeMinimumSize: 7,
@@ -780,7 +782,7 @@ function densityCompact() {
     detailSoftLimit: 22,
     directionSoftLimit: 28,
     detailMinimumSize: 6.5,
-    programPadding: 6,
+    programPaddingVertical: 6,
     programRadius: 14,
     sectionHeaderSize: 7,
     programHeaderGap: 4,
