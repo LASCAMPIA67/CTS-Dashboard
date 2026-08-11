@@ -12,7 +12,9 @@ const METADATA_MARKER = '// Variables used by Scriptable.'
 const MINIMUM_LIBRARY_BYTES = 40 * 1024
 
 // Fichiers .js présents à la racine sans faire partie du manifeste.
-const UNMANIFESTED_SCRIPTS = new Set([INSTALLER_FILE])
+// CTS Simulator est un outil de maintenance, installé à la main par le
+// mainteneur et jamais distribué par CTS Installer.
+const UNMANIFESTED_SCRIPTS = new Set([INSTALLER_FILE, 'CTS Simulator.js'])
 
 const problems = []
 const fail = message => problems.push(message)
