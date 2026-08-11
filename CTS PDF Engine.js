@@ -1126,6 +1126,90 @@ function buildRuntimeHtml(
       workerBase64
     )
 
+  /*
+   * PDF.js lit le texte d'une page avec
+   * « for await (const bloc of flux) » sur un ReadableStream.
+   * Aucune version publiée de Safari iOS n'implémente l'itération
+   * asynchrone sur ReadableStream : l'appel échoue avec un TypeError
+   * et l'import du PDF devient impossible sur iPhone.
+   *
+   * Ce complément n'est installé que lorsque le navigateur ne fournit
+   * pas l'API. Là où elle existe, rien n'est modifié.
+   *
+   * Il est injecté à la fois dans la page et en tête du worker : le
+   * worker possède son propre contexte global et utilise lui aussi
+   * cette syntaxe.
+   */
+  const streamAsyncIterationPolyfill = String.raw`
+;(function () {
+  try {
+    if (
+      typeof ReadableStream !== "function" ||
+      typeof Symbol === "undefined" ||
+      !Symbol.asyncIterator
+    ) {
+      return
+    }
+
+    var target = ReadableStream.prototype
+
+    if (target[Symbol.asyncIterator]) {
+      if (typeof self !== "undefined") {
+        self.__ctsStreamAsyncIteration = "native"
+      }
+      return
+    }
+
+    var iterate = function (options) {
+      var preventCancel = Boolean(options && options.preventCancel)
+      var reader = this.getReader()
+      var released = false
+
+      var release = function () {
+        if (released) return
+        released = true
+        try { reader.releaseLock() } catch (_) {}
+      }
+
+      return {
+        next: function () {
+          return reader.read().then(function (result) {
+            if (result.done) release()
+            return result
+          }, function (error) {
+            release()
+            throw error
+          })
+        },
+
+        return: function (value) {
+          var cancelled = preventCancel || released
+            ? Promise.resolve()
+            : Promise.resolve(reader.cancel(value)).catch(function () {})
+
+          return cancelled.then(function () {
+            release()
+            return { done: true, value: value }
+          })
+        },
+
+        [Symbol.asyncIterator]: function () { return this }
+      }
+    }
+
+    target[Symbol.asyncIterator] = iterate
+
+    if (typeof target.values !== "function") {
+      target.values = iterate
+    }
+
+    if (typeof self !== "undefined") {
+      self.__ctsStreamAsyncIteration = "polyfill"
+    }
+  } catch (_) {}
+})();
+`
+
   return String.raw`<!doctype html>
 <html lang="fr">
 <head>
@@ -1140,6 +1224,10 @@ function buildRuntimeHtml(
 </head>
 
 <body>
+<script>${streamAsyncIterationPolyfill}</script>
+<script>
+  const __ctsStreamPolyfillSource = ${JSON.stringify(streamAsyncIterationPolyfill)}
+</script>
 <script>
   window.__ctsPdfReady = false
   window.__ctsPdfBootError = ""
@@ -1172,7 +1260,11 @@ function buildRuntimeHtml(
         window.__ctsWorkerMode,
 
       pdfVersion:
-        window.__ctsPdfVersion
+        window.__ctsPdfVersion,
+
+      streamAsyncIteration:
+        window.__ctsStreamAsyncIteration ||
+        "unknown"
     }
 
     return Object.assign(
@@ -1231,15 +1323,20 @@ function buildRuntimeHtml(
     }
   }
 
-  function moduleUrlFromBase64(base64) {
+  function moduleUrlFromBase64(base64, prelude) {
     const bytes =
       bytesFromBase64(
         base64
       )
 
+    const parts =
+      prelude
+        ? [prelude, bytes]
+        : [bytes]
+
     const blob =
       new Blob(
-        [bytes],
+        parts,
         {
           type:
             "text/javascript"
@@ -1385,7 +1482,8 @@ function buildRuntimeHtml(
 
       window.__ctsWorkerUrl =
         moduleUrlFromBase64(
-          ${encodedWorker}
+          ${encodedWorker},
+          __ctsStreamPolyfillSource
         )
 
       const pdfjsLib =
@@ -1830,6 +1928,7 @@ function describeExtractionFailure(
     of [
       ["type", details.errorName],
       ["worker", details.workerMode],
+      ["flux", details.streamAsyncIteration],
       ["PDF.js", details.pdfVersion],
       ["pile", details.stack]
     ]
