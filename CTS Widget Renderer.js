@@ -116,6 +116,14 @@ function addTimingCard(parent, focus, state, density) {
     vertical: true
   })
 
+  /*
+   * Toute la carte suit une grille à deux colonnes. La première a une
+   * largeur fixe, la flèche occupe la gouttière, et la seconde démarre
+   * donc exactement à la même verticale sur chaque ligne — bandeau
+   * horaires comme lignes de détail. Tout est calé à gauche : les deux
+   * horaires se lisent comme un trajet au lieu d'être séparés par la
+   * largeur de la carte.
+   */
   const timing = card.addStack()
   timing.centerAlignContent()
 
@@ -124,28 +132,16 @@ function addTimingCard(parent, focus, state, density) {
     getTimingStartLabel(state),
     focus.start,
     focus.from,
-    density
-  )
-
-  /*
-   * Les ressorts souples de part et d'autre de la flèche répartissent
-   * l'espace restant à parts égales : la flèche est centrée et le bloc
-   * de fin arrive au bord droit au lieu de laisser un vide.
-   */
-  timing.addSpacer(density.timingArrowGap)
-  timing.addSpacer()
-  addArrowBadge(timing, state, density.arrowSize)
-  timing.addSpacer()
-  timing.addSpacer(density.timingArrowGap)
-
-  addTimingSide(
-    timing,
-    "FIN DE TRANCHE",
-    focus.end,
-    focus.to,
     density,
-    "right"
+    density.columnWidth
   )
+
+  timing.addSpacer(density.timingArrowGap)
+  addArrowBadge(timing, state, density.arrowSize)
+  timing.addSpacer(density.timingArrowGap)
+
+  addTimingSide(timing, "FIN DE TRANCHE", focus.end, focus.to, density)
+  timing.addSpacer()
 
   if (!hasOperationalDetails(focus)) return
   card.addSpacer(density.detailsSectionGap)
@@ -155,60 +151,64 @@ function addTimingCard(parent, focus, state, density) {
 }
 
 /*
- * Le bloc se dimensionne sur son contenu, sans largeur imposée : c'est
- * ce qui permet à la flèche d'être centrée entre ce que l'on voit
- * réellement, et non entre deux réserves de place invisibles.
- * fitFont borne la largeur des noms de lieux longs.
- *
- * Le départ se cale à gauche et l'arrivée à droite : les trois lignes
- * de chaque bloc partagent alors le même bord, et le bandeau se lit
- * comme un trajet.
+ * La colonne de gauche reçoit une largeur fixe, celle de la grille ;
+ * la colonne de droite se dimensionne sur son contenu. Tout est aligné
+ * à gauche, et fitFont borne la largeur des noms de lieux longs.
  */
-function addTimingSide(parent, label, time, place, density, alignment = "left") {
+function addTimingSide(parent, label, time, place, density, width = 0) {
   const block = parent.addStack()
   block.layoutVertically()
+  if (width > 0) block.size = new Size(width, 0)
 
-  alignText(
-    addText(
-      block,
-      label,
-      Font.semiboldSystemFont(density.timingLabelSize),
-      secondary(),
-      1,
-      0.72
-    ),
-    alignment
-  )
+  addText(
+    block,
+    label,
+    Font.semiboldSystemFont(density.timingLabelSize),
+    secondary(),
+    1,
+    0.72
+  ).leftAlignText()
 
   block.addSpacer(density.timingLabelGap)
-  alignText(
-    addText(
-      block,
-      time,
-      Font.boldMonospacedSystemFont(density.timeSize),
-      THEME.getPrimaryTextColor(),
-      1,
-      0.78
-    ),
-    alignment
-  )
+  addText(
+    block,
+    time,
+    Font.boldMonospacedSystemFont(density.timeSize),
+    THEME.getPrimaryTextColor(),
+    1,
+    0.78
+  ).leftAlignText()
 
   block.addSpacer(density.placeGap)
-  alignText(
-    addText(
-      block,
-      place,
-      Font.mediumSystemFont(
-        fitFont(density.placeSize, place, density.placeSoftLimit, density.placeMinimumSize)
-      ),
-      secondary(),
-      1,
-      0.7
+  addText(
+    block,
+    place,
+    Font.mediumSystemFont(
+      fitFont(density.placeSize, place, density.placeSoftLimit, density.placeMinimumSize)
     ),
-    alignment
-  )
+    secondary(),
+    1,
+    0.7
+  ).leftAlignText()
 }
 
+/*
+ * La gouttière sépare les deux colonnes sur les lignes sans flèche. Elle
+ * vaut exactement l'encombrement de la flèche et de ses deux écarts, donc
+ * la seconde colonne démarre à la même verticale que « FIN DE TRANCHE ».
+ * La dériver ici, plutôt que de l'ajouter aux densités, garantit qu'elle
+ * suit toute adaptation de `arrowSize` ou de `timingArrowGap`.
+ */
+function gridGutter(density) {
+  return density.timingArrowGap * 2 + density.arrowSize
+}
+
+/*
+ * Les lignes de détail reprennent la grille du bandeau horaires : même
+ * première colonne, même gouttière, donc les libellés de droite démarrent
+ * tous sur la verticale de « FIN DE TRANCHE ». Le ressort final garde la
+ * ligne pleine largeur sans repousser quoi que ce soit vers la droite.
+ */
 function addOperationalDetails(parent, slice, state, density) {
   if (hasDepotTiming(slice)) {
     const row = parent.addStack()
@@ -216,74 +216,59 @@ function addOperationalDetails(parent, slice, state, density) {
 
     addDetailBlock(row, "PRISE DE SERVICE", slice.dutyStart, state, density, {
       time: true,
-      alignment: "left"
+      width: density.columnWidth
     })
+    row.addSpacer(gridGutter(density))
+    addDetailBlock(row, "SORTIE DÉPÔT", slice.depotExitAt, state, density, { time: true })
     row.addSpacer()
-    addDetailBlock(row, "SORTIE DÉPÔT", slice.depotExitAt, state, density, {
-      time: true,
-      alignment: "right"
-    })
 
     if (slice.lineUpAt || slice.direction) parent.addSpacer(density.detailGroupGap)
   }
 
   const hasLineUp = Boolean(slice.lineUpAt)
   const hasDirection = Boolean(slice.direction)
-
   if (!hasLineUp && !hasDirection) return
 
-  /*
-   * Mise en ligne et direction partagent une ligne, comme le couple
-   * prise de service / sortie dépôt au-dessus : deux lignes de deux
-   * blocs au lieu de quatre lignes, sans laisser de vide à droite.
-   */
   const row = parent.addStack()
   row.centerAlignContent()
 
   if (hasLineUp) {
     addDetailBlock(row, getOperationStartLabel(slice), slice.lineUpAt, state, density, {
-      alignment: "left"
+      width: hasDirection ? density.columnWidth : 0
     })
   }
 
-  if (!hasLineUp || !hasDirection) {
-    if (hasDirection) {
-      addDetailBlock(row, "DIRECTION", slice.direction, state, density, {
-        emphasized: true,
-        alignment: "left"
-      })
-    }
-    return
+  if (hasDirection) {
+    /*
+     * Partageant la ligne avec la mise en ligne, la direction se resserre
+     * plus tôt que lorsqu'elle l'occupe seule.
+     */
+    if (hasLineUp) row.addSpacer(gridGutter(density))
+    addDetailBlock(row, "DIRECTION", slice.direction, state, density, {
+      emphasized: true,
+      softLimit: hasLineUp ? density.detailSoftLimit : density.directionSoftLimit
+    })
   }
 
   row.addSpacer()
-
-  /*
-   * Partageant la largeur, la direction se resserre plus tôt que
-   * lorsqu'elle occupe la ligne seule.
-   */
-  addDetailBlock(row, "DIRECTION", slice.direction, state, density, {
-    emphasized: true,
-    alignment: "right",
-    softLimit: density.detailSoftLimit
-  })
 }
 
 function addDetailBlock(parent, label, value, state, density, options = {}) {
   const block = parent.addStack()
   block.layoutVertically()
+  if (options.width > 0) block.size = new Size(options.width, 0)
 
-  const labelText = addText(
+  addText(
     block,
     label,
     Font.semiboldSystemFont(density.detailLabelSize),
     secondary(),
     1,
     0.72
-  )
+  ).leftAlignText()
 
   block.addSpacer(density.detailValueGap)
-  const valueText = addText(
+  addText(
     block,
     value,
     options.time
@@ -300,11 +285,7 @@ function addDetailBlock(parent, label, value, state, density, options = {}) {
     options.emphasized ? accent(state) : THEME.getPrimaryTextColor(),
     1,
     0.68
-  )
-
-  const alignment = options.alignment || "left"
-  alignText(labelText, alignment)
-  alignText(valueText, alignment)
+  ).leftAlignText()
 }
 
 function addProgram(parent, service, state, density) {
@@ -569,12 +550,6 @@ function addSymbol(parent, name, size, color) {
   return image
 }
 
-function alignText(text, alignment) {
-  if (alignment === "right") text.rightAlignText()
-  else if (alignment === "center") text.centerAlignText()
-  else text.leftAlignText()
-}
-
 function getTransportIcon(service) {
   const slices = Array.isArray(service?.slices) ? service.slices : []
   return slices.some(isTramSlice) ? "tram.fill" : "bus.fill"
@@ -661,8 +636,9 @@ function adaptDensity(base, width) {
     iconGap: Math.max(7, base.iconGap - 1),
     badgePaddingHorizontal: Math.max(6, base.badgePaddingHorizontal - 1),
     cardPaddingHorizontal: Math.max(9, base.cardPaddingHorizontal - 1),
-    timingArrowGap: Math.max(2, base.timingArrowGap - 1),
+    timingArrowGap: Math.max(5, base.timingArrowGap - 1),
     arrowSize: Math.max(20, base.arrowSize - 2),
+    columnWidth: Math.max(78, base.columnWidth - 8),
     programPaddingVertical: Math.max(6, base.programPaddingVertical - 1),
     rowPaddingHorizontal: Math.max(4, base.rowPaddingHorizontal - 1),
     itemGap: Math.max(5, base.itemGap - 1),
@@ -694,7 +670,8 @@ function densityComfortable() {
     timingLabelGap: 3,
     timeSize: 27,
     arrowSize: 28,
-    timingArrowGap: 4,
+    timingArrowGap: 8,
+    columnWidth: 92,
     placeGap: 3,
     placeSize: 10.5,
     placeSoftLimit: 18,
@@ -764,7 +741,8 @@ function densityStandard() {
     timingLabelSize: 7.2,
     timeSize: 23,
     arrowSize: 24,
-    timingArrowGap: 4,
+    timingArrowGap: 7,
+    columnWidth: 84,
     placeSize: 9,
     detailsSectionGap: 3,
     detailGroupGap: 3,
@@ -826,7 +804,8 @@ function densityCompact() {
     timingLabelSize: 6.8,
     timeSize: 21,
     arrowSize: 22,
-    timingArrowGap: 4,
+    timingArrowGap: 6,
+    columnWidth: 78,
     placeSize: 8.5,
     placeMinimumSize: 7,
     detailLabelSize: 6.5,

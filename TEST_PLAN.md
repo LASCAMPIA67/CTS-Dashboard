@@ -81,9 +81,11 @@ Tester des services comportant 1, 2 et 3 tranches. Trois tranches est le maximum
 Contrôler sur chaque profil d’écran :
 
 - aucun horaire tronqué ou remplacé par `…` ;
-- `Début/Prochaine tranche`, heure et lieu alignés ;
-- `Fin de tranche`, heure et lieu alignés ;
-- flèche correctement centrée entre les deux zones ;
+- `Début/Prochaine tranche`, heure et lieu alignés à gauche de la carte ;
+- `Fin de tranche`, heure et lieu alignés sur la même verticale entre eux ;
+- flèche entre les deux blocs, à distance égale de chacun ;
+- `Sortie dépôt` et `Direction` démarrant exactement sous `Fin de tranche` ;
+- `Prise de service` et `Mise en ligne` démarrant sous `Début/Prochaine tranche` ;
 - durée de chaque tranche centrée sous sa plage horaire ;
 - `Ligne … · Voiture …` lisible sur une ligne ;
 - trajets, directions et noms d’arrêts longs réduits proprement avant troncature ;
