@@ -14,23 +14,12 @@ const { fm, paths, files, pdf } = CONFIG
 
 const CLEANUP_VERSION = 1
 const CLEANUP_LOCK_TTL_MS = 2 * 60 * 1000
-const CLEANUP_LOCK_PATH = fm.joinPath(
-  paths.data,
-  "services-cleanup.lock"
-)
-const CLEANUP_STATE_PATH = fm.joinPath(
-  paths.data,
-  "services-cleanup-state.json"
-)
+const CLEANUP_LOCK_PATH = fm.joinPath(paths.data, "services-cleanup.lock")
+const CLEANUP_STATE_PATH = fm.joinPath(paths.data, "services-cleanup-state.json")
 
-// =====================================================
 // ENTRETIEN PRINCIPAL
-// =====================================================
 
-async function maintainServices(
-  currentDate = new Date(),
-  options = {}
-) {
+async function maintainServices(currentDate = new Date(), options = {}) {
   CONFIG.ensureDirectories()
 
   if (!isUsableDate(currentDate)) {
@@ -80,9 +69,7 @@ async function performMaintenance(currentDate, options) {
     )
   }
 
-  const services = Array.isArray(index?.services)
-    ? index.services
-    : []
+  const services = Array.isArray(index?.services) ? index.services : []
 
   const archiveGraceMs = resolveNonNegativeDelay(
     options.archiveGraceMs,
@@ -104,12 +91,7 @@ async function performMaintenance(currentDate, options) {
 
   for (const entry of services) {
     try {
-      const result = await maintainEntry(
-        entry,
-        currentDate,
-        archiveGraceMs,
-        archiveRetentionMs
-      )
+      const result = await maintainEntry(entry, currentDate, archiveGraceMs, archiveRetentionMs)
 
       if (result.status === "archived") {
         archived.push(result)
@@ -122,11 +104,7 @@ async function performMaintenance(currentDate, options) {
       }
     } catch (error) {
       const safeError = UTILS.safeError(error)
-      const telemetry = UTILS.telemetryFromError(
-        error,
-        "SERVICES_CLEANUP_FAILED",
-        "archive"
-      )
+      const telemetry = UTILS.telemetryFromError(error, "SERVICES_CLEANUP_FAILED", "archive")
 
       errors.push({
         id: String(entry?.id || ""),
@@ -151,10 +129,7 @@ async function performMaintenance(currentDate, options) {
 
   const result = {
     success: errors.length === 0,
-    status:
-      archived.length || deleted.length
-        ? "processed"
-        : "idle",
+    status: archived.length || deleted.length ? "processed" : "idle",
     checkedAt: currentDate.toISOString(),
     archiveGraceMs,
     archiveRetentionMs,
@@ -186,16 +161,9 @@ async function performMaintenance(currentDate, options) {
   return result
 }
 
-// =====================================================
 // ENTRETIEN D’UNE ENTRÉE
-// =====================================================
 
-async function maintainEntry(
-  entry,
-  currentDate,
-  archiveGraceMs,
-  archiveRetentionMs
-) {
+async function maintainEntry(entry, currentDate, archiveGraceMs, archiveRetentionMs) {
   if (!isUsableIndexEntry(entry)) {
     return skippedResult(entry, "invalid-entry")
   }
@@ -205,25 +173,13 @@ async function maintainEntry(
   }
 
   if (entry.archive?.fileName) {
-    return await maintainArchivedEntry(
-      entry,
-      currentDate,
-      archiveRetentionMs
-    )
+    return await maintainArchivedEntry(entry, currentDate, archiveRetentionMs)
   }
 
-  return await maintainActivePdfEntry(
-    entry,
-    currentDate,
-    archiveGraceMs
-  )
+  return await maintainActivePdfEntry(entry, currentDate, archiveGraceMs)
 }
 
-async function maintainActivePdfEntry(
-  entry,
-  currentDate,
-  archiveGraceMs
-) {
+async function maintainActivePdfEntry(entry, currentDate, archiveGraceMs) {
   const source = await loadEntryService(entry)
 
   if (!source) {
@@ -236,9 +192,7 @@ async function maintainActivePdfEntry(
     return skippedResult(entry, "end-date-unavailable")
   }
 
-  const archiveAfterDate = new Date(
-    serviceEndDate.getTime() + archiveGraceMs
-  )
+  const archiveAfterDate = new Date(serviceEndDate.getTime() + archiveGraceMs)
 
   if (currentDate < archiveAfterDate) {
     return {
@@ -254,10 +208,7 @@ async function maintainActivePdfEntry(
     return skippedResult(entry, "pdf-not-indexed")
   }
 
-  const sourcePath = fm.joinPath(
-    paths.services,
-    pdfFileName
-  )
+  const sourcePath = fm.joinPath(paths.services, pdfFileName)
 
   if (!fm.fileExists(sourcePath)) {
     return skippedResult(entry, "pdf-already-absent")
@@ -268,7 +219,7 @@ async function maintainActivePdfEntry(
    * jamais être déplacé : l’archivage est simplement reporté.
    */
   try {
-    if (!await STORAGE.ensureDownloaded(sourcePath)) {
+    if (!(await STORAGE.ensureDownloaded(sourcePath))) {
       return skippedResult(entry, "pdf-already-absent")
     }
   } catch (error) {
@@ -281,10 +232,7 @@ async function maintainActivePdfEntry(
   }
 
   const archiveFileName = uniqueArchiveFileName(pdfFileName)
-  const archivePath = fm.joinPath(
-    paths.servicesArchive,
-    archiveFileName
-  )
+  const archivePath = fm.joinPath(paths.servicesArchive, archiveFileName)
 
   try {
     fm.move(sourcePath, archivePath)
@@ -317,23 +265,15 @@ async function maintainActivePdfEntry(
   }
 }
 
-async function maintainArchivedEntry(
-  entry,
-  currentDate,
-  archiveRetentionMs
-) {
+async function maintainArchivedEntry(entry, currentDate, archiveRetentionMs) {
   const archive = entry.archive
-  const archivedAtTime = Date.parse(
-    String(archive.archivedAt || "")
-  )
+  const archivedAtTime = Date.parse(String(archive.archivedAt || ""))
 
   if (!Number.isFinite(archivedAtTime)) {
     return skippedResult(entry, "invalid-archive-date")
   }
 
-  const deleteAfterDate = new Date(
-    archivedAtTime + archiveRetentionMs
-  )
+  const deleteAfterDate = new Date(archivedAtTime + archiveRetentionMs)
 
   if (currentDate < deleteAfterDate) {
     return {
@@ -342,18 +282,13 @@ async function maintainArchivedEntry(
     }
   }
 
-  const archiveFileName = String(
-    archive.fileName || ""
-  ).trim()
+  const archiveFileName = String(archive.fileName || "").trim()
 
   if (!archiveFileName) {
     return skippedResult(entry, "archive-file-missing")
   }
 
-  const archivePath = fm.joinPath(
-    paths.servicesArchive,
-    archiveFileName
-  )
+  const archivePath = fm.joinPath(paths.servicesArchive, archiveFileName)
 
   if (fm.fileExists(archivePath)) {
     try {
@@ -385,23 +320,16 @@ async function maintainArchivedEntry(
   }
 }
 
-// =====================================================
 // LECTURE DES SERVICES INDEXÉS
-// =====================================================
 
 async function loadEntryService(entry) {
-  const cacheFileName = String(
-    entry.cacheFile || ""
-  ).trim()
+  const cacheFileName = String(entry.cacheFile || "").trim()
 
   if (!cacheFileName) {
     return null
   }
 
-  const cachePath = fm.joinPath(
-    paths.servicesCache,
-    cacheFileName
-  )
+  const cachePath = fm.joinPath(paths.servicesCache, cacheFileName)
 
   let source
 
@@ -437,9 +365,7 @@ function resolveServiceEndDate(source) {
     return null
   }
 
-  const slices = Array.isArray(source?.slices)
-    ? source.slices
-    : []
+  const slices = Array.isArray(source?.slices) ? source.slices : []
 
   if (!slices.length) {
     return null
@@ -469,9 +395,7 @@ function resolveServiceEndDate(source) {
   )
 }
 
-// =====================================================
 // ÉTAT DU NETTOYAGE
-// =====================================================
 
 async function saveCleanupState(result) {
   const state = {
@@ -488,20 +412,14 @@ async function saveCleanupState(result) {
     }
   }
 
-  await writeJsonAtomically(
-    CLEANUP_STATE_PATH,
-    state,
-    {
-      writeCode: "CLEANUP_STATE_TEMP_WRITE_FAILED",
-      commitCode: "CLEANUP_STATE_COMMIT_FAILED",
-      stage: "archive"
-    }
-  )
+  await writeJsonAtomically(CLEANUP_STATE_PATH, state, {
+    writeCode: "CLEANUP_STATE_TEMP_WRITE_FAILED",
+    commitCode: "CLEANUP_STATE_COMMIT_FAILED",
+    stage: "archive"
+  })
 }
 
-// =====================================================
 // VERROU DU NETTOYAGE
-// =====================================================
 
 async function acquireCleanupLock() {
   const now = new Date()
@@ -510,10 +428,7 @@ async function acquireCleanupLock() {
     let existing
 
     try {
-      existing = await STORAGE.readJson(
-        CLEANUP_LOCK_PATH,
-        null
-      )
+      existing = await STORAGE.readJson(CLEANUP_LOCK_PATH, null)
     } catch (error) {
       throw UTILS.createTelemetryError(
         "CLEANUP_LOCK_READ_FAILED",
@@ -523,13 +438,9 @@ async function acquireCleanupLock() {
       )
     }
 
-    const createdAt = Date.parse(
-      String(existing?.createdAt || "")
-    )
+    const createdAt = Date.parse(String(existing?.createdAt || ""))
 
-    const active =
-      Number.isFinite(createdAt) &&
-      now.getTime() - createdAt < CLEANUP_LOCK_TTL_MS
+    const active = Number.isFinite(createdAt) && now.getTime() - createdAt < CLEANUP_LOCK_TTL_MS
 
     if (active) {
       return {
@@ -571,18 +482,12 @@ async function acquireCleanupLock() {
 }
 
 async function releaseCleanupLock(lock) {
-  if (
-    !lock?.acquired ||
-    !fm.fileExists(CLEANUP_LOCK_PATH)
-  ) {
+  if (!lock?.acquired || !fm.fileExists(CLEANUP_LOCK_PATH)) {
     return
   }
 
   try {
-    const current = await STORAGE.readJson(
-      CLEANUP_LOCK_PATH,
-      null
-    )
+    const current = await STORAGE.readJson(CLEANUP_LOCK_PATH, null)
 
     if (!current || current.token === lock.token) {
       fm.remove(CLEANUP_LOCK_PATH)
@@ -592,9 +497,7 @@ async function releaseCleanupLock(lock) {
   }
 }
 
-// =====================================================
 // ÉCRITURE ATOMIQUE
-// =====================================================
 
 async function writeJsonAtomically(
   path,
@@ -613,10 +516,7 @@ async function writeJsonAtomically(
   removeFileQuietly(rollbackPath)
 
   try {
-    fm.writeString(
-      temporaryPath,
-      JSON.stringify(value, null, 2)
-    )
+    fm.writeString(temporaryPath, JSON.stringify(value, null, 2))
   } catch (error) {
     throw UTILS.createTelemetryError(
       writeCode,
@@ -638,11 +538,7 @@ async function writeJsonAtomically(
   } catch (error) {
     removeFileQuietly(temporaryPath)
 
-    if (
-      previousMoved &&
-      fm.fileExists(rollbackPath) &&
-      !fm.fileExists(path)
-    ) {
+    if (previousMoved && fm.fileExists(rollbackPath) && !fm.fileExists(path)) {
       try {
         fm.move(rollbackPath, path)
       } catch (_) {}
@@ -659,9 +555,7 @@ async function writeJsonAtomically(
   removeFileQuietly(rollbackPath)
 }
 
-// =====================================================
 // OUTILS INTERNES
-// =====================================================
 
 function isUsableIndexEntry(entry) {
   if (
@@ -673,41 +567,25 @@ function isUsableIndexEntry(entry) {
     return false
   }
 
-  return Boolean(
-    UTILS.parseDate(
-      String(entry.date || "")
-    )
-  )
+  return Boolean(UTILS.parseDate(String(entry.date || "")))
 }
 
 function isUsableDate(value) {
   return Boolean(
-    value &&
-    typeof value.getTime === "function" &&
-    Number.isFinite(value.getTime())
+    value && typeof value.getTime === "function" && Number.isFinite(value.getTime())
   )
 }
 
-function resolveNonNegativeDelay(
-  requested,
-  configured,
-  fallback
-) {
+function resolveNonNegativeDelay(requested, configured, fallback) {
   const requestedValue = Number(requested)
 
-  if (
-    Number.isFinite(requestedValue) &&
-    requestedValue >= 0
-  ) {
+  if (Number.isFinite(requestedValue) && requestedValue >= 0) {
     return requestedValue
   }
 
   const configuredValue = Number(configured)
 
-  if (
-    Number.isFinite(configuredValue) &&
-    configuredValue >= 0
-  ) {
+  if (Number.isFinite(configuredValue) && configuredValue >= 0) {
     return configuredValue
   }
 
@@ -715,30 +593,17 @@ function resolveNonNegativeDelay(
 }
 
 function uniqueArchiveFileName(originalFileName) {
-  const cleanName = String(
-    originalFileName || "Service.pdf"
-  )
+  const cleanName = String(originalFileName || "Service.pdf")
     .split(/[\\/]/)
     .pop()
 
   let candidate = cleanName
   let suffix = 2
 
-  while (
-    fm.fileExists(
-      fm.joinPath(
-        paths.servicesArchive,
-        candidate
-      )
-    )
-  ) {
-    const extensionIndex = cleanName
-      .toLowerCase()
-      .lastIndexOf(".pdf")
+  while (fm.fileExists(fm.joinPath(paths.servicesArchive, candidate))) {
+    const extensionIndex = cleanName.toLowerCase().lastIndexOf(".pdf")
 
-    const baseName = extensionIndex >= 0
-      ? cleanName.slice(0, extensionIndex)
-      : cleanName
+    const baseName = extensionIndex >= 0 ? cleanName.slice(0, extensionIndex) : cleanName
 
     candidate = `${baseName}_${suffix}.pdf`
     suffix++
@@ -771,14 +636,8 @@ function failureResult(
     skipped: [],
     errors: [
       {
-        telemetryCode: UTILS.normalizeTelemetryCode(
-          telemetryCode,
-          "SERVICES_CLEANUP_FAILED"
-        ),
-        telemetryStage: UTILS.normalizeTelemetryStage(
-          telemetryStage,
-          "archive"
-        ),
+        telemetryCode: UTILS.normalizeTelemetryCode(telemetryCode, "SERVICES_CLEANUP_FAILED"),
+        telemetryStage: UTILS.normalizeTelemetryStage(telemetryStage, "archive"),
         error: String(message || "Erreur inconnue")
       }
     ]
@@ -786,10 +645,7 @@ function failureResult(
 }
 
 function uniqueToken() {
-  return [
-    Date.now(),
-    Math.random().toString(36).slice(2, 10)
-  ].join("-")
+  return [Date.now(), Math.random().toString(36).slice(2, 10)].join("-")
 }
 
 function removeFileQuietly(path) {
@@ -800,9 +656,7 @@ function removeFileQuietly(path) {
   } catch (_) {}
 }
 
-// =====================================================
 // EXPORTS
-// =====================================================
 
 module.exports = {
   maintainServices,
