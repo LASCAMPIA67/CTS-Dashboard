@@ -167,6 +167,32 @@ if (fs.existsSync(INSTALLER_FILE)) {
     checkScriptableMetadata(installer, INSTALLER_FILE, { unique: false })
     checkSyntax(installer, INSTALLER_FILE)
 
+    /*
+     * Une constante de premier niveau déclarée sous `await main()` reste
+     * dans sa zone morte temporelle pendant toute l'exécution : la fonction
+     * qui l'utilise lève « Cannot access … before initialization ». La
+     * syntaxe est pourtant valide, et le fichier ne révèle le défaut qu'au
+     * moment précis où le chemin d'exécution y passe — un piège qui a déjà
+     * atteint un utilisateur.
+     */
+    const entryLine = installer
+      .split('\n')
+      .findIndex(line => /^await main\(\)/.test(line))
+
+    if (entryLine !== -1) {
+      installer.split('\n').forEach((line, index) => {
+        const declaration = line.match(/^(?:const|let)\s+([A-Za-z_$][\w$]*)/)
+        if (declaration && index > entryLine) {
+          fail(
+            `${INSTALLER_FILE} déclare ${declaration[1]} ligne ${index + 1}, ` +
+            `après l'appel à main() ligne ${entryLine + 1}. Une constante de ` +
+            `premier niveau doit être déclarée avant, sans quoi elle est ` +
+            `inaccessible pendant l'exécution.`
+          )
+        }
+      })
+    }
+
     const declared = installer.match(/const INSTALLER_VERSION = "([^"]+)"/)
     if (!declared) {
       fail(`${INSTALLER_FILE} ne déclare pas INSTALLER_VERSION`)

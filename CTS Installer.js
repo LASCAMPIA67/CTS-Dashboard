@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.7"
+const INSTALLER_VERSION = "1.0.8"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -18,6 +18,34 @@ const TIMEOUT = 60
 const RETRIES = 2
 const RENDER_INTERVAL = 120
 const CONCURRENCY = 4
+
+/*
+ * Toutes les constantes de premier niveau sont déclarées ici, avant
+ * l'appel à main(). Une déclaration `const` placée plus bas dans le
+ * fichier reste dans sa zone morte temporelle pendant toute l'exécution :
+ * la fonction qui l'utilise lèverait « Cannot access … before
+ * initialization ». Le contrôle correspondant est dans validate.mjs.
+ *
+ * Les deux bibliothèques PDF.js pèsent 1,77 Mo à elles seules, soit 90 %
+ * de ce qu'une vérification télécharge, et sont figées sur une version
+ * épinglée dans CTS PDF Engine. Quand le snapshot GitHub n'a pas bougé
+ * depuis la dernière installation réussie, les retélécharger ne peut rien
+ * apporter : le SHA identifie exactement leur contenu. La dispense
+ * s'arrête à elles ; scripts et bases restent contrôlés à chaque passage.
+ */
+const PINNED_LIBRARIES = new Set([
+  "pdf.min.mjs",
+  "pdf.worker.min.mjs"
+])
+
+const MINIMUM_LIBRARY_KILOBYTES = 100
+
+/* Pastilles par rangée dans la grille du diagnostic. */
+const DIAGNOSTIC_GRID_COLUMNS = 5
+
+/* Attente d'un fichier après écriture : pas et plafond, en millisecondes. */
+const FILE_WAIT_STEP = 20
+const FILE_WAIT_TIMEOUT = 300
 const ANALYTICS_MODULE = "CTS Analytics Client"
 
 /*
@@ -595,24 +623,6 @@ async function installOrUpdate(manifest, previous) {
     })
   }
 }
-
-/*
- * Les deux bibliothèques PDF.js pèsent 1,77 Mo à elles seules, soit 90 %
- * de ce qu'une vérification télécharge, et elles sont figées sur une
- * version épinglée dans CTS PDF Engine. Quand le snapshot GitHub n'a pas
- * bougé depuis la dernière installation réussie, les retélécharger ne peut
- * rien apporter : le SHA identifie exactement leur contenu.
- *
- * La dispense s'arrête à elles. Les scripts et les bases restent
- * retéléchargés et recomparés à chaque passage — ils sont légers, et ce
- * sont eux qui portent les correctifs.
- */
-const PINNED_LIBRARIES = new Set([
-  "pdf.min.mjs",
-  "pdf.worker.min.mjs"
-])
-
-const MINIMUM_LIBRARY_KILOBYTES = 100
 
 async function canSkipPinnedLibrary(entry) {
   if (!PINNED_LIBRARIES.has(entry.name)) {
@@ -1496,8 +1506,6 @@ async function presentDiagnostic(diagnostic) {
  * d'œil. Rien n'est perdu : la ligne suivante affiche le premier problème en
  * clair, et « Détails » ouvre la liste complète, celle d'avant.
  */
-const DIAGNOSTIC_GRID_COLUMNS = 5
-
 function addDiagnosticGrid(table, checks) {
   for (
     let start = 0;
@@ -3317,9 +3325,6 @@ async function readText(path) {
  * plus : la protection est la même, et plus longue qu'avant dans le pire
  * cas, mais on ne paie que le temps réellement nécessaire.
  */
-const FILE_WAIT_STEP = 20
-const FILE_WAIT_TIMEOUT = 300
-
 async function waitForFile(path) {
   const deadline = Date.now() + FILE_WAIT_TIMEOUT
 
