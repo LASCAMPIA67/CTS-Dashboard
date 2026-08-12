@@ -16,6 +16,7 @@ const INSTALLER_FILE = "CTS Installer.js"
 const META_FILE = "installation.json"
 const TIMEOUT = 60
 const RETRIES = 2
+const RENDER_INTERVAL = 120
 const ANALYTICS_MODULE = "CTS Analytics Client"
 
 /*
@@ -304,6 +305,15 @@ async function installOrUpdate(manifest, previous) {
   const failures = []
   const startedAt = Date.now()
 
+  /*
+   * Le snapshot de la dernière installation réussie décide si les
+   * bibliothèques épinglées peuvent être conservées telles quelles.
+   */
+  const metadata = await readMetadata()
+  const snapshotUnchanged =
+    Boolean(metadata?.repositoryRevision) &&
+    metadata.repositoryRevision === repositoryRevision
+
   try {
     await progress.system(
       "installer",
@@ -325,7 +335,7 @@ async function installOrUpdate(manifest, previous) {
       "Validation du snapshot GitHub…"
     )
 
-    await verifyRepository()
+    verifyRepository(manifest)
 
     await progress.system(
       "github",
@@ -361,7 +371,10 @@ async function installOrUpdate(manifest, previous) {
       )
 
       try {
-        const status = await syncFile(entry)
+        const status = await syncFile(entry, {
+          snapshotUnchanged
+        })
+
         summary[status].push(entry.name)
 
         await progress.entry(
@@ -406,7 +419,7 @@ async function installOrUpdate(manifest, previous) {
         try {
           const status = await syncFile(
             failure.entry,
-            true
+            { force: true }
           )
 
           summary[status].push(
@@ -542,7 +555,71 @@ async function installOrUpdate(manifest, previous) {
   }
 }
 
-async function syncFile(entry, force = false) {
+/*
+ * Les deux bibliothèques PDF.js pèsent 1,77 Mo à elles seules, soit 90 %
+ * de ce qu'une vérification télécharge, et elles sont figées sur une
+ * version épinglée dans CTS PDF Engine. Quand le snapshot GitHub n'a pas
+ * bougé depuis la dernière installation réussie, les retélécharger ne peut
+ * rien apporter : le SHA identifie exactement leur contenu.
+ *
+ * La dispense s'arrête à elles. Les scripts et les bases restent
+ * retéléchargés et recomparés à chaque passage — ils sont légers, et ce
+ * sont eux qui portent les correctifs.
+ */
+const PINNED_LIBRARIES = new Set([
+  "pdf.min.mjs",
+  "pdf.worker.min.mjs"
+])
+
+const MINIMUM_LIBRARY_KILOBYTES = 100
+
+async function canSkipPinnedLibrary(entry) {
+  if (!PINNED_LIBRARIES.has(entry.name)) {
+    return false
+  }
+
+  if (!fm.fileExists(entry.destination)) {
+    return false
+  }
+
+  /*
+   * Une bibliothèque tronquée passerait le contrôle de contenu, qui ne
+   * vérifie qu'une longueur minimale de quatre-vingts caractères. Sa
+   * taille, elle, la trahit.
+   */
+  let kilobytes = 0
+
+  try {
+    kilobytes = Number(
+      fm.fileSize(entry.destination)
+    ) || 0
+  } catch (_) {
+    return false
+  }
+
+  if (kilobytes < MINIMUM_LIBRARY_KILOBYTES) {
+    return false
+  }
+
+  const check = await validateLocal(
+    entry.destination,
+    entry.name
+  )
+
+  return check.valid
+}
+
+async function syncFile(entry, options = {}) {
+  const force = Boolean(options.force)
+
+  if (
+    !force &&
+    options.snapshotUnchanged &&
+    await canSkipPinnedLibrary(entry)
+  ) {
+    return "unchanged"
+  }
+
   let remote
   let lastError
 
@@ -592,7 +669,12 @@ async function syncFile(entry, force = false) {
   let localValid = false
 
   if (existed) {
-    const check = await validateLocal(
+    /*
+     * Une seule lecture du fichier local, réutilisée pour le contrôle de
+     * validité et pour la comparaison. La version précédente le lisait
+     * deux fois de suite, soit une lecture iCloud inutile par fichier.
+     */
+    const check = await inspectLocal(
       entry.destination,
       entry.name
     )
@@ -602,11 +684,8 @@ async function syncFile(entry, force = false) {
     if (
       !force &&
       localValid &&
-      await textMatches(
-        entry.destination,
-        remote,
-        entry.name
-      )
+      normalize(check.content, entry.name) ===
+        normalize(remote, entry.name)
     ) {
       return "unchanged"
     }
@@ -617,7 +696,11 @@ async function syncFile(entry, force = false) {
     remote
   )
 
-  const result = await validateLocal(
+  /*
+   * Le fichier écrit est relu une fois et sert aux deux contrôles :
+   * il doit être valide, et identique à ce que GitHub a renvoyé.
+   */
+  const result = await inspectLocal(
     entry.destination,
     entry.name
   )
@@ -628,11 +711,10 @@ async function syncFile(entry, force = false) {
     )
   }
 
-  if (!await textMatches(
-    entry.destination,
-    remote,
-    entry.name
-  )) {
+  if (
+    normalize(result.content, entry.name) !==
+    normalize(remote, entry.name)
+  ) {
     throw new Error(
       `${entry.name} ne correspond pas au snapshot GitHub après écriture.`
     )
@@ -1908,7 +1990,30 @@ function progressTable({
     result: null
   }
 
-  const render = async () => {
+  /*
+   * Chaque micro-étape redessinait la table et attendait 25 ms. Sur une
+   * exécution complète cela faisait près de quatre-vingts redessins, soit
+   * environ deux secondes passées à attendre l'affichage plutôt qu'à
+   * travailler.
+   *
+   * L'affichage est désormais cadencé : au plus un redessin toutes les
+   * RENDER_INTERVAL millisecondes pour les fichiers, qui défilent trop
+   * vite pour être lus de toute façon, et un redessin immédiat pour les
+   * étapes système et l'écran final, qui doivent être vus.
+   */
+  let lastRenderAt = 0
+
+  const render = async (immediate = false) => {
+    const now = Date.now()
+
+    if (
+      !immediate &&
+      now - lastRenderAt < RENDER_INTERVAL
+    ) {
+      return
+    }
+
+    lastRenderAt = now
     table.removeAllRows()
 
     if (state.result) {
@@ -1926,7 +2031,7 @@ function progressTable({
     }
 
     table.reload()
-    await sleep(25)
+    await sleep(10)
   }
 
   return {
@@ -1945,7 +2050,7 @@ function progressTable({
       )
 
       state.current = detail
-      await render()
+      await render(true)
     },
 
     async entry(index, status, detail) {
@@ -1979,7 +2084,7 @@ function progressTable({
         state.completed = state.total
       }
 
-      await render()
+      await render(true)
     }
   }
 }
@@ -3034,20 +3139,22 @@ async function loadManifest() {
   }
 }
 
-async function verifyRepository() {
-  const content = await downloadText(
-    `${rawUrl("version.json")}?ping=${Date.now()}`,
-    "GitHub"
-  )
-
-  const result = validateText(
-    content,
-    "version.json"
-  )
-
-  if (!result.valid) {
+/*
+ * Le manifeste a déjà été téléchargé depuis le snapshot épinglé, ce qui
+ * prouve à la fois que GitHub répond et que la révision est accessible.
+ * Le retélécharger une seconde fois, comme le faisait la version
+ * précédente, n'apportait qu'un aller-retour réseau de plus.
+ */
+function verifyRepository(manifest) {
+  if (!isRecord(manifest) || !manifest.version) {
     throw new Error(
-      `Connexion GitHub invalide : ${result.reason}`
+      "Connexion GitHub invalide : manifeste illisible"
+    )
+  }
+
+  if (!/^[0-9a-f]{40}$/.test(String(repositoryRevision))) {
+    throw new Error(
+      "Connexion GitHub invalide : snapshot non résolu"
     )
   }
 }
@@ -3119,37 +3226,73 @@ function validateText(content, name) {
   }
 }
 
-async function validateLocal(path, name) {
+/*
+ * Contrôle du fichier local qui rend aussi son contenu, pour que l'appelant
+ * puisse comparer sans relire le disque.
+ */
+async function inspectLocal(path, name) {
   if (!fm.fileExists(path)) {
     return {
       valid: false,
-      reason: "fichier absent"
+      reason: "fichier absent",
+      content: ""
     }
   }
 
   try {
     const content = await readText(path)
-    return validateText(content, name)
+    return {
+      ...validateText(content, name),
+      content
+    }
   } catch (error) {
     return {
       valid: false,
-      reason: messageOf(error)
+      reason: messageOf(error),
+      content: ""
     }
   }
 }
 
-async function textMatches(path, remote, name = "") {
-  const local = await readText(path)
-
-  return (
-    normalize(local, name) ===
-    normalize(remote, name)
-  )
+async function validateLocal(path, name) {
+  const { valid, reason } = await inspectLocal(path, name)
+  return { valid, reason }
 }
 
 async function readText(path) {
   await ensureDownloaded(path)
   return fm.readString(path)
+}
+
+/*
+ * Attente conditionnelle plutôt que temporisation fixe.
+ *
+ * iCloud ne rend pas toujours un fichier visible dans la milliseconde qui
+ * suit son écriture, d'où les pauses de 80 et 100 ms que portait chaque
+ * écriture — presque quatre secondes sur une installation complète, payées
+ * même quand le fichier était prêt immédiatement.
+ *
+ * On interroge maintenant le système toutes les 20 ms jusqu'à 300 ms au
+ * plus : la protection est la même, et plus longue qu'avant dans le pire
+ * cas, mais on ne paie que le temps réellement nécessaire.
+ */
+const FILE_WAIT_STEP = 20
+const FILE_WAIT_TIMEOUT = 300
+
+async function waitForFile(path) {
+  const deadline = Date.now() + FILE_WAIT_TIMEOUT
+
+  while (true) {
+    if (fm.fileExists(path)) {
+      return true
+    }
+
+    if (Date.now() >= deadline) {
+      return false
+    }
+
+    await sleep(FILE_WAIT_STEP)
+  }
 }
 
 async function writeText(destination, content) {
@@ -3174,13 +3317,11 @@ async function writeText(destination, content) {
       content
     )
 
-    if (!fm.fileExists(temporary)) {
+    if (!await waitForFile(temporary)) {
       throw new Error(
         "Le fichier temporaire n’a pas été créé."
       )
     }
-
-    await sleep(80)
 
     if (fm.fileExists(destination)) {
       fm.move(
@@ -3196,9 +3337,7 @@ async function writeText(destination, content) {
       destination
     )
 
-    await sleep(100)
-
-    if (!fm.fileExists(destination)) {
+    if (!await waitForFile(destination)) {
       throw new Error(
         "Le fichier final n’a pas été créé."
       )
