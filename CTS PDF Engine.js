@@ -1436,9 +1436,10 @@ async function ensureDownloaded(
   )
 }
 
+/* Timer de Scriptable compte en millisecondes, pas en secondes. */
 async function sleep(milliseconds) {
   await new Promise(resolve => {
-    Timer.schedule(Math.max(0, Number(milliseconds) || 0) / 1000, false, resolve)
+    Timer.schedule(Math.max(0, Number(milliseconds) || 0), false, resolve)
   })
 }
 

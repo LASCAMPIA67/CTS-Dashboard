@@ -55,6 +55,17 @@ Plusieurs cartes peuvent être déposées à l’avance. CTS Dashboard importe e
 
 Relancer **CTS Installer** puis choisir **Mettre à jour** ou **Vérifier les fichiers**. L’Installer compare les 22 fichiers distribués au snapshot GitHub courant et conserve les PDF, les archives et les données protégées.
 
+## Réparer un installateur bloqué
+
+Si CTS Installer s’arrête sur **Opération impossible** avant d’avoir affiché sa liste de fichiers, c’est l’installateur lui-même qui est en cause et il ne peut pas se remplacer tout seul. Le script **CTS Repair** existe pour ce seul cas :
+
+1. ouvrir le fichier `CTS Repair.js` du dépôt, puis **Partager → Scriptable → Add to My Scripts** ;
+2. exécuter **CTS Repair** : il télécharge la version publiée de CTS Installer, la contrôle et la réécrit ;
+3. relancer **CTS Installer**, choisir **Vérifier les fichiers** ;
+4. supprimer **CTS Repair**, devenu inutile.
+
+CTS Repair ne touche à aucune donnée : ni PDF, ni archives, ni index. Il refuse d’installer un fichier incomplet ou porteur du même défaut, et remet l’ancien installateur en place si l’écriture échoue.
+
 ## Diagnostic
 
 En cas de problème :

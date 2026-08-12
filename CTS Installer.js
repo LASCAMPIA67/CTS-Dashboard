@@ -3853,10 +3853,11 @@ async function registerAnalyticsInstallation(
   }
 }
 
+/* Timer de Scriptable compte en millisecondes, pas en secondes. */
 function sleep(milliseconds) {
   return new Promise(resolve => {
     Timer.schedule(
-      milliseconds / 1000,
+      Math.max(0, Number(milliseconds) || 0),
       false,
       resolve
     )

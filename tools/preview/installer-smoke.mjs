@@ -136,10 +136,13 @@ async function runAction(label, choice, { seed = true } = {}) {
     encodeURIComponent,
     decodeURIComponent,
     setTimeout,
-    /* Scriptable planifie ses attentes avec Timer, pas avec setTimeout. */
+    /*
+     * Scriptable planifie ses attentes avec Timer, pas avec setTimeout,
+     * et son intervalle est exprimé en millisecondes.
+     */
     Timer: class {
-      static schedule(seconds, repeats, callback) {
-        setTimeout(callback, seconds * 1000)
+      static schedule(milliseconds, repeats, callback) {
+        setTimeout(callback, milliseconds)
         return new this()
       }
       invalidate() {}

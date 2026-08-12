@@ -168,9 +168,15 @@ function telemetryFromError(error, fallbackCode, fallbackStage) {
   }
 }
 
+/*
+ * Timer de Scriptable attend un intervalle en millisecondes, contrairement
+ * à la convention habituelle des minuteries. Diviser par 1000 rendait
+ * chaque attente mille fois trop courte : les temporisations de reprise
+ * iCloud ne laissaient en pratique aucun délai à la synchronisation.
+ */
 function sleep(milliseconds) {
   return new Promise(resolve => Timer.schedule(
-    Math.max(0, Number(milliseconds) || 0) / 1000,
+    Math.max(0, Number(milliseconds) || 0),
     false,
     resolve
   ))

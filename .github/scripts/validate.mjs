@@ -13,8 +13,14 @@ const MINIMUM_LIBRARY_BYTES = 40 * 1024
 
 // Fichiers .js présents à la racine sans faire partie du manifeste.
 // CTS Simulator est un outil de maintenance, installé à la main par le
-// mainteneur et jamais distribué par CTS Installer.
-const UNMANIFESTED_SCRIPTS = new Set([INSTALLER_FILE, 'CTS Simulator.js'])
+// mainteneur. CTS Repair remplace un installateur cassé et s'installe
+// lui aussi à la main. Ni l'un ni l'autre n'est distribué par
+// CTS Installer.
+const UNMANIFESTED_SCRIPTS = new Set([
+  INSTALLER_FILE,
+  'CTS Simulator.js',
+  'CTS Repair.js'
+])
 
 const problems = []
 const fail = message => problems.push(message)
@@ -34,6 +40,36 @@ function checkSyntax(content, label) {
     return false
   }
   return true
+}
+
+/*
+ * Une constante de premier niveau déclarée sous l'appel au point d'entrée
+ * reste dans sa zone morte temporelle pendant toute l'exécution : la
+ * fonction qui l'utilise lève « Cannot access … before initialization ».
+ * La syntaxe est pourtant valide, et le fichier ne révèle le défaut qu'au
+ * moment précis où le chemin d'exécution y passe — un piège qui a déjà
+ * atteint un utilisateur, avec CTS Installer 1.0.7.
+ *
+ * Le contrôle vaut pour tout script exécutable de la racine : les scripts
+ * du manifeste sont des modules et n'ont pas de point d'entrée await.
+ */
+function checkEntryPoint(content, label) {
+  const lines = content.split('\n')
+  const entryLine = lines.findIndex(line => /^await\s+[A-Za-z_$][\w$]*\(/.test(line))
+
+  if (entryLine === -1) return
+
+  lines.forEach((line, index) => {
+    const declaration = line.match(/^(?:const|let)\s+([A-Za-z_$][\w$]*)/)
+    if (declaration && index > entryLine) {
+      fail(
+        `${label} déclare ${declaration[1]} ligne ${index + 1}, ` +
+        `après l'appel au point d'entrée ligne ${entryLine + 1}. Une constante ` +
+        `de premier niveau doit être déclarée avant, sans quoi elle est ` +
+        `inaccessible pendant l'exécution.`
+      )
+    }
+  })
 }
 
 // unique : impose un seul marqueur dans tout le fichier. Désactivé pour
@@ -150,58 +186,47 @@ for (const file of rootScripts) {
   }
 }
 
+/*
+ * Les scripts hors manifeste sont installés à la main, donc jamais
+ * remplacés par CTS Installer : une faute y reste sur l'iPhone jusqu'à ce
+ * que quelqu'un la remarque. Ils reçoivent donc les mêmes contrôles que
+ * les scripts distribués. Le marqueur de métadonnées n'est unique que
+ * pour ceux qui n'écrivent pas de scripts Scriptable — CTS Installer et
+ * CTS Repair le portent légitimement dans des chaînes.
+ */
 for (const file of UNMANIFESTED_SCRIPTS) {
   if (!fs.existsSync(file)) {
     fail(`${file} est déclaré comme distribué hors manifeste mais absent du dépôt`)
+    continue
   }
+
+  const content = read(file)
+
+  if (!content.trim()) {
+    fail(`${file} est vide`)
+    continue
+  }
+
+  checkScriptableMetadata(content, file, { unique: file === 'CTS Simulator.js' })
+  checkSyntax(content, file)
+  checkEntryPoint(content, file)
 }
 
 // ------------------------------------------------------------ CTS Installer
 
+// Syntaxe, métadonnées et point d'entrée sont déjà contrôlés plus haut,
+// avec les autres scripts hors manifeste. Reste la cohérence de version.
 if (fs.existsSync(INSTALLER_FILE)) {
   const installer = read(INSTALLER_FILE)
+  const declared = installer.match(/const INSTALLER_VERSION = "([^"]+)"/)
 
-  if (!installer.trim()) {
-    fail(`${INSTALLER_FILE} est vide`)
-  } else {
-    checkScriptableMetadata(installer, INSTALLER_FILE, { unique: false })
-    checkSyntax(installer, INSTALLER_FILE)
-
-    /*
-     * Une constante de premier niveau déclarée sous `await main()` reste
-     * dans sa zone morte temporelle pendant toute l'exécution : la fonction
-     * qui l'utilise lève « Cannot access … before initialization ». La
-     * syntaxe est pourtant valide, et le fichier ne révèle le défaut qu'au
-     * moment précis où le chemin d'exécution y passe — un piège qui a déjà
-     * atteint un utilisateur.
-     */
-    const entryLine = installer
-      .split('\n')
-      .findIndex(line => /^await main\(\)/.test(line))
-
-    if (entryLine !== -1) {
-      installer.split('\n').forEach((line, index) => {
-        const declaration = line.match(/^(?:const|let)\s+([A-Za-z_$][\w$]*)/)
-        if (declaration && index > entryLine) {
-          fail(
-            `${INSTALLER_FILE} déclare ${declaration[1]} ligne ${index + 1}, ` +
-            `après l'appel à main() ligne ${entryLine + 1}. Une constante de ` +
-            `premier niveau doit être déclarée avant, sans quoi elle est ` +
-            `inaccessible pendant l'exécution.`
-          )
-        }
-      })
-    }
-
-    const declared = installer.match(/const INSTALLER_VERSION = "([^"]+)"/)
-    if (!declared) {
-      fail(`${INSTALLER_FILE} ne déclare pas INSTALLER_VERSION`)
-    } else if (declared[1] !== manifest.installerVersion) {
-      fail(
-        `Version de l'installateur incohérente : version.json=${manifest.installerVersion}, ` +
-        `${INSTALLER_FILE}=${declared[1]}`
-      )
-    }
+  if (!declared) {
+    fail(`${INSTALLER_FILE} ne déclare pas INSTALLER_VERSION`)
+  } else if (declared[1] !== manifest.installerVersion) {
+    fail(
+      `Version de l'installateur incohérente : version.json=${manifest.installerVersion}, ` +
+      `${INSTALLER_FILE}=${declared[1]}`
+    )
   }
 }
 
