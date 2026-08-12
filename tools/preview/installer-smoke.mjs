@@ -37,7 +37,7 @@ function repositoryFile(name) {
  * Chaque action du menu est jouée dans son propre système de fichiers, et
  * l'alerte répond toujours le même index — celui de l'action visée.
  */
-async function runAction(label, choice, { seed = true } = {}) {
+async function runAction(label, choice, { seed = true, forbidden = null } = {}) {
   const sandboxRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cts-smoke-"))
   const docs = path.join(sandboxRoot, "Documents")
   fs.mkdirSync(docs, { recursive: true })
@@ -241,15 +241,29 @@ async function runAction(label, choice, { seed = true } = {}) {
   for (const text of shown) {
     if (RUNTIME_ERROR.test(text)) failures.push(`erreur d'exécution affichée : ${text}`)
     else if (ABORTED.test(text)) failures.push(`opération avortée : ${text}`)
+    else if (forbidden && forbidden.test(text)) {
+      failures.push(`verdict injustifié sur une installation saine : ${text}`)
+    }
   }
 
   fs.rmSync(sandboxRoot, { recursive: true, force: true })
   return [...new Set(failures)]
 }
 
+/*
+ * Le diagnostic d'une installation saine ne doit accuser personne. Un
+ * contrôle qui se déclare en erreur ne plante pas, ne s'affiche pas
+ * comme une panne, et passait donc inaperçu : c'est ainsi qu'un appel à
+ * verifyRepository() sans son argument a pu annoncer « manifeste
+ * illisible » à un conducteur dont tout allait bien.
+ */
 const scenarios = [
   { label: "vérification", choice: 0 },
-  { label: "diagnostic", choice: 1 },
+  {
+    label: "diagnostic",
+    choice: 1,
+    forbidden: /illisible|invalide|inaccessible|non résolu/i
+  },
   { label: "désinstallation", choice: 2 },
   { label: "installation neuve", choice: 0, seed: false }
 ]
@@ -258,7 +272,8 @@ let broken = false
 
 for (const scenario of scenarios) {
   const failures = await runAction(scenario.label, scenario.choice, {
-    seed: scenario.seed !== false
+    seed: scenario.seed !== false,
+    forbidden: scenario.forbidden || null
   })
 
   if (failures.length) {

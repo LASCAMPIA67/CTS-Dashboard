@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.7"
+const INSTALLER_VERSION = "1.0.8"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -936,7 +936,7 @@ async function runDiagnostic(manifest, state) {
   )
 
   try {
-    await verifyRepository()
+    verifyRepository(manifest)
 
     addDiagnosticCheck(
       diagnostic,
@@ -1782,6 +1782,12 @@ function buildDiagnosticReport(diagnostic) {
   if (diagnostic.lastFailure) {
     const failure = diagnostic.lastFailure
 
+    /*
+     * Un champ absent est écrit « ? », ce qui ressemble à une donnée
+     * perdue alors que le journal n'en a simplement jamais porté :
+     * une erreur de validation HASTUS n'a ni message JavaScript ni
+     * pile. On n'imprime que ce qui existe.
+     */
     lines.push(
       "",
       "DERNIÈRE ERREUR D’IMPORT",
@@ -1789,9 +1795,13 @@ function buildDiagnosticReport(diagnostic) {
       `Date : ${failure.timestamp || "?"}`,
       `Type : ${failure.type || "?"}`,
       `Code : ${failure.code || "?"}`,
-      `Étape : ${failure.stage || "?"}`,
-      `Erreur : ${failure.error || "?"}`,
-      `Type JS : ${failure.name || "?"}`,
+      `Étape : ${failure.stage || "?"}`
+    )
+
+    if (failure.error) lines.push(`Erreur : ${failure.error}`)
+    if (failure.name) lines.push(`Type JS : ${failure.name}`)
+
+    lines.push(
       "",
       "TEMPS DES ÉTAPES",
       "----------------",
@@ -1800,12 +1810,17 @@ function buildDiagnosticReport(diagnostic) {
       `Base CTS : ${formatDiagnosticMs(failure.timings.databaseReloadMs)}`,
       `Parser : ${formatDiagnosticMs(failure.timings.parserMs)}`,
       `Enregistrement : ${formatDiagnosticMs(failure.timings.registrationMs)}`,
-      `Total : ${formatDiagnosticMs(failure.timings.totalMs)}`,
-      "",
-      "STACK JAVASCRIPT",
-      "----------------",
-      failure.stack || "Aucune stack disponible."
+      `Total : ${formatDiagnosticMs(failure.timings.totalMs)}`
     )
+
+    if (failure.stack) {
+      lines.push(
+        "",
+        "STACK JAVASCRIPT",
+        "----------------",
+        failure.stack
+      )
+    }
   }
 
   lines.push(
