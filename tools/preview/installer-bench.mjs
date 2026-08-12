@@ -33,6 +33,13 @@ const SNAPSHOT = "a7b0d0da0dff222be4afcc9c006cd2e79417f98b"
  *   fresh        — rien n'est installé
  */
 const SCENARIO = process.env.BENCH_SCENARIO || "verification"
+
+/*
+ * Latence appliquée à chaque requête, en millisecondes. Sans elle le banc
+ * ne peut pas montrer ce que le parallélisme apporte, puisque le faux
+ * GitHub répond instantanément.
+ */
+const LATENCY = Number(process.env.BENCH_LATENCY) || 0
 const manifest = JSON.parse(fs.readFileSync(path.join(repository, "version.json"), "utf8"))
 
 const metrics = {
@@ -136,6 +143,10 @@ class BenchRequest {
   }
   async loadString() {
     metrics.requests++
+
+    if (LATENCY > 0) {
+      await new Promise(resolve => setTimeout(resolve, LATENCY))
+    }
 
     if (this.url.includes("api.github.com")) {
       return JSON.stringify({ sha: SNAPSHOT })
@@ -243,6 +254,8 @@ const sandbox = {
 vm.createContext(sandbox)
 vm.runInContext(source, sandbox, { filename: installerPath })
 
+const startedAt = Date.now()
+
 const run = async () => {
   sandbox.repositoryRevision = await sandbox.resolveRepositoryRevision()
   const loaded = await sandbox.loadManifest()
@@ -260,6 +273,7 @@ run()
     console.log(`  écritures              ${metrics.writes}`)
     console.log(`  redessins de la table  ${metrics.renders}`)
     console.log(`  attente cumulée        ${(metrics.sleptMs / 1000).toFixed(2)} s`)
+    console.log(`  durée totale           ${((Date.now() - startedAt) / 1000).toFixed(2)} s`)
   })
   .catch(error => {
     console.error("Échec du banc :", error.message)

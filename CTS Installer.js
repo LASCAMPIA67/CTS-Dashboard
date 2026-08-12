@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.6"
+const INSTALLER_VERSION = "1.0.7"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -17,6 +17,7 @@ const META_FILE = "installation.json"
 const TIMEOUT = 60
 const RETRIES = 2
 const RENDER_INTERVAL = 120
+const CONCURRENCY = 4
 const ANALYTICS_MODULE = "CTS Analytics Client"
 
 /*
@@ -357,47 +358,87 @@ async function installOrUpdate(manifest, previous) {
       "Arborescence prête"
     )
 
+    /*
+     * Les fichiers sont traités par vagues de CONCURRENCY plutôt qu'un par
+     * un : l'essentiel du temps d'un fichier est une attente réseau, et
+     * rien n'oblige à attendre la fin de l'une avant de commencer la
+     * suivante. Les destinations étant toutes distinctes, deux écritures
+     * simultanées ne peuvent pas se gêner.
+     *
+     * La vague reste petite à dessein. Elle suffit à masquer la latence,
+     * sans ouvrir assez de connexions pour saturer un partage de connexion
+     * ni pour rendre le décompte de progression illisible.
+     */
+    let completed = 0
+
     for (
-      let index = 0;
-      index < entries.length;
-      index++
+      let start = 0;
+      start < entries.length;
+      start += CONCURRENCY
     ) {
-      const entry = entries[index]
-
-      await progress.entry(
-        index,
-        "running",
-        `Contrôle de ${entry.name}`
-      )
-
-      try {
-        const status = await syncFile(entry, {
-          snapshotUnchanged
-        })
-
-        summary[status].push(entry.name)
-
-        await progress.entry(
-          index,
-          status,
-          statusLabel(status)
-        )
-      } catch (error) {
-        failures.push({
-          index,
+      const wave = entries
+        .slice(start, start + CONCURRENCY)
+        .map((entry, offset) => ({
           entry,
-          reason: messageOf(error)
-        })
+          index: start + offset
+        }))
 
+      for (const item of wave) {
         await progress.entry(
-          index,
-          "retry",
-          "Nouvelle tentative programmée"
+          item.index,
+          "running",
+          `Contrôle de ${item.entry.name}`
         )
       }
 
+      const results = await Promise.all(
+        wave.map(async item => {
+          try {
+            return {
+              ...item,
+              status: await syncFile(item.entry, {
+                snapshotUnchanged
+              })
+            }
+          } catch (error) {
+            return {
+              ...item,
+              reason: messageOf(error)
+            }
+          }
+        })
+      )
+
+      for (const result of results) {
+        if (result.status) {
+          summary[result.status].push(
+            result.entry.name
+          )
+
+          await progress.entry(
+            result.index,
+            result.status,
+            statusLabel(result.status)
+          )
+        } else {
+          failures.push({
+            index: result.index,
+            entry: result.entry,
+            reason: result.reason
+          })
+
+          await progress.entry(
+            result.index,
+            "retry",
+            "Nouvelle tentative programmée"
+          )
+        }
+
+        completed++
+      }
+
       await progress.advance(
-        index + 1,
+        completed,
         entries.length
       )
     }
