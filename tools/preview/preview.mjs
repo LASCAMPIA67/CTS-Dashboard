@@ -157,101 +157,77 @@ function slice(overrides) {
   }
 }
 
-const SCENARIOS = {
-  "CL09 · 3 tranches": {
-    service: "CL09",
-    date: "2026-08-12",
-    slices: [
-      slice({
-        index: 1,
-        line: "G",
-        vehicle: "12",
-        dutyStart: "06:59",
-        operationStart: "06:59",
-        end: "09:03",
-        dutyEnd: "09:20",
-        depotExitAt: "07:09",
-        depotReturnAt: "09:14",
-        lineUpAt: "Gare Marchandises",
-        direction: "Espace Eur. Entreprise"
-      }),
-      slice({
-        index: 2,
-        line: "C3",
-        vehicle: "4",
-        dutyStart: "10:11",
-        operationStart: "10:11",
-        end: "13:11",
-        dutyEnd: "13:11",
-        startPlaceCode: "LHPP_G",
-        startPlace: "Halles P. de Paris",
-        endPlaceCode: "LHPP_G",
-        endPlace: "Halles P. de Paris",
-        direction: "Neuhof R. Reuss"
-      }),
-      slice({
-        index: 3,
-        line: "17",
-        vehicle: "5",
-        dutyStart: "16:19",
-        operationStart: "16:19",
-        end: "18:53",
-        dutyEnd: "19:10",
-        depotReturnAt: "19:04",
-        direction: "Montagne Verte"
-      })
-    ],
-    at: "05:51"
-  },
-  "EA06 · 2 tranches": {
-    service: "EA06",
-    date: "2026-08-12",
-    slices: [
-      slice({
-        index: 1,
-        line: "L1",
-        vehicle: "204",
-        dutyStart: "05:30",
-        operationStart: "05:48",
-        end: "12:20",
-        dutyEnd: "12:35",
-        depotExitAt: "05:40",
-        depotReturnAt: "12:31",
-        lineUpAt: "Gare Centrale",
-        direction: "Parlement Européen"
-      }),
-      slice({
-        index: 2,
-        line: "L1",
-        vehicle: "204",
-        dutyStart: "13:05",
-        operationStart: "13:15",
-        end: "16:55",
-        dutyEnd: "17:10",
-        startPlaceCode: "ELS",
-        startPlace: "UPE",
-        endPlaceCode: "ELS",
-        endPlace: "UPE",
-        depotReturnAt: "17:06",
-        direction: "Lingolsheim Gare"
-      })
-    ],
-    at: "05:20"
-  },
-  "Pause entre deux tranches": {
-    service: "EA06",
-    date: "2026-08-12",
-    slices: null,
-    reuse: "EA06 · 2 tranches",
-    at: "12:40"
-  },
-  "En service": {
-    reuse: "CL09 · 3 tranches",
-    at: "07:30"
-  },
-  "Service terminé": {
-    reuse: "EA06 · 2 tranches",
-    at: "17:30"
+/*
+ * Matrice complète : chaque état du widget croisé avec 1, 2 et 3 tranches.
+ * Les horaires sont construits pour que l'heure d'observation tombe
+ * exactement dans l'état voulu, et les coupures sont déclarées comme le
+ * ferait le parseur, sans quoi computeState les traiterait en pause.
+ */
+const LINES = [
+  { line: "C4", vehicle: "3", from: "Elmerforst", to: "Elmerforst", direction: "Illkirch Fort Uhrich" },
+  { line: "L1", vehicle: "204", from: "UPE", to: "UPE", direction: "Espace Eur. Entreprise" },
+  { line: "17", vehicle: "5", from: "UPC", to: "UPC", direction: "Neuhof R. Reuss" }
+]
+
+const SLICE_TIMES = [
+  { dutyStart: "05:30", start: "05:48", end: "09:03", dutyEnd: "09:20", exit: "05:40", back: "09:14" },
+  { dutyStart: "12:31", start: "12:31", end: "16:55", dutyEnd: "17:10", exit: "", back: "17:06" },
+  { dutyStart: "18:07", start: "18:07", end: "20:58", dutyEnd: "21:12", exit: "", back: "21:08" }
+]
+
+function buildSlices(count) {
+  return SLICE_TIMES.slice(0, count).map((times, index) => {
+    const identity = LINES[index]
+    const depotStart = index === 0
+    return {
+      index: index + 1,
+      lineCode: "10",
+      line: identity.line,
+      vehicle: identity.vehicle,
+      dutyStart: times.dutyStart,
+      operationStart: times.start,
+      end: times.end,
+      dutyEnd: times.dutyEnd,
+      startPlaceCode: depotStart ? "CRB" : "ELME",
+      startPlace: identity.from,
+      endPlaceCode: "ELS",
+      endPlace: identity.to,
+      depotExitAt: times.exit,
+      depotReturnAt: times.back,
+      lineUpAt: depotStart ? "Gare Marchandises" : "",
+      direction: identity.direction
+    }
+  })
+}
+
+/* Une coupure est déclarée entre deux tranches ; sinon c'est une pause. */
+function buildBreaks(count, cut) {
+  if (!cut || count < 2) return []
+  return [{ type: "cut", start: SLICE_TIMES[0].end, end: SLICE_TIMES[1].start }]
+}
+
+const STATES = [
+  { key: "Service dans 3 jours", at: "10:00", dayOffset: 3 },
+  { key: "Avant le service", at: "05:20" },
+  { key: "En service", at: "07:30" },
+  { key: "Pause", at: "10:30", needs: 2 },
+  { key: "Coupure", at: "10:30", needs: 2, cut: true },
+  { key: "Service terminé", at: "23:30" }
+]
+
+const SCENARIOS = {}
+
+for (const count of [1, 2, 3]) {
+  for (const state of STATES) {
+    if (state.needs && count < state.needs) continue
+    SCENARIOS[`${state.key} · ${count} tranche${count > 1 ? "s" : ""}`] = {
+      service: "EA05",
+      date: "2026-08-12",
+      slices: buildSlices(count),
+      breaks: buildBreaks(count, state.cut),
+      at: state.at,
+      dayOffset: state.dayOffset || 0
+    }
   }
 }
 
@@ -263,7 +239,7 @@ function buildContext(name, screen) {
     date: base.date,
     driver: { name: "IPPOLITO", id: "6124" },
     slices: base.slices,
-    breaks: [],
+    breaks: base.breaks || [],
     validation: { valid: true, errors: [], warnings: [] }
   }
 
@@ -271,7 +247,7 @@ function buildContext(name, screen) {
   if (!normalized.valid) throw new Error(`${name} : ${normalized.error}`)
 
   const [hours, minutes] = definition.at.split(":").map(Number)
-  const at = new Date(2026, 7, 12, hours, minutes)
+  const at = new Date(2026, 7, 12 - (definition.dayOffset || 0), hours, minutes)
 
   const state = SERVICE.computeState(normalized.service, at)
   return {
@@ -356,7 +332,7 @@ function main() {
   }
 
   const columns = screensWanted ? screensWanted.length : SCREENS.length
-  const perRow = Math.min(columns, 4)
+  const perRow = Math.max(1, Number(process.env.PREVIEW_COLUMNS) || Math.min(columns, 4))
   const widest = Math.max(...items.map(item => item.width))
   const tallest = Math.max(...items.map(item => item.height))
   const sheetWidth = perRow * (widest + 24) + 32

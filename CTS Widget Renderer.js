@@ -460,20 +460,19 @@ function addSliceNumber(parent, slice, active, state, density) {
 }
 
 /*
- * Les deux cartes reçoivent chacune une moitié exacte de la largeur
- * intérieure, écart déduit. Se fier au contenu les laissait plus étroites
- * que les cartes du dessus, avec un vide à droite.
+ * Une seule carte, deux moitiés.
+ *
+ * Deux cartes distinctes ne peuvent pas se partager exactement la largeur :
+ * Scriptable ne permet pas de connaître la largeur du widget, et une pile
+ * ne réclame l'espace disponible que si un ressort souple figure parmi ses
+ * enfants DIRECTS. Deux cartes voisines se dimensionnent donc sur leur
+ * texte, et s'arrêtent avant le bord.
+ *
+ * Une carte unique, elle, réclame la largeur par ses propres ressorts, et
+ * les quatre ressorts intérieurs centrent chaque bloc dans sa moitié. Le
+ * résultat est exact sur n'importe quel appareil, sans rien estimer.
  */
 function addStats(parent, stats, density) {
-  const width = Math.floor((density.contentWidth - density.statGap) / 2)
-  const row = parent.addStack()
-  row.centerAlignContent()
-  addStatCard(row, UTILS.formatDuration(stats.work), "Travail", density, width)
-  row.addSpacer(density.statGap)
-  addStatCard(row, UTILS.formatDuration(stats.amplitude), "Amplitude", density, width)
-}
-
-function addStatCard(parent, value, label, density, width) {
   const card = addSurface(parent, {
     padding: [
       density.statPaddingVertical,
@@ -483,14 +482,45 @@ function addStatCard(parent, value, label, density, width) {
     ],
     radius: density.statRadius,
     backgroundAlpha: 0.05,
-    borderAlpha: 0.07,
-    vertical: true
+    borderAlpha: 0.07
   })
-  if (width > 0) card.size = new Size(width, 0)
   card.centerAlignContent()
-  addCenteredText(card, value, Font.boldSystemFont(density.statValueSize), THEME.getPrimaryTextColor())
-  card.addSpacer(1)
-  addCenteredText(card, label, Font.mediumSystemFont(density.statLabelSize), secondary())
+
+  addStatBlock(card, UTILS.formatDuration(stats.work), "Travail", density)
+  addStatSeparator(card, density)
+  addStatBlock(card, UTILS.formatDuration(stats.amplitude), "Amplitude", density)
+}
+
+function addStatBlock(parent, value, label, density) {
+  parent.addSpacer()
+
+  const block = parent.addStack()
+  block.layoutVertically()
+  addText(
+    block,
+    value,
+    Font.boldSystemFont(density.statValueSize),
+    THEME.getPrimaryTextColor(),
+    1,
+    0.75
+  ).centerAlignText()
+  block.addSpacer(1)
+  addText(
+    block,
+    label,
+    Font.mediumSystemFont(density.statLabelSize),
+    secondary(),
+    1,
+    0.75
+  ).centerAlignText()
+
+  parent.addSpacer()
+}
+
+function addStatSeparator(parent, density) {
+  const rule = parent.addStack()
+  rule.size = new Size(1, density.statSeparatorHeight)
+  rule.backgroundColor = THEME.translucentWhite(0.09)
 }
 
 function addStatusPill(parent, state, density) {
@@ -739,25 +769,16 @@ function estimateWidgetWidth(screen) {
  * déclarée par la densité sert de plancher.
  */
 const COLUMN_SAFETY_MARGIN = 6
-const CONTENT_SAFETY_MARGIN = 2
 
 function withColumnWidth(density, screen) {
-  /*
-   * Deux marges différentes, pour deux risques différents. Les cartes de
-   * statistiques bordent le widget : une marge trop généreuse s'y verrait
-   * comme un vide à droite, alors qu'une colonne du bandeau trop large ne
-   * ferait que resserrer un texte. La première est donc réduite au strict
-   * nécessaire, la seconde reste confortable.
-   */
-  const contentWidth = Math.max(
-    density.contentWidth,
-    estimateWidgetWidth(screen) - 2 * density.paddingHorizontal - CONTENT_SAFETY_MARGIN
-  )
-  const inner = contentWidth - 2 * density.cardPaddingHorizontal - COLUMN_SAFETY_MARGIN
+  const inner =
+    estimateWidgetWidth(screen) -
+    2 * density.paddingHorizontal -
+    2 * density.cardPaddingHorizontal -
+    COLUMN_SAFETY_MARGIN
   const available = inner - gridGutter(density)
   return {
     ...density,
-    contentWidth,
     columnWidth: Math.max(density.columnWidth, Math.floor(available / 2))
   }
 }
@@ -788,7 +809,6 @@ function densityComfortable() {
     paddingTop: 17,
     paddingBottom: 14,
     paddingHorizontal: 18,
-    contentWidth: 256,
     sectionGap: 7,
     iconSize: 38,
     iconSymbolSize: 18,
@@ -848,10 +868,10 @@ function densityComfortable() {
     sliceDetailGap: 3,
     statPaddingHorizontal: 24,
     statPaddingVertical: 5,
-    statGap: 8,
     statRadius: 12,
     statValueSize: 14,
-    statLabelSize: 7.5
+    statLabelSize: 7.5,
+    statSeparatorHeight: 26
   }
 }
 
@@ -861,7 +881,6 @@ function densityStandard() {
     paddingTop: 15,
     paddingBottom: 12,
     paddingHorizontal: 16,
-    contentWidth: 260,
     sectionGap: 4,
     iconSize: 34,
     iconSymbolSize: 16,
@@ -916,9 +935,9 @@ function densityStandard() {
     sliceDetailGap: 2,
     statPaddingHorizontal: 19,
     statPaddingVertical: 4,
-    statGap: 7,
     statValueSize: 13,
-    statLabelSize: 7.8
+    statLabelSize: 7.8,
+    statSeparatorHeight: 24
   }
 }
 
@@ -928,7 +947,6 @@ function densityCompact() {
     paddingTop: 13,
     paddingBottom: 11,
     paddingHorizontal: 15,
-    contentWidth: 262,
     sectionGap: 4,
     iconSize: 31,
     iconSymbolSize: 14,
@@ -981,9 +999,9 @@ function densityCompact() {
     metricsGap: 4,
     sliceDetailGap: 1,
     statPaddingHorizontal: 17,
-    statGap: 6,
     statValueSize: 12.5,
-    statLabelSize: 6.8
+    statLabelSize: 6.8,
+    statSeparatorHeight: 21
   }
 }
 
