@@ -204,31 +204,178 @@ for (const [label, value] of [
 // ------------------------------------------------------- libellés de lieux
 
 /*
- * Les deux blocs du bandeau horaires se dimensionnent sur leur contenu,
- * ce qui centre la flèche entre le texte réellement visible. fitFont
- * borne la largeur d'un nom de lieu tant qu'il reste sous la limite où
- * la réduction proportionnelle s'arrête (placeSoftLimit / 0.7 ≈ 26).
- * Au-delà, le bloc recommencerait à s'élargir et déséquilibrerait le
- * bandeau. Le plus long libellé actuel fait 21 caractères.
+ * Les limites correspondent au seuil à partir duquel le widget commence à
+ * réduire la police. Les respecter garantit que rien n'est jamais rapetissé
+ * dans le rendu courant.
+ *
+ *   places.json alimente le bandeau horaires  → placeSoftLimit  = 18
+ *   stops.json  alimente direction et mise en ligne → detailSoftLimit = 24
+ *
+ * Un point de relève est à la fois un lieu et un arrêt : il figure dans les
+ * deux bases. Le bandeau horaires le nomme via places.json, la direction via
+ * stops.json. Si l'on n'en renomme qu'un, le widget désigne le même endroit
+ * de deux façons selon la ligne — d'où le contrôle d'appariement plus bas.
  */
-const MAX_PLACE_LABEL_LENGTH = 26
+const LABEL_LIMITS = [
+  ['places.json', 18, 'bandeau horaires'],
+  ['stops.json', 24, 'direction et mise en ligne']
+]
 
-if (fs.existsSync('places.json')) {
+const labels = new Map()
+
+for (const [file, limit, usage] of LABEL_LIMITS) {
+  if (!fs.existsSync(file)) continue
   try {
-    const places = JSON.parse(read('places.json'))
+    const entries = JSON.parse(read(file))
+    labels.set(file, entries)
 
-    for (const [code, entry] of Object.entries(places)) {
+    for (const [code, entry] of Object.entries(entries)) {
       const label = typeof entry === 'string' ? entry : String(entry?.name || '')
-      if (label.length > MAX_PLACE_LABEL_LENGTH) {
+      if (label.length > limit) {
         fail(
-          `Libellé de lieu trop long pour le bandeau horaires : ${code} = ` +
-          `"${label}" (${label.length} caractères, maximum ${MAX_PLACE_LABEL_LENGTH})`
+          `Libellé trop long pour le ${usage} : ${file} ${code} = ` +
+          `"${label}" (${label.length} caractères, maximum ${limit})`
         )
       }
     }
   } catch (_) {
     // Le JSON invalide est déjà signalé plus haut.
   }
+}
+
+if (labels.has('places.json') && labels.has('stops.json')) {
+  const stopLabels = new Set(
+    Object.values(labels.get('stops.json')).map(entry =>
+      typeof entry === 'string' ? entry : String(entry?.name || '')
+    )
+  )
+
+  for (const [code, entry] of Object.entries(labels.get('places.json'))) {
+    if (String(entry?.type || '') !== 'relief') continue
+    const label = typeof entry === 'string' ? entry : String(entry?.name || '')
+    if (label && !stopLabels.has(label)) {
+      fail(
+        `Le point de relève ${code} s'appelle "${label}" dans places.json mais ` +
+        `aucun arrêt ne porte ce nom dans stops.json — les deux bases ont ` +
+        `divergé, le widget nommerait ce lieu de deux façons`
+      )
+    }
+  }
+}
+
+// ------------------------------------------------- contraste de la palette
+
+/*
+ * Le widget se lit debout, dehors, souvent en plein soleil. La lumière
+ * ambiante réfléchie par la dalle s'ajoute au texte comme au fond et écrase
+ * les rapports de contraste ; il faut donc une marge confortable en
+ * intérieur pour rester lisible dehors.
+ *
+ * On mesure le pire cas de chaque état : le coin le plus clair du dégradé,
+ * recouvert du voile blanc le plus opaque d'une carte, puis teinté par
+ * l'accent comme l'est la ligne de la tranche en cours. Ce sont les deux
+ * surfaces qui portent du texte. Les pastilles — numéro de tranche, état,
+ * flèche — sont décoratives et volontairement hors périmètre : leur fond
+ * plus teinté n'entoure qu'un chiffre ou un pictogramme, jamais une
+ * information à lire.
+ *
+ * Si un réglage de couleur passe sous les seuils, la CI le refuse.
+ */
+const CONTRAST_TARGETS = { primary: 12, secondary: 7, accent: 7 }
+const CARD_WHITE_ALPHA = 0.055
+const PROGRAM_WHITE_ALPHA = 0.05
+
+/* Lu dans le moteur de rendu pour que le contrôle suive toute retouche. */
+const ACTIVE_ROW_ACCENT_ALPHA = (() => {
+  const renderer = read('CTS Widget Renderer.js')
+  const match = renderer.match(
+    /backgroundColor\s*=\s*active\s*\r?\n?\s*\?\s*accentAlpha\(state,\s*([\d.]+)\)/
+  )
+  return match ? Number(match[1]) : 0.09
+})()
+
+const theme = read('CTS Widget Theme.js')
+
+const palettes = [
+  ...theme.matchAll(
+    /(\w+): Object\.freeze\(\{ gradient: \[([^\]]+)\], accent: "(#[0-9A-Fa-f]{6})" \}\)/g
+  )
+].map(match => ({
+  state: match[1],
+  gradient: match[2].match(/#[0-9A-Fa-f]{6}/g) || [],
+  accent: match[3]
+}))
+
+const themeColors = Object.fromEntries(
+  [...theme.matchAll(/(\w+): "(#[0-9A-Fa-f]{6})"/g)].map(match => [match[1], match[2]])
+)
+
+if (!palettes.length) {
+  fail('Aucune palette lisible dans CTS Widget Theme.js')
+} else if (!themeColors.primaryText || !themeColors.secondaryText) {
+  fail('Couleurs de texte introuvables dans CTS Widget Theme.js')
+} else {
+  for (const palette of palettes) {
+    if (palette.gradient.length !== 4) {
+      fail(`Le dégradé ${palette.state} ne compte pas quatre couleurs`)
+      continue
+    }
+
+    const lightest = palette.gradient
+      .slice()
+      .sort((a, b) => relativeLuminance(b) - relativeLuminance(a))[0]
+
+    const card = blend(lightest, '#FFFFFF', CARD_WHITE_ALPHA)
+    const activeRow = blend(
+      blend(lightest, '#FFFFFF', PROGRAM_WHITE_ALPHA),
+      palette.accent,
+      ACTIVE_ROW_ACCENT_ALPHA
+    )
+
+    for (const background of [card, activeRow]) {
+      checkContrast(palette.state, themeColors.primaryText, background, CONTRAST_TARGETS.primary, 'texte principal')
+      checkContrast(palette.state, themeColors.secondaryText, background, CONTRAST_TARGETS.secondary, 'texte secondaire')
+      checkContrast(palette.state, palette.accent, background, CONTRAST_TARGETS.accent, 'accent')
+    }
+  }
+}
+
+function checkContrast(state, foreground, background, target, label) {
+  const value = contrastRatio(foreground, background)
+  if (value + 0.005 < target) {
+    fail(
+      `Contraste insuffisant en plein soleil — ${state}, ${label} : ` +
+      `${foreground} sur ${background} donne ${value.toFixed(2)}:1, minimum ${target}:1`
+    )
+  }
+}
+
+function channels(hex) {
+  const raw = hex.replace('#', '')
+  return [0, 1, 2].map(index => parseInt(raw.slice(index * 2, index * 2 + 2), 16))
+}
+
+function blend(baseHex, overlayHex, alpha) {
+  const base = channels(baseHex)
+  const over = channels(overlayHex)
+  const mixed = base.map((value, index) =>
+    Math.round(value * (1 - alpha) + over[index] * alpha)
+  )
+  return '#' + mixed.map(value => value.toString(16).padStart(2, '0')).join('')
+}
+
+function relativeLuminance(hex) {
+  const [r, g, b] = channels(hex).map(value => {
+    const c = value / 255
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+  })
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+function contrastRatio(first, second) {
+  const a = relativeLuminance(first)
+  const b = relativeLuminance(second)
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
 }
 
 // ------------------------------------------------------------------ PDF.js

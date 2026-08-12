@@ -3,7 +3,7 @@
 // icon-color: gray; icon-glyph: gear;
 
 const fm = FileManager.iCloud()
-const DASHBOARD_VERSION = "1.0.11"
+const DASHBOARD_VERSION = "1.0.12"
 const SECOND_MS = 1000
 const MINUTE_MS = 60 * SECOND_MS
 const HOUR_MS = 60 * MINUTE_MS

@@ -95,6 +95,16 @@ function normalizeSlice(slice, index) {
     ? rawDepotExitAt
     : ""
 
+  const rawDepotReturnAt =
+    source.depotReturnAt === null ||
+    source.depotReturnAt === undefined
+      ? ""
+      : UTILS.normalizeTime(source.depotReturnAt)
+
+  const depotReturnAt = UTILS.isValidTime(rawDepotReturnAt)
+    ? rawDepotReturnAt
+    : ""
+
   const vehicle = normalizeOptionalString(source.vehicle)
   const fromCode = String(source.startPlaceCode || "")
   const toCode = String(source.endPlaceCode || "")
@@ -119,6 +129,7 @@ function normalizeSlice(slice, index) {
     end,
     dutyEnd,
     depotExitAt,
+    depotReturnAt,
     fromCode,
     from: resolvePlaceLabel(
       fromCode,
@@ -409,11 +420,16 @@ function computeState(service, currentDate = new Date()) {
         nextSlice
       )
 
+      /*
+       * La durée totale de l'interruption est calculée ici, où les deux
+       * tranches sont connues, plutôt que reconstituée à l'affichage.
+       */
       return createState(
         isCut ? STATE.CUT : STATE.PAUSE,
         {
           next: nextSlice,
           remaining: pauseEndMinute - currentMinute,
+          breakDuration: pauseEndMinute - endMinute,
           dayDifference
         }
       )
@@ -588,6 +604,7 @@ function createState(definition, overrides = {}) {
       current: null,
       next: null,
       remaining: null,
+      breakDuration: 0,
       progress: 0,
       dayDifference: 0
     },

@@ -55,7 +55,7 @@
     "name": "Lycée Couffignal"
   },
   "NEUHOF RODOLPHE REUSS": {
-    "name": "Neuhof Rodolphe Reuss",
+    "name": "Neuhof R. Reuss",
     "aliases": [
       "RODOLPHE REUSS"
     ]
@@ -176,7 +176,7 @@
     "name": "Wilson"
   },
   "HALLES PONT DE PARIS": {
-    "name": "Halles Pont de Paris",
+    "name": "Halles P. de Paris",
     "aliases": [
       "LES HALLES PONT DE PARIS"
     ]
@@ -194,7 +194,7 @@
     "name": "Cité de l’Ill"
   },
   "GARE AUX MARCHANDISES": {
-    "name": "Gare aux Marchandises"
+    "name": "Gare Marchandises"
   },
   "PORTE BLANCHE": {
     "name": "Porte Blanche"
@@ -224,7 +224,7 @@
     "name": "Arago"
   },
   "ESPACE EUROPEEN DE L'ENT": {
-    "name": "Espace Européen de l’Entreprise",
+    "name": "Espace Eur. Entreprise",
     "aliases": [
       "ESPACE EUROPEEN DE L'ENTREPRISE"
     ]
@@ -302,19 +302,19 @@
     "name": "Kehl Rathaus"
   },
   "KRIMMERI - ST. MEINAU": {
-    "name": "Krimmeri - St. Meinau"
+    "name": "Krimmeri St. Meinau"
   },
   "KRIMMERI - ST. MEINAU Q1 ARRIVEE": {
-    "name": "Krimmeri - St. Meinau Q1"
+    "name": "Krimmeri St. Meinau Q1"
   },
   "KRIMMERI - ST. MEINAU Q2 ARRIVEE": {
-    "name": "Krimmeri - St. Meinau Q2"
+    "name": "Krimmeri St. Meinau Q2"
   },
   "CAMPUS D'ILLKIRCH": {
     "name": "Campus d’Illkirch"
   },
   "TIOIR CAMPUS ILLKIRCH DEPART": {
-    "name": "Tiroir Campus d’Illkirch"
+    "name": "Tiroir Campus Illkirch"
   },
   "ILLKIRCH LIXENBUHL": {
     "name": "Illkirch Lixenbuhl"
@@ -366,5 +366,8 @@
   },
   "LINGOLSHEIM TIERGAERTEL": {
     "name": "Lingolsheim Tiergaertel"
+  },
+  "HOHBERG": {
+    "name": "Hohberg"
   }
 }

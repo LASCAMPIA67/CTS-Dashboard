@@ -66,11 +66,11 @@
     "type": "relief"
   },
   "RORE": {
-    "name": "Neuhof Rodolphe Reuss",
+    "name": "Neuhof R. Reuss",
     "type": "relief"
   },
   "RORE_A": {
-    "name": "Neuhof Rodolphe Reuss",
+    "name": "Neuhof R. Reuss",
     "type": "relief"
   },
   "ROMEEE": {
@@ -110,11 +110,15 @@
     "type": "relief"
   },
   "GAMA_A": {
-    "name": "Gare aux Marchandises",
+    "name": "Gare Marchandises",
     "type": "relief"
   },
   "LHPP_G": {
-    "name": "Halles Pont de Paris",
+    "name": "Halles P. de Paris",
+    "type": "relief"
+  },
+  "WILSON": {
+    "name": "Wilson",
     "type": "relief"
   }
 }

@@ -106,8 +106,28 @@ async function formatStop(value) {
 async function formatPlace(code) {
   const name = getEntryName(await getPlace(code))
   if (name) return name
+
+  const stopName = await resolvePlaceFromStops(code)
+  if (stopName) return stopName
+
   const normalizedCode = UTILS.normalizeCode(code)
   return normalizedCode ? `Code ${normalizedCode}` : "Lieu inconnu"
+}
+
+/*
+ * Un point de relève absent de places.json porte presque toujours le nom
+ * de son arrêt — WILSON par exemple. Interroger la base des arrêts avant
+ * d'abandonner évite d'afficher « Code WILSON » au conducteur. On tente
+ * aussi le code privé de son suffixe de quai, WILSON_A donnant WILSON.
+ */
+async function resolvePlaceFromStops(code) {
+  const direct = getEntryName(await getStop(code))
+  if (direct) return direct
+
+  const key = UTILS.normalizeKey(code)
+  const base = key.replace(/\s+[A-Z0-9]$/, "")
+  if (!base || base === key) return ""
+  return getEntryName(await getStop(base))
 }
 
 async function formatLine(code) {

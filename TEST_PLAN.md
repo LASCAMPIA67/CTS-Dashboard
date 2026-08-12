@@ -83,11 +83,14 @@ La densité standard porte des libellés agrandis, financés par un resserrement
 Contrôler sur chaque profil d’écran :
 
 - aucun horaire tronqué ou remplacé par `…` ;
-- `Début/Prochaine tranche`, heure et lieu alignés à gauche de la carte ;
-- `Fin de tranche`, heure et lieu alignés sur la même verticale entre eux ;
-- flèche entre les deux blocs, à distance égale de chacun ;
-- `Sortie dépôt` et `Direction` démarrant exactement sous `Fin de tranche` ;
-- `Prise de service` et `Mise en ligne` démarrant sous `Début/Prochaine tranche` ;
+- flèche exactement au centre du bandeau, colonnes équidistantes ;
+- libellés, heures et lieux centrés dans leur colonne ;
+- avant le départ d'une tranche partant du dépôt : `Prise de service` et
+  `Sortie dépôt` ; pendant et après : `Rentrée dépôt` et `Fin de service` ;
+- pendant une pause ou une coupure, l'étiquette d'état indique la durée
+  totale de l'interruption, par exemple `Pause 55 min` ;
+- aucun nom de lieu réduit : `places.json` est plafonné à 18 caractères et
+  `stops.json` à 24, ce que la CI vérifie ;
 - durée de chaque tranche centrée sous sa plage horaire ;
 - `Ligne … · Voiture …` lisible sur une ligne ;
 - trajets, directions et noms d’arrêts longs réduits proprement avant troncature ;

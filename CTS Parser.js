@@ -57,14 +57,22 @@ async function enrichSlices(text, slices) {
   return Promise.all(
     slices.map(async slice => {
       const startsAtDepot = await DB.isDepot(slice.startPlaceCode)
+      const endsAtDepot = await DB.isDepot(slice.endPlaceCode)
 
-      const details = await extractDepartureDetails(text, slice, startsAtDepot)
+      const details = await extractDepartureDetails(
+        text,
+        slice,
+        startsAtDepot,
+        endsAtDepot
+      )
 
       return {
         startsAtDepot,
+        endsAtDepot,
         slice: {
           ...slice,
           depotExitAt: startsAtDepot ? details.depotExitAt : "",
+          depotReturnAt: endsAtDepot ? details.depotReturnAt : "",
           lineUpAt: startsAtDepot ? details.lineUpAt : "",
           direction: details.direction
         }
@@ -74,11 +82,15 @@ async function enrichSlices(text, slices) {
 }
 
 function addDepartureWarnings(contexts, warnings) {
-  contexts.forEach(({ slice, startsAtDepot }, index) => {
+  contexts.forEach(({ slice, startsAtDepot, endsAtDepot }, index) => {
     const number = index + 1
 
     if (startsAtDepot && !slice.depotExitAt) {
       warnings.push(`Heure de sortie dépôt introuvable pour la tranche ${number}`)
+    }
+
+    if (endsAtDepot && !slice.depotReturnAt) {
+      warnings.push(`Heure de rentrée dépôt introuvable pour la tranche ${number}`)
     }
 
     if (startsAtDepot && !slice.lineUpAt) {
@@ -182,12 +194,13 @@ async function extractSlices(text) {
   return removeDuplicateSlices(slices)
 }
 
-async function extractDepartureDetails(text, slice, startsAtDepot) {
+async function extractDepartureDetails(text, slice, startsAtDepot, endsAtDepot) {
   const section = extractVehicleSection(text, slice)
 
   if (!section) {
     return {
       depotExitAt: "",
+      depotReturnAt: "",
       lineUpAt: "",
       direction: ""
     }
@@ -197,9 +210,52 @@ async function extractDepartureDetails(text, slice, startsAtDepot) {
 
   return {
     depotExitAt: startsAtDepot ? extractDepotExitTime(section, lines) : "",
+    depotReturnAt: endsAtDepot ? extractDepotReturnTime(lines, slice) : "",
     lineUpAt: startsAtDepot ? await extractLineUpPlace(section, lines, slice) : "",
     direction: await extractFirstDirection(section, lines)
   }
+}
+
+/*
+ * Rentrée dépôt, symétrique de la sortie.
+ *
+ * Le bloc « Entrée / » ouvre le trajet de retour : l'heure portée sur sa
+ * propre ligne est celle du départ du dernier arrêt commercial, pas celle
+ * de l'arrivée au dépôt. L'arrivée est le dernier point horodaté de la
+ * section, exactement comme la mise en ligne est le premier point horodaté
+ * après « Sortie / ».
+ *
+ * On refuse toute heure antérieure à la fin d'exploitation ou postérieure
+ * à la fin de service : mieux vaut ne rien afficher qu'une heure fausse.
+ */
+function extractDepotReturnTime(lines, slice) {
+  const returnIndex = lines.findIndex(line => /^Entrée\s*\/\s*\S+/i.test(line))
+  if (returnIndex === -1) return ""
+
+  let candidate = ""
+
+  for (let index = returnIndex; index < lines.length; index++) {
+    const stop = index === returnIndex
+      ? extractActivityStop(lines[index])
+      : extractTimedStop(lines[index])
+
+    if (index > returnIndex && isActivityLine(lines[index])) break
+    if (stop && isValidTime(stop.time)) candidate = stop.time
+  }
+
+  if (!candidate) return ""
+
+  const returnMinute = toMinutes(candidate)
+  const endMinute = toMinutes(slice.end)
+  const dutyEndMinute = toMinutes(slice.dutyEnd)
+
+  const withinService =
+    Number.isFinite(returnMinute) &&
+    Number.isFinite(endMinute) &&
+    returnMinute >= endMinute &&
+    (!Number.isFinite(dutyEndMinute) || returnMinute <= dutyEndMinute)
+
+  return withinService ? candidate : ""
 }
 
 function extractDepotExitTime(section, lines) {
