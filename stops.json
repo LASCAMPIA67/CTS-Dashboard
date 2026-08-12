@@ -1,144 +1,36 @@
 {
-  "SCHILTIGHEIM CAMPUS": {
-    "name": "Schiltigheim Campus"
+  "ANEMONES": {
+    "name": "Anémones"
   },
-  "ILLKIRCH FORT UHRICH": {
-    "name": "Illkirch Fort Uhrich"
+  "ARAGO": {
+    "name": "Arago"
   },
-  "ELMERFORST": {
-    "name": "Elmerforst"
-  },
-  "JARDIN DES DEUX RIVES": {
-    "name": "Jardin Deux Rives"
-  },
-  "LINGOLSHEIM GARE": {
-    "name": "Lingolsheim Gare"
-  },
-  "MONTAGNE VERTE": {
-    "name": "Montagne Verte",
-    "aliases": [
-      "MOVE_A",
-      "MOVE_C"
-    ]
-  },
-  "NEUHOF GANZAU": {
-    "name": "Neuhof Ganzau"
-  },
-  "UNTERELSAU": {
-    "name": "Unterelsau"
-  },
-  "GARE CENTRALE": {
-    "name": "Gare Centrale"
-  },
-  "ELSAU": {
-    "name": "Elsau"
-  },
-  "ELSAU CO V2": {
-    "name": "Elsau Co V2"
-  },
-  "PARLEMENT EUROPEEN": {
-    "name": "Parlement Européen"
-  },
-  "PLACE D'ISLANDE": {
-    "name": "Place d’Islande"
-  },
-  "OSTWALD HOTEL DE VILLE": {
-    "name": "Ostwald Hôtel Ville"
-  },
-  "PLACE D'OSTWALD": {
-    "name": "Place d’Ostwald"
-  },
-  "LYCEE KLEBER": {
-    "name": "Lycée Kléber"
-  },
-  "LYCEE COUFFIGNAL": {
-    "name": "Lycée Couffignal"
-  },
-  "NEUHOF RODOLPHE REUSS": {
-    "name": "Neuhof R. Reuss",
-    "aliases": [
-      "RODOLPHE REUSS"
-    ]
-  },
-  "CITE MEINAU": {
-    "name": "Cité Meinau"
+  "ARISTIDE BRIAND": {
+    "name": "Aristide Briand"
   },
   "BAGGERSEE": {
     "name": "Baggersee"
   },
-  "NEUHOF LUCIE AUBRAC": {
-    "name": "Neuhof Lucie Aubrac"
+  "BARR": {
+    "name": "Barr"
   },
-  "NEUHOF CORPS EUROPEENS": {
-    "name": "Neuhof Corps Eur."
+  "BISCHHEIM GARE": {
+    "name": "Bischheim Gare"
   },
-  "LORIENT": {
-    "name": "Lorient"
-  },
-  "LA ROCHELLE": {
-    "name": "La Rochelle"
-  },
-  "SAINT NAZAIRE": {
-    "name": "Saint-Nazaire"
-  },
-  "PORT AUTONOME SUD": {
-    "name": "Port Autonome Sud"
-  },
-  "ILLKIRCH MAIRIE": {
-    "name": "Illkirch Mairie",
-    "aliases": [
-      "ILLKIRCH MAIRIE DESCENTE",
-      "ILLKIRCH MAIRIE MONTEE"
-    ]
-  },
-  "ROME": {
-    "name": "Rome"
-  },
-  "ESPLANADE": {
-    "name": "Esplanade",
-    "aliases": [
-      "ESPLANADE DESCENTE"
-    ]
-  },
-  "LONDRES": {
-    "name": "Londres"
-  },
-  "IUT PASTEUR": {
-    "name": "IUT Pasteur"
-  },
-  "PARC DES SPORTS": {
-    "name": "Parc des Sports"
-  },
-  "BUGATTI": {
-    "name": "Bugatti"
-  },
-  "POTERIES": {
-    "name": "Poteries"
-  },
-  "OCTROI": {
-    "name": "Octroi"
+  "BOECKLIN": {
+    "name": "Boecklin"
   },
   "BOEUF ROUGE": {
     "name": "Bœuf Rouge"
   },
-  "WOLFISHEIM STADE TERMINI": {
-    "name": "Wolfisheim Stade",
-    "aliases": [
-      "WOLFISHEIM STADE",
-      "WOLFISHEIM STADE TERMINUS"
-    ]
+  "BROGLIE": {
+    "name": "Broglie"
   },
-  "ROBERTSAU RENAISSANCE": {
-    "name": "Robertsau Renaiss."
+  "BUGATTI": {
+    "name": "Bugatti"
   },
-  "PONT PHARIO": {
-    "name": "Pont Phario"
-  },
-  "MAIRES SCHAUB": {
-    "name": "Maires Schaub"
-  },
-  "BISCHHEIM GARE": {
-    "name": "Bischheim Gare"
+  "CAMPUS D'ILLKIRCH": {
+    "name": "Campus d’Illkirch"
   },
   "CHAMBRE DE METIERS": {
     "name": "Chambre de Métiers",
@@ -147,6 +39,93 @@
       "CHAMBRE DE METIERS ARRIVEE/DEPART",
       "CHAMBRE DE METIERS ARRI"
     ]
+  },
+  "CITE DE L'ILL": {
+    "name": "Cité de l’Ill"
+  },
+  "CITE MEINAU": {
+    "name": "Cité Meinau"
+  },
+  "COMTES": {
+    "name": "Comtes"
+  },
+  "COURS DE L'ILLIADE": {
+    "name": "Cours de l’Illiade"
+  },
+  "DANTE": {
+    "name": "Dante"
+  },
+  "DANUBE LE VAISSEAU": {
+    "name": "Danube Le Vaisseau"
+  },
+  "DAUPHINE": {
+    "name": "Dauphine"
+  },
+  "DEPOT CRONENBOURG": {
+    "name": "Dépôt Cronenbourg"
+  },
+  "DEPOT ELSAU": {
+    "name": "Dépôt Elsau"
+  },
+  "DEPOT KIBITZENAU": {
+    "name": "Dépôt Kibitzenau"
+  },
+  "ELMERFORST": {
+    "name": "Elmerforst"
+  },
+  "ELSAU": {
+    "name": "Elsau"
+  },
+  "ELSAU CO V2": {
+    "name": "Elsau Co V2"
+  },
+  "ESPACE EUROPEEN DE L'ENT": {
+    "name": "Espace Eur. Entr.",
+    "aliases": [
+      "ESPACE EUROPEEN DE L'ENTREPRISE"
+    ]
+  },
+  "ESPLANADE": {
+    "name": "Esplanade",
+    "aliases": [
+      "ESPLANADE DESCENTE"
+    ]
+  },
+  "ETOILE BOURSE": {
+    "name": "Étoile Bourse"
+  },
+  "ETOILE D'OR": {
+    "name": "Étoile d’Or"
+  },
+  "ETOILE POLYGONE": {
+    "name": "Étoile Polygone"
+  },
+  "FAUBOURG NATIONAL": {
+    "name": "Faubourg National"
+  },
+  "FORT DESAIX": {
+    "name": "Fort Desaix"
+  },
+  "GARE AUX MARCHANDISES": {
+    "name": "Gare Marchandises"
+  },
+  "GARE CENTRALE": {
+    "name": "Gare Centrale"
+  },
+  "GRAVIERE": {
+    "name": "Gravière"
+  },
+  "GRUBER": {
+    "name": "Gruber"
+  },
+  "HALLES PONT DE PARIS": {
+    "name": "Halles P. de Paris",
+    "aliases": [
+      "LES HALLES PONT DE PARIS"
+    ]
+  },
+  "HOCHSCHULE / LAGER": {
+    "name": "Hochschule / Lager"
   },
   "HOENHEIM BATTEMENT": {
     "name": "Hœnheim Battement"
@@ -157,110 +136,8 @@
   "HOENHEIM GARE TIROIR": {
     "name": "Hœnheim Gare Tiroir"
   },
-  "DAUPHINE": {
-    "name": "Dauphine"
-  },
-  "FORT DESAIX": {
-    "name": "Fort Desaix"
-  },
-  "VICTOR HUGO": {
-    "name": "Victor Hugo"
-  },
-  "POINCARE": {
-    "name": "Poincaré"
-  },
-  "SAINTE HELENE": {
-    "name": "Sainte-Hélène"
-  },
-  "WILSON": {
-    "name": "Wilson"
-  },
-  "HALLES PONT DE PARIS": {
-    "name": "Halles P. de Paris",
-    "aliases": [
-      "LES HALLES PONT DE PARIS"
-    ]
-  },
-  "REPUBLIQUE": {
-    "name": "République"
-  },
-  "ORANGERIE": {
-    "name": "Orangerie"
-  },
-  "ROBERTSAU EGLISE": {
-    "name": "Robertsau Église"
-  },
-  "CITE DE L'ILL": {
-    "name": "Cité de l’Ill"
-  },
-  "GARE AUX MARCHANDISES": {
-    "name": "Gare Marchandises"
-  },
-  "PORTE BLANCHE": {
-    "name": "Porte Blanche"
-  },
-  "LAITERIE": {
-    "name": "Laiterie"
-  },
-  "HOPITAL CIVIL": {
-    "name": "Hôpital Civil"
-  },
-  "ETOILE BOURSE": {
-    "name": "Étoile Bourse"
-  },
-  "WINSTON CHURCHILL": {
-    "name": "Winston Churchill"
-  },
-  "DANUBE LE VAISSEAU": {
-    "name": "Danube Le Vaisseau"
-  },
-  "ROTTERDAM": {
-    "name": "Rotterdam"
-  },
-  "RIETH": {
-    "name": "Rieth"
-  },
-  "ARAGO": {
-    "name": "Arago"
-  },
-  "ESPACE EUROPEEN DE L'ENT": {
-    "name": "Espace Eur. Entr.",
-    "aliases": [
-      "ESPACE EUROPEEN DE L'ENTREPRISE"
-    ]
-  },
-  "PLACE DE PIERRE": {
-    "name": "Place de Pierre"
-  },
-  "BARR": {
-    "name": "Barr"
-  },
-  "MAISON ROUGE": {
-    "name": "Maison Rouge"
-  },
-  "PARC WODLI": {
-    "name": "Parc Wodli"
-  },
-  "DEPOT ELSAU": {
-    "name": "Dépôt Elsau"
-  },
-  "DEPOT KIBITZENAU": {
-    "name": "Dépôt Kibitzenau"
-  },
-  "DEPOT CRONENBOURG": {
-    "name": "Dépôt Cronenbourg"
-  },
-  "ROTONDE": {
-    "name": "Rotonde"
-  },
-  "ROTONDE TIROIR ARRIVEE": {
-    "name": "Rotonde Tiroir"
-  },
-  "ROTONDE TIROIR DEPART": {
-    "name": "Rotonde Tiroir"
-  },
-  "DANTE": {
-    "name": "Dante"
+  "HOHBERG": {
+    "name": "Hohberg"
   },
   "HOMME DE FER": {
     "name": "Homme de Fer"
@@ -277,26 +154,36 @@
   "HOMME DE FER V.2 ARRIVEE": {
     "name": "Homme de Fer V2"
   },
-  "ETOILE POLYGONE": {
-    "name": "Étoile Polygone"
+  "HOPITAL CIVIL": {
+    "name": "Hôpital Civil"
   },
-  "LANDSBERG": {
-    "name": "Landsberg"
+  "ILLKIRCH FORT UHRICH": {
+    "name": "Illkirch Fort Uhrich"
+  },
+  "ILLKIRCH GRAFFENSTADEN": {
+    "name": "Illkirch Graffenst."
+  },
+  "ILLKIRCH LIXENBUHL": {
+    "name": "Illkirch Lixenbuhl"
+  },
+  "ILLKIRCH MAIRIE": {
+    "name": "Illkirch Mairie",
+    "aliases": [
+      "ILLKIRCH MAIRIE DESCENTE",
+      "ILLKIRCH MAIRIE MONTEE"
+    ]
+  },
+  "IUT PASTEUR": {
+    "name": "IUT Pasteur"
+  },
+  "JARDIN DES DEUX RIVES": {
+    "name": "Jardin Deux Rives"
   },
   "JEAN JAURES": {
     "name": "Jean Jaurès"
   },
-  "ARISTIDE BRIAND": {
-    "name": "Aristide Briand"
-  },
-  "PORT DU RHIN": {
-    "name": "Port du Rhin"
-  },
   "KEHL BAHNHOF": {
     "name": "Kehl Bahnhof"
-  },
-  "HOCHSCHULE / LAGER": {
-    "name": "Hochschule / Lager"
   },
   "KEHL RATHAUS": {
     "name": "Kehl Rathaus"
@@ -310,64 +197,198 @@
   "KRIMMERI - ST. MEINAU Q2 ARRIVEE": {
     "name": "Krimmeri Meinau Q2"
   },
-  "CAMPUS D'ILLKIRCH": {
-    "name": "Campus d’Illkirch"
+  "LA ROCHELLE": {
+    "name": "La Rochelle"
   },
-  "TIOIR CAMPUS ILLKIRCH DEPART": {
-    "name": "Tiroir Campus Ill."
+  "LAITERIE": {
+    "name": "Laiterie"
   },
-  "ILLKIRCH LIXENBUHL": {
-    "name": "Illkirch Lixenbuhl"
+  "LANDSBERG": {
+    "name": "Landsberg"
   },
-  "PARC MALRAUX": {
-    "name": "Parc Malraux"
-  },
-  "COURS DE L'ILLIADE": {
-    "name": "Cours de l’Illiade"
-  },
-  "ILLKIRCH GRAFFENSTADEN": {
-    "name": "Illkirch Graffenst."
-  },
-  "OBSERVATOIRE": {
-    "name": "Observatoire"
-  },
-  "WACKEN": {
-    "name": "Wacken"
-  },
-  "BOECKLIN": {
-    "name": "Boecklin"
-  },
-  "ROBERTSAU L'ESCALE": {
-    "name": "Robertsau l’Escale"
-  },
-  "GRAVIERE": {
-    "name": "Gravière"
-  },
-  "BROGLIE": {
-    "name": "Broglie"
-  },
-  "FAUBOURG NATIONAL": {
-    "name": "Faubourg National"
-  },
-  "PARC DES ROMAINS": {
-    "name": "Parc des Romains"
-  },
-  "COMTES": {
-    "name": "Comtes"
-  },
-  "GRUBER": {
-    "name": "Gruber"
-  },
-  "WOLFISHEIM HENRI RENDU": {
-    "name": "Wolfisheim H. Rendu"
-  },
-  "MARTIN SCHONGAUER": {
-    "name": "Martin Schongauer"
+  "LINGOLSHEIM GARE": {
+    "name": "Lingolsheim Gare"
   },
   "LINGOLSHEIM TIERGAERTEL": {
     "name": "Lingolsh. Tiergaertel"
   },
-  "HOHBERG": {
-    "name": "Hohberg"
+  "LONDRES": {
+    "name": "Londres"
+  },
+  "LORIENT": {
+    "name": "Lorient"
+  },
+  "LYCEE COUFFIGNAL": {
+    "name": "Lycée Couffignal"
+  },
+  "LYCEE KLEBER": {
+    "name": "Lycée Kléber"
+  },
+  "MAIRES SCHAUB": {
+    "name": "Maires Schaub"
+  },
+  "MAISON ROUGE": {
+    "name": "Maison Rouge"
+  },
+  "MARTIN SCHONGAUER": {
+    "name": "Martin Schongauer"
+  },
+  "MITTELHAUSBERGEN EGLISE": {
+    "name": "Mittelhausb. Église"
+  },
+  "MONTAGNE VERTE": {
+    "name": "Montagne Verte",
+    "aliases": [
+      "MOVE_A",
+      "MOVE_C"
+    ]
+  },
+  "NEUHOF CORPS EUROPEENS": {
+    "name": "Neuhof Corps Eur."
+  },
+  "NEUHOF GANZAU": {
+    "name": "Neuhof Ganzau"
+  },
+  "NEUHOF LUCIE AUBRAC": {
+    "name": "Neuhof Lucie Aubrac"
+  },
+  "NEUHOF RODOLPHE REUSS": {
+    "name": "Neuhof R. Reuss",
+    "aliases": [
+      "RODOLPHE REUSS"
+    ]
+  },
+  "OBERHAUSBERGEN EGLISE": {
+    "name": "Oberhausbergen Église"
+  },
+  "OBSERVATOIRE": {
+    "name": "Observatoire"
+  },
+  "OCTROI": {
+    "name": "Octroi"
+  },
+  "ORANGERIE": {
+    "name": "Orangerie"
+  },
+  "OSTWALD HOTEL DE VILLE": {
+    "name": "Ostwald Hôtel Ville"
+  },
+  "PARC DES ROMAINS": {
+    "name": "Parc des Romains"
+  },
+  "PARC DES SPORTS": {
+    "name": "Parc des Sports"
+  },
+  "PARC MALRAUX": {
+    "name": "Parc Malraux"
+  },
+  "PARC WODLI": {
+    "name": "Parc Wodli"
+  },
+  "PARLEMENT EUROPEEN": {
+    "name": "Parlement Européen"
+  },
+  "PLACE D'ISLANDE": {
+    "name": "Place d’Islande"
+  },
+  "PLACE D'OSTWALD": {
+    "name": "Place d’Ostwald"
+  },
+  "PLACE DE PIERRE": {
+    "name": "Place de Pierre"
+  },
+  "POINCARE": {
+    "name": "Poincaré"
+  },
+  "PONT PHARIO": {
+    "name": "Pont Phario"
+  },
+  "PORT AUTONOME SUD": {
+    "name": "Port Autonome Sud"
+  },
+  "PORT DU RHIN": {
+    "name": "Port du Rhin"
+  },
+  "PORTE BLANCHE": {
+    "name": "Porte Blanche"
+  },
+  "POTERIES": {
+    "name": "Poteries"
+  },
+  "REPUBLIQUE": {
+    "name": "République"
+  },
+  "RIETH": {
+    "name": "Rieth"
+  },
+  "ROBERTSAU EGLISE": {
+    "name": "Robertsau Église"
+  },
+  "ROBERTSAU L'ESCALE": {
+    "name": "Robertsau l’Escale"
+  },
+  "ROBERTSAU RENAISSANCE": {
+    "name": "Robertsau Renaiss."
+  },
+  "ROME": {
+    "name": "Rome"
+  },
+  "ROTONDE": {
+    "name": "Rotonde"
+  },
+  "ROTONDE 17": {
+    "name": "Rotonde 17"
+  },
+  "ROTONDE TIROIR ARRIVEE": {
+    "name": "Rotonde Tiroir"
+  },
+  "ROTONDE TIROIR DEPART": {
+    "name": "Rotonde Tiroir"
+  },
+  "ROTTERDAM": {
+    "name": "Rotterdam"
+  },
+  "SAINT NAZAIRE": {
+    "name": "Saint-Nazaire"
+  },
+  "SAINTE HELENE": {
+    "name": "Sainte-Hélène"
+  },
+  "SCHILTIGHEIM CAMPUS": {
+    "name": "Schiltigheim Campus"
+  },
+  "TIOIR CAMPUS ILLKIRCH DEPART": {
+    "name": "Tiroir Campus Ill."
+  },
+  "UNTERELSAU": {
+    "name": "Unterelsau"
+  },
+  "VENDENHEIM GARE": {
+    "name": "Vendenheim Gare"
+  },
+  "VICTOR HUGO": {
+    "name": "Victor Hugo"
+  },
+  "WACKEN": {
+    "name": "Wacken"
+  },
+  "WILSON": {
+    "name": "Wilson"
+  },
+  "WINSTON CHURCHILL": {
+    "name": "Winston Churchill"
+  },
+  "WOLFISHEIM HENRI RENDU": {
+    "name": "Wolfisheim H. Rendu"
+  },
+  "WOLFISHEIM STADE TERMINI": {
+    "name": "Wolfisheim Stade",
+    "aliases": [
+      "WOLFISHEIM STADE",
+      "WOLFISHEIM STADE TERMINUS"
+    ]
+  },
+  "ZONE COMMERCIALE NORD": {
+    "name": "Zone Commerciale Nord"
   }
 }
