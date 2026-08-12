@@ -18,12 +18,18 @@ const TIMEOUT = 60
 const RETRIES = 2
 const ANALYTICS_MODULE = "CTS Analytics Client"
 
+/*
+ * Chaque teinte a deux variantes. Les valeurs vives d'iOS sont pensées
+ * pour un fond noir ; posées sur le blanc du mode clair, elles manquent
+ * de contraste, en particulier le vert et l'orange. Les variantes claires
+ * sont donc plus sombres, à teinte égale.
+ */
 const COLORS = {
-  blue: new Color("#0A84FF"),
-  green: new Color("#30D158"),
-  orange: new Color("#FF9F0A"),
-  red: new Color("#FF453A"),
-  gray: new Color("#8E8E93"),
+  blue: Color.dynamic(new Color("#0062CC"), new Color("#0A84FF")),
+  green: Color.dynamic(new Color("#1F7A34"), new Color("#30D158")),
+  orange: Color.dynamic(new Color("#9A4E00"), new Color("#FF9F0A")),
+  red: Color.dynamic(new Color("#C00011"), new Color("#FF453A")),
+  gray: Color.dynamic(new Color("#6D6D72"), new Color("#8E8E93")),
   secondary: Color.dynamic(
     new Color("#6D6D72"),
     new Color("#98989D")
@@ -387,7 +393,7 @@ async function installOrUpdate(manifest, previous) {
       await progress.system(
         "retry",
         "running",
-        `${failures.length} nouvelle(s) tentative(s)…`
+        `${plural(failures.length, "nouvelle tentative", "nouvelles tentatives")}…`
       )
 
       for (const failure of failures) {
@@ -438,7 +444,7 @@ async function installOrUpdate(manifest, previous) {
           ? "error"
           : "success",
         unresolved.length
-          ? `${unresolved.length} fichier(s) encore en erreur`
+          ? `${plural(unresolved.length, "fichier")} encore en erreur`
           : "Toutes les nouvelles tentatives ont réussi"
       )
     } else {
@@ -915,7 +921,7 @@ function inspectDiagnosticDirectories() {
   return missing.length
     ? {
         status: "error",
-        detail: `${missing.length} dossier(s) requis absent(s)`
+        detail: `${plural(missing.length, "dossier requis absent", "dossiers requis absents")}`
       }
     : {
         status: "success",
@@ -1064,14 +1070,14 @@ function inspectDiagnosticServicesFolder() {
   if (inaccessible > 0) {
     return {
       status: "error",
-      detail: `${pdfCount} PDF détecté(s) · ${inaccessible} inaccessible(s)`
+      detail: `${plural(pdfCount, "PDF détecté", "PDF détectés")} · ${plural(inaccessible, "inaccessible")}`
     }
   }
 
   if (pendingCloud > 0) {
     return {
       status: "warning",
-      detail: `${pdfCount} PDF détecté(s) · ${pendingCloud} en attente iCloud`
+      detail: `${plural(pdfCount, "PDF détecté", "PDF détectés")} · ${pendingCloud} en attente iCloud`
     }
   }
 
@@ -1084,7 +1090,7 @@ function inspectDiagnosticServicesFolder() {
 
   return {
     status: "success",
-    detail: `${pdfCount} PDF détecté(s) et accessible(s)`
+    detail: `${plural(pdfCount, "PDF détecté et accessible", "PDF détectés et accessibles")}`
   }
 }
 
@@ -1110,7 +1116,7 @@ async function inspectDiagnosticIndex() {
     return count > 0
       ? {
           status: "success",
-          detail: `${count} service(s) indexé(s)`
+          detail: `${plural(count, "service indexé", "services indexés")}`
         }
       : {
           status: "info",
@@ -1297,13 +1303,12 @@ async function presentDiagnostic(diagnostic) {
   table.addRow(header)
 
   addDiagnosticSummaryRow(table, counts)
-
-  for (const check of diagnostic.checks) {
-    addDiagnosticRow(table, check)
-  }
+  addDiagnosticGrid(table, diagnostic.checks)
+  addDiagnosticFocusRow(table, diagnostic.checks)
+  addDiagnosticDetailsRow(table, diagnostic.checks)
 
   const reportRow = new UITableRow()
-  reportRow.height = 60
+  reportRow.height = 56
   reportRow.dismissOnSelect = false
 
   const reportSymbol = SFSymbol.named("doc.on.doc.fill")
@@ -1357,6 +1362,143 @@ async function presentDiagnostic(diagnostic) {
   table.addRow(privacyRow)
 
   await table.present(true)
+}
+
+/*
+ * Les dix contrôles tenaient sur dix lignes de cinquante-cinq points, soit
+ * huit cent dix points en tout : la page débordait de l'écran, et un
+ * diagnostic qu'il faut faire défiler pour voir s'il est vert rate son but.
+ *
+ * Ils tiennent maintenant sur deux rangées de pastilles, lisibles d'un coup
+ * d'œil. Rien n'est perdu : la ligne suivante affiche le premier problème en
+ * clair, et « Détails » ouvre la liste complète, celle d'avant.
+ */
+const DIAGNOSTIC_GRID_COLUMNS = 5
+
+function addDiagnosticGrid(table, checks) {
+  for (
+    let start = 0;
+    start < checks.length;
+    start += DIAGNOSTIC_GRID_COLUMNS
+  ) {
+    const slice = checks.slice(
+      start,
+      start + DIAGNOSTIC_GRID_COLUMNS
+    )
+
+    const row = new UITableRow()
+    row.height = 48
+
+    for (const check of slice) {
+      const visual = diagnosticVisual(check.status)
+
+      const cell = row.addText(
+        visual.marker,
+        diagnosticShortTitle(check.title)
+      )
+
+      cell.widthWeight = 100 / DIAGNOSTIC_GRID_COLUMNS
+      cell.titleFont = Font.boldSystemFont(16)
+      cell.subtitleFont = Font.semiboldSystemFont(8)
+      cell.titleColor = visual.color
+      cell.subtitleColor = COLORS.secondary
+      cell.centerAligned()
+    }
+
+    /* Une rangée incomplète reste alignée sur les autres. */
+    for (
+      let filler = slice.length;
+      filler < DIAGNOSTIC_GRID_COLUMNS;
+      filler++
+    ) {
+      const cell = row.addText("", "")
+      cell.widthWeight = 100 / DIAGNOSTIC_GRID_COLUMNS
+    }
+
+    table.addRow(row)
+  }
+}
+
+/*
+ * Le conducteur n'a pas à chercher : la ligne annonce le premier point
+ * qui mérite attention, ou confirme que tout est conforme.
+ */
+function addDiagnosticFocusRow(table, checks) {
+  const focus =
+    checks.find(check => check.status === "error") ||
+    checks.find(check => check.status === "warning")
+
+  const row = new UITableRow()
+  row.height = 52
+
+  const text = row.addText(
+    focus ? focus.title : "Aucune anomalie",
+    focus
+      ? focus.detail
+      : `${plural(checks.length, "contrôle")} passés avec succès`
+  )
+
+  text.widthWeight = 100
+  text.titleFont = Font.semiboldSystemFont(14)
+  text.subtitleFont = Font.systemFont(10)
+  text.titleColor = focus
+    ? diagnosticVisual(focus.status).color
+    : COLORS.green
+  text.subtitleColor = COLORS.secondary
+
+  table.addRow(row)
+}
+
+function addDiagnosticDetailsRow(table, checks) {
+  const row = new UITableRow()
+  row.height = 52
+  row.dismissOnSelect = false
+
+  const symbol = SFSymbol.named("list.bullet.rectangle.fill")
+  symbol.applyFont(Font.systemFont(17))
+
+  const image = row.addImage(symbol.image)
+  image.widthWeight = 11
+
+  const text = row.addText(
+    "Détails du diagnostic",
+    `${plural(checks.length, "contrôle")} · toucher pour afficher`
+  )
+
+  text.widthWeight = 89
+  text.titleFont = Font.semiboldSystemFont(13)
+  text.subtitleFont = Font.systemFont(9)
+  text.titleColor = COLORS.blue
+  text.subtitleColor = COLORS.secondary
+
+  row.onSelect = async () => {
+    const details = new UITable()
+    details.showSeparators = true
+
+    for (const check of checks) {
+      addDiagnosticRow(details, check)
+    }
+
+    await details.present(true)
+  }
+
+  table.addRow(row)
+}
+
+/*
+ * Les intitulés doivent tenir sous une pastille d'un cinquième de largeur.
+ */
+function diagnosticShortTitle(title) {
+  const short = {
+    "Dossiers iCloud": "DOSSIERS",
+    "Écriture iCloud": "ÉCRITURE",
+    "Dossier Services": "SERVICES",
+    "Index des services": "INDEX",
+    "Journal d’import": "JOURNAL",
+    "Espace disque": "DISQUE"
+  }[title]
+
+  return short || String(title || "").toUpperCase()
 }
 
 function addDiagnosticSummaryRow(table, counts) {
@@ -1700,7 +1842,7 @@ async function uninstall(manifest) {
       ? "Désinstallation partielle"
       : "Désinstallation terminée",
     message: summary.failed.length
-      ? `${summary.failed.length} élément(s) n’ont pas pu être supprimés.`
+      ? `${plural(summary.failed.length, "élément n’a pas pu être supprimé", "éléments n’ont pas pu être supprimés")}.`
       : "CTS Dashboard a été supprimé.",
     summary,
     duration: Date.now() - startedAt,
@@ -1748,7 +1890,7 @@ function progressTable({
         detail: "En attente"
       },
       retry: {
-        short: "Erreurs",
+        short: "Reprises",
         status: uninstalling ? "hidden" : "pending",
         detail: "En attente"
       },
@@ -1994,6 +2136,13 @@ function addCompactProgress(table, state) {
   table.addRow(row)
 }
 
+/*
+ * Une seule bande, pas deux. La version précédente affichait une ligne de
+ * titre « Système ✓ Installer ✓ GitHub … » puis, juste en dessous, une
+ * bande de pastilles disant exactement la même chose ; et le détail de
+ * l'étape en cours figure déjà en sous-titre de la barre de progression.
+ * Soixante points d'écran récupérés sans perdre une information.
+ */
 function addSystemStrip(table, systems) {
   const visible = Object.values(systems)
     .filter(item => item.status !== "hidden")
@@ -2002,54 +2151,8 @@ function addSystemStrip(table, systems) {
     return
   }
 
-  const row = new UITableRow()
-  row.height = 60
-
-  const overall = visible.some(
-    item => item.status === "error"
-  )
-    ? COLORS.red
-    : visible.some(
-        item => item.status === "running" ||
-          item.status === "retry"
-      )
-      ? COLORS.orange
-      : visible.every(
-          item => item.status === "success"
-        )
-        ? COLORS.green
-        : COLORS.blue
-
-  const line = visible
-    .map(item =>
-      `${miniStatusMarker(item.status)} ${item.short}`
-    )
-    .join("   ")
-
-  const active = visible.find(
-    item =>
-      item.status === "running" ||
-      item.status === "retry" ||
-      item.status === "error"
-  )
-
-  const text = row.addText(
-    "Système",
-    active?.detail || line
-  )
-
-  text.widthWeight = 100
-  text.titleFont = Font.semiboldSystemFont(13)
-  text.subtitleFont = Font.systemFont(10)
-  text.titleColor = overall
-  text.subtitleColor = active
-    ? overall
-    : COLORS.secondary
-
-  table.addRow(row)
-
   const strip = new UITableRow()
-  strip.height = 34
+  strip.height = 42
 
   for (const item of visible) {
     const cell = strip.addText(
@@ -2058,10 +2161,13 @@ function addSystemStrip(table, systems) {
     )
 
     cell.widthWeight = 100 / visible.length
-    cell.titleFont = Font.boldSystemFont(13)
-    cell.subtitleFont = Font.boldSystemFont(7)
+    cell.titleFont = Font.boldSystemFont(15)
+    cell.subtitleFont = Font.boldSystemFont(8)
     cell.titleColor = statusVisual(item.status).color
-    cell.subtitleColor = COLORS.secondary
+    cell.subtitleColor = item.status === "pending"
+      ? COLORS.secondary
+      : statusVisual(item.status).color
+    cell.centerAligned()
   }
 
   table.addRow(strip)
@@ -2110,8 +2216,8 @@ function addProjectSummaryRow(
     counts.repaired
 
   const subtitle = uninstalling
-    ? `${counts.success}/${state.total} supprimés · ${counts.error} erreur(s)`
-    : `${scripts} scripts · ${resources} ressources · ${counts.unchanged} à jour · ${changed} modifié(s) · ${counts.error} erreur(s)`
+    ? `${counts.success}/${state.total} supprimés · ${plural(counts.error, "erreur")}`
+    : `${scripts} scripts · ${resources} ressources · ${counts.unchanged} à jour · ${plural(changed, "modifié", "modifiés")} · ${plural(counts.error, "erreur")}`
 
   const text = row.addText(
     uninstalling
@@ -2362,11 +2468,11 @@ function addChangesRow(
   row.dismissOnSelect = false
 
   const title = failed.length
-    ? `${failed.length} erreur(s)`
+    ? `${plural(failed.length, "erreur")}`
     : changed.length
       ? uninstalling
-        ? `${changed.length} élément(s) supprimé(s)`
-        : `${changed.length} fichier(s) modifié(s)`
+        ? `${plural(changed.length, "élément supprimé", "éléments supprimés")}`
+        : `${plural(changed.length, "fichier modifié", "fichiers modifiés")}`
       : "Aucune modification nécessaire"
 
   const subtitle = failed.length
@@ -2451,7 +2557,7 @@ async function presentEntryDetails(
     uninstalling
       ? "Détail de la désinstallation"
       : "Détail des fichiers",
-    `${entries.length} élément(s)`
+    `${plural(entries.length, "élément")}`
   )
 
   text.titleFont = Font.boldSystemFont(18)
@@ -2618,23 +2724,38 @@ function firstMessageLine(message) {
     .find(Boolean) || "Erreur inconnue."
 }
 
+/*
+ * Barre pleine plutôt qu'un chapelet de pastilles : à nombre de
+ * caractères égal, les demi-blocs doublent la finesse — un pas de 5 %
+ * au lieu de 10 % — et la barre se lit comme une jauge.
+ */
 function progressBar(percentage) {
   const length = 12
 
-  const completed = Math.max(
+  const filled = Math.max(
     0,
     Math.min(
-      length,
-      Math.round(
-        percentage / 100 * length
-      )
+      length * 2,
+      Math.round(percentage / 100 * length * 2)
     )
   )
 
+  const full = Math.floor(filled / 2)
+  const half = filled % 2
+
   return (
-    "●".repeat(completed) +
-    "○".repeat(length - completed)
+    "█".repeat(full) +
+    "▌".repeat(half) +
+    "░".repeat(length - full - half)
   )
+}
+
+/*
+ * Accord en nombre. « 1 fichier(s) modifié(s) » est le genre de détail
+ * qui trahit un affichage bricolé ; le conducteur lit une phrase juste.
+ */
+function plural(count, singular, many = `${singular}s`) {
+  return `${count} ${count > 1 ? many : singular}`
 }
 
 function statusVisual(status) {
