@@ -209,16 +209,24 @@ for (const [label, value] of [
  * dans le rendu courant.
  *
  *   places.json alimente le bandeau horaires  → placeSoftLimit  = 18
- *   stops.json  alimente direction et mise en ligne → detailSoftLimit = 24
+ *   stops.json  alimente direction et mise en ligne → 21, la même limite
+ *               que CTS Database applique au repli quand un arrêt manque
  *
  * Un point de relève est à la fois un lieu et un arrêt : il figure dans les
  * deux bases. Le bandeau horaires le nomme via places.json, la direction via
  * stops.json. Si l'on n'en renomme qu'un, le widget désigne le même endroit
  * de deux façons selon la ligne — d'où le contrôle d'appariement plus bas.
  */
+/* Lue dans CTS Database pour que les deux limites ne puissent pas diverger. */
+const STOP_LABEL_LIMIT = (() => {
+  const match = read('CTS Database.js').match(/const MAX_STOP_LABEL_LENGTH = (\d+)/)
+  if (!match) fail('MAX_STOP_LABEL_LENGTH est introuvable dans CTS Database.js')
+  return match ? Number(match[1]) : 21
+})()
+
 const LABEL_LIMITS = [
   ['places.json', 18, 'bandeau horaires'],
-  ['stops.json', 24, 'direction et mise en ligne']
+  ['stops.json', STOP_LABEL_LIMIT, 'direction et mise en ligne']
 ]
 
 const labels = new Map()

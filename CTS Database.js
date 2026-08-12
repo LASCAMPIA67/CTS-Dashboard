@@ -100,7 +100,28 @@ async function getLine(code) {
 
 async function formatStop(value) {
   const name = getEntryName(await getStop(value))
-  return name || formatFallbackName(cleanStopName(value))
+  if (name) return name
+
+  /*
+   * HASTUS suffixe certains arrêts par ARRIVEE, DEPART ou TERMINUS. Les
+   * plus courants figurent tels quels dans stops.json, mais aucun ne peut
+   * tous les prévoir : un arrêt oublié tombait alors dans le repli avec
+   * son suffixe, ce qui donnait des libellés de trente-cinq caractères que
+   * le widget finissait par tronquer. On réessaie donc sans le suffixe.
+   */
+  const stripped = stripHastusQualifier(value)
+  if (stripped) {
+    const fallbackName = getEntryName(await getStop(stripped))
+    if (fallbackName) return fallbackName
+  }
+
+  return formatFallbackName(cleanStopName(stripped || value))
+}
+
+function stripHastusQualifier(value) {
+  const cleaned = cleanStopName(value)
+  const stripped = cleaned.replace(/\s+(ARRIV[EÉ]E|D[EÉ]PART|TERMIN[IU]S)\s*$/i, "").trim()
+  return stripped && stripped !== cleaned ? stripped : ""
 }
 
 async function formatPlace(code) {
@@ -212,11 +233,58 @@ function cleanStopName(value) {
 function formatFallbackName(value) {
   const cleaned = String(value || "").trim()
   if (!cleaned) return "Arrêt inconnu"
-  return cleaned
-    .toLocaleLowerCase("fr-FR")
-    .replace(/(^|[\s'-])([a-zà-öø-ÿ])/g, (_, separator, letter) =>
-      separator + letter.toLocaleUpperCase("fr-FR")
-    )
+  return shortenStopLabel(
+    cleaned
+      .toLocaleLowerCase("fr-FR")
+      .replace(/(^|[\s'-])([a-zà-öø-ÿ])/g, (_, separator, letter) =>
+        separator + letter.toLocaleUpperCase("fr-FR")
+      )
+  )
+}
+
+/*
+ * Longueur au-delà de laquelle le widget réduit la police d'un nom
+ * d'arrêt. stops.json est plafonné à cette valeur par la CI ; le repli,
+ * lui, reçoit un texte de PDF qu'aucune règle ne borne, d'où ce garde-fou.
+ */
+const MAX_STOP_LABEL_LENGTH = 21
+const ABBREVIATION_LENGTHS = Object.freeze([8, 6, 4])
+
+/*
+ * Un nom CTS se lit « commune arrêt » : c'est le dernier mot qui distingue.
+ * On abrège donc les mots précédents, du plus long au plus court, et jamais
+ * le dernier — « Mittelhausbergen Mittelberg » devient « Mittelha. Mittelberg »,
+ * qui reste reconnaissable, plutôt que d'être coupé net par le widget.
+ *
+ * Trois passes de plus en plus courtes : la première suffit aux noms réels,
+ * les suivantes ne servent qu'à un libellé inattendu. Si même la dernière ne
+ * suffit pas, on rend le nom tel quel — mieux vaut laisser le widget réduire
+ * la police que produire une suite d'initiales illisible.
+ */
+function shortenStopLabel(value) {
+  const words = String(value || "").split(/\s+/).filter(Boolean)
+  const length = () => words.join(" ").length
+  if (length() <= MAX_STOP_LABEL_LENGTH) return words.join(" ")
+
+  for (const limit of ABBREVIATION_LENGTHS) {
+    for (let pass = 0; pass < words.length; pass++) {
+      let target = -1
+      let longest = limit + 1
+
+      for (let index = 0; index < words.length - 1; index++) {
+        if (words[index].length > longest) {
+          longest = words[index].length
+          target = index
+        }
+      }
+
+      if (target === -1) break
+      words[target] = `${words[target].slice(0, limit)}.`
+      if (length() <= MAX_STOP_LABEL_LENGTH) return words.join(" ")
+    }
+  }
+
+  return words.join(" ")
 }
 
 module.exports = {
@@ -234,5 +302,6 @@ module.exports = {
   normalizeCode: UTILS.normalizeCode,
   normalizeKey: UTILS.normalizeKey,
   cleanStopName,
+  shortenStopLabel,
   formatFallbackName
 }

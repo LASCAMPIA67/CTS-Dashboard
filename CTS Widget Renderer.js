@@ -496,6 +496,14 @@ function addStatBlock(parent, value, label, density) {
 
   const block = parent.addStack()
   block.layoutVertically()
+  /*
+   * Le bloc se dimensionne sur sa ligne la plus large — la durée. Sans
+   * cela, centerAlignText ne centre chaque texte que dans son propre
+   * cadre, et le libellé, plus court, restait calé à gauche sous le
+   * premier chiffre. centerAlignContent centre les deux lignes l'une
+   * par rapport à l'autre.
+   */
+  block.centerAlignContent()
   addText(
     block,
     value,

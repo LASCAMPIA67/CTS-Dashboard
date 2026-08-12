@@ -9,7 +9,7 @@
     "name": "Elmerforst"
   },
   "JARDIN DES DEUX RIVES": {
-    "name": "Jardin des Deux Rives"
+    "name": "Jardin Deux Rives"
   },
   "LINGOLSHEIM GARE": {
     "name": "Lingolsheim Gare"
@@ -43,7 +43,7 @@
     "name": "Place d’Islande"
   },
   "OSTWALD HOTEL DE VILLE": {
-    "name": "Ostwald Hôtel de Ville"
+    "name": "Ostwald Hôtel Ville"
   },
   "PLACE D'OSTWALD": {
     "name": "Place d’Ostwald"
@@ -70,7 +70,7 @@
     "name": "Neuhof Lucie Aubrac"
   },
   "NEUHOF CORPS EUROPEENS": {
-    "name": "Neuhof Corps Européens"
+    "name": "Neuhof Corps Eur."
   },
   "LORIENT": {
     "name": "Lorient"
@@ -129,7 +129,7 @@
     ]
   },
   "ROBERTSAU RENAISSANCE": {
-    "name": "Robertsau Renaissance"
+    "name": "Robertsau Renaiss."
   },
   "PONT PHARIO": {
     "name": "Pont Phario"
@@ -224,7 +224,7 @@
     "name": "Arago"
   },
   "ESPACE EUROPEEN DE L'ENT": {
-    "name": "Espace Eur. Entreprise",
+    "name": "Espace Eur. Entr.",
     "aliases": [
       "ESPACE EUROPEEN DE L'ENTREPRISE"
     ]
@@ -302,19 +302,19 @@
     "name": "Kehl Rathaus"
   },
   "KRIMMERI - ST. MEINAU": {
-    "name": "Krimmeri St. Meinau"
+    "name": "Krimmeri Meinau"
   },
   "KRIMMERI - ST. MEINAU Q1 ARRIVEE": {
-    "name": "Krimmeri St. Meinau Q1"
+    "name": "Krimmeri Meinau Q1"
   },
   "KRIMMERI - ST. MEINAU Q2 ARRIVEE": {
-    "name": "Krimmeri St. Meinau Q2"
+    "name": "Krimmeri Meinau Q2"
   },
   "CAMPUS D'ILLKIRCH": {
     "name": "Campus d’Illkirch"
   },
   "TIOIR CAMPUS ILLKIRCH DEPART": {
-    "name": "Tiroir Campus Illkirch"
+    "name": "Tiroir Campus Ill."
   },
   "ILLKIRCH LIXENBUHL": {
     "name": "Illkirch Lixenbuhl"
@@ -326,7 +326,7 @@
     "name": "Cours de l’Illiade"
   },
   "ILLKIRCH GRAFFENSTADEN": {
-    "name": "Illkirch Graffenstaden"
+    "name": "Illkirch Graffenst."
   },
   "OBSERVATOIRE": {
     "name": "Observatoire"
@@ -359,13 +359,13 @@
     "name": "Gruber"
   },
   "WOLFISHEIM HENRI RENDU": {
-    "name": "Wolfisheim Henri Rendu"
+    "name": "Wolfisheim H. Rendu"
   },
   "MARTIN SCHONGAUER": {
     "name": "Martin Schongauer"
   },
   "LINGOLSHEIM TIERGAERTEL": {
-    "name": "Lingolsheim Tiergaertel"
+    "name": "Lingolsh. Tiergaertel"
   },
   "HOHBERG": {
     "name": "Hohberg"

@@ -165,7 +165,7 @@ function slice(overrides) {
  */
 const LINES = [
   { line: "C4", vehicle: "3", from: "Elmerforst", to: "Elmerforst", direction: "Illkirch Fort Uhrich" },
-  { line: "L1", vehicle: "204", from: "UPE", to: "UPE", direction: "Espace Eur. Entreprise" },
+  { line: "L1", vehicle: "204", from: "UPE", to: "UPE", direction: "Espace Eur. Entr." },
   { line: "17", vehicle: "5", from: "UPC", to: "UPC", direction: "Neuhof R. Reuss" }
 ]
 
