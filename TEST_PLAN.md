@@ -78,6 +78,8 @@ Vérifier également les règles d’archivage : +1 h après la fin du service p
 
 Tester des services comportant 1, 2 et 3 tranches. Trois tranches est le maximum d’un service CTS : 1 et 2 utilisent la densité confortable, 3 la densité standard. La densité compacte n’est atteinte qu’au-delà, en filet de sécurité contre un PDF mal formé, et n’a donc pas à être testée sur un service réel.
 
+La densité standard porte des libellés agrandis, financés par un resserrement des écarts entre blocs : à trois tranches, la hauteur totale reste inférieure à celle des versions antérieures. Les densités confortable et compacte sont inchangées, donc un service à 1 ou 2 tranches doit s’afficher exactement comme avant.
+
 Contrôler sur chaque profil d’écran :
 
 - aucun horaire tronqué ou remplacé par `…` ;
