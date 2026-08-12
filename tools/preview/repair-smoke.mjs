@@ -20,6 +20,11 @@ const repository = path.resolve(here, "..", "..")
 const repairPath = path.join(repository, "CTS Repair.js")
 const installerSource = fs.readFileSync(path.join(repository, "CTS Installer.js"), "utf8")
 
+/* Le numéro attendu est celui du dépôt, jamais une valeur recopiée. */
+const installerVersion = installerSource.match(
+  /const INSTALLER_VERSION = "([^"]+)"/
+)[1]
+
 /* Un installateur qui reproduit le défaut de 1.0.7. */
 const brokenInstaller = installerSource.replace(
   /^await main\(\)$/m,
@@ -158,7 +163,10 @@ const scenarios = [
     label: "installateur cassé remplacé",
     seed: ["CTS Installer.js"],
     serve: () => installerSource,
-    expect: { written: ["CTS Installer.js"], shows: ["Réparation terminée", "1.0.8"] }
+    expect: {
+      written: ["CTS Installer.js"],
+      shows: ["Réparation terminée", installerVersion]
+    }
   },
   {
     label: "doublon réparé aussi",
