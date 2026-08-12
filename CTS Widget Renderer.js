@@ -373,10 +373,14 @@ function addSliceRow(parent, slice, state, density) {
   addSliceNumber(row, slice, active, state, density)
   row.addSpacer(density.itemGap)
 
-  const body = row.addStack()
-  body.centerAlignContent()
-
-  const info = body.addStack()
+  /*
+   * Le bloc d'informations et les horaires sont des enfants directs de la
+   * ligne, sans conteneur intermédiaire. C'est la condition pour que le
+   * ressort souple placé entre eux fasse réclamer toute la largeur à la
+   * ligne elle-même : enfoui d'un niveau, il ne répartissait que la place
+   * déjà occupée et la case s'arrêtait avant le bord de la carte.
+   */
+  const info = row.addStack()
   info.layoutVertically()
 
   const titleValue = `Ligne ${slice.line} · Voiture ${slice.vehicle}`
@@ -409,10 +413,10 @@ function addSliceRow(parent, slice, state, density) {
    * horaires contre le bord droit et force la ligne à occuper toute la
    * largeur de la carte, quelle que soit la longueur du texte.
    */
-  body.addSpacer(density.metricsGap)
-  body.addSpacer()
+  row.addSpacer(density.metricsGap)
+  row.addSpacer()
 
-  const metrics = body.addStack()
+  const metrics = row.addStack()
   metrics.layoutVertically()
   metrics.size = new Size(density.sliceMetricsWidth, 0)
 
@@ -456,18 +460,20 @@ function addSliceNumber(parent, slice, active, state, density) {
 }
 
 /*
- * Sans ressort extérieur, les deux cartes se partagent toute la largeur
- * et s'alignent exactement sur les bords des cartes du dessus.
+ * Les deux cartes reçoivent chacune une moitié exacte de la largeur
+ * intérieure, écart déduit. Se fier au contenu les laissait plus étroites
+ * que les cartes du dessus, avec un vide à droite.
  */
 function addStats(parent, stats, density) {
+  const width = Math.floor((density.contentWidth - density.statGap) / 2)
   const row = parent.addStack()
   row.centerAlignContent()
-  addStatCard(row, UTILS.formatDuration(stats.work), "Travail", density)
+  addStatCard(row, UTILS.formatDuration(stats.work), "Travail", density, width)
   row.addSpacer(density.statGap)
-  addStatCard(row, UTILS.formatDuration(stats.amplitude), "Amplitude", density)
+  addStatCard(row, UTILS.formatDuration(stats.amplitude), "Amplitude", density, width)
 }
 
-function addStatCard(parent, value, label, density) {
+function addStatCard(parent, value, label, density, width) {
   const card = addSurface(parent, {
     padding: [
       density.statPaddingVertical,
@@ -480,6 +486,7 @@ function addStatCard(parent, value, label, density) {
     borderAlpha: 0.07,
     vertical: true
   })
+  if (width > 0) card.size = new Size(width, 0)
   card.centerAlignContent()
   addCenteredText(card, value, Font.boldSystemFont(density.statValueSize), THEME.getPrimaryTextColor())
   card.addSpacer(1)
@@ -651,14 +658,24 @@ function fitFont(baseSize, value, softLimit, minimumSize) {
   return Math.round(Math.max(minimum, base * Math.max(0.7, limit / length)) * 2) / 2
 }
 
-function getDeviceWidth() {
+/*
+ * L'orientation n'est pas garantie : on retient la petite dimension comme
+ * largeur et la grande comme hauteur.
+ */
+function getDeviceSize() {
   try {
     const size = Device.screenSize()
-    const width = Math.min(Number(size?.width) || 0, Number(size?.height) || 0)
-    return width > 0 ? width : 390
-  } catch (_) {
-    return 390
-  }
+    const first = Number(size?.width) || 0
+    const second = Number(size?.height) || 0
+    if (first > 0 && second > 0) {
+      return { width: Math.min(first, second), height: Math.max(first, second) }
+    }
+  } catch (_) {}
+  return { width: 390, height: 844 }
+}
+
+function getDeviceWidth() {
+  return getDeviceSize().width
 }
 
 /*
@@ -675,30 +692,37 @@ function getDensity(sliceCountValue) {
     : count >= 3
       ? densityStandard()
       : densityComfortable()
-  const width = getDeviceWidth()
-  return withColumnWidth(adaptDensity(base, width), width)
+  const screen = getDeviceSize()
+  return withColumnWidth(adaptDensity(base, screen.width), screen)
 }
 
 /*
- * Largeur du widget « large » selon la largeur logique de l'écran. Deux
- * appareils partageant une largeur peuvent avoir des widgets de hauteurs
- * différentes mais de même largeur, ce qui rend cette table fiable.
+ * Largeur du widget « large » par taille d'écran, en points.
+ *
+ * La largeur seule ne suffit pas : un iPhone SE et un iPhone mini font
+ * tous deux 375 pt de large mais reçoivent des widgets de 321 et 329 pt.
+ * La hauteur les départage. La table est croissante sur les deux
+ * dimensions, si bien que retenir la dernière ligne entièrement couverte
+ * donne toujours le bon appareil, et le plus petit widget en cas
+ * d'appareil inconnu.
  */
 const LARGE_WIDGET_WIDTHS = Object.freeze([
-  [320, 292],
-  [375, 321],
-  [390, 338],
-  [393, 338],
-  [414, 348],
-  [428, 364],
-  [430, 364],
-  [440, 382]
+  [320, 568, 292],
+  [375, 667, 321],
+  [375, 812, 329],
+  [390, 844, 338],
+  [393, 852, 338],
+  [414, 736, 348],
+  [414, 896, 360],
+  [428, 926, 364],
+  [430, 932, 364],
+  [440, 956, 382]
 ])
 
-function estimateWidgetWidth(screenWidth) {
-  let width = LARGE_WIDGET_WIDTHS[0][1]
-  for (const [screen, candidate] of LARGE_WIDGET_WIDTHS) {
-    if (screenWidth >= screen) width = candidate
+function estimateWidgetWidth(screen) {
+  let width = LARGE_WIDGET_WIDTHS[0][2]
+  for (const [deviceWidth, deviceHeight, candidate] of LARGE_WIDGET_WIDTHS) {
+    if (screen.width >= deviceWidth && screen.height >= deviceHeight) width = candidate
   }
   return width
 }
@@ -715,16 +739,25 @@ function estimateWidgetWidth(screenWidth) {
  * déclarée par la densité sert de plancher.
  */
 const COLUMN_SAFETY_MARGIN = 6
+const CONTENT_SAFETY_MARGIN = 2
 
-function withColumnWidth(density, screenWidth) {
-  const inner =
-    estimateWidgetWidth(screenWidth) -
-    2 * density.paddingHorizontal -
-    2 * density.cardPaddingHorizontal -
-    COLUMN_SAFETY_MARGIN
+function withColumnWidth(density, screen) {
+  /*
+   * Deux marges différentes, pour deux risques différents. Les cartes de
+   * statistiques bordent le widget : une marge trop généreuse s'y verrait
+   * comme un vide à droite, alors qu'une colonne du bandeau trop large ne
+   * ferait que resserrer un texte. La première est donc réduite au strict
+   * nécessaire, la seconde reste confortable.
+   */
+  const contentWidth = Math.max(
+    density.contentWidth,
+    estimateWidgetWidth(screen) - 2 * density.paddingHorizontal - CONTENT_SAFETY_MARGIN
+  )
+  const inner = contentWidth - 2 * density.cardPaddingHorizontal - COLUMN_SAFETY_MARGIN
   const available = inner - gridGutter(density)
   return {
     ...density,
+    contentWidth,
     columnWidth: Math.max(density.columnWidth, Math.floor(available / 2))
   }
 }
@@ -755,6 +788,7 @@ function densityComfortable() {
     paddingTop: 17,
     paddingBottom: 14,
     paddingHorizontal: 18,
+    contentWidth: 256,
     sectionGap: 7,
     iconSize: 38,
     iconSymbolSize: 18,
@@ -827,6 +861,7 @@ function densityStandard() {
     paddingTop: 15,
     paddingBottom: 12,
     paddingHorizontal: 16,
+    contentWidth: 260,
     sectionGap: 4,
     iconSize: 34,
     iconSymbolSize: 16,
@@ -893,6 +928,7 @@ function densityCompact() {
     paddingTop: 13,
     paddingBottom: 11,
     paddingHorizontal: 15,
+    contentWidth: 262,
     sectionGap: 4,
     iconSize: 31,
     iconSymbolSize: 14,

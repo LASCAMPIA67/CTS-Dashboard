@@ -19,7 +19,7 @@ import vm from "node:vm"
 import { fileURLToPath } from "node:url"
 import * as shim from "./scriptable-shim.mjs"
 import { renderSheet, widgetBody } from "./html.mjs"
-import { measureBodies } from "./measure.mjs"
+import { measureBodies, measureCardWidths } from "./measure.mjs"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const repository = path.resolve(here, "..", "..")
@@ -37,7 +37,7 @@ const CHROMIUM = [
 /* Chargement des modules du dépôt dans un contexte Scriptable simulé. */
 /* ------------------------------------------------------------------ */
 
-let deviceWidth = 428
+let deviceScreen = { width: 428, height: 926 }
 
 /*
  * FileManager minimal, adossé au dépôt : `Database/places.json` pointe sur
@@ -96,7 +96,7 @@ function createRuntime() {
     parseInt,
     parseFloat,
     Intl,
-    Device: { screenSize: () => new shim.Size(deviceWidth, deviceWidth * 2.2) },
+    Device: { screenSize: () => new shim.Size(deviceScreen.width, deviceScreen.height) },
     importModule: name => loadModule(name)
   }
   shim.installGlobals(sandbox)
@@ -285,13 +285,13 @@ function buildContext(name, screen) {
 
 /* Tailles réelles du widget « large ». */
 const SCREENS = [
-  { name: "Pro Max", screen: 428, width: 364, height: 382 },
-  { name: "standard", screen: 390, width: 338, height: 354 },
-  { name: "mini", screen: 375, width: 329, height: 345 },
-  { name: "SE", screen: 375, width: 321, height: 324 }
+  { name: "Pro Max", screen: 428, screenHeight: 926, width: 364, height: 382 },
+  { name: "standard", screen: 390, screenHeight: 844, width: 338, height: 354 },
+  { name: "mini", screen: 375, screenHeight: 812, width: 329, height: 345 },
+  { name: "SE", screen: 375, screenHeight: 667, width: 321, height: 324 }
 ]
 
-function collectItems() {
+export function collectItems() {
   const only = process.env.PREVIEW_SCENARIOS?.split("|").filter(Boolean)
   const screensWanted = process.env.PREVIEW_SCREENS?.split("|").filter(Boolean)
   const items = []
@@ -300,7 +300,7 @@ function collectItems() {
     if (only && !only.includes(name)) continue
     for (const screen of SCREENS) {
       if (screensWanted && !screensWanted.includes(screen.name)) continue
-      deviceWidth = screen.screen
+      deviceScreen = { width: screen.screen, height: screen.screenHeight }
       const context = buildContext(name, screen)
       const widget = renderer().createWidget("large", context)
       items.push({
@@ -317,6 +317,21 @@ function collectItems() {
 function main() {
   const items = collectItems()
   const screensWanted = process.env.PREVIEW_SCREENS?.split("|").filter(Boolean)
+
+  if (process.env.PREVIEW_MODE === "widths") {
+    let uneven = false
+    for (const result of measureCardWidths(items, output)) {
+      /* Les ressorts fixes entre les cartes ont une largeur nulle. */
+      const widths = result.cards.filter(value => value > 0)
+      const gap = Math.max(...widths) - Math.min(...widths)
+      if (gap > 4) uneven = true
+      console.log(
+        `${gap > 4 ? "INÉGAL " : "ok     "} ${result.label.padEnd(52)} ` +
+          `widget ${result.widget}pt · cartes ${widths.join(" / ")}`
+      )
+    }
+    process.exit(uneven ? 1 : 0)
+  }
 
   if (process.env.PREVIEW_MODE === "measure") {
     const results = measureBodies(items, output)
@@ -367,4 +382,4 @@ function main() {
   console.log(`Capture : ${path.join(output, "preview.png")}  (${items.length} vignettes)`)
 }
 
-main()
+if (process.env.PREVIEW_MODE !== "library") if (process.env.PREVIEW_MODE !== "library") main()

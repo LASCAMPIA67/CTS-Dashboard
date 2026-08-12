@@ -13,12 +13,15 @@ const LETTER_SPACING = Number.isFinite(TRACKING) ? TRACKING : -0.012
 /*
  * Traduction de l'arbre Scriptable en flexbox.
  *
- * Règle centrale : dans Scriptable, une pile se dimensionne sur son
- * contenu, sauf si elle contient un ressort souple — auquel cas elle
- * occupe tout l'espace disponible le long de son axe. Cette propriété se
- * propage aux parents. On la calcule donc de bas en haut avant d'écrire
- * le HTML, puis on la traduit en `flex-grow` (axe principal du parent)
- * ou `align-self: stretch` (axe transversal).
+ * Règle centrale, corrigée sur une capture iPhone : une pile ne réclame
+ * l'espace disponible le long de son axe que si elle contient un ressort
+ * souple **parmi ses enfants directs**. Un ressort enfoui d'un niveau ne
+ * répartit que la place déjà occupée par son propre conteneur — c'est
+ * exactement ce qui laissait les cases de tranches plus étroites que leur
+ * carte alors que le bandeau horaires, lui, allait d'un bord à l'autre.
+ *
+ * La conquête ne remonte donc que sur l'axe transversal : une carte
+ * verticale s'élargit parce qu'une de ses lignes s'élargit.
  */
 function analyze(node) {
   if (node.kind === "spacer") {
@@ -35,9 +38,7 @@ function analyze(node) {
   }
 
   const children = node.children.map(analyze)
-  const hasFlexible = children.some(child => child.kind === "spacer" && child.flexible)
-
-  const alongMain = hasFlexible || children.some(child => (node.vertical ? child.expandsV : child.expandsH))
+  const alongMain = children.some(child => child.kind === "spacer" && child.flexible)
   const alongCross = children.some(child => (node.vertical ? child.expandsH : child.expandsV))
 
   node.expandsH = node.vertical ? alongCross : alongMain

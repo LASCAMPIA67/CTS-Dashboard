@@ -48,7 +48,55 @@ export function measureBodies(items, workDirectory) {
 
   const file = path.join(workDirectory, "measure.html")
   fs.writeFileSync(file, html)
+  return readMetrics(file)
+}
 
+/*
+ * Largeur de chaque carte de premier niveau. Sert à contrôler qu'elles
+ * atteignent toutes le même bord droit : une pile qui ne réclame pas la
+ * largeur disponible s'arrête sur son contenu, ce qui ne se voit qu'à
+ * l'œil ou ici.
+ */
+export function measureCardWidths(items, workDirectory) {
+  fs.mkdirSync(workDirectory, { recursive: true })
+
+  const cards = items
+    .map(
+      item =>
+        `<div class="probe" data-label="${escapeAttribute(item.label)}" ` +
+        `style="width:${item.width}px;height:${item.height}px;overflow:hidden">${item.body}</div>`
+    )
+    .join("")
+
+  const html = `<!doctype html><meta charset="utf-8"><style>
+    * { margin:0; padding:0; }
+    body { font-family:'Liberation Sans',sans-serif; }
+    .probe > div { width:100%; height:100%; }
+  </style>${cards}<script>
+    ${FIT}
+    var results = []
+    document.querySelectorAll('.probe').forEach(function (probe) {
+      var widget = probe.firstElementChild
+      var cards = []
+      Array.prototype.forEach.call(widget.children, function (child) {
+        var box = child.getBoundingClientRect()
+        if (box.height >= 4) cards.push(Math.round(box.width * 10) / 10)
+      })
+      results.push({
+        label: probe.dataset.label,
+        widget: Math.round(widget.getBoundingClientRect().width * 10) / 10,
+        cards: cards
+      })
+    })
+    document.body.setAttribute('data-metrics', JSON.stringify(results))
+  </script>`
+
+  const file = path.join(workDirectory, "widths.html")
+  fs.writeFileSync(file, html)
+  return readMetrics(file)
+}
+
+function readMetrics(file) {
   const dom = execFileSync(
     CHROMIUM,
     [
