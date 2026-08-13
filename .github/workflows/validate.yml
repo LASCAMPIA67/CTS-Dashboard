@@ -42,3 +42,6 @@ jobs:
       # « Code ELSA_C » : seule une résolution réelle le montre.
       - name: Run database resolution test
         run: node tools/preview/database-smoke.mjs
+
+      - name: Run CTS Analytics Admin smoke test
+        run: node tools/preview/analytics-smoke.mjs

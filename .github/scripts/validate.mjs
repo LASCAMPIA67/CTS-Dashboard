@@ -19,7 +19,8 @@ const MINIMUM_LIBRARY_BYTES = 40 * 1024
 const UNMANIFESTED_SCRIPTS = new Set([
   INSTALLER_FILE,
   'CTS Simulator.js',
-  'CTS Repair.js'
+  'CTS Repair.js',
+  'CTS Analytics Admin.js'
 ])
 
 const problems = []
@@ -207,7 +208,9 @@ for (const file of UNMANIFESTED_SCRIPTS) {
     continue
   }
 
-  checkScriptableMetadata(content, file, { unique: file === 'CTS Simulator.js' })
+  checkScriptableMetadata(content, file, {
+    unique: file !== INSTALLER_FILE && file !== 'CTS Repair.js'
+  })
   checkSyntax(content, file)
   checkEntryPoint(content, file)
 }
