@@ -37,3 +37,8 @@ jobs:
 
       - name: Run CTS Repair smoke test
         run: node tools/preview/repair-smoke.mjs
+
+      # Les bases peuvent être valides et pourtant nommer un lieu
+      # « Code ELSA_C » : seule une résolution réelle le montre.
+      - name: Run database resolution test
+        run: node tools/preview/database-smoke.mjs

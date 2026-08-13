@@ -13,24 +13,9 @@
   },
   "ELSA": {
     "name": "Elsau",
-    "type": "relief",
-    "aliases": [
-      "ELSA_A"
-    ]
-  },
-  "ELSA_1": {
-    "name": "Elsau",
-    "type": "relief"
-  },
-  "ELSA_2": {
-    "name": "Elsau",
     "type": "relief"
   },
   "ELME": {
-    "name": "Elmerforst",
-    "type": "relief"
-  },
-  "ELME_A": {
     "name": "Elmerforst",
     "type": "relief"
   },
@@ -38,20 +23,9 @@
     "name": "Montagne Verte",
     "type": "relief"
   },
-  "MOVE_A": {
-    "name": "Montagne Verte",
-    "type": "relief"
-  },
-  "MOVE_C": {
-    "name": "Montagne Verte",
-    "type": "relief"
-  },
   "GACE": {
     "name": "Gare Centrale",
-    "type": "relief",
-    "aliases": [
-      "GACE_O"
-    ]
+    "type": "relief"
   },
   "REPU": {
     "name": "République",
@@ -61,59 +35,43 @@
     "name": "Hohberg",
     "type": "relief"
   },
-  "HOHB_A": {
-    "name": "Hohberg",
-    "type": "relief"
-  },
   "RORE": {
     "name": "Neuhof R. Reuss",
     "type": "relief"
   },
-  "RORE_A": {
-    "name": "Neuhof R. Reuss",
+  "ROME": {
+    "name": "Rome",
     "type": "relief"
   },
   "ROMEEE": {
     "name": "Rome",
     "type": "relief"
   },
-  "ESPL_A": {
+  "ESPL": {
     "name": "Esplanade",
     "type": "relief"
   },
-  "ESPL_1": {
-    "name": "Esplanade",
-    "type": "relief"
-  },
-  "ESPL_2": {
-    "name": "Esplanade",
-    "type": "relief"
-  },
-  "OBSE_1": {
+  "OBSE": {
     "name": "Observatoire",
     "type": "relief"
   },
-  "ROTO_1": {
+  "ROTO": {
     "name": "Rotonde",
     "type": "relief"
   },
-  "ROTO_2": {
-    "name": "Rotonde",
-    "type": "relief"
-  },
-  "FANA_1": {
+  "FANA": {
     "name": "Faubourg National",
     "type": "relief"
   },
-  "LOND_B": {
+  "LOND": {
     "name": "Londres",
     "type": "relief"
   },
-  "GAMA_A": {
+  "GAMA": {
     "name": "Gare Marchandises",
     "type": "relief"
   },
-  "LHPP_G": {
+  "LHPP": {
     "name": "Halles P. de Paris",
     "type": "relief"
   },

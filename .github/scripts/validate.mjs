@@ -309,14 +309,33 @@ if (labels.has('places.json') && labels.has('stops.json')) {
     )
   )
 
-  for (const [code, entry] of Object.entries(labels.get('places.json'))) {
+  const places = labels.get('places.json')
+  const nameOf = entry =>
+    typeof entry === 'string' ? entry : String(entry?.name || '')
+
+  for (const [code, entry] of Object.entries(places)) {
     if (String(entry?.type || '') !== 'relief') continue
-    const label = typeof entry === 'string' ? entry : String(entry?.name || '')
+    const label = nameOf(entry)
     if (label && !stopLabels.has(label)) {
       fail(
         `Le point de relève ${code} s'appelle "${label}" dans places.json mais ` +
         `aucun arrêt ne porte ce nom dans stops.json — les deux bases ont ` +
         `divergé, le widget nommerait ce lieu de deux façons`
+      )
+    }
+
+    /*
+     * CTS Database ramène ELSA_C à ELSA quand le code exact est absent.
+     * Réinscrire un suffixe qui porte le même nom que sa racine n'ajoute
+     * donc rien, et laisse croire qu'il faut énumérer les combinaisons —
+     * c'est exactement l'illusion qui a produit « Code ELSA_C ». Un
+     * suffixe reste légitime s'il nomme un lieu réellement différent.
+     */
+    const root = code.replace(/_[A-Z0-9]{1,2}$/, '')
+    if (root !== code && places[root] && nameOf(places[root]) === label) {
+      fail(
+        `${code} répète le nom de sa racine ${root} ("${label}") : ` +
+        `CTS Database résout déjà les suffixes, cette entrée est inutile`
       )
     }
   }

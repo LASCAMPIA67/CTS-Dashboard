@@ -124,11 +124,29 @@ function stripHastusQualifier(value) {
   return stripped && stripped !== cleaned ? stripped : ""
 }
 
+/*
+ * HASTUS écrit un point de relève sous la forme RACINE_SUFFIXE : ELSA_A,
+ * ELSA_C, LHPP_G, ESPL_1. La racine désigne le lieu, le suffixe le quai
+ * ou le sens. Énumérer les combinaisons ne tient pas : une seule oubliée
+ * — ELSA_C — affichait « Code ELSA_C » au conducteur alors qu'ELSA était
+ * en base depuis toujours.
+ *
+ * L'ordre de résolution va donc du plus précis au plus général : le code
+ * exact, qui permet à un suffixe de porter un nom différent si un jour
+ * c'est nécessaire ; puis la racine ; puis la base des arrêts, pour les
+ * points de relève qui portent simplement le nom de leur arrêt.
+ */
 async function formatPlace(code) {
   const name = getEntryName(await getPlace(code))
   if (name) return name
 
-  const stopName = await resolvePlaceFromStops(code)
+  const root = codeRoot(code)
+  if (root) {
+    const rootName = getEntryName(await getPlace(root))
+    if (rootName) return rootName
+  }
+
+  const stopName = await resolvePlaceFromStops(code, root)
   if (stopName) return stopName
 
   const normalizedCode = UTILS.normalizeCode(code)
@@ -136,19 +154,25 @@ async function formatPlace(code) {
 }
 
 /*
+ * La racine d'un code de relève, ou "" si le code n'en a pas. normalizeKey
+ * remplace le souligné par une espace, donc ELSA_C devient « ELSA C ».
+ */
+function codeRoot(code) {
+  const key = UTILS.normalizeKey(code)
+  const root = key.replace(/\s+[A-Z0-9]{1,2}$/, "")
+  return root && root !== key ? root : ""
+}
+
+/*
  * Un point de relève absent de places.json porte presque toujours le nom
  * de son arrêt — WILSON par exemple. Interroger la base des arrêts avant
- * d'abandonner évite d'afficher « Code WILSON » au conducteur. On tente
- * aussi le code privé de son suffixe de quai, WILSON_A donnant WILSON.
+ * d'abandonner évite d'afficher « Code WILSON » au conducteur.
  */
-async function resolvePlaceFromStops(code) {
+async function resolvePlaceFromStops(code, root) {
   const direct = getEntryName(await getStop(code))
   if (direct) return direct
 
-  const key = UTILS.normalizeKey(code)
-  const base = key.replace(/\s+[A-Z0-9]$/, "")
-  if (!base || base === key) return ""
-  return getEntryName(await getStop(base))
+  return root ? getEntryName(await getStop(root)) : ""
 }
 
 async function formatLine(code) {

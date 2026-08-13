@@ -1,0 +1,161 @@
+/*
+ * Test de résolution des noms de lieux et d'arrêts.
+ *
+ * Ce test existe à cause de deux défauts réels, arrivés jusqu'à l'écran
+ * d'un conducteur : « Code WILSON », puis « Code ELSA_C ». Les deux
+ * venaient d'un code que la base ne savait pas ramener à son lieu, et
+ * aucune vérification statique ne pouvait les voir — les fichiers JSON
+ * étaient parfaitement valides.
+ *
+ * On charge donc CTS Database avec les vraies bases du dépôt et on lui
+ * demande de nommer des codes, dont ceux qui ont échoué.
+ */
+
+import fs from "node:fs"
+import path from "node:path"
+import vm from "node:vm"
+import { fileURLToPath } from "node:url"
+
+const here = path.dirname(fileURLToPath(import.meta.url))
+const repository = path.resolve(here, "..", "..")
+
+/* Les bases sont lues depuis le dépôt, jamais recopiées ici. */
+function resource(name) {
+  return fs.readFileSync(path.join(repository, name), "utf8")
+}
+
+const RESOURCES = {
+  "lines.json": resource("lines.json"),
+  "stops.json": resource("stops.json"),
+  "places.json": resource("places.json")
+}
+
+function loadModule(name, extra = {}) {
+  const source = fs.readFileSync(path.join(repository, `${name}.js`), "utf8")
+  const module = { exports: {} }
+
+  const sandbox = {
+    module,
+    console: { log: () => {}, warn: () => {}, error: () => {} },
+    Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
+    Promise, RegExp, Error, isNaN, parseInt, parseFloat,
+    encodeURIComponent, decodeURIComponent,
+    Timer: class {
+      static schedule(ms, repeats, callback) {
+        setTimeout(callback, 0)
+        return new this()
+      }
+      invalidate() {}
+    },
+    args: { plainTexts: [] },
+    importModule: requested => {
+      const key = String(requested).replace(/^.*\//, "")
+      if (!loaded[key]) throw new Error(`module inattendu : ${key}`)
+      return loaded[key]
+    },
+    ...extra
+  }
+
+  vm.createContext(sandbox)
+  vm.runInContext(source, sandbox, { filename: name })
+  return module.exports
+}
+
+const loaded = {}
+loaded["CTS Utils"] = loadModule("CTS Utils")
+
+/*
+ * CTS Database lit ses bases à travers CTS Config, CTS Storage et
+ * CTS Resources. On ne réimplémente aucun des trois : le gestionnaire de
+ * fichiers sert les fichiers du dépôt, rien d'autre n'est simulé.
+ */
+const fileName = target => String(target).replace(/^.*\//, "")
+
+loaded["CTS Config"] = {
+  fm: {
+    fileExists: target => Boolean(RESOURCES[fileName(target)]),
+    readString: target => RESOURCES[fileName(target)] || ""
+  },
+  files: {
+    stops: "/database/stops.json",
+    places: "/database/places.json",
+    lines: "/database/lines.json"
+  },
+  ensureDirectories: () => {}
+}
+
+loaded["CTS Storage"] = { ensureDownloaded: async () => true }
+loaded["CTS Resources"] = { ensureInstalled: async () => true }
+
+const DATABASE = loadModule("CTS Database")
+
+/*
+ * Chaque cas dit ce que HASTUS écrit et ce que le conducteur doit lire.
+ * Aucun ne doit produire « Code … » : c'est précisément le symptôme.
+ */
+const places = [
+  ["ELSA_A", "Elsau"],
+  ["ELSA_C", "Elsau"],
+  ["ELSA_1", "Elsau"],
+  ["ELSA", "Elsau"],
+  ["HOHB_A", "Hohberg"],
+  ["ELME_A", "Elmerforst"],
+  ["GAMA_A", "Gare Marchandises"],
+  ["LHPP_G", "Halles P. de Paris"],
+  ["GACE_O", "Gare Centrale"],
+  ["ESPL_2", "Esplanade"],
+  ["MOVE_C", "Montagne Verte"],
+  ["RORE_A", "Neuhof R. Reuss"],
+  ["WILSON", "Wilson"],
+  ["ELS", "UPE"],
+  ["KBZ", "UPK"],
+  ["CRB", "UPC"]
+]
+
+const failures = []
+
+for (const [code, expected] of places) {
+  const actual = await DATABASE.formatPlace(code)
+  if (actual !== expected) {
+    failures.push(`formatPlace("${code}") donne « ${actual} » au lieu de « ${expected} »`)
+  }
+}
+
+/*
+ * Un suffixe inconnu sur une racine connue doit rester résolu : c'est la
+ * garantie qui évite d'avoir à énumérer les combinaisons une par une.
+ */
+for (const suffix of ["B", "D", "E", "3", "9"]) {
+  const actual = await DATABASE.formatPlace(`ELSA_${suffix}`)
+  if (actual !== "Elsau") {
+    failures.push(`un suffixe jamais vu casse la résolution : ELSA_${suffix} → « ${actual} »`)
+  }
+}
+
+/* Un code réellement inconnu doit rester reconnaissable, pas inventé. */
+const unknown = await DATABASE.formatPlace("ZZZZ_A")
+if (!/^Code /.test(unknown)) {
+  failures.push(`un code inconnu doit rester lisible tel quel, reçu « ${unknown} »`)
+}
+
+/* Les suffixes HASTUS des arrêts ne doivent pas survivre à l'affichage. */
+const stops = [
+  ["HOHBERG", "Hohberg"],
+  ["ELSAU ARRIVEE", "Elsau"],
+  ["KOENIGSHOFFEN SUD DEPART", "Koenigshoffen Sud"]
+]
+
+for (const [raw, expected] of stops) {
+  const actual = await DATABASE.formatStop(raw)
+  if (actual !== expected) {
+    failures.push(`formatStop("${raw}") donne « ${actual} » au lieu de « ${expected} »`)
+  }
+}
+
+if (failures.length) {
+  console.log("ÉCHEC  résolution des lieux et des arrêts")
+  for (const failure of failures) console.log(`         ${failure}`)
+  process.exit(1)
+}
+
+console.log(`ok     résolution des lieux et des arrêts (${places.length + stops.length + 6} cas)`)
