@@ -1,12 +1,16 @@
 /*
  * Test de l'entretien automatique des services.
  *
- * Le cache d'un service terminé est effacé une minute après sa fin, mais
- * son PDF ne part aux archives qu'une heure plus tard : l'archivage ne
- * doit donc plus dépendre d'un cache qui n'existe plus. C'est un
- * enchaînement de dates que seule une exécution réelle peut vérifier, et
- * dont l'échec serait silencieux — des PDF qui s'accumulent dans
- * Services sans que personne ne le remarque.
+ * Pendant l'heure qui suit la fin de son service, le conducteur voit
+ * encore son écran « Service terminé » — et le widget le lit dans le
+ * cache. Le vidage du cache et l'archivage du PDF tombent donc tous deux
+ * une heure après la fin : effacer le cache plus tôt couperait cet
+ * écran, ou ferait apparaître le service du lendemain en avance.
+ *
+ * L'archivage ne peut pas non plus dépendre du cache qu'il vient de
+ * perdre. C'est un enchaînement de dates que seule une exécution réelle
+ * vérifie, et dont l'échec serait silencieux — des PDF qui s'accumulent
+ * dans Services sans que personne ne le remarque.
  *
  * Le nettoyeur est chargé avec un système de fichiers en mémoire, et
  * rejoué à des instants choisis autour de la fin du service.
@@ -65,6 +69,36 @@ function loadModule(name, sandboxExtra = {}) {
 
 const loaded = {}
 loaded["CTS Utils"] = loadModule("CTS Utils")
+
+/*
+ * Les deux délais viennent des fichiers du dépôt, jamais d'une copie :
+ * le vidage du cache dans CTS Config, la durée d'affichage d'un service
+ * terminé dans CTS Services Manager. Le premier ne doit jamais être plus
+ * court que le second, sans quoi le widget perdrait la source de l'écran
+ * qu'il est encore censé montrer.
+ */
+const CACHE_GRACE_MS = loadModule("CTS Config", {
+  FileManager: {
+    iCloud: () => ({
+      documentsDirectory: () => "/docs",
+      joinPath: (a, b) => `${a}/${b}`,
+      fileExists: () => true,
+      createDirectory: () => {},
+      isFileDownloaded: () => true
+    })
+  }
+}).pdf.cacheGraceMs
+
+const displayGrace = fs
+  .readFileSync(path.join(repository, "CTS Services Manager.js"), "utf8")
+  .match(/const SERVICE_DISPLAY_GRACE_MS = ([\d\s*]+)/)
+
+const DISPLAY_GRACE_MS = displayGrace
+  ? displayGrace[1]
+      .split("*")
+      .map(value => Number(value.trim()))
+      .reduce((product, value) => product * value, 1)
+  : null
 
 function buildWorld({ lastEnd, serviceDate }) {
   const files = new Map()
@@ -129,7 +163,7 @@ function buildWorld({ lastEnd, serviceDate }) {
     },
     files: { servicesIndex: `${DATA}/services-index.json` },
     pdf: {
-      cacheGraceMs: MINUTE,
+      cacheGraceMs: CACHE_GRACE_MS,
       archiveGraceMs: HOUR,
       archiveRetentionMs: 7 * DAY
     },
@@ -166,6 +200,18 @@ function check(condition, message) {
   if (!condition) failures.push(message)
 }
 
+check(
+  Number.isFinite(CACHE_GRACE_MS) && Number.isFinite(DISPLAY_GRACE_MS),
+  "les délais d'affichage ou de vidage du cache sont introuvables"
+)
+
+check(
+  CACHE_GRACE_MS >= DISPLAY_GRACE_MS,
+  `le cache est vidé après ${CACHE_GRACE_MS / 60000} min alors que le widget ` +
+    `affiche encore le service terminé pendant ${DISPLAY_GRACE_MS / 60000} min : ` +
+    `l'écran « Service terminé » perdrait sa source avant l'heure`
+)
+
 /*
  * Service du 14 août terminé à 16:55. Chaque instant est joué sur un
  * monde neuf, sauf la séquence finale, qui rejoue le même monde pour
@@ -185,20 +231,53 @@ async function scenario(label, { lastEnd, serviceDate, endsAt }) {
   check(files.has(cachePath), `${label} : le cache a été effacé avant la fin du service`)
   check(files.has(pdfPath), `${label} : le PDF a été archivé avant la fin du service`)
 
-  /* Deux minutes après la fin : le cache part, le PDF reste. */
-  const afterEnd = await CLEANER.maintainServices(new Date(endsAt + 2 * MINUTE))
+  /*
+   * Cinquante-neuf minutes après la fin : le conducteur doit encore voir
+   * son écran « Service terminé », donc le cache doit encore exister.
+   */
+  const during = await CLEANER.maintainServices(new Date(endsAt + 59 * MINUTE))
 
-  check(!files.has(cachePath), `${label} : le cache survit à la fin du service`)
-  check(!files.has(textPath), `${label} : le texte extrait survit à la fin du service`)
-  check(files.has(pdfPath), `${label} : le PDF a été archivé trop tôt`)
+  check(
+    files.has(cachePath),
+    `${label} : le cache est effacé avant la fin de l'heure d'affichage`
+  )
+  check(
+    during.cacheCleared.length === 0,
+    `${label} : le vidage du cache a lieu pendant l'heure d'affichage`
+  )
+
+  /* Une heure et deux minutes après la fin : le cache part. */
+  const afterEnd = await CLEANER.maintainServices(new Date(endsAt + HOUR + 2 * MINUTE))
+
+  check(!files.has(cachePath), `${label} : le cache survit à l'heure d'affichage`)
+  check(!files.has(textPath), `${label} : le texte extrait survit à l'heure d'affichage`)
   check(
     afterEnd.cacheCleared.length === 1,
     `${label} : le vidage du cache n'est pas rapporté`
   )
   check(afterEnd.success, `${label} : l'entretien signale une erreur`)
 
+  /*
+   * Le vidage du cache et l'archivage partagent la même échéance : ils
+   * ont donc lieu au même passage, le vidage d'abord. C'est le moment
+   * où l'archivage casserait s'il cherchait encore l'heure de fin dans
+   * le cache qui vient de disparaître.
+   */
+  check(
+    afterEnd.archived.length === 1,
+    `${label} : le PDF n'est pas archivé au passage qui vide le cache`
+  )
+  check(!files.has(pdfPath), `${label} : le PDF est resté dans Services`)
+
+  const archivedName = afterEnd.archived[0]?.fileName
+
+  check(
+    Boolean(archivedName) && files.has(`${ARCHIVE}/${archivedName}`),
+    `${label} : le PDF archivé est introuvable`
+  )
+
   /* Repassage immédiat : aucune action, aucune erreur. */
-  const again = await CLEANER.maintainServices(new Date(endsAt + 3 * MINUTE))
+  const again = await CLEANER.maintainServices(new Date(endsAt + HOUR + 3 * MINUTE))
 
   check(
     again.cacheCleared.length === 0,
@@ -206,24 +285,14 @@ async function scenario(label, { lastEnd, serviceDate, endsAt }) {
   )
   check(again.success, `${label} : le second passage signale une erreur`)
 
-  /*
-   * Deux heures après la fin, le cache n'existe plus depuis longtemps :
-   * l'archivage doit néanmoins avoir lieu. C'est le point qui casserait
-   * en silence si l'heure de fin était encore lue dans le cache.
-   */
-  const archived = await CLEANER.maintainServices(new Date(endsAt + 2 * HOUR))
+  /* Deux heures après la fin : plus rien à faire, et aucune erreur. */
+  const settled = await CLEANER.maintainServices(new Date(endsAt + 2 * HOUR))
 
   check(
-    archived.archived.length === 1,
-    `${label} : le PDF n'est pas archivé une fois le cache effacé`
+    settled.archived.length === 0 && settled.cacheCleared.length === 0,
+    `${label} : l'entretien refait du travail déjà accompli`
   )
-  check(!files.has(pdfPath), `${label} : le PDF est resté dans Services`)
-
-  const archivedName = archived.archived[0]?.fileName
-  check(
-    Boolean(archivedName) && files.has(`${ARCHIVE}/${archivedName}`),
-    `${label} : le PDF archivé est introuvable`
-  )
+  check(settled.success, `${label} : le passage à deux heures signale une erreur`)
 
   /* Huit jours plus tard, l'archive est supprimée. */
   const removed = await CLEANER.maintainServices(new Date(endsAt + 8 * DAY))
