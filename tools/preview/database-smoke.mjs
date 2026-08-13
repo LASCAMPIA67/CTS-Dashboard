@@ -107,9 +107,26 @@ const places = [
   ["MOVE_C", "Montagne Verte"],
   ["RORE_A", "Neuhof R. Reuss"],
   ["WILSON", "Wilson"],
+  ["KIBI_A", "Kibitzenau"],
+  ["KIBI_1", "Kibitzenau"],
+  ["KIBI_2", "Kibitzenau"],
   ["ELS", "UPE"],
   ["KBZ", "UPK"],
   ["CRB", "UPC"]
+]
+
+/*
+ * Les lignes de tram sont codées 80 à 85 sur la carte agent et doivent
+ * s'afficher A à F. Un service tram passe par le même chemin qu'un bus,
+ * mais son libellé vient entièrement de lines.json.
+ */
+const lines = [
+  ["82", "C"],
+  ["80", "A"],
+  ["85", "F"],
+  ["01", "C1"],
+  ["08", "C8"],
+  ["40", "40"]
 ]
 
 const failures = []
@@ -158,7 +175,18 @@ const stops = [
   ["MONTAGNE VERTE (ARRIVEE V.2)", "Montagne Verte"],
   ["OBSERVATOIRE (BD D'ANVERS-ARRIVEE EX)", "Observatoire"],
   ["OBSERVATOIRE (BD LEBLOIS-ARRIVEE CV)", "Observatoire"],
-  ["PLACE DE PIERRE L.10", "Place de Pierre"]
+  ["PLACE DE PIERRE L.10", "Place de Pierre"],
+  ["LINGOLSHEIM ALOUETTES", "Lingolsheim Alouettes"],
+  ["SAINT-NICOLAS", "Saint-Nicolas"],
+  ["NEUHOF STOCKFELD", "Neuhof Stockfeld"],
+  ["HOMME DE FER V.1 ARRIVEE", "Homme de Fer V1"],
+  ["HOMME DE FER V.2 ARRIVEE", "Homme de Fer V2"],
+  ["HOMME DE FER V.1", "Homme de Fer V1"],
+  ["HOMME DE FER", "Homme de Fer"],
+  ["COMMUNICATION WILSON V2", "Communication Wilson"],
+  ["DEPOT KIBITZENAU E/S", "Dépôt Kibitzenau"],
+  ["OBSERVATOIRE (Blvd Leblois)", "Observatoire"],
+  ["Rodolphe Reuss Tiroir", "Neuhof R. Reuss"]
 ]
 
 for (const [raw, expected] of stops) {
@@ -168,10 +196,20 @@ for (const [raw, expected] of stops) {
   }
 }
 
+for (const [code, expected] of lines) {
+  const actual = await DATABASE.formatLine(code)
+  if (actual !== expected) {
+    failures.push(`formatLine("${code}") donne « ${actual} » au lieu de « ${expected} »`)
+  }
+}
+
 if (failures.length) {
   console.log("ÉCHEC  résolution des lieux et des arrêts")
   for (const failure of failures) console.log(`         ${failure}`)
   process.exit(1)
 }
 
-console.log(`ok     résolution des lieux et des arrêts (${places.length + stops.length + 6} cas)`)
+console.log(
+  `ok     résolution des lieux, des arrêts et des lignes ` +
+    `(${places.length + stops.length + lines.length + 6} cas)`
+)

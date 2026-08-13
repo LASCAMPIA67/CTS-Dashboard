@@ -78,5 +78,9 @@
   "WILSON": {
     "name": "Wilson",
     "type": "relief"
+  },
+  "KIBI": {
+    "name": "Kibitzenau",
+    "type": "relief"
   }
 }

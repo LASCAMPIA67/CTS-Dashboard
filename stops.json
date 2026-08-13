@@ -14,6 +14,9 @@
   "BARR": {
     "name": "Barr"
   },
+  "BERSTETT": {
+    "name": "Berstett"
+  },
   "BISCHHEIM GARE": {
     "name": "Bischheim Gare"
   },
@@ -25,6 +28,12 @@
   },
   "BROGLIE": {
     "name": "Broglie"
+  },
+  "BRUCHE": {
+    "name": "Bruche"
+  },
+  "BRUXELLES": {
+    "name": "Bruxelles"
   },
   "BUGATTI": {
     "name": "Bugatti"
@@ -49,6 +58,13 @@
   "CITE MEINAU": {
     "name": "Cité Meinau"
   },
+  "COMMUNICATION WILSON": {
+    "name": "Communication Wilson",
+    "aliases": [
+      "COMMUNICATION WILSON V1",
+      "COMMUNICATION WILSON V2"
+    ]
+  },
   "COMTES": {
     "name": "Comtes"
   },
@@ -71,7 +87,10 @@
     "name": "Dépôt Elsau"
   },
   "DEPOT KIBITZENAU": {
-    "name": "Dépôt Kibitzenau"
+    "name": "Dépôt Kibitzenau",
+    "aliases": [
+      "DEPOT KIBITZENAU E/S"
+    ]
   },
   "DUCS D'ALSACE": {
     "name": "Ducs d'Alsace"
@@ -111,6 +130,9 @@
   },
   "FAUBOURG NATIONAL": {
     "name": "Faubourg National"
+  },
+  "FORGES": {
+    "name": "Forges"
   },
   "FORT DESAIX": {
     "name": "Fort Desaix"
@@ -164,10 +186,18 @@
     "name": "Homme de Fer Q2"
   },
   "HOMME DE FER V.1 ARRIVEE": {
-    "name": "Homme de Fer V1"
+    "name": "Homme de Fer V1",
+    "aliases": [
+      "HOMME DE FER V.1",
+      "HOMME DE FER V1"
+    ]
   },
   "HOMME DE FER V.2 ARRIVEE": {
-    "name": "Homme de Fer V2"
+    "name": "Homme de Fer V2",
+    "aliases": [
+      "HOMME DE FER V.2",
+      "HOMME DE FER V2"
+    ]
   },
   "HOPITAL CIVIL": {
     "name": "Hôpital Civil"
@@ -206,6 +236,9 @@
   "KEHL RATHAUS": {
     "name": "Kehl Rathaus"
   },
+  "KIBITZENAU": {
+    "name": "Kibitzenau"
+  },
   "KOENIGSHOFFEN SUD": {
     "name": "Koenigshoffen Sud"
   },
@@ -227,6 +260,9 @@
   "LANDSBERG": {
     "name": "Landsberg"
   },
+  "LINGOLSHEIM ALOUETTES": {
+    "name": "Lingolsheim Alouettes"
+  },
   "LINGOLSHEIM GARE": {
     "name": "Lingolsheim Gare"
   },
@@ -244,6 +280,9 @@
   },
   "LYCEE KLEBER": {
     "name": "Lycée Kléber"
+  },
+  "LYCEE PASTEUR": {
+    "name": "Lycée Pasteur"
   },
   "MAIRES SCHAUB": {
     "name": "Maires Schaub"
@@ -269,8 +308,14 @@
       "MONTAGNE VERTE (ARRIVEE V.2)"
     ]
   },
+  "NEUDORF MARCHE": {
+    "name": "Neudorf Marché"
+  },
   "NEUHOF CORPS EUROPEENS": {
     "name": "Neuhof Corps Eur."
+  },
+  "NEUHOF EGLISE": {
+    "name": "Neuhof Église"
   },
   "NEUHOF GANZAU": {
     "name": "Neuhof Ganzau"
@@ -281,8 +326,12 @@
   "NEUHOF RODOLPHE REUSS": {
     "name": "Neuhof R. Reuss",
     "aliases": [
-      "RODOLPHE REUSS"
+      "RODOLPHE REUSS",
+      "RODOLPHE REUSS TIROIR"
     ]
+  },
+  "NEUHOF STOCKFELD": {
+    "name": "Neuhof Stockfeld"
   },
   "OBERHAUSBERGEN EGLISE": {
     "name": "Oberhausbergen Église"
@@ -291,7 +340,8 @@
     "name": "Observatoire",
     "aliases": [
       "OBSERVATOIRE (BD D'ANVERS-ARRIVEE EX)",
-      "OBSERVATOIRE (BD LEBLOIS-ARRIVEE CV)"
+      "OBSERVATOIRE (BD LEBLOIS-ARRIVEE CV)",
+      "OBSERVATOIRE (BLVD LEBLOIS)"
     ]
   },
   "OCTROI": {
@@ -302,6 +352,9 @@
   },
   "OSTWALD HOTEL DE VILLE": {
     "name": "Ostwald Hôtel Ville"
+  },
+  "PALERME": {
+    "name": "Palerme"
   },
   "PARC DES ROMAINS": {
     "name": "Parc des Romains"
@@ -339,6 +392,9 @@
   "POINCARE": {
     "name": "Poincaré"
   },
+  "POLYGONE": {
+    "name": "Polygone"
+  },
   "PONT PHARIO": {
     "name": "Pont Phario"
   },
@@ -369,6 +425,9 @@
   "ROBERTSAU L'ESCALE": {
     "name": "Robertsau l’Escale"
   },
+  "ROBERTSAU LAMPROIE": {
+    "name": "Robertsau Lamproie"
+  },
   "ROBERTSAU RENAISSANCE": {
     "name": "Robertsau Renaiss."
   },
@@ -393,8 +452,17 @@
   "RUE D'ECKBOLSHEIM": {
     "name": "Rue d'Eckbolsheim"
   },
+  "RUE DES JUIFS": {
+    "name": "Rue des Juifs"
+  },
+  "SAINT CHRISTOPHE": {
+    "name": "Saint-Christophe"
+  },
   "SAINT NAZAIRE": {
     "name": "Saint-Nazaire"
+  },
+  "SAINT-NICOLAS": {
+    "name": "Saint-Nicolas"
   },
   "SAINTE HELENE": {
     "name": "Sainte-Hélène"
@@ -407,6 +475,12 @@
   },
   "SCHNOKELOCH": {
     "name": "Schnokeloch"
+  },
+  "TANNERIES": {
+    "name": "Tanneries"
+  },
+  "TAULER": {
+    "name": "Tauler"
   },
   "TIOIR CAMPUS ILLKIRCH DEPART": {
     "name": "Tiroir Campus Ill."
