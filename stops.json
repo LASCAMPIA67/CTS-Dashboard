@@ -32,6 +32,9 @@
   "CAMPUS D'ILLKIRCH": {
     "name": "Campus d’Illkirch"
   },
+  "CESAR JULIEN": {
+    "name": "César Julien"
+  },
   "CHAMBRE DE METIERS": {
     "name": "Chambre de Métiers",
     "aliases": [
@@ -70,6 +73,12 @@
   "DEPOT KIBITZENAU": {
     "name": "Dépôt Kibitzenau"
   },
+  "DUCS D'ALSACE": {
+    "name": "Ducs d'Alsace"
+  },
+  "ECRIVAINS": {
+    "name": "Écrivains"
+  },
   "ELMERFORST": {
     "name": "Elmerforst"
   },
@@ -106,11 +115,17 @@
   "FORT DESAIX": {
     "name": "Fort Desaix"
   },
+  "FRIDA KAHLO": {
+    "name": "Frida Kahlo"
+  },
   "GARE AUX MARCHANDISES": {
     "name": "Gare Marchandises"
   },
   "GARE CENTRALE": {
     "name": "Gare Centrale"
+  },
+  "GLIESBERG": {
+    "name": "Gliesberg"
   },
   "GRAVIERE": {
     "name": "Gravière"
@@ -157,6 +172,9 @@
   "HOPITAL CIVIL": {
     "name": "Hôpital Civil"
   },
+  "ILE DE FRANCE": {
+    "name": "Île de France"
+  },
   "ILLKIRCH FORT UHRICH": {
     "name": "Illkirch Fort Uhrich"
   },
@@ -187,6 +205,9 @@
   },
   "KEHL RATHAUS": {
     "name": "Kehl Rathaus"
+  },
+  "KOENIGSHOFFEN SUD": {
+    "name": "Koenigshoffen Sud"
   },
   "KRIMMERI - ST. MEINAU": {
     "name": "Krimmeri Meinau"
@@ -236,11 +257,16 @@
   "MITTELHAUSBERGEN EGLISE": {
     "name": "Mittelhausb. Église"
   },
+  "MITTELHAUSBERGEN MITTELBERG": {
+    "name": "Mittelh. Mittelberg"
+  },
   "MONTAGNE VERTE": {
     "name": "Montagne Verte",
     "aliases": [
       "MOVE_A",
-      "MOVE_C"
+      "MOVE_C",
+      "MONTAGNE VERTE (ARRIVEE V.1)",
+      "MONTAGNE VERTE (ARRIVEE V.2)"
     ]
   },
   "NEUHOF CORPS EUROPEENS": {
@@ -262,7 +288,11 @@
     "name": "Oberhausbergen Église"
   },
   "OBSERVATOIRE": {
-    "name": "Observatoire"
+    "name": "Observatoire",
+    "aliases": [
+      "OBSERVATOIRE (BD D'ANVERS-ARRIVEE EX)",
+      "OBSERVATOIRE (BD LEBLOIS-ARRIVEE CV)"
+    ]
   },
   "OCTROI": {
     "name": "Octroi"
@@ -288,6 +318,9 @@
   "PARLEMENT EUROPEEN": {
     "name": "Parlement Européen"
   },
+  "PHALSBOURG": {
+    "name": "Phalsbourg"
+  },
   "PLACE D'ISLANDE": {
     "name": "Place d’Islande"
   },
@@ -295,7 +328,13 @@
     "name": "Place d’Ostwald"
   },
   "PLACE DE PIERRE": {
-    "name": "Place de Pierre"
+    "name": "Place de Pierre",
+    "aliases": [
+      "PLACE DE PIERRE L.10"
+    ]
+  },
+  "PLAINE DES BOUCHERS": {
+    "name": "Plaine des Bouchers"
   },
   "POINCARE": {
     "name": "Poincaré"
@@ -314,6 +353,9 @@
   },
   "POTERIES": {
     "name": "Poteries"
+  },
+  "QUARTIER DES QUINZE": {
+    "name": "Quartier des Quinze"
   },
   "REPUBLIQUE": {
     "name": "République"
@@ -348,6 +390,9 @@
   "ROTTERDAM": {
     "name": "Rotterdam"
   },
+  "RUE D'ECKBOLSHEIM": {
+    "name": "Rue d'Eckbolsheim"
+  },
   "SAINT NAZAIRE": {
     "name": "Saint-Nazaire"
   },
@@ -356,6 +401,12 @@
   },
   "SCHILTIGHEIM CAMPUS": {
     "name": "Schiltigheim Campus"
+  },
+  "SCHILTIGHEIM LE MARAIS": {
+    "name": "Schilt. le Marais"
+  },
+  "SCHNOKELOCH": {
+    "name": "Schnokeloch"
   },
   "TIOIR CAMPUS ILLKIRCH DEPART": {
     "name": "Tiroir Campus Ill."

@@ -138,11 +138,27 @@ if (!/^Code /.test(unknown)) {
   failures.push(`un code inconnu doit rester lisible tel quel, reçu « ${unknown} »`)
 }
 
-/* Les suffixes HASTUS des arrêts ne doivent pas survivre à l'affichage. */
+/*
+ * Les arrêts lus sur les cartes agent, y compris les variantes de quai
+ * que HASTUS écrit entre parenthèses : elles nomment le même lieu et
+ * doivent produire le même libellé, borné à la largeur du widget.
+ */
 const stops = [
   ["HOHBERG", "Hohberg"],
   ["ELSAU ARRIVEE", "Elsau"],
-  ["KOENIGSHOFFEN SUD DEPART", "Koenigshoffen Sud"]
+  ["KOENIGSHOFFEN SUD DEPART", "Koenigshoffen Sud"],
+  ["CESAR JULIEN", "César Julien"],
+  ["DUCS D'ALSACE", "Ducs d'Alsace"],
+  ["SCHILTIGHEIM LE MARAIS", "Schilt. le Marais"],
+  ["MITTELHAUSBERGEN MITTELBERG ARRIVEE", "Mittelh. Mittelberg"],
+  ["RUE D'ECKBOLSHEIM", "Rue d'Eckbolsheim"],
+  ["QUARTIER DES QUINZE", "Quartier des Quinze"],
+  ["PLAINE DES BOUCHERS", "Plaine des Bouchers"],
+  ["MONTAGNE VERTE (ARRIVEE V.1)", "Montagne Verte"],
+  ["MONTAGNE VERTE (ARRIVEE V.2)", "Montagne Verte"],
+  ["OBSERVATOIRE (BD D'ANVERS-ARRIVEE EX)", "Observatoire"],
+  ["OBSERVATOIRE (BD LEBLOIS-ARRIVEE CV)", "Observatoire"],
+  ["PLACE DE PIERRE L.10", "Place de Pierre"]
 ]
 
 for (const [raw, expected] of stops) {
