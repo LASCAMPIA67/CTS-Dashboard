@@ -385,6 +385,17 @@ function isIndexedAndCurrent(file, index) {
     return false
   }
 
+  /*
+   * Le cache d'un service terminé est effacé une minute après sa fin,
+   * alors que son PDF reste dans Services jusqu'à l'archivage. Sans
+   * cette condition, l'absence de cache ferait passer le fichier pour
+   * nouveau : il serait réimporté, son cache recréé, puis effacé à
+   * nouveau, à chaque rafraîchissement pendant une heure.
+   */
+  if (entry.cache?.clearedAt) {
+    return true
+  }
+
   const cachePath = fm.joinPath(
     paths.servicesCache,
     entry.cacheFile

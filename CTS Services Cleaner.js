@@ -83,14 +83,33 @@ async function performMaintenance(currentDate, options) {
     7 * 24 * 60 * 60 * 1000
   )
 
+  const cacheGraceMs = resolveNonNegativeDelay(
+    options.cacheGraceMs,
+    pdf.cacheGraceMs,
+    60 * 1000
+  )
+
   const archived = []
   const deleted = []
+  const cacheCleared = []
   const skipped = []
   const errors = []
   let indexChanged = false
 
   for (const entry of services) {
     try {
+      /*
+       * Le vidage du cache passe avant l'archivage, et les deux sont
+       * indépendants : un service terminé depuis deux minutes perd son
+       * cache mais garde son PDF jusqu'à l'heure d'archivage.
+       */
+      const cleared = await clearFinishedServiceCache(entry, currentDate, cacheGraceMs)
+
+      if (cleared) {
+        cacheCleared.push(cleared)
+        indexChanged = true
+      }
+
       const result = await maintainEntry(entry, currentDate, archiveGraceMs, archiveRetentionMs)
 
       if (result.status === "archived") {
@@ -129,19 +148,22 @@ async function performMaintenance(currentDate, options) {
 
   const result = {
     success: errors.length === 0,
-    status: archived.length || deleted.length ? "processed" : "idle",
+    status:
+      archived.length || deleted.length || cacheCleared.length ? "processed" : "idle",
     checkedAt: currentDate.toISOString(),
+    cacheGraceMs,
     archiveGraceMs,
     archiveRetentionMs,
     archived,
     deleted,
+    cacheCleared,
     skipped,
     errors
   }
 
   await saveCleanupState(result)
 
-  if (archived.length || deleted.length || errors.length) {
+  if (archived.length || deleted.length || cacheCleared.length || errors.length) {
     try {
       await STORAGE.appendLog(
         errors.length ? "cleanup-warning" : "cleanup",
@@ -149,6 +171,7 @@ async function performMaintenance(currentDate, options) {
         {
           archived: archived.map(item => item.fileName),
           deleted: deleted.map(item => item.fileName),
+          cacheCleared: cacheCleared.map(item => item.id),
           errors
         }
       )
@@ -180,13 +203,13 @@ async function maintainEntry(entry, currentDate, archiveGraceMs, archiveRetentio
 }
 
 async function maintainActivePdfEntry(entry, currentDate, archiveGraceMs) {
-  const source = await loadEntryService(entry)
-
-  if (!source) {
-    return skippedResult(entry, "cache-unavailable")
-  }
-
-  const serviceEndDate = resolveServiceEndDate(source)
+  /*
+   * L'heure de fin est lue sur l'entrée d'index, pas sur le cache : le
+   * cache est effacé une minute après la fin du service, une heure avant
+   * l'archivage du PDF. S'en remettre à lui laisserait chaque PDF dans
+   * Services pour toujours.
+   */
+  const serviceEndDate = await resolveEntryServiceEndDate(entry)
 
   if (!serviceEndDate) {
     return skippedResult(entry, "end-date-unavailable")
@@ -318,6 +341,101 @@ async function maintainArchivedEntry(entry, currentDate, archiveRetentionMs) {
     fileName: archiveFileName,
     deletedAt
   }
+}
+
+// VIDAGE DU CACHE D’UN SERVICE TERMINÉ
+
+/*
+ * Une fois la dernière tranche terminée, le cache d'un service n'a plus
+ * aucun usage : le widget ne l'affiche plus, l'import ne le relit jamais,
+ * et il restait pourtant sur l'iPhone indéfiniment — un fichier par
+ * service importé, sans limite. Il est donc effacé une minute après la
+ * fin, avec le texte extrait qui l'accompagne.
+ *
+ * L'entrée d'index reste, marquée `cache.clearedAt` : elle garde la
+ * mémoire du service traité, ce qui évite qu'un PDF encore présent dans
+ * Services soit réimporté, et ce qui permet de ne pas repasser sur cette
+ * entrée à chaque exécution.
+ */
+async function clearFinishedServiceCache(entry, currentDate, cacheGraceMs) {
+  if (!isUsableIndexEntry(entry) || entry.cache?.clearedAt) {
+    return null
+  }
+
+  const serviceEndDate = await resolveEntryServiceEndDate(entry)
+
+  if (!isUsableDate(serviceEndDate)) {
+    return null
+  }
+
+  const clearAfterDate = new Date(serviceEndDate.getTime() + cacheGraceMs)
+
+  if (currentDate < clearAfterDate) {
+    return null
+  }
+
+  const removed = []
+
+  for (const [directory, fileName] of [
+    [paths.servicesCache, entry.cacheFile],
+    [paths.servicesTextCache, entry.textFile]
+  ]) {
+    const name = String(fileName || "").trim()
+
+    if (!name) continue
+
+    const path = fm.joinPath(directory, name)
+
+    if (!fm.fileExists(path)) continue
+
+    try {
+      fm.remove(path)
+      removed.push(name)
+    } catch (error) {
+      throw UTILS.createTelemetryError(
+        "SERVICE_CACHE_DELETE_FAILED",
+        "archive",
+        `Le cache du service terminé n’a pas pu être supprimé : ${UTILS.errorMessage(error)}`,
+        error
+      )
+    }
+  }
+
+  const clearedAt = currentDate.toISOString()
+
+  entry.cache = {
+    clearedAt,
+    serviceEndAt: serviceEndDate.toISOString(),
+    files: removed
+  }
+
+  return {
+    status: "cache-cleared",
+    id: entry.id,
+    service: entry.service,
+    date: entry.date,
+    files: removed,
+    clearedAt
+  }
+}
+
+/*
+ * L'heure de fin d'un service se déduit de son entrée d'index — sa date
+ * et l'heure de fin de sa dernière tranche, toutes deux enregistrées à
+ * l'import. Le cache n'est consulté que si l'entrée est trop ancienne
+ * pour les porter, ce qui évite toute migration.
+ */
+async function resolveEntryServiceEndDate(entry) {
+  const fromEntry = resolveServiceEndDate({
+    date: entry?.date,
+    slices: [{ end: entry?.lastEnd }]
+  })
+
+  if (fromEntry) return fromEntry
+
+  const source = await loadEntryService(entry)
+
+  return source ? resolveServiceEndDate(source) : null
 }
 
 // LECTURE DES SERVICES INDEXÉS

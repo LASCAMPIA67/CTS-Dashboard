@@ -45,3 +45,8 @@ jobs:
 
       - name: Run CTS Analytics Admin smoke test
         run: node tools/preview/analytics-smoke.mjs
+
+      # L'archivage suit la fin du service d'une heure, le vidage du cache
+      # d'une minute : seul un enchaînement rejoué le vérifie.
+      - name: Run services cleanup test
+        run: node tools/preview/cleanup-smoke.mjs

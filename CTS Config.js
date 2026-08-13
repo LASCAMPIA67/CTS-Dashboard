@@ -61,6 +61,13 @@ const pdf = Object.freeze({
   maximumFileSizeBytes: 20 * 1024 * 1024,
   extractionTimeoutMs: 25 * SECOND_MS,
   maximumFilesPerRun: 2,
+  /*
+   * Le cache d'un service terminé ne sert plus à rien : ni au widget,
+   * qui ne l'affiche plus, ni à l'import, qui ne le relit jamais. Il est
+   * donc effacé une minute après la fin de la dernière tranche, sans
+   * attendre l'archivage du PDF, qui suit son propre délai.
+   */
+  cacheGraceMs: MINUTE_MS,
   archiveGraceMs: HOUR_MS,
   archiveRetentionMs: 7 * DAY_MS
 })
