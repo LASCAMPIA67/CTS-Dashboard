@@ -5,6 +5,18 @@
 const DB = importModule("CTS Database")
 const UTILS = importModule("CTS Utils")
 
+/*
+ * Codes des lignes de tram, 80 à 85 pour A à F. Ils décident du
+ * vocabulaire affiché : un tram a un « début d'exploitation » là où un
+ * bus a une « mise en ligne ».
+ *
+ * Les codes 90 et 92, qui portent les lettres G et H dans lines.json,
+ * n'ont rien à faire ici : ce sont des lignes de bus à haut niveau de
+ * service, confirmé par Emilio. Leur lettre ressemble à une lettre de
+ * tram, et c'est précisément le piège — les ajouter ferait parler le
+ * widget d'exploitation à des conducteurs de bus. Le contrôle
+ * correspondant est dans tools/preview/database-smoke.mjs.
+ */
 const TRAM_LINE_CODES = new Set(["80", "81", "82", "83", "84", "85"])
 
 const { normalizeText, normalizeTime, isValidTime, toMinutes, escapeRegex, normalizeCode } =
