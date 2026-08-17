@@ -37,7 +37,13 @@ function repositoryFile(name) {
  * Chaque action du menu est jouée dans son propre système de fichiers, et
  * l'alerte répond toujours le même index — celui de l'action visée.
  */
-async function runAction(label, choice, { seed = true, forbidden = null } = {}) {
+async function runAction(label, choice, { seed = true, forbidden = null, throttle = 0 } = {}) {
+  /*
+   * Nombre de réponses 429 servies avant la première réponse utile, pour
+   * rejouer une adresse mise de côté par GitHub.
+   */
+  let remainingThrottled = throttle
+  let networkAttempts = 0
   const sandboxRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cts-smoke-"))
   const docs = path.join(sandboxRoot, "Documents")
   fs.mkdirSync(docs, { recursive: true })
@@ -202,6 +208,14 @@ async function runAction(label, choice, { seed = true, forbidden = null } = {}) 
         this.response = { statusCode: 200 }
       }
       async loadString() {
+        networkAttempts++
+
+        if (remainingThrottled > 0) {
+          remainingThrottled--
+          this.response = { statusCode: 429 }
+          return "429: Too Many Requests"
+        }
+
         if (this.url.includes("api.github.com")) {
           return JSON.stringify({ sha: SNAPSHOT })
         }
@@ -246,6 +260,12 @@ async function runAction(label, choice, { seed = true, forbidden = null } = {}) 
     }
   }
 
+  if (throttle && networkAttempts <= throttle) {
+    failures.push(
+      `aucune reprise après ${throttle} réponse(s) 429 : ${networkAttempts} tentative(s)`
+    )
+  }
+
   fs.rmSync(sandboxRoot, { recursive: true, force: true })
   return [...new Set(failures)]
 }
@@ -265,7 +285,13 @@ const scenarios = [
     forbidden: /illisible|invalide|inaccessible|non résolu/i
   },
   { label: "désinstallation", choice: 2 },
-  { label: "installation neuve", choice: 0, seed: false }
+  { label: "installation neuve", choice: 0, seed: false },
+  /*
+   * Une seule réponse 429 suffisait à rendre CTS Installer inutilisable,
+   * alors que GitHub répond souvent correctement à la tentative
+   * suivante. L'outil de réparation ne doit jamais être la panne.
+   */
+  { label: "reprise après un refus temporaire de GitHub", choice: 0, throttle: 1 }
 ]
 
 let broken = false
@@ -273,7 +299,8 @@ let broken = false
 for (const scenario of scenarios) {
   const failures = await runAction(scenario.label, scenario.choice, {
     seed: scenario.seed !== false,
-    forbidden: scenario.forbidden || null
+    forbidden: scenario.forbidden || null,
+    throttle: scenario.throttle || 0
   })
 
   if (failures.length) {

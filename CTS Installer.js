@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.8"
+const INSTALLER_VERSION = "1.0.9"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -16,6 +16,7 @@ const INSTALLER_FILE = "CTS Installer.js"
 const META_FILE = "installation.json"
 const TIMEOUT = 60
 const RETRIES = 2
+const THROTTLE_RETRY_DELAYS = [1500, 4000, 9000]
 const RENDER_INTERVAL = 120
 const CONCURRENCY = 4
 
@@ -3188,19 +3189,86 @@ async function updateInstaller(version) {
   await alert.present()
 }
 
-async function loadManifest() {
-  const content = await downloadText(
-    `${rawUrl("version.json")}?t=${Date.now()}`,
-    "version.json"
-  )
+/*
+ * GitHub met une adresse de côté quand elle a trop demandé : il répond
+ * alors 429, puis parfois 503 le temps que la mise à l'écart se lève.
+ * Les deux réponses sont temporaires — une même adresse peut recevoir
+ * 429, 429, puis 200 en quelques secondes.
+ *
+ * Le manifeste était pourtant téléchargé sans la moindre reprise, alors
+ * que les fichiers, eux, en avaient déjà deux. Une seule réponse 429
+ * suffisait donc à rendre CTS Installer inutilisable, et à enfermer le
+ * conducteur : l'outil de réparation était lui-même la panne.
+ */
+/*
+ * Rejoue une opération réseau tant que GitHub répond « trop de
+ * demandes ». Toute autre erreur remonte immédiatement : une adresse
+ * mise de côté mérite d'être attendue, un fichier absent non.
+ */
+async function withThrottleRetry(operation) {
+  let lastError
 
-  try {
-    return JSON.parse(content)
-  } catch (error) {
-    throw new Error(
-      `version.json invalide : ${messageOf(error)}`
-    )
+  for (
+    let attempt = 0;
+    attempt <= THROTTLE_RETRY_DELAYS.length;
+    attempt++
+  ) {
+    try {
+      return await operation(attempt)
+    } catch (error) {
+      lastError = error
+
+      if (
+        !isThrottled(error) ||
+        attempt === THROTTLE_RETRY_DELAYS.length
+      ) {
+        break
+      }
+
+      await sleep(
+        THROTTLE_RETRY_DELAYS[attempt]
+      )
+    }
   }
+
+  /*
+   * « Vérifiez votre connexion Internet » était trompeur : la connexion
+   * fonctionne, c'est GitHub qui refuse de répondre à cette adresse.
+   */
+  throw isThrottled(lastError)
+    ? new Error(
+        [
+          "GitHub a temporairement mis votre connexion de côté.",
+          "",
+          "Votre installation n’est pas en cause et rien n’est perdu.",
+          "Patientez quelques minutes, ou passez du Wi-Fi aux données",
+          "mobiles, puis relancez CTS Installer."
+        ].join("\n")
+      )
+    : lastError
+}
+
+function isThrottled(error) {
+  return /HTTP (429|503)/i.test(
+    messageOf(error)
+  )
+}
+
+function loadManifest() {
+  return withThrottleRetry(async attempt => {
+    const content = await downloadText(
+      `${rawUrl("version.json")}?t=${Date.now()}-${attempt}`,
+      "version.json"
+    )
+
+    try {
+      return JSON.parse(content)
+    } catch (error) {
+      throw new Error(
+        `version.json invalide : ${messageOf(error)}`
+      )
+    }
+  })
 }
 
 /*
@@ -3531,7 +3599,11 @@ function ensureParent(path) {
   }
 }
 
-async function resolveRepositoryRevision() {
+function resolveRepositoryRevision() {
+  return withThrottleRetry(fetchRepositoryRevision)
+}
+
+async function fetchRepositoryRevision() {
   const url = [
     "https://api.github.com/repos",
     encodeURIComponent(REPO.owner),
