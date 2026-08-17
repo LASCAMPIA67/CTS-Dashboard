@@ -102,6 +102,7 @@ function parseDatabase(content, name) {
  */
 const VERSION_CHECK_TTL_MS = 6 * 60 * 60 * 1000
 const VERSION_CHECK_TIMEOUT_SECONDS = 6
+const VERSION_CHECK_BACKOFF_MS = 24 * 60 * 60 * 1000
 const VERSION_CHECK_PATH = fm.joinPath(CONFIG.paths.data, "version-check.json")
 
 async function checkPublishedVersion(currentDate = new Date()) {
@@ -119,31 +120,41 @@ async function checkPublishedVersion(currentDate = new Date()) {
 }
 
 async function resolvePublishedVersion(currentDate) {
-  const cached = await STORAGE.readJson(VERSION_CHECK_PATH, null)
+  const cached = readVersionCache()
   const checkedAt = Date.parse(String(cached?.checkedAt || ""))
+  const wait = Number(cached?.retryAfterMs) || VERSION_CHECK_TTL_MS
 
-  if (
-    Number.isFinite(checkedAt) &&
-    currentDate.getTime() - checkedAt < VERSION_CHECK_TTL_MS
-  ) {
+  if (Number.isFinite(checkedAt) && currentDate.getTime() - checkedAt < wait) {
     return normalizeVersion(cached?.published)
   }
 
-  const published = await downloadPublishedVersion()
-
   /*
-   * Un échec est mémorisé comme les autres : réessayer à chaque
-   * rafraîchissement pendant une panne de réseau coûterait plus que de
-   * patienter six heures, et l'absence de réponse ne bloque rien.
+   * L'instant du contrôle est écrit AVANT la requête, et le réseau n'est
+   * touché que si cette écriture est relue avec succès.
+   *
+   * Cet ordre n'est pas cosmétique. Sans lui, un cache illisible faisait
+   * repartir une requête à chaque rafraîchissement du widget — toutes les
+   * minutes pendant un service — jusqu'à ce que GitHub réponde 429 et
+   * bloque aussi CTS Installer. La règle est donc : sans mémoire fiable,
+   * pas de contrôle du tout. La fonctionnalité s'éteint, elle ne s'emballe
+   * jamais.
    */
-  try {
-    await STORAGE.writeJson(VERSION_CHECK_PATH, {
-      checkedAt: currentDate.toISOString(),
-      published
-    })
-  } catch (_) {}
+  const marked = writeVersionCache({
+    checkedAt: currentDate.toISOString(),
+    published: normalizeVersion(cached?.published)
+  })
 
-  return published
+  if (!marked) return ""
+
+  const result = await downloadPublishedVersion()
+
+  writeVersionCache({
+    checkedAt: currentDate.toISOString(),
+    published: result.version,
+    retryAfterMs: result.retryAfterMs
+  })
+
+  return result.version
 }
 
 async function downloadPublishedVersion() {
@@ -155,13 +166,54 @@ async function downloadPublishedVersion() {
     const manifest = await request.loadJSON()
     const statusCode = Number(request.response?.statusCode)
 
-    if (Number.isFinite(statusCode) && (statusCode < 200 || statusCode >= 300)) {
-      return ""
+    /*
+     * 429 signifie que l'adresse a déjà trop demandé. Insister
+     * l'aggraverait, et pénaliserait CTS Installer qui partage la même
+     * adresse : on se met en retrait pour la journée.
+     */
+    if (statusCode === 429) {
+      return { version: "", retryAfterMs: VERSION_CHECK_BACKOFF_MS }
     }
 
-    return normalizeVersion(manifest?.version)
+    if (Number.isFinite(statusCode) && (statusCode < 200 || statusCode >= 300)) {
+      return { version: "", retryAfterMs: VERSION_CHECK_TTL_MS }
+    }
+
+    return { version: normalizeVersion(manifest?.version), retryAfterMs: VERSION_CHECK_TTL_MS }
   } catch (_) {
-    return ""
+    return { version: "", retryAfterMs: VERSION_CHECK_TTL_MS }
+  }
+}
+
+/*
+ * Le cache est lu et écrit sans passer par CTS Storage, volontairement :
+ * sa lecture attend qu'iCloud déclare le fichier disponible, ce qu'un
+ * fichier tout juste écrit ne fait pas toujours. Pour une trace locale de
+ * quelques octets, cette attente n'a aucun sens — et son échec est
+ * précisément ce qui a provoqué la rafale de requêtes.
+ */
+function readVersionCache() {
+  try {
+    if (!fm.fileExists(VERSION_CHECK_PATH)) return null
+
+    const parsed = JSON.parse(fm.readString(VERSION_CHECK_PATH))
+
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null
+  } catch (_) {
+    return null
+  }
+}
+
+function writeVersionCache(value) {
+  try {
+    ensureDirectories()
+    fm.writeString(VERSION_CHECK_PATH, JSON.stringify(value))
+
+    const written = readVersionCache()
+
+    return Boolean(written && written.checkedAt === value.checkedAt)
+  } catch (_) {
+    return false
   }
 }
 

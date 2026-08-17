@@ -28,17 +28,45 @@ function check(condition, message) {
   if (!condition) failures.push(message)
 }
 
-function loadResources({ installed, response, cache = null, now = new Date() }) {
+function loadResources({
+  installed,
+  response,
+  cache = null,
+  now = new Date(),
+  readable = true,
+  writable = true
+}) {
   const source = fs.readFileSync(path.join(repository, "CTS Resources.js"), "utf8")
   const module = { exports: {} }
-  const written = []
+  const disk = new Map()
   let requests = 0
+
+  if (cache) disk.set("/data/version-check.json", JSON.stringify(cache))
+
+  /*
+   * Un vrai système de fichiers en mémoire, et deux interrupteurs :
+   * `readable` simule un fichier qu'iCloud refuse de rendre, `writable`
+   * un disque qui n'accepte pas l'écriture. Ce sont ces deux situations,
+   * absentes du premier banc, qui ont laissé passer la rafale de requêtes.
+   */
+  const fm = {
+    joinPath: (a, b) => `${a}/${b}`,
+    fileExists: target => disk.has(target),
+    readString: target => {
+      if (!readable) throw new Error("fichier indisponible")
+      return disk.get(target) ?? ""
+    },
+    writeString: (target, content) => {
+      if (!writable) throw new Error("écriture refusée")
+      disk.set(target, String(content))
+    }
+  }
 
   const utils = loadUtils()
 
   const loaded = {
     "CTS Config": {
-      fm: { joinPath: (a, b) => `${a}/${b}`, fileExists: () => true, readString: () => "" },
+      fm,
       files: { lines: "/l", stops: "/s", places: "/p" },
       paths: { data: "/data" },
       dashboardVersion: installed,
@@ -46,8 +74,8 @@ function loadResources({ installed, response, cache = null, now = new Date() }) 
       ensureDirectories: () => {}
     },
     "CTS Storage": {
-      readJson: async (_, fallback = null) => (cache === null ? fallback : cache),
-      writeJson: async (target, value) => written.push({ target, value }),
+      readJson: async (_, fallback = null) => fallback,
+      writeJson: () => {},
       writeTextSafely: async () => {},
       ensureDownloaded: async () => true
     },
@@ -81,7 +109,7 @@ function loadResources({ installed, response, cache = null, now = new Date() }) 
   vm.createContext(sandbox)
   vm.runInContext(source, sandbox, { filename: "CTS Resources.js" })
 
-  return { RESOURCES: module.exports, written, requests: () => requests, now }
+  return { RESOURCES: module.exports, disk, requests: () => requests, now }
 }
 
 function loadUtils() {
@@ -183,9 +211,72 @@ for (const [label, options] of mustNotBlock) {
 
   check(stale.requests() === 1, "un cache périmé n'est pas rafraîchi")
   check(
-    stale.written.length === 1 && stale.written[0].value.published === "1.0.16",
+    JSON.parse(stale.disk.get("/data/version-check.json")).published === "1.0.16",
     "la réponse fraîche n'est pas mémorisée"
   )
+}
+
+/*
+ * Le défaut qui a réellement atteint deux iPhones : le cache existe mais
+ * le stockage refuse de le relire. Sans garde-fou, chaque rafraîchissement
+ * du widget repartait sur le réseau — toutes les minutes pendant un
+ * service — jusqu'au 429 de GitHub, qui bloquait aussi CTS Installer.
+ */
+{
+  const unreadable = loadResources({
+    installed: "1.0.12",
+    response: { body: manifest },
+    readable: false
+  })
+
+  for (let index = 0; index < 20; index++) {
+    await unreadable.RESOURCES.checkPublishedVersion(new Date(Date.now() + index * 60000))
+  }
+
+  check(
+    unreadable.requests() === 0,
+    `cache illisible : ${unreadable.requests()} requêtes en 20 rafraîchissements ` +
+      `au lieu de 0 — c'est la rafale qui a provoqué le 429`
+  )
+
+  const readOnly = loadResources({
+    installed: "1.0.12",
+    response: { body: manifest },
+    writable: false
+  })
+
+  for (let index = 0; index < 20; index++) {
+    await readOnly.RESOURCES.checkPublishedVersion(new Date(Date.now() + index * 60000))
+  }
+
+  check(
+    readOnly.requests() === 0,
+    `écriture impossible : ${readOnly.requests()} requêtes au lieu de 0`
+  )
+}
+
+/* Un 429 met le contrôle en retrait pour la journée, pas pour six heures. */
+{
+  const now = new Date()
+
+  const limited = loadResources({
+    installed: "1.0.12",
+    response: { body: {}, statusCode: 429 }
+  })
+
+  await limited.RESOURCES.checkPublishedVersion(now)
+
+  const stored = JSON.parse(limited.disk.get("/data/version-check.json"))
+
+  check(
+    stored.retryAfterMs === 24 * 60 * 60 * 1000,
+    "un 429 ne déclenche pas le retrait de 24 heures"
+  )
+
+  /* Sept heures plus tard, le retrait tient encore. */
+  await limited.RESOURCES.checkPublishedVersion(new Date(now.getTime() + 7 * HOUR))
+
+  check(limited.requests() === 1, "le retrait après 429 n'est pas respecté")
 }
 
 /* Le comparateur, sur les cas qui comptent pour ce projet. */
