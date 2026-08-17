@@ -40,22 +40,6 @@ async function loadContext(currentDate = new Date()) {
   CONFIG.ensureDirectories()
 
   /*
-   * Version en retard : on le dit avant tout le reste.
-   *
-   * Le contrôle passe en premier parce qu'une installation périmée n'a
-   * aucune raison de payer le balayage des PDF ni l'archivage : le widget
-   * ne montrera pas le service de toute façon. Il ne coûte du réseau que
-   * quatre fois par jour, et ne bloque jamais rien de lui-même — sans
-   * réponse de GitHub, checkPublishedVersion renvoie null et la journée
-   * continue normalement.
-   */
-  const outdated = await checkOutdatedInstallation(currentDate)
-
-  if (outdated) {
-    return buildOutdatedFailure(outdated, currentDate)
-  }
-
-  /*
    * 1. Détection et importation des PDF.
    * 2. Sélection du service approprié.
    */
@@ -1088,64 +1072,6 @@ function servicesFolderIsEmpty(resolution) {
  * attendue du conducteur. Le Dashboard le présente autrement qu'une
  * erreur.
  */
-/*
- * CTS Resources n'est pas chargé au démarrage du widget : il ne sert
- * qu'au contrôle des bases et, désormais, à celui de la version. Un
- * import paresseux évite d'ajouter son coût au chemin nominal, et son
- * échec éventuel ne doit jamais empêcher un conducteur de voir son
- * service.
- */
-async function checkOutdatedInstallation(currentDate) {
-  try {
-    const resources = importModule("CTS Resources")
-    return await resources.checkPublishedVersion(currentDate)
-  } catch (_) {
-    return null
-  }
-}
-
-/*
- * L'écran de rattrapage. Il remplace le service, volontairement : une
- * version en retard peut afficher des horaires faux ou des noms d'arrêts
- * incorrects, et il vaut mieux une consigne claire qu'une information à
- * laquelle on ne peut pas se fier.
- *
- * Il se rafraîchit sur le rythme inactif : la mise à jour se fait dans
- * Scriptable, pas en attendant devant l'écran d'accueil.
- */
-function buildOutdatedFailure(outdated, currentDate) {
-  const telemetry = buildContextTelemetry(null, null, false)
-
-  telemetry.serviceStatus = "not_run"
-
-  addDiagnosticIssue(telemetry, {
-    severity: "warning",
-    errorCode: "DASHBOARD_VERSION_OUTDATED",
-    module: "WidgetEngine",
-    stage: "version"
-  })
-
-  const context = information(
-    "Mise à jour nécessaire",
-    [
-      `Version installée ${outdated.installed} · disponible ${outdated.published}`,
-      "",
-      "1. Ouvre l’application Scriptable",
-      "2. Lance CTS Installer",
-      `3. Choisis « Mettre à jour vers ${outdated.published} »`,
-      "",
-      "Ton service réapparaîtra dès la mise à jour terminée."
-    ].join("\n"),
-    currentDate,
-    telemetry
-  )
-
-  return {
-    ...context,
-    refreshAfterDate: new Date(currentDate.getTime() + CONFIG.refresh.inactiveMs)
-  }
-}
-
 function information(title, message, currentDate, telemetry) {
   return {
     ...failure(title, message, currentDate, telemetry),

@@ -158,23 +158,6 @@ function isUsableDate(value) {
   )
 }
 
-/*
- * Compare deux numéros de version « 1.0.16 » : positif si le premier est
- * le plus récent. Les segments absents valent zéro, si bien que 1.1 est
- * postérieur à 1.0.16 sans traitement particulier.
- */
-function compareVersions(first, second) {
-  const left = String(first || "").trim().split(".")
-  const right = String(second || "").trim().split(".")
-
-  for (let index = 0; index < Math.max(left.length, right.length); index++) {
-    const difference = (Number(left[index]) || 0) - (Number(right[index]) || 0)
-    if (difference !== 0) return difference
-  }
-
-  return 0
-}
-
 function errorMessage(error) {
   return error?.message?.trim?.() || String(error || "Erreur inconnue")
 }
@@ -322,7 +305,6 @@ module.exports = {
   durationMinutes,
   formatDuration,
   parseDate,
-  compareVersions,
   isValidDate,
   isUsableDate,
   finiteOrNull,
