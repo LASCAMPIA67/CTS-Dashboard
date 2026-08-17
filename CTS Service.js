@@ -5,6 +5,14 @@
 const CONFIG = importModule("CTS Config")
 const UTILS = importModule("CTS Utils")
 
+/*
+ * Ces fonctions vivaient ici en double. Une liaison remplace la copie :
+ * les appels du fichier ne changent pas, et une correction faite à la
+ * source profite désormais à tous les modules.
+ */
+const isUsableDate = UTILS.isUsableDate
+
+
 const DAY_MS = 24 * 60 * 60 * 1000
 const MINUTES_PER_DAY = 24 * 60
 
@@ -570,19 +578,6 @@ function hasSlices(service) {
     service &&
     Array.isArray(service.slices) &&
     service.slices.length > 0
-  )
-}
-
-function isUsableDate(value) {
-  return Boolean(
-    value &&
-    typeof value.getTime === "function" &&
-    typeof value.getFullYear === "function" &&
-    typeof value.getMonth === "function" &&
-    typeof value.getDate === "function" &&
-    typeof value.getHours === "function" &&
-    typeof value.getMinutes === "function" &&
-    Number.isFinite(value.getTime())
   )
 }
 

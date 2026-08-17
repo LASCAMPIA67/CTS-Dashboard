@@ -12,6 +12,14 @@ const UTILS = importModule("CTS Utils")
 
 const { fm, paths, files, pdf } = CONFIG
 
+/*
+ * Ces fonctions vivaient ici en double. Une liaison remplace la copie :
+ * les appels du fichier ne changent pas, et une correction faite à la
+ * source profite désormais à tous les modules.
+ */
+const removeFileQuietly = STORAGE.removeFileQuietly
+
+
 const CLEANUP_VERSION = 1
 const CLEANUP_LOCK_TTL_MS = 2 * 60 * 1000
 const CLEANUP_LOCK_PATH = fm.joinPath(paths.data, "services-cleanup.lock")
@@ -99,9 +107,9 @@ async function performMaintenance(currentDate, options) {
   for (const entry of services) {
     try {
       /*
-       * Le vidage du cache passe avant l'archivage, et les deux sont
-       * indépendants : un service terminé depuis deux minutes perd son
-       * cache mais garde son PDF jusqu'à l'heure d'archivage.
+       * Le vidage du cache passe avant l'archivage. Les deux partagent la
+       * même échéance, mais l'ordre compte : l'archivage lit l'heure de
+       * fin sur l'entrée d'index, jamais sur le cache qui vient de partir.
        */
       const cleared = await clearFinishedServiceCache(entry, currentDate, cacheGraceMs)
 
@@ -205,9 +213,9 @@ async function maintainEntry(entry, currentDate, archiveGraceMs, archiveRetentio
 async function maintainActivePdfEntry(entry, currentDate, archiveGraceMs) {
   /*
    * L'heure de fin est lue sur l'entrée d'index, pas sur le cache : le
-   * cache est effacé une minute après la fin du service, une heure avant
-   * l'archivage du PDF. S'en remettre à lui laisserait chaque PDF dans
-   * Services pour toujours.
+   * cache est effacé au même passage que cet archivage, et le vidage
+   * s'exécute en premier. S'en remettre au cache laisserait chaque PDF
+   * dans Services pour toujours.
    */
   const serviceEndDate = await resolveEntryServiceEndDate(entry)
 
@@ -349,8 +357,9 @@ async function maintainArchivedEntry(entry, currentDate, archiveRetentionMs) {
  * Une fois la dernière tranche terminée, le cache d'un service n'a plus
  * aucun usage : le widget ne l'affiche plus, l'import ne le relit jamais,
  * et il restait pourtant sur l'iPhone indéfiniment — un fichier par
- * service importé, sans limite. Il est donc effacé une minute après la
- * fin, avec le texte extrait qui l'accompagne.
+ * service importé, sans limite. Il est donc effacé une heure après la
+ * fin — le délai pendant lequel le widget affiche encore le service
+ * terminé — avec le texte extrait qui l'accompagne.
  *
  * L'entrée d'index reste, marquée `cache.clearedAt` : elle garde la
  * mémoire du service traité, ce qui évite qu'un PDF encore présent dans
@@ -764,14 +773,6 @@ function failureResult(
 
 function uniqueToken() {
   return [Date.now(), Math.random().toString(36).slice(2, 10)].join("-")
-}
-
-function removeFileQuietly(path) {
-  try {
-    if (path && fm.fileExists(path)) {
-      fm.remove(path)
-    }
-  } catch (_) {}
 }
 
 // EXPORTS

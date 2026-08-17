@@ -275,6 +275,7 @@ module.exports = {
   loadLog,
   fileExists,
   removeFile,
+  removeFileQuietly,
   buildUniqueToken,
   safeModificationDate
 }

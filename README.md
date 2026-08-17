@@ -101,6 +101,45 @@ CTS Dashboard
     └── Rejected
 ```
 
+## Contenu du dépôt
+
+Ce dépôt est **public** et ne contient que ce qui est destiné aux conducteurs :
+
+| | |
+|---|---|
+| **22 fichiers distribués** | 17 scripts + 5 ressources, listés dans `version.json`, installés par CTS Installer |
+| **`CTS Installer.js`** | téléchargé depuis l'URL brute, se met à jour lui-même, hors manifeste |
+| **`CTS Repair.js`** | remplace un installateur bloqué, installé à la main en cas de besoin |
+| **`tools/preview/`** | bancs d'essai exécutés en intégration continue, jamais sur un iPhone |
+
+Les outils de maintenance du mainteneur — console de statistiques, simulateur,
+éditeur de base, testeur PDF — **ne figurent pas dans ce dépôt**. Ils vivent
+uniquement sur son iPhone. `.gitignore` les ignore et `validate.mjs` échoue si
+l'un d'eux réapparaît : un dépôt public publie définitivement ce qu'on y met,
+l'historique Git compris.
+
+Cette séparation ne protège aucun secret, car il n'y en a aucun dans ces
+outils. La capacité d'administration tient à la clé `ADMIN_API_KEY`, conservée
+dans le Keychain du mainteneur et vérifiée par le serveur : sans elle, l'API de
+statistiques répond 401, quel que soit le code exécuté.
+
+## Vérifications automatiques
+
+`node .github/scripts/validate.mjs` contrôle le manifeste, la syntaxe, les
+métadonnées Scriptable, la cohérence des versions, les libellés d'arrêts, le
+contraste de la palette et l'absence d'outil admin.
+
+Cinq bancs d'essai complètent la CI, parce qu'une vérification statique ne voit
+pas ce qui casse à l'exécution :
+
+| Banc | Ce qu'il empêche |
+|---|---|
+| `modules-smoke` | une fonction appelée d'un module à l'autre qui n'existe pas |
+| `database-smoke` | un arrêt affiché sous forme de code |
+| `cleanup-smoke` | un PDF jamais archivé, un cache effacé trop tôt |
+| `installer-smoke` | une constante inaccessible à l'exécution |
+| `repair-smoke` | un dépannage qui laisse l'iPhone sans installateur |
+
 ## Développeur
 
 **Emilio IPPOLITO**

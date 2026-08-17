@@ -17,6 +17,15 @@ const SERVICES_MANAGER = importModule("CTS Services Manager")
 
 const SERVICES_CLEANER = importModule("CTS Services Cleaner")
 
+/*
+ * Ces fonctions vivaient ici en double. Une liaison remplace la copie :
+ * les appels du fichier ne changent pas, et une correction faite à la
+ * source profite désormais à tous les modules.
+ */
+const telemetryFromError = UTILS.telemetryFromError
+const finiteOrNull = UTILS.finiteOrNull
+
+
 const SERVICES_SCAN_REFRESH_MS = 15 * 60 * 1000
 
 const PENDING_SCAN_REFRESH_MS = 60 * 1000
@@ -800,13 +809,6 @@ function normalizeIssueSeverity(value) {
   return ["warning", "error", "fatal"].includes(severity) ? severity : "error"
 }
 
-function telemetryFromError(error, fallbackCode, fallbackStage) {
-  return {
-    code: normalizeTelemetryCode(error?.telemetryCode, fallbackCode),
-    stage: normalizeTelemetryStage(error?.telemetryStage, fallbackStage)
-  }
-}
-
 function normalizeTelemetryCode(value, fallback) {
   const normalized = String(value || fallback || "DASHBOARD_UNKNOWN_ERROR")
     .trim()
@@ -843,16 +845,6 @@ function normalizeImportTimings(value) {
     registrationMs: finiteOrNull(value.registrationMs),
     totalMs: finiteOrNull(value.totalMs)
   }
-}
-
-function finiteOrNull(value) {
-  if (value === null || value === undefined || value === "") {
-    return null
-  }
-
-  const number = Number(value)
-
-  return Number.isFinite(number) ? number : null
 }
 
 // ACTUALISATION AUTOMATIQUE

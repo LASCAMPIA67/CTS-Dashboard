@@ -11,6 +11,14 @@ const UTILS = importModule("CTS Utils")
 
 const { fm, paths, files, pdf } = CONFIG
 
+/*
+ * Ces fonctions vivaient ici en double. Une liaison remplace la copie :
+ * les appels du fichier ne changent pas, et une correction faite à la
+ * source profite désormais à tous les modules.
+ */
+const errorMessage = UTILS.errorMessage
+
+
 // =====================================================
 // VERSION LOCALE DE PDF.JS
 // =====================================================
@@ -1522,10 +1530,6 @@ function removeFileQuietly(path) {
       fm.remove(path)
     }
   } catch (_) {}
-}
-
-function errorMessage(error) {
-  return UTILS.errorMessage(error)
 }
 
 // =====================================================

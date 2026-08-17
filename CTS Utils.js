@@ -125,6 +125,39 @@ function normalizeKey(value) {
     .toUpperCase()
 }
 
+/*
+ * Une valeur numérique, ou null quand il n'y en a pas. Trois modules en
+ * avaient chacun leur copie identique.
+ */
+function finiteOrNull(value) {
+  if (value === null || value === undefined || value === "") {
+    return null
+  }
+
+  const number = Number(value)
+
+  return Number.isFinite(number) ? number : null
+}
+
+/*
+ * Une date utilisable, reconnue à ses méthodes plutôt qu'à son
+ * constructeur : plus permissif qu'isValidDate, et volontairement, car
+ * une date venue d'un autre contexte d'exécution échoue au test
+ * `instanceof Date` tout en étant parfaitement utilisable.
+ */
+function isUsableDate(value) {
+  return Boolean(
+    value &&
+    typeof value.getTime === "function" &&
+    typeof value.getFullYear === "function" &&
+    typeof value.getMonth === "function" &&
+    typeof value.getDate === "function" &&
+    typeof value.getHours === "function" &&
+    typeof value.getMinutes === "function" &&
+    Number.isFinite(value.getTime())
+  )
+}
+
 function errorMessage(error) {
   return error?.message?.trim?.() || String(error || "Erreur inconnue")
 }
@@ -273,6 +306,8 @@ module.exports = {
   formatDuration,
   parseDate,
   isValidDate,
+  isUsableDate,
+  finiteOrNull,
   startOfDay,
   dayDifference,
   formatDateLong,

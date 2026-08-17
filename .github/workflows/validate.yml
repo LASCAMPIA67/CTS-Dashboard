@@ -29,6 +29,11 @@ jobs:
       - name: Validate repository
         run: node .github/scripts/validate.mjs
 
+      # Une fonction manquante entre modules survit à la syntaxe et
+      # n'échoue que le matin où un conducteur regarde son widget.
+      - name: Run module reference test
+        run: node tools/preview/modules-smoke.mjs
+
       # Une analyse statique ne voit pas une constante inaccessible à
       # l'exécution : ces deux tests exécutent réellement les scripts,
       # point d'entrée compris, sur des doublures hors ligne.
@@ -43,10 +48,7 @@ jobs:
       - name: Run database resolution test
         run: node tools/preview/database-smoke.mjs
 
-      - name: Run CTS Analytics Admin smoke test
-        run: node tools/preview/analytics-smoke.mjs
-
-      # L'archivage suit la fin du service d'une heure, le vidage du cache
-      # d'une minute : seul un enchaînement rejoué le vérifie.
+      # Le vidage du cache et l'archivage suivent la fin du service d'une
+      # heure : seul un enchaînement rejoué le vérifie.
       - name: Run services cleanup test
         run: node tools/preview/cleanup-smoke.mjs

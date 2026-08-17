@@ -1,0 +1,15 @@
+# Sorties des bancs d'essai locaux.
+out/
+
+# Outils réservés au mainteneur, jamais distribués aux collègues.
+#
+# Ils vivent uniquement sur l'iPhone du mainteneur. Ce dépôt est public :
+# tout ce qui y entre est lisible par n'importe qui, et l'historique Git
+# le conserve même après suppression. Ces noms sont donc ignorés pour
+# qu'un « git add . » ne les y fasse jamais entrer par accident, et la
+# validation refuse leur présence.
+CTS Analytics Admin.js
+CTS Analytics Test.js
+CTS Database Editor.js
+CTS PDF Tester.js
+CTS Simulator.js

@@ -18,6 +18,14 @@ const {
   files
 } = CONFIG
 
+/*
+ * Ces fonctions vivaient ici en double. Une liaison remplace la copie :
+ * les appels du fichier ne changent pas, et une correction faite à la
+ * source profite désormais à tous les modules.
+ */
+const errorMessage = UTILS.errorMessage
+
+
 const INDEX_VERSION = 2
 
 async function importPdf(pdfPath, options = {}) {
@@ -863,10 +871,6 @@ function timestampForFileName() {
     .toISOString()
     .replace(/[-:]/g, "")
     .replace(/\.\d{3}Z$/, "Z")
-}
-
-function errorMessage(error) {
-  return UTILS.errorMessage(error)
 }
 
 module.exports = {

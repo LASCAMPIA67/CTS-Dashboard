@@ -11,17 +11,21 @@ const INSTALLER_FILE = 'CTS Installer.js'
 const METADATA_MARKER = '// Variables used by Scriptable.'
 const MINIMUM_LIBRARY_BYTES = 40 * 1024
 
-// Fichiers .js présents à la racine sans faire partie du manifeste.
-// CTS Simulator est un outil de maintenance, installé à la main par le
-// mainteneur. CTS Repair remplace un installateur cassé et s'installe
-// lui aussi à la main. Ni l'un ni l'autre n'est distribué par
-// CTS Installer.
-const UNMANIFESTED_SCRIPTS = new Set([
-  INSTALLER_FILE,
-  'CTS Simulator.js',
-  'CTS Repair.js',
-  'CTS Analytics Admin.js'
-])
+// Fichiers .js présents à la racine sans faire partie du manifeste mais
+// bel et bien destinés aux collègues : CTS Installer, qu'ils téléchargent
+// depuis l'URL brute, et CTS Repair, qui le remplace quand il est bloqué.
+const UNMANIFESTED_SCRIPTS = new Set([INSTALLER_FILE, 'CTS Repair.js'])
+
+// Outils réservés au mainteneur. Ce dépôt est public : leur présence ici
+// les publierait, et l'historique Git les conserverait. Ils vivent
+// uniquement sur son iPhone, et la validation refuse qu'ils reviennent.
+const ADMIN_ONLY_SCRIPTS = [
+  'CTS Analytics Admin.js',
+  'CTS Analytics Test.js',
+  'CTS Database Editor.js',
+  'CTS PDF Tester.js',
+  'CTS Simulator.js'
+]
 
 const problems = []
 const fail = message => problems.push(message)
@@ -175,6 +179,17 @@ for (const file of fs.readdirSync('.').filter(name => name.endsWith('.json'))) {
   }
 }
 
+// ------------------------------------------- aucun outil admin publié
+
+for (const file of ADMIN_ONLY_SCRIPTS) {
+  if (fs.existsSync(file)) {
+    fail(
+      `${file} est un outil réservé au mainteneur et ne doit pas figurer ` +
+      `dans ce dépôt public. Retire-le de l'index avant de committer.`
+    )
+  }
+}
+
 // -------------------------------------------------- aucun script orphelin
 
 const rootScripts = fs.readdirSync('.').filter(name => name.endsWith('.js'))
@@ -208,9 +223,9 @@ for (const file of UNMANIFESTED_SCRIPTS) {
     continue
   }
 
-  checkScriptableMetadata(content, file, {
-    unique: file !== INSTALLER_FILE && file !== 'CTS Repair.js'
-  })
+  // CTS Installer et CTS Repair écrivent des scripts Scriptable : ils
+  // portent légitimement le marqueur de métadonnées dans des chaînes.
+  checkScriptableMetadata(content, file, { unique: false })
   checkSyntax(content, file)
   checkEntryPoint(content, file)
 }

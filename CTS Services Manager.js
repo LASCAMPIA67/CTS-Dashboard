@@ -12,6 +12,16 @@ const UTILS = importModule("CTS Utils")
 const SERVICES_CLEANER = importModule("CTS Services Cleaner")
 
 const { fm, paths, files, pdf } = CONFIG
+
+/*
+ * Ces fonctions vivaient ici en double. Une liaison remplace la copie :
+ * les appels du fichier ne changent pas, et une correction faite à la
+ * source profite désormais à tous les modules.
+ */
+const removeFileQuietly = STORAGE.removeFileQuietly
+const finiteOrNull = UTILS.finiteOrNull
+const isUsableDate = UTILS.isUsableDate
+
 const {
   createTelemetryError,
   hasTelemetryError,
@@ -386,7 +396,7 @@ function isIndexedAndCurrent(file, index) {
   }
 
   /*
-   * Le cache d'un service terminé est effacé une minute après sa fin,
+   * Le cache d'un service terminé est effacé une heure après sa fin,
    * alors que son PDF reste dans Services jusqu'à l'archivage. Sans
    * cette condition, l'absence de cache ferait passer le fichier pour
    * nouveau : il serait réimporté, son cache recréé, puis effacé à
@@ -1022,19 +1032,6 @@ function localDateKey(date) {
   ].join("-")
 }
 
-function isUsableDate(value) {
-  return Boolean(
-    value &&
-    typeof value.getTime === "function" &&
-    typeof value.getFullYear === "function" &&
-    typeof value.getMonth === "function" &&
-    typeof value.getDate === "function" &&
-    typeof value.getHours === "function" &&
-    typeof value.getMinutes === "function" &&
-    Number.isFinite(value.getTime())
-  )
-}
-
 function normalizeTimings(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null
@@ -1048,15 +1045,6 @@ function normalizeTimings(value) {
     registrationMs: finiteOrNull(value.registrationMs),
     totalMs: finiteOrNull(value.totalMs)
   }
-}
-
-function finiteOrNull(value) {
-  if (value === null || value === undefined || value === "") {
-    return null
-  }
-
-  const number = Number(value)
-  return Number.isFinite(number) ? number : null
 }
 
 function resolveMaximumFiles(requestedValue) {
@@ -1097,14 +1085,6 @@ function isCanonicalPdfName(fileName) {
   return /^Service_\d{4}-\d{2}-\d{2}_[A-Z0-9_-]+\.pdf$/i.test(
     String(fileName || "")
   )
-}
-
-function removeFileQuietly(path) {
-  try {
-    if (path && fm.fileExists(path)) {
-      fm.remove(path)
-    }
-  } catch (_) {}
 }
 
 module.exports = {
