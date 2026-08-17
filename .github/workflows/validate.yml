@@ -48,6 +48,11 @@ jobs:
       - name: Run database resolution test
         run: node tools/preview/database-smoke.mjs
 
+      # Le contrôle de version peut cacher son service à un conducteur :
+      # ce banc vérifie surtout tous les cas où il doit s'abstenir.
+      - name: Run version check test
+        run: node tools/preview/version-smoke.mjs
+
       # Le vidage du cache et l'archivage suivent la fin du service d'une
       # heure : seul un enchaînement rejoué le vérifie.
       - name: Run services cleanup test
