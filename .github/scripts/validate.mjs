@@ -55,8 +55,9 @@ function checkSyntax(content, label) {
  * moment précis où le chemin d'exécution y passe — un piège qui a déjà
  * atteint un utilisateur, avec CTS Installer 1.0.7.
  *
- * Le contrôle vaut pour tout script exécutable de la racine : les scripts
- * du manifeste sont des modules et n'ont pas de point d'entrée await.
+ * Le contrôle vaut pour tout script de la racine, manifeste compris : un
+ * module sans appel await de premier niveau n'est simplement pas
+ * concerné, et CTS Dashboard.js, lui, l'est.
  */
 function checkEntryPoint(content, label) {
   const lines = content.split('\n')
@@ -169,6 +170,16 @@ for (const file of scripts) {
   const content = read(file)
   checkScriptableMetadata(content, file)
   checkSyntax(content, file)
+  /*
+   * Le point d'entrée est contrôlé ici aussi. On avait supposé que les
+   * scripts du manifeste étaient tous des modules sans appel de premier
+   * niveau — or CTS Dashboard.js est précisément le point d'entrée du
+   * widget. La zone morte temporelle a donc pu y être publiée alors même
+   * que ce contrôle existait, écrit après qu'elle eut tué l'installateur
+   * 1.0.7. checkEntryPoint ne coûte rien aux vrais modules : sans appel
+   * await de premier niveau, il rend la main immédiatement.
+   */
+  checkEntryPoint(content, file)
 }
 
 for (const file of fs.readdirSync('.').filter(name => name.endsWith('.json'))) {

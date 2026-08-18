@@ -13,6 +13,17 @@ const ERROR_MESSAGE = "Le widget ne peut pas être affiché."
 const ERROR_REFRESH_MS = 5 * 60 * 1000
 const TELEMETRY_WIDGET_WAIT_MS = 1500
 
+/*
+ * Déclarée AVANT l'appel au point d'entrée.
+ *
+ * Placée plus bas, cette variable est inaccessible pendant toute
+ * l'exécution — zone morte temporelle — et le widget échoue entièrement
+ * sur « Cannot access 'runTrace' before initialization ». C'est le défaut
+ * qui avait tué l'installateur 1.0.7, reproduit ici parce que le contrôle
+ * de la CI ne surveillait que CTS Installer.js.
+ */
+let runTrace = null
+
 const family = WIDGET_ENGINE.getWidgetFamily()
 const analytics = loadAnalyticsClient()
 const telemetryRun = createTelemetryRunSafely(analytics)
@@ -113,8 +124,6 @@ async function main() {
  * qu'iCloud déclare disponible une trace de diagnostic n'aurait aucun
  * sens, et son échec ne doit jamais empêcher l'affichage.
  */
-let runTrace = null
-
 function recordRunTrace(context) {
   runTrace = {
     at: new Date().toISOString(),

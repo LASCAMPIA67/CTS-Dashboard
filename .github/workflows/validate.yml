@@ -37,6 +37,9 @@ jobs:
       # Une analyse statique ne voit pas une constante inaccessible à
       # l'exécution : ces deux tests exécutent réellement les scripts,
       # point d'entrée compris, sur des doublures hors ligne.
+      - name: Run CTS Dashboard smoke test
+        run: node tools/preview/dashboard-smoke.mjs
+
       - name: Run CTS Installer smoke test
         run: node tools/preview/installer-smoke.mjs
 
