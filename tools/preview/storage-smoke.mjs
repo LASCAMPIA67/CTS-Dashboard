@@ -30,15 +30,17 @@ const repository = path.resolve(here, "..", "..")
  */
 function createFileManager({ confirmsDownloads }) {
   const disk = new Map()
+  const calls = { downloads: 0 }
 
   return {
     disk,
+    calls,
     joinPath: (parent, child) => `${parent}/${child}`,
     documentsDirectory: () => "/documents",
     fileExists: target => disk.has(target),
     createDirectory: () => {},
     isFileDownloaded: () => confirmsDownloads,
-    downloadFileFromiCloud: async () => {},
+    downloadFileFromiCloud: async () => { calls.downloads++ },
     readString: target => {
       if (!disk.has(target)) throw new Error(`fichier absent : ${target}`)
       return disk.get(target)
@@ -111,6 +113,16 @@ const INDEX = { version: 2, services: [{ pdfFile: "EA06.pdf", cacheFile: "EA06.j
       `${JSON.stringify(read)} au lieu de son contenu réel`
     )
   }
+
+  /*
+   * Le fichier est là : le réveiller coûte 1,5 seconde de pauses, et un
+   * widget n'a pas ce temps. Un fichier présent ne doit rien coûter.
+   */
+  if (fm.calls.downloads !== 0) {
+    failures.push(
+      `fichier présent : ${fm.calls.downloads} attente(s) iCloud alors qu'il était lisible`
+    )
+  }
 }
 
 /* Le chemin normal ne doit rien perdre au passage. */
@@ -167,4 +179,7 @@ if (failures.length) {
   process.exit(1)
 }
 
-console.log("ok     lecture des fichiers iCloud (iCloud muet, iCloud normal, absent, illisible)")
+console.log(
+  "ok     lecture des fichiers iCloud " +
+  "(iCloud muet, iCloud normal, absent, illisible, aucune attente inutile)"
+)

@@ -68,7 +68,7 @@ async function loadContext(currentDate = new Date()) {
    * donc sa disponibilité avant, sans jamais bloquer l'affichage.
    */
   try {
-    await STORAGE.ensureDownloaded(CONFIG.files.places)
+    await STORAGE.ensureReadable(CONFIG.files.places)
   } catch (_) {}
 
   const normalized = SERVICE_ENGINE.normalizeService(source)

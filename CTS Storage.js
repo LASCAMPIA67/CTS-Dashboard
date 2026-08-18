@@ -48,16 +48,43 @@ async function ensureDownloaded(path) {
  * le même téléphone affichait le service correctement depuis Scriptable,
  * à la même minute.
  *
- * On tente donc la lecture directe avant de renoncer. Elle réussit quand
- * le fichier est réellement là, et son échec ne coûte rien : on retombe
- * sur la même valeur de repli qu'avant.
+ * On lit donc directement d'abord, et on ne réveille iCloud que si cette
+ * lecture ne donne rien.
+ *
+ * L'ordre est le fond de l'affaire, pas un détail. ensureDownloaded
+ * dépense 1,5 seconde de pauses et quatre attentes iCloud avant de
+ * renoncer, et un réveil de widget enchaîne une dizaine de lectures —
+ * l'index, le cache, l'état du balayage, le verrou, les lieux, chaque
+ * PDF. Placé après cette dépense, le secours arrivait trop tard : le
+ * widget était tué avant d'avoir rien dessiné, et laissait donc son
+ * image précédente à l'écran. Placé avant, le cas normal — un fichier
+ * réellement présent — ne coûte plus rien du tout.
  */
 async function readText(path, fallback = "") {
+  const direct = readWithoutICloudConfirmation(path, null)
+
+  if (direct !== null) return direct
+
   try {
     if (await ensureDownloaded(path)) return fm.readString(path)
   } catch (_) {}
 
-  return readWithoutICloudConfirmation(path, fallback)
+  return fallback
+}
+
+/*
+ * S'assurer qu'un fichier sera lisible, sans payer iCloud quand il l'est
+ * déjà. Destiné aux lectures synchrones faites plus loin — places.json
+ * notamment, que normalizeService relit sans await.
+ */
+async function ensureReadable(path) {
+  if (readWithoutICloudConfirmation(path, null) !== null) return true
+
+  try {
+    return await ensureDownloaded(path)
+  } catch (_) {
+    return false
+  }
 }
 
 function readWithoutICloudConfirmation(path, fallback) {
@@ -289,6 +316,7 @@ function sanitizeDetails(value) {
 
 module.exports = {
   ensureDownloaded,
+  ensureReadable,
   readText,
   readJson,
   writeText,
