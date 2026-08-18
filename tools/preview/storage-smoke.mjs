@@ -1,0 +1,170 @@
+/*
+ * Test de lecture des fichiers iCloud.
+ *
+ * Ce banc existe à cause d'un défaut arrivé jusqu'à l'écran d'un
+ * conducteur : son service s'affichait parfaitement quand il lançait
+ * CTS Dashboard depuis Scriptable, et son widget affichait « Analyse en
+ * cours » à la même minute, sur le même téléphone.
+ *
+ * La cause n'était pas le service, ni le PDF, ni l'index : c'était la
+ * lecture. isFileDownloaded répond « non » pour des fichiers pourtant
+ * lisibles dès qu'iOS déprioritise iCloud — ce qu'il fait précisément
+ * dans un widget, qui reçoit bien moins de temps que l'application.
+ * L'index et le cache revenaient donc vides, sans le moindre message.
+ *
+ * On rejoue donc ici un disque où iCloud ne confirme jamais rien.
+ */
+
+import fs from "node:fs"
+import path from "node:path"
+import vm from "node:vm"
+import { fileURLToPath } from "node:url"
+
+const here = path.dirname(fileURLToPath(import.meta.url))
+const repository = path.resolve(here, "..", "..")
+
+/*
+ * Disque en mémoire. `confirmsDownloads` reproduit le comportement
+ * d'iCloud : à false, aucun fichier n'est jamais déclaré disponible,
+ * bien qu'il soit réellement là et parfaitement lisible.
+ */
+function createFileManager({ confirmsDownloads }) {
+  const disk = new Map()
+
+  return {
+    disk,
+    joinPath: (parent, child) => `${parent}/${child}`,
+    documentsDirectory: () => "/documents",
+    fileExists: target => disk.has(target),
+    createDirectory: () => {},
+    isFileDownloaded: () => confirmsDownloads,
+    downloadFileFromiCloud: async () => {},
+    readString: target => {
+      if (!disk.has(target)) throw new Error(`fichier absent : ${target}`)
+      return disk.get(target)
+    },
+    writeString: (target, value) => disk.set(target, String(value)),
+    remove: target => disk.delete(target),
+    fileSize: target => (disk.has(target) ? 1 : 0),
+    modificationDate: () => new Date()
+  }
+}
+
+function loadStorage(fm) {
+  const loaded = {}
+  const modules = ["CTS Config", "CTS Utils", "CTS Storage"]
+
+  for (const name of modules) {
+    const source = fs.readFileSync(path.join(repository, `${name}.js`), "utf8")
+    const module = { exports: {} }
+
+    const sandbox = {
+      module,
+      console: { log: () => {}, warn: () => {}, error: () => {} },
+      Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
+      Promise, RegExp, Error, isNaN, parseInt, parseFloat,
+      encodeURIComponent, decodeURIComponent,
+      /* Le Timer de Scriptable compte en millisecondes. */
+      Timer: class {
+        static schedule(milliseconds, repeats, callback) {
+          setTimeout(callback, 0)
+          return new this()
+        }
+        invalidate() {}
+      },
+      FileManager: { iCloud: () => fm, local: () => fm },
+      importModule: requested => {
+        const key = String(requested).replace(/^.*\//, "")
+        if (!loaded[key]) throw new Error(`module inattendu : ${key}`)
+        return loaded[key]
+      }
+    }
+
+    vm.createContext(sandbox)
+    vm.runInContext(source, sandbox, { filename: name })
+    loaded[name] = module.exports
+  }
+
+  return loaded["CTS Storage"]
+}
+
+const failures = []
+const INDEX = { version: 2, services: [{ pdfFile: "EA06.pdf", cacheFile: "EA06.json" }] }
+
+/*
+ * Le cas du conducteur : le fichier est là, iCloud ne le confirme pas.
+ * Avant correction, readJson renvoyait null et le widget concluait
+ * « aucun service » alors que tout était sur le disque.
+ */
+{
+  const fm = createFileManager({ confirmsDownloads: false })
+  const STORAGE = loadStorage(fm)
+  const target = "/documents/CTS Dashboard/Data/services-index.json"
+
+  fm.disk.set(target, JSON.stringify(INDEX))
+
+  const read = await STORAGE.readJson(target, null)
+
+  if (JSON.stringify(read) !== JSON.stringify(INDEX)) {
+    failures.push(
+      "iCloud ne confirme pas le téléchargement : l'index revient " +
+      `${JSON.stringify(read)} au lieu de son contenu réel`
+    )
+  }
+}
+
+/* Le chemin normal ne doit rien perdre au passage. */
+{
+  const fm = createFileManager({ confirmsDownloads: true })
+  const STORAGE = loadStorage(fm)
+  const target = "/documents/CTS Dashboard/Data/services-index.json"
+
+  fm.disk.set(target, JSON.stringify(INDEX))
+
+  const read = await STORAGE.readJson(target, null)
+
+  if (JSON.stringify(read) !== JSON.stringify(INDEX)) {
+    failures.push("iCloud confirme le téléchargement mais l'index ne revient pas")
+  }
+}
+
+/*
+ * Un fichier réellement absent doit continuer à rendre la valeur de
+ * repli : la lecture de secours ne doit pas inventer de contenu.
+ */
+for (const confirmsDownloads of [true, false]) {
+  const fm = createFileManager({ confirmsDownloads })
+  const STORAGE = loadStorage(fm)
+
+  const read = await STORAGE.readJson("/documents/absent.json", null)
+
+  if (read !== null) {
+    failures.push(
+      `fichier absent (iCloud ${confirmsDownloads ? "confirme" : "ne confirme pas"}) : ` +
+      `readJson rend ${JSON.stringify(read)} au lieu de la valeur de repli`
+    )
+  }
+}
+
+/* Un contenu illisible reste un contenu illisible, pas une exception. */
+{
+  const fm = createFileManager({ confirmsDownloads: false })
+  const STORAGE = loadStorage(fm)
+  const target = "/documents/casse.json"
+
+  fm.disk.set(target, "{ ceci n'est pas du JSON")
+
+  const read = await STORAGE.readJson(target, null)
+
+  if (read !== null) {
+    failures.push(`JSON invalide : readJson rend ${JSON.stringify(read)} au lieu de null`)
+  }
+}
+
+if (failures.length) {
+  console.log("ÉCHEC  lecture des fichiers iCloud")
+  for (const failure of failures) console.log(`         ${failure}`)
+  process.exit(1)
+}
+
+console.log("ok     lecture des fichiers iCloud (iCloud muet, iCloud normal, absent, illisible)")

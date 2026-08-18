@@ -33,9 +33,40 @@ async function ensureDownloaded(path) {
   throw new Error("Le fichier iCloud est présent mais n’est pas encore disponible localement.")
 }
 
+/*
+ * Lire un fichier même quand iCloud refuse de le déclarer disponible.
+ *
+ * ensureDownloaded s'appuie sur isFileDownloaded, qui répond « non »
+ * pour des fichiers pourtant parfaitement lisibles — un fichier écrit
+ * quelques secondes plus tôt, ou n'importe quel fichier quand iOS
+ * déprioritise iCloud. Or c'est exactement ce qui arrive dans un widget,
+ * qui reçoit beaucoup moins de temps et de priorité que l'application.
+ *
+ * Tant que cet abandon était silencieux, le résultat était impossible à
+ * diagnostiquer : chez un collègue, l'index et le cache du service
+ * revenaient vides dans le widget — donc « aucun service » — alors que
+ * le même téléphone affichait le service correctement depuis Scriptable,
+ * à la même minute.
+ *
+ * On tente donc la lecture directe avant de renoncer. Elle réussit quand
+ * le fichier est réellement là, et son échec ne coûte rien : on retombe
+ * sur la même valeur de repli qu'avant.
+ */
 async function readText(path, fallback = "") {
   try {
-    return await ensureDownloaded(path) ? fm.readString(path) : fallback
+    if (await ensureDownloaded(path)) return fm.readString(path)
+  } catch (_) {}
+
+  return readWithoutICloudConfirmation(path, fallback)
+}
+
+function readWithoutICloudConfirmation(path, fallback) {
+  try {
+    if (!fm.fileExists(path)) return fallback
+
+    const content = fm.readString(path)
+
+    return typeof content === "string" && content ? content : fallback
   } catch (_) {
     return fallback
   }

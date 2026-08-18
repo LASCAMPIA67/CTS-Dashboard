@@ -48,6 +48,11 @@ jobs:
       - name: Run database resolution test
         run: node tools/preview/database-smoke.mjs
 
+      # iCloud peut refuser de déclarer disponible un fichier pourtant
+      # lisible : le widget concluait alors « aucun service » en silence.
+      - name: Run iCloud read test
+        run: node tools/preview/storage-smoke.mjs
+
       # Le vidage du cache et l'archivage suivent la fin du service d'une
       # heure : seul un enchaînement rejoué le vérifie.
       - name: Run services cleanup test

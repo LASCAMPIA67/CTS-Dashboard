@@ -83,6 +83,23 @@ async function performScan(options) {
   const failed = []
 
   for (const candidate of selectedCandidates) {
+    /*
+     * La tentative est inscrite AVANT d'être menée.
+     *
+     * iOS accorde quelques secondes à un widget, alors que la lecture
+     * d'un PDF peut en demander vingt-cinq. Quand le processus est tué en
+     * cours de route, rien n'était écrit : shouldProcessPdf revoyait un
+     * fichier « jamais tenté » et le resélectionnait au rafraîchissement
+     * suivant, indéfiniment. Le widget repartait donc sur le même import
+     * impossible à chaque réveil, sans jamais laisser de trace.
+     *
+     * Inscrite d'abord, une tentative interrompue se voit — et le
+     * fichier attend, au lieu d'occuper toutes les exécutions suivantes.
+     */
+    recordAttemptedImport(state, candidate)
+    state.updatedAt = new Date().toISOString()
+    await saveScanState(state)
+
     const result = await importCandidate(candidate)
 
     if (result.success) {
@@ -379,8 +396,30 @@ function shouldProcessPdf(file, index, state, now) {
     case "exception":
       return retryDelayElapsed(previous.lastAttemptAt, now)
 
+    /*
+     * Tentative jamais terminée : le processus a été tué avant d'écrire
+     * son résultat. On patiente comme après une exception, sauf lorsque
+     * le script tourne dans l'application — là, le temps ne manque pas.
+     */
+    case "interrupted":
+      return runsInApplication() || retryDelayElapsed(previous.lastAttemptAt, now)
+
     default:
       return true
+  }
+}
+
+/*
+ * Lancé depuis Scriptable, le script n'a pas la limite de temps d'un
+ * widget et doit toujours pouvoir réessayer sur-le-champ : sans cette
+ * porte, la mise en attente ci-dessus bloquerait le seul moyen de
+ * rattrapage dont dispose un conducteur. En cas de doute, on patiente.
+ */
+function runsInApplication() {
+  try {
+    return typeof config !== "undefined" && config?.runsInWidget === false
+  } catch (_) {
+    return false
   }
 }
 
@@ -483,6 +522,24 @@ async function recordSuccessfulImport(state, candidate, result) {
     }
   } catch (_) {
     // L’import principal reste valide si l’empreinte canonique ne peut pas être relue.
+  }
+}
+
+/*
+ * Trace minimale d'une tentative commencée. Elle est écrasée quelques
+ * instants plus tard par son résultat réel — succès, échec de validation
+ * ou exception. Elle ne survit donc que si l'exécution n'est jamais
+ * arrivée au bout.
+ */
+function recordAttemptedImport(state, candidate) {
+  const previous = state.files[candidate.fileName]
+
+  state.files[candidate.fileName] = {
+    ...(previous || {}),
+    fingerprint: candidate.fingerprint,
+    status: "interrupted",
+    lastAttemptAt: new Date().toISOString(),
+    attempts: (Number(previous?.attempts) || 0) + 1
   }
 }
 
