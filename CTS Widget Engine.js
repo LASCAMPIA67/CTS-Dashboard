@@ -481,6 +481,20 @@ function buildMissingServiceFailure(resolution, cleanup, currentDate) {
     )
   }
 
+  /*
+   * Analyse déjà en cours : c'est un état passager, et il doit être
+   * affiché comme tel.
+   *
+   * Le verrou d'analyse vit au plus deux minutes (SCAN_LOCK_TTL_MS), or
+   * failure() programme le réveil suivant sur le rythme « inconnu », soit
+   * cinq minutes. Un état qui dure deux secondes restait donc affiché
+   * cinq minutes au minimum — et bien plus dès qu'iOS espace les réveils.
+   * Vu du conducteur, le widget paraissait figé, et toucher la tuile n'y
+   * changeait rien puisqu'elle relançait le même traitement.
+   *
+   * Le réveil repasse donc sur le rythme actif : au prochain regard, le
+   * verrou est soit relâché, soit périmé.
+   */
   if (scanResult?.status === "locked") {
     addDiagnosticIssue(telemetry, {
       severity: "warning",
@@ -489,16 +503,21 @@ function buildMissingServiceFailure(resolution, cleanup, currentDate) {
       stage: "scan_lock"
     })
 
-    return failure(
+    const locked = failure(
       "Analyse en cours",
       [
-        "Le dossier Services est déjà en cours d’analyse.",
+        "Ta carte agent est en cours de lecture.",
         "",
-        "Relance CTS Dashboard dans quelques instants."
+        "Le widget se met à jour tout seul dans un instant."
       ].join("\n"),
       currentDate,
       telemetry
     )
+
+    return {
+      ...locked,
+      refreshAfterDate: new Date(currentDate.getTime() + CONFIG.refresh.activeMs)
+    }
   }
 
   const detected = Math.max(0, Number(scanResult?.detected ?? scanResult?.scanned ?? 0) || 0)
