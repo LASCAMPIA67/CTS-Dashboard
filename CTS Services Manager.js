@@ -21,6 +21,13 @@ const { fm, paths, files, pdf } = CONFIG
 const removeFileQuietly = STORAGE.removeFileQuietly
 const finiteOrNull = UTILS.finiteOrNull
 const isUsableDate = UTILS.isUsableDate
+/*
+ * Lancé depuis Scriptable, le script n'a pas la limite de temps d'un
+ * widget et doit toujours pouvoir réessayer sur-le-champ : sans cette
+ * porte, la mise en attente d'un import interrompu bloquerait le seul
+ * moyen de rattrapage dont dispose un conducteur.
+ */
+const runsInApplication = UTILS.runsInApplication
 
 const {
   createTelemetryError,
@@ -409,19 +416,6 @@ function shouldProcessPdf(file, index, state, now) {
   }
 }
 
-/*
- * Lancé depuis Scriptable, le script n'a pas la limite de temps d'un
- * widget et doit toujours pouvoir réessayer sur-le-champ : sans cette
- * porte, la mise en attente ci-dessus bloquerait le seul moyen de
- * rattrapage dont dispose un conducteur. En cas de doute, on patiente.
- */
-function runsInApplication() {
-  try {
-    return typeof config !== "undefined" && config?.runsInWidget === false
-  } catch (_) {
-    return false
-  }
-}
 
 function isIndexedAndCurrent(file, index) {
   const services = Array.isArray(index?.services)

@@ -47,6 +47,12 @@ const FILE_READ_RETRY_MS = 250
 
 const ICLOUD_READY_ATTEMPTS = 8
 
+/*
+ * Borne de l'attente iCloud : au-delà, l'extraction échoue proprement
+ * plutôt que de retenir l'exécution sans fin.
+ */
+const ICLOUD_DOWNLOAD_TIMEOUT_MS = 12000
+
 const ICLOUD_READY_RETRY_MS = 150
 
 // =====================================================
@@ -1412,7 +1418,15 @@ async function ensureDownloaded(
 
   if (!fm.isFileDownloaded(path)) {
     try {
-      await fm.downloadFileFromiCloud(path)
+      /*
+       * Sans borne, cette attente peut ne jamais rendre la main : le
+       * widget meurt avant d'avoir rien affiché. Bornée, l'extraction
+       * échoue proprement et le PDF sera repris au réveil suivant.
+       */
+      await UTILS.withTimeout(
+        fm.downloadFileFromiCloud(path),
+        ICLOUD_DOWNLOAD_TIMEOUT_MS
+      )
     } catch (error) {
       throw createTelemetryError(
         downloadCode,

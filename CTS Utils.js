@@ -215,6 +215,39 @@ function sleep(milliseconds) {
   ))
 }
 
+/*
+ * Borne une opération asynchrone qui n'offre aucun moyen de l'annuler.
+ *
+ * iOS n'impose aucune limite à fm.downloadFileFromiCloud : la promesse
+ * peut ne jamais se résoudre quand iCloud est en mauvais état. Un widget
+ * qui l'attend n'est pas lent, il est mort — il ne dessine rien, et
+ * l'écran d'accueil garde l'image précédente indéfiniment. C'est le
+ * mécanisme du « Analyse en cours » qui ne partait plus.
+ *
+ * L'opération abandonnée continue en arrière-plan sans dommage : le
+ * fichier sera simplement disponible au réveil suivant.
+ */
+function withTimeout(promise, milliseconds, timeoutValue = null) {
+  return Promise.race([
+    Promise.resolve(promise),
+    sleep(milliseconds).then(() => timeoutValue)
+  ])
+}
+
+/*
+ * Scriptable expose config.runsInWidget. Un widget dispose de quelques
+ * secondes, l'application de tout le temps nécessaire : plusieurs
+ * décisions de patience en dépendent. En cas de doute, on suppose le
+ * contexte contraint, qui est le plus exigeant.
+ */
+function runsInApplication() {
+  try {
+    return typeof config !== "undefined" && config?.runsInWidget === false
+  } catch (_) {
+    return false
+  }
+}
+
 function hasPlainTextInput() {
   return Array.isArray(args.plainTexts) && args.plainTexts.length > 0
 }
@@ -322,6 +355,8 @@ module.exports = {
   hasTelemetryError,
   telemetryFromError,
   sleep,
+  withTimeout,
+  runsInApplication,
   isShortcutExecution,
   getShortcutInput,
   finishWithResult,

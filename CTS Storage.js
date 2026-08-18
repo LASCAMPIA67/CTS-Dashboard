@@ -11,20 +11,48 @@ const SERVICES_INDEX_VERSION = 2
 const ICLOUD_DOWNLOAD_ATTEMPTS = 4
 const ICLOUD_DOWNLOAD_RETRY_MS = 250
 
+/*
+ * Patience accordée à iCloud, selon le contexte d'exécution.
+ *
+ * fm.downloadFileFromiCloud n'a aucune limite : quand iCloud est en
+ * mauvais état, la promesse ne se résout jamais. Attendue sans borne
+ * dans un widget, elle ne le ralentit pas — elle le tue avant qu'il ait
+ * rien dessiné, et l'écran d'accueil garde l'image précédente pour
+ * toujours.
+ *
+ * Les valeurs ne sont donc pas arbitraires : elles découlent du temps
+ * réellement disponible. Un widget dispose de quelques secondes en tout ;
+ * un téléchargement qui n'a pas abouti en une seconde et demie n'aidera
+ * pas cette exécution-ci, et réessayer ne ferait que consommer le temps
+ * qu'il faut pour afficher. Le fichier sera repris au réveil suivant, ou
+ * tout de suite si le conducteur ouvre l'application — où la patience
+ * complète reste de mise.
+ */
+const ICLOUD_DOWNLOAD_TIMEOUT_MS = 12000
+const WIDGET_DOWNLOAD_TIMEOUT_MS = 1500
+
+function iCloudPatience() {
+  return UTILS.runsInApplication()
+    ? { attempts: ICLOUD_DOWNLOAD_ATTEMPTS, timeoutMs: ICLOUD_DOWNLOAD_TIMEOUT_MS }
+    : { attempts: 1, timeoutMs: WIDGET_DOWNLOAD_TIMEOUT_MS }
+}
+
 async function ensureDownloaded(path) {
   if (!fm.fileExists(path)) return false
 
+  const { attempts, timeoutMs } = iCloudPatience()
+
   let lastError = null
-  for (let attempt = 1; attempt <= ICLOUD_DOWNLOAD_ATTEMPTS; attempt++) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
       if (fm.isFileDownloaded(path)) return true
-      await fm.downloadFileFromiCloud(path)
+      await UTILS.withTimeout(fm.downloadFileFromiCloud(path), timeoutMs)
       if (fm.isFileDownloaded(path)) return true
     } catch (error) {
       lastError = error
     }
 
-    if (attempt < ICLOUD_DOWNLOAD_ATTEMPTS) {
+    if (attempt < attempts) {
       await UTILS.sleep(ICLOUD_DOWNLOAD_RETRY_MS * attempt)
     }
   }

@@ -17,6 +17,7 @@ const META_FILE = "installation.json"
 const TIMEOUT = 60
 const RETRIES = 2
 const THROTTLE_RETRY_DELAYS = [1500, 4000, 9000]
+const ICLOUD_DOWNLOAD_TIMEOUT = 15000
 const RENDER_INTERVAL = 120
 const CONCURRENCY = 4
 
@@ -924,16 +925,50 @@ async function runDiagnostic(manifest, state) {
     installerVersion: INSTALLER_VERSION,
     iosVersion: Device.systemVersion(),
     snapshot: String(repositoryRevision || "").slice(0, 7),
+    /*
+     * Révision réellement installée, relue dans installation.json.
+     * Sans elle, un rapport ne disait pas quel code tourne : « 22/22
+     * fichiers valides » ne contrôle que le contenu non vide et le JSON
+     * lisible, jamais l'égalité avec GitHub, et le numéro de version ne
+     * bouge pas lors d'une correction publiée sans annonce. On a ainsi
+     * cherché une panne pendant des heures sans pouvoir affirmer que le
+     * correctif était bien en place.
+     */
+    installedSnapshot: "",
     checks: [],
     lastImport: null,
     lastFailure: null
   }
+
+  try {
+    const metadata = await readMetadata()
+    diagnostic.installedSnapshot =
+      String(metadata?.repositoryRevision || "").slice(0, 7)
+  } catch (_) {}
 
   addDiagnosticCheck(
     diagnostic,
     "Installation",
     state.complete ? "success" : "error",
     `${state.valid}/${state.total} fichiers locaux valides`
+  )
+
+  /*
+   * Contrôle explicite : le code installé est-il celui publié ?
+   */
+  const current =
+    diagnostic.installedSnapshot &&
+    diagnostic.installedSnapshot === diagnostic.snapshot
+
+  addDiagnosticCheck(
+    diagnostic,
+    "Version installée",
+    current ? "success" : "warning",
+    diagnostic.installedSnapshot
+      ? current
+        ? `Snapshot ${diagnostic.installedSnapshot} — à jour`
+        : `Snapshot ${diagnostic.installedSnapshot} — GitHub publie ${diagnostic.snapshot}`
+      : "Révision installée inconnue — relancez une vérification des fichiers"
   )
 
   try {
@@ -1775,6 +1810,7 @@ function buildDiagnosticReport(diagnostic) {
     `Dashboard : ${diagnostic.dashboardVersion}`,
     `Installer : ${diagnostic.installerVersion}`,
     `iOS : ${diagnostic.iosVersion}`,
+    `Snapshot installé : ${diagnostic.installedSnapshot || "?"}`,
     `Snapshot GitHub : ${diagnostic.snapshot || "?"}`,
     "",
     "RÉSUMÉ",
@@ -3797,7 +3833,14 @@ async function ensureDownloaded(path) {
     fm.fileExists(path) &&
     !fm.isFileDownloaded(path)
   ) {
-    await fm.downloadFileFromiCloud(path)
+    /*
+     * L'installateur tourne dans l'application, mais une attente iCloud
+     * sans limite y reste une porte ouverte sur un écran figé.
+     */
+    await Promise.race([
+      fm.downloadFileFromiCloud(path),
+      sleep(ICLOUD_DOWNLOAD_TIMEOUT)
+    ])
   }
 }
 

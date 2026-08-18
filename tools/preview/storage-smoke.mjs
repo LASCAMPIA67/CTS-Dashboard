@@ -28,7 +28,7 @@ const repository = path.resolve(here, "..", "..")
  * d'iCloud : à false, aucun fichier n'est jamais déclaré disponible,
  * bien qu'il soit réellement là et parfaitement lisible.
  */
-function createFileManager({ confirmsDownloads }) {
+function createFileManager({ confirmsDownloads, stalls = false, unreadable = false }) {
   const disk = new Map()
   const calls = { downloads: 0 }
 
@@ -40,9 +40,18 @@ function createFileManager({ confirmsDownloads }) {
     fileExists: target => disk.has(target),
     createDirectory: () => {},
     isFileDownloaded: () => confirmsDownloads,
-    downloadFileFromiCloud: async () => { calls.downloads++ },
+    /*
+     * `stalls` reproduit iCloud en mauvais état : iOS n'impose aucune
+     * limite à cet appel, et la promesse ne se résout jamais.
+     */
+    downloadFileFromiCloud: () => {
+      calls.downloads++
+      return stalls ? new Promise(() => {}) : Promise.resolve()
+    },
     readString: target => {
       if (!disk.has(target)) throw new Error(`fichier absent : ${target}`)
+      /* Fichier présent mais pas encore matérialisé : la lecture échoue. */
+      if (unreadable) throw new Error("fichier non disponible localement")
       return disk.get(target)
     },
     writeString: (target, value) => disk.set(target, String(value)),
@@ -173,6 +182,44 @@ for (const confirmsDownloads of [true, false]) {
   }
 }
 
+/*
+ * Le cœur de l'affaire : iCloud ne répond jamais.
+ *
+ * Sans borne, readJson n'aurait jamais rendu la main. Un widget qui
+ * l'attend ne dessine rien, et l'écran d'accueil garde son image
+ * précédente — c'est « Analyse en cours » qui ne partait plus.
+ */
+{
+  const fm = createFileManager({ confirmsDownloads: false, stalls: true, unreadable: true })
+  const STORAGE = loadStorage(fm)
+  const target = "/documents/CTS Dashboard/Data/services-index.json"
+
+  fm.disk.set(target, JSON.stringify(INDEX))
+
+  let guard
+  const startedAt = Date.now()
+  const read = await Promise.race([
+    STORAGE.readJson(target, "PAS-DE-REPONSE"),
+    new Promise(resolve => { guard = setTimeout(() => resolve("BLOQUÉ"), 8000) })
+  ])
+  clearTimeout(guard)
+  const elapsed = Date.now() - startedAt
+
+  if (read === "BLOQUÉ") {
+    failures.push("iCloud muet : readJson ne rend jamais la main")
+  } else if (read !== "PAS-DE-REPONSE") {
+    failures.push(`iCloud muet : readJson rend ${JSON.stringify(read)} au lieu du repli`)
+  }
+
+  /*
+   * Un widget ne dispose que de quelques secondes en tout : la lecture
+   * doit renoncer bien avant, sinon il meurt sans rien afficher.
+   */
+  if (elapsed > 4000) {
+    failures.push(`iCloud muet : ${elapsed} ms avant de renoncer, trop pour un widget`)
+  }
+}
+
 if (failures.length) {
   console.log("ÉCHEC  lecture des fichiers iCloud")
   for (const failure of failures) console.log(`         ${failure}`)
@@ -181,5 +228,5 @@ if (failures.length) {
 
 console.log(
   "ok     lecture des fichiers iCloud " +
-  "(iCloud muet, iCloud normal, absent, illisible, aucune attente inutile)"
+  "(iCloud muet, iCloud normal, absent, illisible, sans réponse, aucune attente inutile)"
 )
