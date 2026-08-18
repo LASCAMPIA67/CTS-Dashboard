@@ -35,6 +35,21 @@ la marche à suivre.** Rien d'autre.
    gras et la puce suffisent à guider l'œil ; le reste fait perdre au
    message le sérieux d'une note de version.
 
+## Quand un message est dû
+
+**Tout changement de numéro de version — CTS Dashboard ou CTS Installer —
+donne lieu à un message.** Sans exception, et sans attendre qu'on le
+demande : un numéro qui bouge est ce que le conducteur voit dans son
+installateur, et un bouton « Mettre à jour » sans explication inquiète
+plus qu'il ne rassure.
+
+Une correction publiée sans changer de numéro reste silencieuse. Mais
+elle n'atteint alors les collègues que par « Vérifier les fichiers », une
+manipulation que personne ne fait spontanément — et jamais l'installateur,
+qui ne se remplace que sur changement de son propre numéro. Publier en
+silence est donc à réserver aux corrections qui peuvent attendre la
+prochaine version annoncée.
+
 ## Gabarit
 
 ```
