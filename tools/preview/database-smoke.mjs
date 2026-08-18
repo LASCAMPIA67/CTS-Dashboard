@@ -110,6 +110,15 @@ const places = [
   ["KIBI_A", "Kibitzenau"],
   ["KIBI_1", "Kibitzenau"],
   ["KIBI_2", "Kibitzenau"],
+  /*
+   * HASTUS écrit « ROTONDE 17 » : le 17 est le numéro du poste, pas une
+   * partie du nom de l'arrêt. Le conducteur lit « Mise en ligne
+   * Rotonde », comme sur le terrain. Les repères Q1/Q2/V1/V2 des
+   * stations de tram, eux, nomment un vrai quai et sont conservés.
+   */
+  ["ROTONDE 17", "Rotonde"],
+  ["ROTONDE", "Rotonde"],
+  ["HOMME DE FER V.1 ARRIVEE", "Homme de Fer V1"],
   ["ELS", "UPE"],
   ["KBZ", "UPK"],
   ["CRB", "UPC"]
@@ -206,7 +215,19 @@ const stops = [
   ["COMMUNICATION WILSON V2", "Communication Wilson"],
   ["DEPOT KIBITZENAU E/S", "Dépôt Kibitzenau"],
   ["OBSERVATOIRE (Blvd Leblois)", "Observatoire"],
-  ["Rodolphe Reuss Tiroir", "Neuhof R. Reuss"]
+  ["Rodolphe Reuss Tiroir", "Neuhof R. Reuss"],
+  /*
+   * « Mise en ligne Rotonde 17 » est arrivé sur l'écran d'un conducteur :
+   * le 17 est le numéro de la ligne prise au départ, pas une partie du
+   * nom de l'arrêt, exactement comme le L.10 de « PLACE DE PIERRE L.10 »
+   * juste au-dessus. Les repères Q1/Q2/V1/V2 des stations de tram, eux,
+   * nomment un vrai quai et restent affichés.
+   *
+   * Ce cas-ci est celui qui protège l'affichage réel : le libellé vient
+   * de formatStop (CTS Parser.js:367). Le cas formatPlace plus haut suit
+   * le même défaut, les deux chemins lisant la même entrée de stops.json.
+   */
+  ["ROTONDE 17", "Rotonde"]
 ]
 
 for (const [raw, expected] of stops) {
