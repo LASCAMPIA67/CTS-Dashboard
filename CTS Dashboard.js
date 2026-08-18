@@ -48,6 +48,8 @@ async function main() {
     }
   }
 
+  recordRunTrace(context)
+
   try {
     widget = context.valid
       ? RENDERER.createWidget(family, context)
@@ -82,6 +84,49 @@ async function main() {
     family,
     sendTelemetrySafely(analytics, telemetryRun)
   )
+}
+
+/*
+ * Trace de la dernière exécution, relue par le Diagnostic de CTS
+ * Installer.
+ *
+ * Elle existe parce qu'un widget est aveugle : chez un collègue il
+ * affichait « Analyse en cours » pendant que le même téléphone, à la
+ * même minute, montrait son service correctement depuis Scriptable. Sans
+ * trace, on ne pouvait qu'émettre des hypothèses — et j'en ai proposé
+ * trois, toutes fausses, avant d'écrire ces quelques lignes.
+ *
+ * Elle ne contient que des états internes : ni nom, ni matricule, ni
+ * horaire, ni numéro de service. Les titres enregistrés sont ceux,
+ * figés, que le Dashboard sait produire.
+ *
+ * Elle est écrite directement, sans passer par CTS Storage : attendre
+ * qu'iCloud déclare disponible une trace de diagnostic n'aurait aucun
+ * sens, et son échec ne doit jamais empêcher l'affichage.
+ */
+function recordRunTrace(context) {
+  try {
+    const fm = CONFIG.fm
+
+    fm.writeString(
+      fm.joinPath(CONFIG.paths.data, "last-run.json"),
+      JSON.stringify({
+        at: new Date().toISOString(),
+        version: CONFIG.dashboardVersion,
+        surface: config.runsInWidget ? "widget" : "application",
+        family,
+        elapsedMs: Date.now() - SCRIPT_STARTED_AT,
+        displayed: context?.valid
+          ? "service"
+          : String(context?.errorTitle || "inconnu"),
+        source: String(context?.sourceOrigin || "none"),
+        scan: String(context?.servicesScan?.status || "absent"),
+        detected: Number(context?.servicesScan?.detected) || 0
+      })
+    )
+  } catch (error) {
+    console.warn("[Dashboard]", UTILS.errorMessage(error))
+  }
 }
 
 function loadAnalyticsClient() {

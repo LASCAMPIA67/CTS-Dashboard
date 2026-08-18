@@ -37,7 +37,7 @@ function repositoryFile(name) {
  * Chaque action du menu est jouée dans son propre système de fichiers, et
  * l'alerte répond toujours le même index — celui de l'action visée.
  */
-async function runAction(label, choice, { seed = true, forbidden = null, throttle = 0 } = {}) {
+async function runAction(label, choice, { seed = true, forbidden = null, throttle = 0, expected = null } = {}) {
   /*
    * Nombre de réponses 429 servies avant la première réponse utile, pour
    * rejouer une adresse mise de côté par GitHub.
@@ -70,6 +70,25 @@ async function runAction(label, choice, { seed = true, forbidden = null, throttl
         files: { installed: [], updated: [], repaired: [], unchanged: [], failed: [] }
       })
     )
+    /*
+     * Trace laissée par le Dashboard à son dernier réveil. Le Diagnostic
+     * doit savoir la relire : c'est la seule fenêtre dont on dispose sur
+     * un widget qui ne s'affiche pas comme prévu.
+     */
+    fs.writeFileSync(
+      path.join(root, "Data", "last-run.json"),
+      JSON.stringify({
+        at: "2026-08-18T15:12:00.000Z",
+        version: manifest.version,
+        surface: "widget",
+        family: "large",
+        elapsedMs: 1840,
+        displayed: "Analyse en cours",
+        source: "none",
+        scan: "locked",
+        detected: 0
+      })
+    )
   }
 
   const failures = []
@@ -84,12 +103,20 @@ async function runAction(label, choice, { seed = true, forbidden = null, throttl
   const RUNTIME_ERROR = /before initialization|is not defined|is not a function|undefined is not|Cannot read|null is not/i
   const ABORTED = /Opération impossible|Opération interrompue|Installation non validée/i
 
+  /*
+   * Le rapport technique n'est construit qu'au moment où le conducteur
+   * touche « Copier le rapport ». On retient donc ces lignes pour les
+   * déclencher après coup, sinon le rapport ne serait jamais éprouvé.
+   */
+  const selectable = []
+
   class RecordingTable extends ui.UITable {
     addRow(row) {
       for (const cell of row.cells || []) {
         if (cell.title) shown.push(String(cell.title))
         if (cell.subtitle) shown.push(String(cell.subtitle))
       }
+      if (typeof row.onSelect === "function") selectable.push(row)
       super.addRow(row)
     }
   }
@@ -160,7 +187,7 @@ async function runAction(label, choice, { seed = true, forbidden = null, throttl
     UITableRow: ui.UITableRow,
     Script: { name: () => "CTS Installer", complete: () => {} },
     Device: { systemVersion: () => "26.6" },
-    Pasteboard: { copyString: () => {} },
+    Pasteboard: { copyString: value => shown.push(String(value)) },
     FileManager: { iCloud: () => fileManager, local: () => fileManager },
     importModule: () => {
       throw new Error("module absent")
@@ -260,6 +287,22 @@ async function runAction(label, choice, { seed = true, forbidden = null, throttl
     }
   }
 
+  if (expected) {
+    for (const row of selectable) {
+      const label = (row.cells || []).map(cell => cell.title || "").join(" ")
+      if (!/Copier le rapport/i.test(label)) continue
+      try {
+        await row.onSelect()
+      } catch (error) {
+        failures.push(`rapport technique en erreur : ${error.message}`)
+      }
+    }
+  }
+
+  if (expected && !shown.some(text => expected.test(text))) {
+    failures.push(`section attendue absente du rapport : ${expected}`)
+  }
+
   if (throttle && networkAttempts <= throttle) {
     failures.push(
       `aucune reprise après ${throttle} réponse(s) 429 : ${networkAttempts} tentative(s)`
@@ -282,7 +325,8 @@ const scenarios = [
   {
     label: "diagnostic",
     choice: 1,
-    forbidden: /illisible|invalide|inaccessible|non résolu/i
+    forbidden: /illisible|invalide|inaccessible|non résolu/i,
+    expected: /DERNIÈRE EXÉCUTION DU DASHBOARD/
   },
   { label: "désinstallation", choice: 2 },
   { label: "installation neuve", choice: 0, seed: false },
@@ -300,7 +344,8 @@ for (const scenario of scenarios) {
   const failures = await runAction(scenario.label, scenario.choice, {
     seed: scenario.seed !== false,
     forbidden: scenario.forbidden || null,
-    throttle: scenario.throttle || 0
+    throttle: scenario.throttle || 0,
+    expected: scenario.expected || null
   })
 
   if (failures.length) {

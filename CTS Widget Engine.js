@@ -393,7 +393,21 @@ function extractCleanupTelemetryIssues(result) {
 
 // DIAGNOSTIC D'ABSENCE DE SERVICE
 
+/*
+ * failure() remet servicesScan à null, si bien qu'un écran d'échec ne
+ * gardait aucune trace de l'analyse qui l'avait provoqué. C'est
+ * exactement ce qui manquait pour comprendre un widget bloqué. On
+ * rattache donc le résultat du balayage à tout écran construit ici.
+ */
 function buildMissingServiceFailure(resolution, cleanup, currentDate) {
+  return {
+    ...buildMissingServiceContext(resolution, cleanup, currentDate),
+    servicesScan: resolution?.scanResult || null,
+    servicesScanError: String(resolution?.scanError || "")
+  }
+}
+
+function buildMissingServiceContext(resolution, cleanup, currentDate) {
   const scanResult = resolution?.scanResult
 
   const telemetry = buildContextTelemetry(resolution, cleanup, false)

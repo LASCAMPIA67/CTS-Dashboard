@@ -1751,6 +1751,20 @@ function diagnosticVisual(status) {
   }[diagnosticStatus(status)]
 }
 
+function readLastRunTrace() {
+  try {
+    const target = join(paths.data, "last-run.json")
+
+    if (!fm.fileExists(target)) return null
+
+    const value = JSON.parse(fm.readString(target))
+
+    return isRecord(value) ? value : null
+  } catch (_) {
+    return null
+  }
+}
+
 function buildDiagnosticReport(diagnostic) {
   const counts = diagnosticCounts(diagnostic.checks)
   const lines = [
@@ -1822,6 +1836,31 @@ function buildDiagnosticReport(diagnostic) {
         failure.stack
       )
     }
+  }
+
+  /*
+   * Ce que le Dashboard a réellement fait à son dernier réveil. Un
+   * widget ne peut rien raconter par lui-même : cette section est la
+   * seule façon de savoir s'il s'est exécuté, combien de temps il a
+   * tenu, et ce qu'il a fini par afficher.
+   */
+  const run = readLastRunTrace()
+
+  if (run) {
+    lines.push(
+      "",
+      "DERNIÈRE EXÉCUTION DU DASHBOARD",
+      "-------------------------------",
+      `Date : ${run.at || "?"}`,
+      `Version : ${run.version || "?"}`,
+      `Lancé depuis : ${run.surface || "?"}`,
+      `Format : ${run.family || "?"}`,
+      `Durée : ${formatDiagnosticMs(run.elapsedMs)}`,
+      `Affiché : ${run.displayed || "?"}`,
+      `Source du service : ${run.source || "?"}`,
+      `Analyse : ${run.scan || "?"}`,
+      `PDF détectés : ${Number.isFinite(Number(run.detected)) ? run.detected : "?"}`
+    )
   }
 
   lines.push(

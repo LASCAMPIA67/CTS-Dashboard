@@ -1109,7 +1109,19 @@ function resolveMaximumFiles(requestedValue) {
   const value = Number(requestedValue)
   const resolved = Number.isFinite(value) ? value : configuredValue
 
-  return Math.max(1, Math.min(10, Math.floor(resolved)))
+  const bounded = Math.max(1, Math.min(10, Math.floor(resolved)))
+
+  /*
+   * Dans un widget, une seule carte agent par réveil.
+   *
+   * La lecture d'un PDF dispose de vingt-cinq secondes, alors qu'iOS en
+   * accorde bien moins à un widget entier. En enchaîner deux revient à
+   * garantir que l'exécution sera tuée avant d'avoir pu dessiner quoi
+   * que ce soit — et un widget tué n'affiche rien de neuf, il laisse à
+   * l'écran l'image précédente. L'application, elle, garde le rythme
+   * normal : c'est là que le rattrapage se fait.
+   */
+  return runsInApplication() ? bounded : Math.min(1, bounded)
 }
 
 function compareCandidates(first, second) {
