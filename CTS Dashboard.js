@@ -26,11 +26,18 @@ async function main() {
 
   try {
     CONFIG.ensureDirectories()
-    const [loadedContext] = await Promise.all([
-      WIDGET_ENGINE.loadContext(new Date()),
-      registerAnalytics(analytics)
-    ])
-    context = loadedContext
+
+    /*
+     * L'enregistrement d'activité part sans être attendu.
+     *
+     * Il était joint au chargement du contexte par un Promise.all, si
+     * bien que l'affichage attendait une requête réseau — jusqu'à douze
+     * secondes — avant même d'être construit. Une statistique ne doit
+     * jamais retarder le service d'un conducteur.
+     */
+    registerAnalytics(analytics)
+
+    context = await WIDGET_ENGINE.loadContext(new Date())
     applyContextTelemetrySafely(analytics, telemetryRun, context?.telemetry)
   } catch (error) {
     console.warn("[Dashboard]", UTILS.errorMessage(error))
@@ -84,6 +91,8 @@ async function main() {
     family,
     sendTelemetrySafely(analytics, telemetryRun)
   )
+
+  markRunCommitted()
 }
 
 /*
@@ -104,25 +113,49 @@ async function main() {
  * qu'iCloud déclare disponible une trace de diagnostic n'aurait aucun
  * sens, et son échec ne doit jamais empêcher l'affichage.
  */
+let runTrace = null
+
 function recordRunTrace(context) {
+  runTrace = {
+    at: new Date().toISOString(),
+    version: CONFIG.dashboardVersion,
+    surface: config.runsInWidget ? "widget" : "application",
+    family,
+    elapsedMs: Date.now() - SCRIPT_STARTED_AT,
+    displayed: context?.valid
+      ? "service"
+      : String(context?.errorTitle || "inconnu"),
+    source: String(context?.sourceOrigin || "none"),
+    scan: String(context?.servicesScan?.status || "absent"),
+    detected: Number(context?.servicesScan?.detected) || 0,
+    /*
+     * Produire un rendu et le faire retenir par iOS sont deux choses
+     * différentes : un collègue avait la première sans la seconde. Écrit
+     * à faux d'abord, ce drapeau ne passe à vrai que si l'exécution est
+     * réellement allée jusqu'au bout.
+     */
+    committed: false
+  }
+
+  writeRunTrace()
+}
+
+function markRunCommitted() {
+  if (!runTrace) return
+
+  runTrace.committed = true
+  runTrace.elapsedMs = Date.now() - SCRIPT_STARTED_AT
+
+  writeRunTrace()
+}
+
+function writeRunTrace() {
   try {
     const fm = CONFIG.fm
 
     fm.writeString(
       fm.joinPath(CONFIG.paths.data, "last-run.json"),
-      JSON.stringify({
-        at: new Date().toISOString(),
-        version: CONFIG.dashboardVersion,
-        surface: config.runsInWidget ? "widget" : "application",
-        family,
-        elapsedMs: Date.now() - SCRIPT_STARTED_AT,
-        displayed: context?.valid
-          ? "service"
-          : String(context?.errorTitle || "inconnu"),
-        source: String(context?.sourceOrigin || "none"),
-        scan: String(context?.servicesScan?.status || "absent"),
-        detected: Number(context?.servicesScan?.detected) || 0
-      })
+      JSON.stringify(runTrace)
     )
   } catch (error) {
     console.warn("[Dashboard]", UTILS.errorMessage(error))
@@ -244,10 +277,26 @@ function logTelemetryFailure(result) {
   }
 }
 
+/*
+ * Rien ne doit s'intercaler entre le rendu et sa validation.
+ *
+ * Script.setWidget ne suffit pas : iOS ne retient la nouvelle vignette
+ * que si le script atteint Script.complete(). Or on attendait encore la
+ * télémétrie — une requête réseau — juste après avoir posé le widget.
+ * Quand iOS coupait le script pendant cette attente, le rendu était
+ * perdu et l'écran d'accueil gardait l'image précédente.
+ *
+ * C'est ce qui restait chez un collègue : sa trace montrait un service
+ * correctement construit en 149 ms, et sa tuile affichait toujours le
+ * vieux message. Le widget travaillait bien, son travail n'était
+ * simplement jamais validé.
+ *
+ * La télémétrie continue le temps que le script vit, et disparaît avec
+ * lui sans rien réclamer. C'est ce que « best-effort » veut dire.
+ */
 async function displayWidget(widget, widgetFamily, telemetryPromise) {
   if (config.runsInWidget) {
     Script.setWidget(widget)
-    await telemetryPromise
     return
   }
   await Promise.all([presentWidget(widget, widgetFamily), telemetryPromise])

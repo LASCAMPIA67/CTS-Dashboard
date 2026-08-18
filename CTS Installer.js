@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.10"
+const INSTALLER_VERSION = "1.0.11"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -1895,6 +1895,7 @@ function buildDiagnosticReport(diagnostic) {
       `Affiché : ${run.displayed || "?"}`,
       `Source du service : ${run.source || "?"}`,
       `Analyse : ${run.scan || "?"}`,
+      `Rendu validé : ${run.committed ? "oui" : "non"}`,
       `PDF détectés : ${Number.isFinite(Number(run.detected)) ? run.detected : "?"}`
     )
   }
