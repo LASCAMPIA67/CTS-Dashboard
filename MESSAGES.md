@@ -31,6 +31,9 @@ la marche à suivre.** Rien d'autre.
    ligne de rappel quand une version intermédiaire n'a pas été annoncée.
 8. **Markdown WhatsApp** : `*gras*`, `_italique_`. Le message est livré
    dans un bloc de code, prêt à copier.
+9. **Aucun émoji.** Ni en puce, ni en décoration, ni en fin de phrase. Le
+   gras et la puce suffisent à guider l'œil ; le reste fait perdre au
+   message le sérieux d'une note de version.
 
 ## Gabarit
 
@@ -39,9 +42,11 @@ la marche à suivre.** Rien d'autre.
 
 Une phrase qui dit ce que le conducteur y gagne.
 
-✅ *Le changement* — Ce qu'il fait, en une phrase.
-✅ *Le changement* — Ce qu'il fait, en une phrase.
-✅ *Le changement* — Ce qu'il fait, en une phrase.
+• *Le changement* — Ce qu'il fait, en une phrase.
+
+• *Le changement* — Ce qu'il fait, en une phrase.
+
+• *Le changement* — Ce qu'il fait, en une phrase.
 
 *METTRE À JOUR*
 1. Ouvrez *Scriptable*
