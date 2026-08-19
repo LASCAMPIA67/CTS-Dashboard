@@ -299,6 +299,14 @@ async function runAction(label, choice, { seed = true, forbidden = null, throttl
     }
   }
 
+  /*
+   * Le crédit doit être identifiable sur les écrans de gestion : menu,
+   * vérification, mise à jour, installation, diagnostic.
+   */
+  if (!shown.some(text => /Créé et développé par Emilio IPPOLITO/.test(text))) {
+    failures.push("aucun crédit d'auteur affiché sur cet écran de gestion")
+  }
+
   if (expected && !shown.some(text => expected.test(text))) {
     failures.push(`section attendue absente du rapport : ${expected}`)
   }

@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.12"
+const INSTALLER_VERSION = "1.0.13"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -18,6 +18,30 @@ const TIMEOUT = 60
 const RETRIES = 2
 const THROTTLE_RETRY_DELAYS = [1500, 4000, 9000]
 const ICLOUD_DOWNLOAD_TIMEOUT = 15000
+
+/*
+ * Crédit de l'auteur, source unique.
+ *
+ * Le nom vient de version.json, déjà porté par le manifeste : aucune
+ * copie en dur, et la mention suit le manifeste si elle change un jour.
+ * La valeur de repli ne sert que si l'installateur s'affiche avant
+ * d'avoir pu lire le manifeste — un écran d'erreur réseau, par exemple.
+ *
+ * Il n'apparaît que dans les outils de gestion. Le widget lui-même n'en
+ * porte aucune trace : c'est l'écran d'un conducteur en service, pas une
+ * vitrine.
+ */
+const DEFAULT_AUTHOR = "Emilio IPPOLITO"
+let projectAuthor = DEFAULT_AUTHOR
+
+function rememberAuthor(manifest) {
+  const author = String(manifest?.author || "").trim()
+  if (author) projectAuthor = author
+}
+
+function credit() {
+  return `Créé et développé par ${projectAuthor}`
+}
 const RENDER_INTERVAL = 120
 const CONCURRENCY = 4
 
@@ -107,6 +131,7 @@ async function main() {
 
     const manifest = await loadManifest()
     validateManifest(manifest)
+    rememberAuthor(manifest)
 
     if (!await handleInstallerUpdate(manifest)) {
       return
@@ -138,7 +163,9 @@ async function menu(manifest, state) {
       "",
       "Installation automatique des scripts, ressources et dossiers nécessaires.",
       "",
-      "Vos services PDF resteront protégés."
+      "Vos services PDF resteront protégés.",
+      "",
+      credit()
     ].join("\n")
 
     alert.addAction(`Installer la version ${manifest.version}`)
@@ -184,7 +211,9 @@ async function menu(manifest, state) {
         ? "L’installation locale est valide. Lancez une vérification pour la comparer au snapshot GitHub actuel."
         : "Les fichiers absents ou invalides seront réparés.",
     "",
-    "CTS Installer, vos PDF et leurs archives seront conservés."
+    "CTS Installer, vos PDF et leurs archives seront conservés.",
+    "",
+    credit()
   ].filter(Boolean).join("\n")
 
   alert.addAction(
@@ -1530,6 +1559,20 @@ async function presentDiagnostic(diagnostic) {
 
   table.addRow(privacyRow)
 
+  /*
+   * Pied de page. Une seule mention par écran, en retrait : elle nomme
+   * l'auteur sans concurrencer le diagnostic lui-même.
+   */
+  const creditRow = new UITableRow()
+  creditRow.height = 38
+
+  const creditText = creditRow.addText(credit())
+  creditText.titleFont = Font.systemFont(10)
+  creditText.titleColor = COLORS.secondary
+  creditText.centerAligned()
+
+  table.addRow(creditRow)
+
   await table.present(true)
 }
 
@@ -1915,6 +1958,8 @@ function buildDiagnosticReport(diagnostic) {
   }
 
   lines.push(
+    "",
+    credit(),
     "",
     "CONFIDENTIALITÉ",
     "---------------",
@@ -2908,7 +2953,11 @@ async function presentResultDetails(
 
   const alert = new Alert()
   alert.title = result.title
-  alert.message = lines.join("\n").trim() || result.message
+  alert.message = [
+    lines.join("\n").trim() || result.message,
+    "",
+    credit()
+  ].join("\n")
   alert.addAction("Fermer")
   await alert.present()
 }

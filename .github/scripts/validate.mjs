@@ -165,11 +165,25 @@ for (const file of required) {
 
 // ------------------------------------------------- scripts distribués + JSON
 
+/*
+ * Le crédit d'auteur appartient aux outils de gestion — CTS Installer —
+ * et à eux seuls. Le widget est l'écran d'un conducteur en service, pas
+ * une vitrine : aucun des scripts distribués ne doit le porter.
+ */
+const CREDIT_PATTERN = /IPPOLITO|Cré[ée] et d[ée]velopp[ée] par/i
+
 for (const file of scripts) {
   if (!fs.existsSync(file)) continue
   const content = read(file)
   checkScriptableMetadata(content, file)
   checkSyntax(content, file)
+
+  if (CREDIT_PATTERN.test(content)) {
+    fail(
+      `${file} porte un crédit d'auteur. Le widget doit en rester exempt : ` +
+      `ce crédit n'a sa place que dans CTS Installer.`
+    )
+  }
   /*
    * Le point d'entrée est contrôlé ici aussi. On avait supposé que les
    * scripts du manifeste étaient tous des modules sans appel de premier

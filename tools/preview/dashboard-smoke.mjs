@@ -210,6 +210,14 @@ async function run(surface, { family = "large", label = surface, service = false
     }
 
     /*
+     * Le crédit d'auteur vit dans CTS Installer. Rien de ce que dessine le
+     * widget ne doit le mentionner.
+     */
+    if (/IPPOLITO|Cré[ée] et développé par/i.test(words)) {
+      failures.push(`${label} : la vignette porte un crédit d'auteur`)
+    }
+
+    /*
      * Une famille autre que « large » doit recevoir la carte qui le dit,
      * pas la grande carte de service comprimée dans une tuile d'écran
      * verrouillé. C'est ce que la coercition de getWidgetFamily rendait
