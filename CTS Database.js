@@ -24,12 +24,6 @@ async function load() {
 
   const warnings = []
 
-  /*
-   * La réparation des bases exige le réseau. Son échec ne doit pas
-   * empêcher un import : readDatabaseFile sait déjà se passer d'une
-   * base absente, et le Parser retombe alors sur des libellés de
-   * repli qui ne produisent que des avertissements, jamais d'erreur.
-   */
   try {
     await RESOURCES.ensureInstalled()
   } catch (error) {
@@ -102,13 +96,6 @@ async function formatStop(value) {
   const name = getEntryName(await getStop(value))
   if (name) return name
 
-  /*
-   * HASTUS suffixe certains arrêts par ARRIVEE, DEPART ou TERMINUS. Les
-   * plus courants figurent tels quels dans stops.json, mais aucun ne peut
-   * tous les prévoir : un arrêt oublié tombait alors dans le repli avec
-   * son suffixe, ce qui donnait des libellés de trente-cinq caractères que
-   * le widget finissait par tronquer. On réessaie donc sans le suffixe.
-   */
   const stripped = stripHastusQualifier(value)
   if (stripped) {
     const fallbackName = getEntryName(await getStop(stripped))
@@ -124,18 +111,6 @@ function stripHastusQualifier(value) {
   return stripped && stripped !== cleaned ? stripped : ""
 }
 
-/*
- * HASTUS écrit un point de relève sous la forme RACINE_SUFFIXE : ELSA_A,
- * ELSA_C, LHPP_G, ESPL_1. La racine désigne le lieu, le suffixe le quai
- * ou le sens. Énumérer les combinaisons ne tient pas : une seule oubliée
- * — ELSA_C — affichait « Code ELSA_C » au conducteur alors qu'ELSA était
- * en base depuis toujours.
- *
- * L'ordre de résolution va donc du plus précis au plus général : le code
- * exact, qui permet à un suffixe de porter un nom différent si un jour
- * c'est nécessaire ; puis la racine ; puis la base des arrêts, pour les
- * points de relève qui portent simplement le nom de leur arrêt.
- */
 async function formatPlace(code) {
   const name = getEntryName(await getPlace(code))
   if (name) return name
@@ -153,21 +128,12 @@ async function formatPlace(code) {
   return normalizedCode ? `Code ${normalizedCode}` : "Lieu inconnu"
 }
 
-/*
- * La racine d'un code de relève, ou "" si le code n'en a pas. normalizeKey
- * remplace le souligné par une espace, donc ELSA_C devient « ELSA C ».
- */
 function codeRoot(code) {
   const key = UTILS.normalizeKey(code)
   const root = key.replace(/\s+[A-Z0-9]{1,2}$/, "")
   return root && root !== key ? root : ""
 }
 
-/*
- * Un point de relève absent de places.json porte presque toujours le nom
- * de son arrêt — WILSON par exemple. Interroger la base des arrêts avant
- * d'abandonner évite d'afficher « Code WILSON » au conducteur.
- */
 async function resolvePlaceFromStops(code, root) {
   const direct = getEntryName(await getStop(code))
   if (direct) return direct
@@ -239,7 +205,12 @@ function getEntryName(entry) {
 }
 
 function hasEntryType(entry, type) {
-  return Boolean(entry && String(entry.type || "").trim().toLowerCase() === type)
+  return Boolean(
+    entry &&
+    String(entry.type || "")
+      .trim()
+      .toLowerCase() === type
+  )
 }
 
 function isPlainObject(value) {
@@ -260,33 +231,20 @@ function formatFallbackName(value) {
   return shortenStopLabel(
     cleaned
       .toLocaleLowerCase("fr-FR")
-      .replace(/(^|[\s'-])([a-zà-öø-ÿ])/g, (_, separator, letter) =>
-        separator + letter.toLocaleUpperCase("fr-FR")
+      .replace(
+        /(^|[\s'-])([a-zà-öø-ÿ])/g,
+        (_, separator, letter) => separator + letter.toLocaleUpperCase("fr-FR")
       )
   )
 }
 
-/*
- * Longueur au-delà de laquelle le widget réduit la police d'un nom
- * d'arrêt. stops.json est plafonné à cette valeur par la CI ; le repli,
- * lui, reçoit un texte de PDF qu'aucune règle ne borne, d'où ce garde-fou.
- */
 const MAX_STOP_LABEL_LENGTH = 21
 const ABBREVIATION_LENGTHS = Object.freeze([8, 6, 4])
 
-/*
- * Un nom CTS se lit « commune arrêt » : c'est le dernier mot qui distingue.
- * On abrège donc les mots précédents, du plus long au plus court, et jamais
- * le dernier — « Mittelhausbergen Mittelberg » devient « Mittelha. Mittelberg »,
- * qui reste reconnaissable, plutôt que d'être coupé net par le widget.
- *
- * Trois passes de plus en plus courtes : la première suffit aux noms réels,
- * les suivantes ne servent qu'à un libellé inattendu. Si même la dernière ne
- * suffit pas, on rend le nom tel quel — mieux vaut laisser le widget réduire
- * la police que produire une suite d'initiales illisible.
- */
 function shortenStopLabel(value) {
-  const words = String(value || "").split(/\s+/).filter(Boolean)
+  const words = String(value || "")
+    .split(/\s+/)
+    .filter(Boolean)
   const length = () => words.join(" ").length
   if (length() <= MAX_STOP_LABEL_LENGTH) return words.join(" ")
 

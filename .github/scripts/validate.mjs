@@ -406,12 +406,18 @@ const CONTRAST_TARGETS = { primary: 12, secondary: 7, accent: 7 }
 const CARD_WHITE_ALPHA = 0.055
 const PROGRAM_WHITE_ALPHA = 0.05
 
-/* Lu dans le moteur de rendu pour que le contrôle suive toute retouche. */
+/*
+ * Lu dans le moteur de rendu pour que le contrôle suive toute retouche.
+ * Un repli silencieux vaudrait ici un contrôle mené sur une valeur qui
+ * n'est plus celle du rendu : l'absence est donc une erreur, comme pour
+ * MAX_STOP_LABEL_LENGTH.
+ */
 const ACTIVE_ROW_ACCENT_ALPHA = (() => {
   const renderer = read('CTS Widget Renderer.js')
   const match = renderer.match(
-    /backgroundColor\s*=\s*active\s*\r?\n?\s*\?\s*accentAlpha\(state,\s*([\d.]+)\)/
+    /backgroundColor\s*=\s*active\s*\?\s*accentAlpha\(state,\s*([\d.]+)\)/
   )
+  if (!match) fail("L'opacité d'accent de la ligne active est introuvable dans CTS Widget Renderer.js")
   return match ? Number(match[1]) : 0.09
 })()
 
@@ -419,7 +425,7 @@ const theme = read('CTS Widget Theme.js')
 
 const palettes = [
   ...theme.matchAll(
-    /(\w+): Object\.freeze\(\{ gradient: \[([^\]]+)\], accent: "(#[0-9A-Fa-f]{6})" \}\)/g
+    /(\w+):\s*Object\.freeze\(\{\s*gradient:\s*\[([^\]]+)\],\s*accent:\s*"(#[0-9A-Fa-f]{6})"\s*\}\)/g
   )
 ].map(match => ({
   state: match[1],

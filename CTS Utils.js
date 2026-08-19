@@ -19,7 +19,9 @@ function normalizeText(value) {
 }
 
 function normalizeTime(value) {
-  const match = String(value || "").trim().match(/^(\d{1,2}):(\d{2})$/)
+  const match = String(value || "")
+    .trim()
+    .match(/^(\d{1,2}):(\d{2})$/)
   if (!match) return ""
 
   const hours = Number(match[1])
@@ -27,9 +29,12 @@ function normalizeTime(value) {
   if (
     !Number.isInteger(hours) ||
     !Number.isInteger(minutes) ||
-    hours < 0 || hours > MAX_SERVICE_HOUR ||
-    minutes < 0 || minutes > 59
-  ) return ""
+    hours < 0 ||
+    hours > MAX_SERVICE_HOUR ||
+    minutes < 0 ||
+    minutes > 59
+  )
+    return ""
 
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`
 }
@@ -62,7 +67,9 @@ function formatDuration(totalMinutes) {
 }
 
 function parseDate(value) {
-  const match = String(value || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  const match = String(value || "")
+    .trim()
+    .match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (!match) return null
 
   const year = Number(match[1])
@@ -70,11 +77,9 @@ function parseDate(value) {
   const day = Number(match[3])
   const date = new Date(year, month - 1, day)
 
-  return (
-    date.getFullYear() === year &&
-    date.getMonth() === month - 1 &&
-    date.getDate() === day
-  ) ? date : null
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+    ? date
+    : null
 }
 
 function isValidDate(value) {
@@ -111,7 +116,9 @@ function escapeRegex(value) {
 }
 
 function normalizeCode(value) {
-  return String(value || "").trim().toUpperCase()
+  return String(value || "")
+    .trim()
+    .toUpperCase()
 }
 
 function normalizeKey(value) {
@@ -125,10 +132,6 @@ function normalizeKey(value) {
     .toUpperCase()
 }
 
-/*
- * Une valeur numérique, ou null quand il n'y en a pas. Trois modules en
- * avaient chacun leur copie identique.
- */
 function finiteOrNull(value) {
   if (value === null || value === undefined || value === "") {
     return null
@@ -139,12 +142,6 @@ function finiteOrNull(value) {
   return Number.isFinite(number) ? number : null
 }
 
-/*
- * Une date utilisable, reconnue à ses méthodes plutôt qu'à son
- * constructeur : plus permissif qu'isValidDate, et volontairement, car
- * une date venue d'un autre contexte d'exécution échoue au test
- * `instanceof Date` tout en étant parfaitement utilisable.
- */
 function isUsableDate(value) {
   return Boolean(
     value &&
@@ -163,18 +160,22 @@ function errorMessage(error) {
 }
 
 function normalizeTelemetryCode(value, fallback = "UNKNOWN_ERROR") {
-  return String(value || fallback || "UNKNOWN_ERROR")
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9_]/g, "_")
-    .slice(0, 64) || "UNKNOWN_ERROR"
+  return (
+    String(value || fallback || "UNKNOWN_ERROR")
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9_]/g, "_")
+      .slice(0, 64) || "UNKNOWN_ERROR"
+  )
 }
 
 function normalizeTelemetryStage(value, fallback = "runtime") {
-  return String(value || fallback || "runtime")
-    .trim()
-    .replace(/[^a-zA-Z0-9._-]/g, "_")
-    .slice(0, 50) || "runtime"
+  return (
+    String(value || fallback || "runtime")
+      .trim()
+      .replace(/[^a-zA-Z0-9._-]/g, "_")
+      .slice(0, 50) || "runtime"
+  )
 }
 
 function createTelemetryError(code, stage, message, cause = null) {
@@ -182,15 +183,19 @@ function createTelemetryError(code, stage, message, cause = null) {
   error.telemetryCode = normalizeTelemetryCode(code)
   error.telemetryStage = normalizeTelemetryStage(stage)
   if (cause) {
-    try { error.cause = cause } catch (_) {}
+    try {
+      error.cause = cause
+    } catch (_) {}
   }
   return error
 }
 
 function hasTelemetryError(error) {
   return Boolean(
-    error && typeof error === "object" &&
-    typeof error.telemetryCode === "string" && error.telemetryCode.trim()
+    error &&
+    typeof error === "object" &&
+    typeof error.telemetryCode === "string" &&
+    error.telemetryCode.trim()
   )
 }
 
@@ -201,45 +206,16 @@ function telemetryFromError(error, fallbackCode, fallbackStage) {
   }
 }
 
-/*
- * Timer de Scriptable attend un intervalle en millisecondes, contrairement
- * à la convention habituelle des minuteries. Diviser par 1000 rendait
- * chaque attente mille fois trop courte : les temporisations de reprise
- * iCloud ne laissaient en pratique aucun délai à la synchronisation.
- */
 function sleep(milliseconds) {
-  return new Promise(resolve => Timer.schedule(
-    Math.max(0, Number(milliseconds) || 0),
-    false,
-    resolve
-  ))
+  return new Promise(resolve =>
+    Timer.schedule(Math.max(0, Number(milliseconds) || 0), false, resolve)
+  )
 }
 
-/*
- * Borne une opération asynchrone qui n'offre aucun moyen de l'annuler.
- *
- * iOS n'impose aucune limite à fm.downloadFileFromiCloud : la promesse
- * peut ne jamais se résoudre quand iCloud est en mauvais état. Un widget
- * qui l'attend n'est pas lent, il est mort — il ne dessine rien, et
- * l'écran d'accueil garde l'image précédente indéfiniment. C'est le
- * mécanisme du « Analyse en cours » qui ne partait plus.
- *
- * L'opération abandonnée continue en arrière-plan sans dommage : le
- * fichier sera simplement disponible au réveil suivant.
- */
 function withTimeout(promise, milliseconds, timeoutValue = null) {
-  return Promise.race([
-    Promise.resolve(promise),
-    sleep(milliseconds).then(() => timeoutValue)
-  ])
+  return Promise.race([Promise.resolve(promise), sleep(milliseconds).then(() => timeoutValue)])
 }
 
-/*
- * Scriptable expose config.runsInWidget. Un widget dispose de quelques
- * secondes, l'application de tout le temps nécessaire : plusieurs
- * décisions de patience en dépendent. En cas de doute, on suppose le
- * contexte contraint, qui est le plus exigeant.
- */
 function runsInApplication() {
   try {
     return typeof config !== "undefined" && config?.runsInWidget === false

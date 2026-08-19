@@ -5,29 +5,10 @@
 const CONFIG = importModule("CTS Config")
 const UTILS = importModule("CTS Utils")
 const { fm, files, ensureDirectories } = CONFIG
-
 const MAX_LOG_ENTRIES = 100
 const SERVICES_INDEX_VERSION = 2
 const ICLOUD_DOWNLOAD_ATTEMPTS = 4
 const ICLOUD_DOWNLOAD_RETRY_MS = 250
-
-/*
- * Patience accordée à iCloud, selon le contexte d'exécution.
- *
- * fm.downloadFileFromiCloud n'a aucune limite : quand iCloud est en
- * mauvais état, la promesse ne se résout jamais. Attendue sans borne
- * dans un widget, elle ne le ralentit pas — elle le tue avant qu'il ait
- * rien dessiné, et l'écran d'accueil garde l'image précédente pour
- * toujours.
- *
- * Les valeurs ne sont donc pas arbitraires : elles découlent du temps
- * réellement disponible. Un widget dispose de quelques secondes en tout ;
- * un téléchargement qui n'a pas abouti en une seconde et demie n'aidera
- * pas cette exécution-ci, et réessayer ne ferait que consommer le temps
- * qu'il faut pour afficher. Le fichier sera repris au réveil suivant, ou
- * tout de suite si le conducteur ouvre l'application — où la patience
- * complète reste de mise.
- */
 const ICLOUD_DOWNLOAD_TIMEOUT_MS = 12000
 const WIDGET_DOWNLOAD_TIMEOUT_MS = 1500
 
@@ -41,7 +22,6 @@ async function ensureDownloaded(path) {
   if (!fm.fileExists(path)) return false
 
   const { attempts, timeoutMs } = iCloudPatience()
-
   let lastError = null
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
@@ -61,33 +41,6 @@ async function ensureDownloaded(path) {
   throw new Error("Le fichier iCloud est présent mais n’est pas encore disponible localement.")
 }
 
-/*
- * Lire un fichier même quand iCloud refuse de le déclarer disponible.
- *
- * ensureDownloaded s'appuie sur isFileDownloaded, qui répond « non »
- * pour des fichiers pourtant parfaitement lisibles — un fichier écrit
- * quelques secondes plus tôt, ou n'importe quel fichier quand iOS
- * déprioritise iCloud. Or c'est exactement ce qui arrive dans un widget,
- * qui reçoit beaucoup moins de temps et de priorité que l'application.
- *
- * Tant que cet abandon était silencieux, le résultat était impossible à
- * diagnostiquer : chez un collègue, l'index et le cache du service
- * revenaient vides dans le widget — donc « aucun service » — alors que
- * le même téléphone affichait le service correctement depuis Scriptable,
- * à la même minute.
- *
- * On lit donc directement d'abord, et on ne réveille iCloud que si cette
- * lecture ne donne rien.
- *
- * L'ordre est le fond de l'affaire, pas un détail. ensureDownloaded
- * dépense 1,5 seconde de pauses et quatre attentes iCloud avant de
- * renoncer, et un réveil de widget enchaîne une dizaine de lectures —
- * l'index, le cache, l'état du balayage, le verrou, les lieux, chaque
- * PDF. Placé après cette dépense, le secours arrivait trop tard : le
- * widget était tué avant d'avoir rien dessiné, et laissait donc son
- * image précédente à l'écran. Placé avant, le cas normal — un fichier
- * réellement présent — ne coûte plus rien du tout.
- */
 async function readText(path, fallback = "") {
   const direct = readWithoutICloudConfirmation(path, null)
 
@@ -100,11 +53,6 @@ async function readText(path, fallback = "") {
   return fallback
 }
 
-/*
- * S'assurer qu'un fichier sera lisible, sans payer iCloud quand il l'est
- * déjà. Destiné aux lectures synchrones faites plus loin — places.json
- * notamment, que normalizeService relit sans await.
- */
 async function ensureReadable(path) {
   if (readWithoutICloudConfirmation(path, null) !== null) return true
 
@@ -222,9 +170,8 @@ async function loadServicesIndex() {
 }
 
 async function saveServicesIndex(index) {
-  const source = index && typeof index === "object" && !Array.isArray(index)
-    ? index
-    : emptyServicesIndex()
+  const source =
+    index && typeof index === "object" && !Array.isArray(index) ? index : emptyServicesIndex()
 
   await writeJsonSafely(files.servicesIndex, {
     version: Number(source.version) || SERVICES_INDEX_VERSION,
@@ -294,9 +241,7 @@ function safeModificationDate(path) {
   try {
     const value = fm.modificationDate(path)
 
-    return value &&
-      typeof value.getTime === "function" &&
-      Number.isFinite(value.getTime())
+    return value && typeof value.getTime === "function" && Number.isFinite(value.getTime())
       ? value
       : null
   } catch (_) {

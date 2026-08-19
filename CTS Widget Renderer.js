@@ -4,17 +4,6 @@
 
 const UTILS = importModule("CTS Utils")
 const THEME = importModule("CTS Widget Theme")
-
-/*
- * Registre des vignettes réellement construites ici.
- *
- * Une vignette vide est le pire des rendus : iOS affiche le fond système
- * — blanc en apparence claire, noir en apparence sombre — sans le
- * moindre texte, et rien n'indique au conducteur que quelque chose ne va
- * pas. Aucun chemin de ce fichier n'en produit : les quatre fabriques
- * posent toutes un fond et du contenu. Le registre permet au point
- * d'entrée de le vérifier avant de livrer, plutôt que de le supposer.
- */
 const rendered = new WeakSet()
 
 function markRendered(widget) {
@@ -144,14 +133,6 @@ function addTimingCard(parent, focus, state, density) {
     vertical: true
   })
 
-  /*
-   * Toute la carte suit une grille symétrique : deux colonnes de largeur
-   * identique, la flèche dans la gouttière, et des ressorts souples égaux
-   * de part et d'autre. La symétrie garantit deux choses à la fois — la
-   * flèche tombe exactement au centre de la carte, et les deux colonnes
-   * sont à égale distance d'elle — quelle que soit la longueur des textes.
-   * Chaque texte est centré dans sa colonne.
-   */
   const timing = addGridRow(card)
 
   addTimingSide(timing, getTimingStartLabel(state), focus.start, focus.from, density)
@@ -169,12 +150,6 @@ function addTimingCard(parent, focus, state, density) {
   addOperationalDetails(card, focus, state, density)
 }
 
-/*
- * Une ligne de la grille s'ouvre par un ressort souple et se ferme par un
- * autre. Les deux étant identiques, le contenu qu'ils encadrent est centré
- * dans la carte ; si ce contenu est lui-même symétrique, son milieu tombe
- * sur le milieu de la carte.
- */
 function addGridRow(parent) {
   const row = parent.addStack()
   row.centerAlignContent()
@@ -186,21 +161,10 @@ function closeGridRow(row) {
   row.addSpacer()
 }
 
-/*
- * La gouttière sépare les deux colonnes sur les lignes sans flèche. Elle
- * vaut exactement l'encombrement de la flèche et de ses deux écarts, donc
- * les colonnes se superposent d'une ligne à l'autre.
- */
 function gridGutter(density) {
   return density.timingArrowGap * 2 + density.arrowSize
 }
 
-/*
- * Les deux blocs du bandeau ont la même largeur imposée : c'est elle qui
- * rend la ligne symétrique. fitFont borne la taille des noms de lieux
- * longs, et minimumScaleFactor prend le relais si la colonne reste trop
- * étroite — le bloc, lui, ne s'élargit jamais.
- */
 function addTimingSide(parent, label, time, place, density) {
   const block = parent.addStack()
   block.layoutVertically()
@@ -233,23 +197,7 @@ function addTimingSide(parent, label, time, place, density) {
   )
 }
 
-/*
- * Les lignes de détail reprennent la même grille : mêmes colonnes, même
- * gouttière, mêmes ressorts. Un bloc seul est centré sur la carte entière
- * plutôt que laissé dans une colonne, pour que la ligne reste équilibrée.
- */
 function addDepotRow(parent, slice, state, density) {
-  /*
-   * La ligne des heures de dépôt bascule avec le moment plutôt que de se
-   * dédoubler : le widget est déjà plein sur les petits écrans, une ligne
-   * de plus le ferait déborder.
-   *
-   * Tant que la tranche n'a pas commencé, ce qui compte est de la prendre
-   * — prise de service et sortie dépôt. Une fois qu'elle roule, ces deux
-   * heures appartiennent au passé et ce qui compte est de la finir —
-   * rentrée dépôt et fin de service. Dans les deux cas, le conducteur lit
-   * l'heure qu'il a devant lui.
-   */
   const running = state?.type === "DONE" || state?.type === "WORK"
 
   if (running && slice.depotReturnAt) {
@@ -291,10 +239,6 @@ function addOperationalDetails(parent, slice, state, density) {
     if (hasLineUp) row.addSpacer(gridGutter(density))
     addDetailBlock(row, "DIRECTION", slice.direction, state, density, {
       emphasized: true,
-      /*
-       * Seule sur sa ligne, la direction dispose de la largeur des deux
-       * colonnes et de la gouttière ; elle se resserre donc plus tard.
-       */
       width: hasLineUp ? density.columnWidth : 2 * density.columnWidth + gridGutter(density),
       softLimit: hasLineUp ? density.detailSoftLimit : density.directionSoftLimit
     })
@@ -376,38 +320,19 @@ function addSliceRow(parent, slice, state, density) {
     density.rowPaddingHorizontal
   )
   row.cornerRadius = density.rowRadius
-  /*
-   * En plein soleil, teinter le fond de la tranche en cours réduit le
-   * contraste du texte qu'elle porte. La teinte est donc discrète et le
-   * repérage passe par la barre, la bordure et la pastille, qui n'ont
-   * aucun texte sur elles.
-   */
-  row.backgroundColor = active
-    ? accentAlpha(state, 0.055)
-    : THEME.translucentWhite(0.018)
+  row.backgroundColor = active ? accentAlpha(state, 0.055) : THEME.translucentWhite(0.018)
   row.borderWidth = 0.5
-  row.borderColor = active
-    ? accentAlpha(state, 0.34)
-    : THEME.translucentWhite(0.04)
+  row.borderColor = active ? accentAlpha(state, 0.34) : THEME.translucentWhite(0.04)
 
   const rail = row.addStack()
   rail.size = new Size(density.railWidth, density.railHeight)
   rail.cornerRadius = density.railWidth / 2
-  rail.backgroundColor = active
-    ? accentAlpha(state, 0.9)
-    : THEME.translucentWhite(0.09)
+  rail.backgroundColor = active ? accentAlpha(state, 0.9) : THEME.translucentWhite(0.09)
   row.addSpacer(density.railGap)
 
   addSliceNumber(row, slice, active, state, density)
   row.addSpacer(density.itemGap)
 
-  /*
-   * Le bloc d'informations et les horaires sont des enfants directs de la
-   * ligne, sans conteneur intermédiaire. C'est la condition pour que le
-   * ressort souple placé entre eux fasse réclamer toute la largeur à la
-   * ligne elle-même : enfoui d'un niveau, il ne répartissait que la place
-   * déjà occupée et la case s'arrêtait avant le bord de la carte.
-   */
   const info = row.addStack()
   info.layoutVertically()
 
@@ -416,7 +341,12 @@ function addSliceRow(parent, slice, state, density) {
     info,
     titleValue,
     Font.boldSystemFont(
-      fitFont(density.sliceTitleSize, titleValue, density.titleSoftLimit, density.titleMinimumSize)
+      fitFont(
+        density.sliceTitleSize,
+        titleValue,
+        density.titleSoftLimit,
+        density.titleMinimumSize
+      )
     ),
     active ? THEME.getPrimaryTextColor() : THEME.getInactiveTextColor(),
     1,
@@ -429,18 +359,18 @@ function addSliceRow(parent, slice, state, density) {
     info,
     routeValue,
     Font.mediumSystemFont(
-      fitFont(density.sliceDetailSize, routeValue, density.routeSoftLimit, density.routeMinimumSize)
+      fitFont(
+        density.sliceDetailSize,
+        routeValue,
+        density.routeSoftLimit,
+        density.routeMinimumSize
+      )
     ),
     secondary(),
     1,
     0.64
   ).leftAlignText()
 
-  /*
-   * L'écart fixe reste la marge minimale, le ressort souple pousse les
-   * horaires contre le bord droit et force la ligne à occuper toute la
-   * largeur de la carte, quelle que soit la longueur du texte.
-   */
   row.addSpacer(density.metricsGap)
   row.addSpacer()
 
@@ -469,13 +399,9 @@ function addSliceNumber(parent, slice, active, state, density) {
   const badge = parent.addStack()
   badge.size = new Size(density.numberSize, density.numberSize)
   badge.cornerRadius = density.numberSize / 2
-  badge.backgroundColor = active
-    ? accentAlpha(state, 0.2)
-    : THEME.translucentWhite(0.065)
+  badge.backgroundColor = active ? accentAlpha(state, 0.2) : THEME.translucentWhite(0.065)
   badge.borderWidth = 0.5
-  badge.borderColor = active
-    ? accentAlpha(state, 0.3)
-    : THEME.translucentWhite(0.06)
+  badge.borderColor = active ? accentAlpha(state, 0.3) : THEME.translucentWhite(0.06)
   badge.centerAlignContent()
   badge.addSpacer()
   addText(
@@ -487,19 +413,6 @@ function addSliceNumber(parent, slice, active, state, density) {
   badge.addSpacer()
 }
 
-/*
- * Une seule carte, deux moitiés.
- *
- * Deux cartes distinctes ne peuvent pas se partager exactement la largeur :
- * Scriptable ne permet pas de connaître la largeur du widget, et une pile
- * ne réclame l'espace disponible que si un ressort souple figure parmi ses
- * enfants DIRECTS. Deux cartes voisines se dimensionnent donc sur leur
- * texte, et s'arrêtent avant le bord.
- *
- * Une carte unique, elle, réclame la largeur par ses propres ressorts, et
- * les quatre ressorts intérieurs centrent chaque bloc dans sa moitié. Le
- * résultat est exact sur n'importe quel appareil, sans rien estimer.
- */
 function addStats(parent, stats, density) {
   const card = addSurface(parent, {
     padding: [
@@ -524,13 +437,6 @@ function addStatBlock(parent, value, label, density) {
 
   const block = parent.addStack()
   block.layoutVertically()
-  /*
-   * Le bloc se dimensionne sur sa ligne la plus large — la durée. Sans
-   * cela, centerAlignText ne centre chaque texte que dans son propre
-   * cadre, et le libellé, plus court, restait calé à gauche sous le
-   * premier chiffre. centerAlignContent centre les deux lignes l'une
-   * par rapport à l'autre.
-   */
   block.centerAlignContent()
   addText(
     block,
@@ -571,16 +477,16 @@ function addStatusPill(parent, state, density) {
   pill.backgroundColor = accentAlpha(state, 0.1)
   pill.borderWidth = 0.5
   pill.borderColor = accentAlpha(state, 0.22)
-  addText(pill, getStatusLabel(state), Font.semiboldSystemFont(density.badgeSize), accent(state), 1, 0.72)
+  addText(
+    pill,
+    getStatusLabel(state),
+    Font.semiboldSystemFont(density.badgeSize),
+    accent(state),
+    1,
+    0.72
+  )
 }
 
-/*
- * Pendant une pause ou une coupure, la pastille annonce la durée totale de
- * l'interruption : le conducteur la lit au lieu de la calculer. Le choix de
- * la pastille est délibéré — elle dispose d'une large réserve de place à
- * côté du numéro de service, donc l'information n'ajoute pas un point de
- * hauteur au widget, déjà rempli sur les petits écrans.
- */
 function getStatusLabel(state) {
   const duration = Number(state?.breakDuration) || 0
   const interruption = state?.type === "PAUSE" || state?.type === "CUT"
@@ -629,12 +535,6 @@ function addDivider(parent) {
   divider.addSpacer()
 }
 
-/*
- * Centrage par ressorts plutôt que par alignement seul : le texte garde sa
- * largeur naturelle et les deux ressorts se partagent le reste, ce qui le
- * centre dans la colonne quelle que soit la façon dont Scriptable
- * dimensionne le cadre du texte.
- */
 function addCenteredLine(parent, value, font, color, scale = 0.72) {
   const row = parent.addStack()
   row.centerAlignContent()
@@ -677,8 +577,7 @@ function hasDepotTiming(slice) {
 
 function hasOperationalDetails(slice) {
   return Boolean(
-    slice &&
-    (slice.depotExitAt || slice.depotReturnAt || slice.lineUpAt || slice.direction)
+    slice && (slice.depotExitAt || slice.depotReturnAt || slice.lineUpAt || slice.direction)
   )
 }
 
@@ -699,12 +598,22 @@ function isSliceActive(slice, state) {
   )
 }
 
-function accent(state) { return THEME.getAccentColor(state.type) }
-function accentAlpha(state, alpha) { return new Color(THEME.getAccentHex(state.type), alpha) }
-function secondary() { return THEME.getSecondaryColor() }
+function accent(state) {
+  return THEME.getAccentColor(state.type)
+}
+function accentAlpha(state, alpha) {
+  return new Color(THEME.getAccentHex(state.type), alpha)
+}
+function secondary() {
+  return THEME.getSecondaryColor()
+}
 
 function normalizeFamily(value) {
-  return String(value || "").trim().toLowerCase() || "large"
+  return (
+    String(value || "")
+      .trim()
+      .toLowerCase() || "large"
+  )
 }
 
 function fitFont(baseSize, value, softLimit, minimumSize) {
@@ -716,10 +625,6 @@ function fitFont(baseSize, value, softLimit, minimumSize) {
   return Math.round(Math.max(minimum, base * Math.max(0.7, limit / length)) * 2) / 2
 }
 
-/*
- * L'orientation n'est pas garantie : on retient la petite dimension comme
- * largeur et la grande comme hauteur.
- */
 function getDeviceSize() {
   try {
     const size = Device.screenSize()
@@ -732,34 +637,14 @@ function getDeviceSize() {
   return { width: 390, height: 844 }
 }
 
-/*
- * Un service CTS ne dépasse pas trois tranches : seules les densités
- * confortable et standard sont atteintes en exploitation. La densité
- * compacte reste un filet de sécurité, au cas où un PDF mal formé ou
- * une erreur de parsing produirait davantage de tranches — la densité
- * standard déborderait alors la hauteur du widget.
- */
 function getDensity(sliceCountValue) {
   const count = Math.max(1, Number(sliceCountValue) || 1)
-  const base = count >= 4
-    ? densityCompact()
-    : count >= 3
-      ? densityStandard()
-      : densityComfortable()
+  const base =
+    count >= 4 ? densityCompact() : count >= 3 ? densityStandard() : densityComfortable()
   const screen = getDeviceSize()
   return withColumnWidth(adaptDensity(base, screen.width), screen)
 }
 
-/*
- * Largeur du widget « large » par taille d'écran, en points.
- *
- * La largeur seule ne suffit pas : un iPhone SE et un iPhone mini font
- * tous deux 375 pt de large mais reçoivent des widgets de 321 et 329 pt.
- * La hauteur les départage. La table est croissante sur les deux
- * dimensions, si bien que retenir la dernière ligne entièrement couverte
- * donne toujours le bon appareil, et le plus petit widget en cas
- * d'appareil inconnu.
- */
 const LARGE_WIDGET_WIDTHS = Object.freeze([
   [320, 568, 292],
   [375, 667, 321],
@@ -781,29 +666,6 @@ function estimateWidgetWidth(screen) {
   return width
 }
 
-/*
- * Les deux colonnes du bandeau se partagent la largeur intérieure de la
- * carte, gouttière déduite. C'est ce qui remplit la carte au lieu de
- * laisser du vide sur les côtés.
- *
- * L'estimation est volontairement basse — table prudente et marge de
- * sécurité retranchée. Une sous-estimation ne coûte qu'un peu de blanc,
- * réparti également des deux côtés par les ressorts, et la symétrie reste
- * exacte ; une surestimation, elle, comprimerait le texte. La largeur
- * déclarée par la densité sert de plancher.
- *
- * La marge vaut l'écart le plus large entre deux lignes voisines de la
- * table — 18 pt, de 364 à 382. C'est ce qu'il faut pour qu'une erreur
- * d'une ligne ne puisse pas faire déborder la grille.
- *
- * Elle était de 6 pt, soit un tiers de cet écart. Un appareil situé
- * exactement sur la dernière ligne connue n'avait alors presque aucun jeu :
- * la moindre imprécision de la table faisait déborder la ligne, les
- * ressorts s'écrasaient et la symétrie — donc l'alignement des deux
- * colonnes et le centrage de la flèche — disparaissait. Un appareil plus
- * grand que toutes les lignes connues, lui, était protégé par
- * l'estimation basse : d'où deux iPhone voisins, l'un aligné, l'autre non.
- */
 const COLUMN_SAFETY_MARGIN = 18
 
 function withColumnWidth(density, screen) {
@@ -1000,9 +862,6 @@ function densityCompact() {
     columnWidth: 78,
     placeSize: 8.5,
     placeMinimumSize: 7,
-    /* Repris explicitement : la densité standard le resserre pour financer
-       ses libellés agrandis, ce qui ne concerne que les services à trois
-       tranches. Le filet de sécurité garde son écart d'origine. */
     detailsSectionGap: 3,
     detailLabelSize: 6.5,
     detailValueSize: 7.5,
@@ -1083,11 +942,6 @@ function createErrorWidget(title, message) {
   return markRendered(widget)
 }
 
-/*
- * Information, pas panne : le fond reprend le dégradé bleu des services
- * à venir et l'icône invite au dépôt d'une carte, pour que le conducteur
- * ne croie pas à un dysfonctionnement.
- */
 function createInfoWidget(title, message) {
   const widget = THEME.createBaseWidget("NEXT")
   widget.setPadding(18, 18, 18, 18)
@@ -1116,11 +970,6 @@ function createInfoWidget(title, message) {
   return markRendered(widget)
 }
 
-/*
- * Exportées pour le banc de géométrie : ce sont des fonctions pures, et
- * c'est la seule façon de vérifier l'invariant de la grille sans dupliquer
- * la table des largeurs dans le test — une copie qui divergerait un jour.
- */
 module.exports = {
   isRenderedWidget,
   getDensity,

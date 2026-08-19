@@ -2,25 +2,6 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: orange; icon-glyph: wrench.fill;
 
-/*
- * CTS Réparation — remplace CTS Installer par la version publiée.
- *
- * Pourquoi ce script existe.
- *
- * CTS Installer 1.0.7 déclarait deux constantes sous son propre appel à
- * main(). Elles restaient donc dans leur zone morte temporelle pendant
- * toute l'exécution, et la fonction qui attend qu'un fichier écrit soit
- * visible levait « Cannot access 'FILE_WAIT_TIMEOUT' before
- * initialization ». Cette fonction est traversée par CHAQUE écriture,
- * y compris celle qui remplace l'installateur lui-même : 1.0.7 ne peut
- * pas se mettre à jour, il échoue au moment précis où il essaie.
- *
- * Ce script fait ce seul travail, sans dépendre d'aucun fichier du
- * projet, et se supprime de la mémoire aussitôt : il télécharge la
- * version publiée de CTS Installer, la contrôle, puis l'écrit par-dessus
- * l'ancienne. Il peut être lancé sans risque même si tout va bien.
- */
-
 const REPO = {
   owner: "LASCAMPIA67",
   name: "CTS-Dashboard",
@@ -28,12 +9,8 @@ const REPO = {
 }
 
 const INSTALLER_FILE = "CTS Installer.js"
-
-/* Un installateur complet pèse plus de 100 000 caractères. */
 const MINIMUM_LENGTH = 50000
-
 const METADATA_MARKER = "// Variables used by Scriptable."
-
 const fm = FileManager.iCloud()
 const docs = fm.documentsDirectory()
 
@@ -69,12 +46,6 @@ async function main() {
   }
 }
 
-/*
- * Les fichiers à réécrire : tout script de la racine dont le nom commence
- * par « CTS Installer ». Une réinstallation manuelle laisse parfois un
- * doublon (« CTS Installer 1 ») ; le laisser en 1.0.7 rendrait la panne
- * reproductible. Si aucun n'existe, le nom canonique est créé.
- */
 function installerFiles() {
   const found = fm
     .listContents(docs)
@@ -99,9 +70,7 @@ async function download() {
       request.headers = { "Cache-Control": "no-cache" }
 
       const content = await request.loadString()
-      const status = request.response
-        ? request.response.statusCode
-        : 200
+      const status = request.response ? request.response.statusCode : 200
 
       if (status >= 400) {
         throw new Error(`GitHub a répondu ${status}.`)
@@ -116,15 +85,10 @@ async function download() {
 
   throw new Error(
     `Téléchargement de CTS Installer impossible. ` +
-    `${lastError && lastError.message ? lastError.message : ""}`.trim()
+      `${lastError && lastError.message ? lastError.message : ""}`.trim()
   )
 }
 
-/*
- * Le contrôle est volontairement plus strict qu'un simple contrôle de
- * taille : il refuse aussi un installateur qui reproduirait le défaut
- * de 1.0.7. Réparer avec un fichier malade n'aurait aucun sens.
- */
 function validate(source) {
   if (typeof source !== "string" || source.length < MINIMUM_LENGTH) {
     throw new Error("Le fichier reçu n'est pas un installateur complet.")
@@ -147,8 +111,7 @@ function validate(source) {
     for (let index = entry + 1; index < lines.length; index++) {
       if (/^(?:const|let)\s+[A-Za-z_$]/.test(lines[index])) {
         throw new Error(
-          "La version publiée porte encore le défaut d'initialisation. " +
-          "Réparation annulée."
+          "La version publiée porte encore le défaut d'initialisation. " + "Réparation annulée."
         )
       }
     }
@@ -157,11 +120,6 @@ function validate(source) {
   return match[1]
 }
 
-/*
- * L'ancien fichier est mis de côté au lieu d'être supprimé, et n'est
- * effacé qu'une fois le nouveau relu depuis le disque. Une écriture
- * ratée ne doit jamais laisser l'utilisateur sans installateur.
- */
 function writeText(destination, content) {
   const rollback = `${destination}.rollback`
 
@@ -195,9 +153,7 @@ function writeText(destination, content) {
 function removeQuietly(path) {
   try {
     if (fm.fileExists(path)) fm.remove(path)
-  } catch (error) {
-    /* Un reste sans conséquence ne doit pas faire échouer la réparation. */
-  }
+  } catch (error) {}
 }
 
 async function report(version, written) {
@@ -229,7 +185,7 @@ async function report(version, written) {
   const nextCell = next.addText(
     "À faire maintenant",
     "Ouvrez CTS Installer, puis choisissez « Vérifier les fichiers ». " +
-    "Vous pouvez ensuite supprimer CTS Réparation."
+      "Vous pouvez ensuite supprimer CTS Réparation."
   )
   nextCell.titleFont = Font.semiboldSystemFont(15)
   nextCell.subtitleFont = Font.systemFont(13)

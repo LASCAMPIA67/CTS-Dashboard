@@ -2,33 +2,17 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: brown; icon-glyph: archivebox.fill;
 
-// CTS Services Cleaner.js
-// Archivage et suppression sécurisés des anciens PDF de services.
-
 const CONFIG = importModule("CTS Config")
 const STORAGE = importModule("CTS Storage")
 const IMPORTER = importModule("CTS Importer")
 const UTILS = importModule("CTS Utils")
-
 const { fm, paths, files, pdf } = CONFIG
-
-/* Copie locale supprimée : une seule définition, dans CTS Utils. */
 const isUsableDate = UTILS.isUsableDate
-
-/*
- * Ces fonctions vivaient ici en double. Une liaison remplace la copie :
- * les appels du fichier ne changent pas, et une correction faite à la
- * source profite désormais à tous les modules.
- */
 const removeFileQuietly = STORAGE.removeFileQuietly
-
-
 const CLEANUP_VERSION = 1
 const CLEANUP_LOCK_TTL_MS = 2 * 60 * 1000
 const CLEANUP_LOCK_PATH = fm.joinPath(paths.data, "services-cleanup.lock")
 const CLEANUP_STATE_PATH = fm.joinPath(paths.data, "services-cleanup-state.json")
-
-// ENTRETIEN PRINCIPAL
 
 async function maintainServices(currentDate = new Date(), options = {}) {
   CONFIG.ensureDirectories()
@@ -109,11 +93,6 @@ async function performMaintenance(currentDate, options) {
 
   for (const entry of services) {
     try {
-      /*
-       * Le vidage du cache passe avant l'archivage. Les deux partagent la
-       * même échéance, mais l'ordre compte : l'archivage lit l'heure de
-       * fin sur l'entrée d'index, jamais sur le cache qui vient de partir.
-       */
       const cleared = await clearFinishedServiceCache(entry, currentDate, cacheGraceMs)
 
       if (cleared) {
@@ -159,8 +138,7 @@ async function performMaintenance(currentDate, options) {
 
   const result = {
     success: errors.length === 0,
-    status:
-      archived.length || deleted.length || cacheCleared.length ? "processed" : "idle",
+    status: archived.length || deleted.length || cacheCleared.length ? "processed" : "idle",
     checkedAt: currentDate.toISOString(),
     cacheGraceMs,
     archiveGraceMs,
@@ -186,16 +164,11 @@ async function performMaintenance(currentDate, options) {
           errors
         }
       )
-    } catch (_) {
-      // Le journal local reste secondaire : son échec ne doit
-      // pas invalider un archivage ou une suppression réussis.
-    }
+    } catch (_) {}
   }
 
   return result
 }
-
-// ENTRETIEN D’UNE ENTRÉE
 
 async function maintainEntry(entry, currentDate, archiveGraceMs, archiveRetentionMs) {
   if (!isUsableIndexEntry(entry)) {
@@ -214,12 +187,6 @@ async function maintainEntry(entry, currentDate, archiveGraceMs, archiveRetentio
 }
 
 async function maintainActivePdfEntry(entry, currentDate, archiveGraceMs) {
-  /*
-   * L'heure de fin est lue sur l'entrée d'index, pas sur le cache : le
-   * cache est effacé au même passage que cet archivage, et le vidage
-   * s'exécute en premier. S'en remettre au cache laisserait chaque PDF
-   * dans Services pour toujours.
-   */
   const serviceEndDate = await resolveEntryServiceEndDate(entry)
 
   if (!serviceEndDate) {
@@ -248,10 +215,6 @@ async function maintainActivePdfEntry(entry, currentDate, archiveGraceMs) {
     return skippedResult(entry, "pdf-already-absent")
   }
 
-  /*
-   * Un PDF encore en cours de synchronisation iCloud ne doit
-   * jamais être déplacé : l’archivage est simplement reporté.
-   */
   try {
     if (!(await STORAGE.ensureDownloaded(sourcePath))) {
       return skippedResult(entry, "pdf-already-absent")
@@ -354,21 +317,6 @@ async function maintainArchivedEntry(entry, currentDate, archiveRetentionMs) {
   }
 }
 
-// VIDAGE DU CACHE D’UN SERVICE TERMINÉ
-
-/*
- * Une fois la dernière tranche terminée, le cache d'un service n'a plus
- * aucun usage : le widget ne l'affiche plus, l'import ne le relit jamais,
- * et il restait pourtant sur l'iPhone indéfiniment — un fichier par
- * service importé, sans limite. Il est donc effacé une heure après la
- * fin — le délai pendant lequel le widget affiche encore le service
- * terminé — avec le texte extrait qui l'accompagne.
- *
- * L'entrée d'index reste, marquée `cache.clearedAt` : elle garde la
- * mémoire du service traité, ce qui évite qu'un PDF encore présent dans
- * Services soit réimporté, et ce qui permet de ne pas repasser sur cette
- * entrée à chaque exécution.
- */
 async function clearFinishedServiceCache(entry, currentDate, cacheGraceMs) {
   if (!isUsableIndexEntry(entry) || entry.cache?.clearedAt) {
     return null
@@ -431,12 +379,6 @@ async function clearFinishedServiceCache(entry, currentDate, cacheGraceMs) {
   }
 }
 
-/*
- * L'heure de fin d'un service se déduit de son entrée d'index — sa date
- * et l'heure de fin de sa dernière tranche, toutes deux enregistrées à
- * l'import. Le cache n'est consulté que si l'entrée est trop ancienne
- * pour les porter, ce qui évite toute migration.
- */
 async function resolveEntryServiceEndDate(entry) {
   const fromEntry = resolveServiceEndDate({
     date: entry?.date,
@@ -450,8 +392,6 @@ async function resolveEntryServiceEndDate(entry) {
   return source ? resolveServiceEndDate(source) : null
 }
 
-// LECTURE DES SERVICES INDEXÉS
-
 async function loadEntryService(entry) {
   const cacheFileName = String(entry.cacheFile || "").trim()
 
@@ -460,7 +400,6 @@ async function loadEntryService(entry) {
   }
 
   const cachePath = fm.joinPath(paths.servicesCache, cacheFileName)
-
   let source
 
   try {
@@ -525,8 +464,6 @@ function resolveServiceEndDate(source) {
   )
 }
 
-// ÉTAT DU NETTOYAGE
-
 async function saveCleanupState(result) {
   const state = {
     version: CLEANUP_VERSION,
@@ -549,8 +486,6 @@ async function saveCleanupState(result) {
   })
 }
 
-// VERROU DU NETTOYAGE
-
 async function acquireCleanupLock() {
   const now = new Date()
 
@@ -569,7 +504,6 @@ async function acquireCleanupLock() {
     }
 
     const createdAt = Date.parse(String(existing?.createdAt || ""))
-
     const active = Number.isFinite(createdAt) && now.getTime() - createdAt < CLEANUP_LOCK_TTL_MS
 
     if (active) {
@@ -627,8 +561,6 @@ async function releaseCleanupLock(lock) {
   }
 }
 
-// ÉCRITURE ATOMIQUE
-
 async function writeJsonAtomically(
   path,
   value,
@@ -685,8 +617,6 @@ async function writeJsonAtomically(
   removeFileQuietly(rollbackPath)
 }
 
-// OUTILS INTERNES
-
 function isUsableIndexEntry(entry) {
   if (
     !entry ||
@@ -726,7 +656,6 @@ function uniqueArchiveFileName(originalFileName) {
 
   while (fm.fileExists(fm.joinPath(paths.servicesArchive, candidate))) {
     const extensionIndex = cleanName.toLowerCase().lastIndexOf(".pdf")
-
     const baseName = extensionIndex >= 0 ? cleanName.slice(0, extensionIndex) : cleanName
 
     candidate = `${baseName}_${suffix}.pdf`
@@ -771,8 +700,6 @@ function failureResult(
 function uniqueToken() {
   return [Date.now(), Math.random().toString(36).slice(2, 10)].join("-")
 }
-
-// EXPORTS
 
 module.exports = {
   maintainServices,

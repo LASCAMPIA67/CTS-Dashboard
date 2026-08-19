@@ -17,7 +17,9 @@ async function readCurrentIndex() {
 
   if (!exists) return { version: INDEX_VERSION, updatedAt: "", services: [] }
   if (
-    !value || typeof value !== "object" || Array.isArray(value) ||
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
     !Array.isArray(value.services)
   ) {
     throw UTILS.createTelemetryError(
@@ -30,8 +32,8 @@ async function readCurrentIndex() {
   return {
     version: Number(value.version) || INDEX_VERSION,
     updatedAt: String(value.updatedAt || ""),
-    services: value.services.filter(entry =>
-      entry && typeof entry === "object" && !Array.isArray(entry)
+    services: value.services.filter(
+      entry => entry && typeof entry === "object" && !Array.isArray(entry)
     )
   }
 }

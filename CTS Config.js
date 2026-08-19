@@ -59,17 +59,6 @@ const pdf = Object.freeze({
   maximumFileSizeBytes: 20 * 1024 * 1024,
   extractionTimeoutMs: 25 * SECOND_MS,
   maximumFilesPerRun: 2,
-  /*
-   * Le cache d'un service terminé est effacé une heure après la fin de
-   * sa dernière tranche, en même temps que son PDF part aux archives.
-   *
-   * Ce délai n'est pas libre : pendant cette heure, le widget affiche
-   * encore le service terminé, et il le lit dans ce cache. L'effacer
-   * plus tôt ferait disparaître l'écran « Service terminé » avant
-   * l'heure, ou ferait apparaître le service du lendemain trop tôt.
-   * Il doit donc rester égal à SERVICE_DISPLAY_GRACE_MS de
-   * CTS Services Manager ; tools/preview/cleanup-smoke.mjs le vérifie.
-   */
   cacheGraceMs: HOUR_MS,
   archiveGraceMs: HOUR_MS,
   archiveRetentionMs: 7 * DAY_MS

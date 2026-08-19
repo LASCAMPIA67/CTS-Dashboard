@@ -2,27 +2,10 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: doc.text.magnifyingglass;
 
-// CTS PDF Engine.js
-// Installation locale de PDF.js et extraction du texte des PDF HASTUS.
-
 const CONFIG = importModule("CTS Config")
-
 const UTILS = importModule("CTS Utils")
-
 const { fm, paths, files, pdf } = CONFIG
-
-/*
- * Ces fonctions vivaient ici en double. Une liaison remplace la copie :
- * les appels du fichier ne changent pas, et une correction faite à la
- * source profite désormais à tous les modules.
- */
 const errorMessage = UTILS.errorMessage
-
-
-// =====================================================
-// VERSION LOCALE DE PDF.JS
-// =====================================================
-
 const PDFJS_VERSION = "6.1.200"
 
 const PDFJS_BASE_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/legacy/build`
@@ -34,46 +17,16 @@ const PDFJS_URLS = {
 }
 
 const ENGINE_METADATA_PATH = fm.joinPath(paths.pdfEngine, "engine.json")
-
 const DOWNLOAD_TIMEOUT_SECONDS = 30
-
 const ENGINE_START_TIMEOUT_MS = 20000
-
 const MINIMUM_LIBRARY_SIZE_KB = 40
-
 const FILE_READ_ATTEMPTS = 4
-
 const FILE_READ_RETRY_MS = 250
-
 const ICLOUD_READY_ATTEMPTS = 8
-
-/*
- * Borne de l'attente iCloud : au-delà, l'extraction échoue proprement
- * plutôt que de retenir l'exécution sans fin.
- */
 const ICLOUD_DOWNLOAD_TIMEOUT_MS = 12000
-
-/*
- * Garde-fou natif des appels WebView.
- *
- * Les délais du moteur — ENGINE_START_TIMEOUT_MS et extractionTimeoutMs —
- * sont implémentés dans la page injectée : c'est elle qui rappelle la
- * fonction de complétion à l'échéance. Si WebKit n'exécute jamais ce
- * script, aucun de ces délais ne se déclenche et l'attente native ne se
- * résout pas — le widget est alors tué avant d'avoir rien dessiné.
- *
- * Ces bornes sont volontairement plus longues que les délais internes :
- * en marche normale, c'est toujours la page qui répond la première. Elles
- * ne servent que lorsqu'elle est morte.
- */
 const WEBVIEW_LOAD_TIMEOUT_MS = 15000
 const WEBVIEW_CALL_MARGIN_MS = 5000
-
 const ICLOUD_READY_RETRY_MS = 150
-
-// =====================================================
-// INSTALLATION DU MOTEUR
-// =====================================================
 
 async function ensureReady() {
   CONFIG.ensureDirectories()
@@ -255,10 +208,6 @@ async function writeEngineMetadata() {
   }
 }
 
-// =====================================================
-// EXTRACTION DU TEXTE
-// =====================================================
-
 async function extractText(pdfPath) {
   await ensureReady()
 
@@ -364,7 +313,6 @@ async function extractText(pdfPath) {
   }
 
   const rawResult = await evaluateExtraction(webView, pdfBase64)
-
   const result = normalizeWebResult(rawResult)
 
   if (!result.ok) {
@@ -479,7 +427,6 @@ async function readFileAsBase64(path, label, codes) {
   })
 
   const data = await readFileDataWithRetry(path, label, codes)
-
   let base64
 
   try {
@@ -593,10 +540,6 @@ async function readFileSizeWithRetry(path, { code, stage, label }) {
 
   return 0
 }
-
-// =====================================================
-// INITIALISATION DE LA WEBVIEW
-// =====================================================
 
 async function waitForEngine(webView) {
   const script = `
@@ -780,29 +723,10 @@ async function evaluateExtraction(webView, pdfBase64) {
   }
 }
 
-// =====================================================
-// PAGE HTML DU MOTEUR
-// =====================================================
-
 function buildRuntimeHtml(libraryBase64, workerBase64) {
   const encodedLibrary = JSON.stringify(libraryBase64)
-
   const encodedWorker = JSON.stringify(workerBase64)
 
-  /*
-   * PDF.js lit le texte d'une page avec
-   * « for await (const bloc of flux) » sur un ReadableStream.
-   * Aucune version publiée de Safari iOS n'implémente l'itération
-   * asynchrone sur ReadableStream : l'appel échoue avec un TypeError
-   * et l'import du PDF devient impossible sur iPhone.
-   *
-   * Ce complément n'est installé que lorsque le navigateur ne fournit
-   * pas l'API. Là où elle existe, rien n'est modifié.
-   *
-   * Il est injecté à la fois dans la page et en tête du worker : le
-   * worker possède son propre contexte global et utilise lui aussi
-   * cette syntaxe.
-   */
   const streamAsyncIterationPolyfill = String.raw`
 ;(function () {
   try {
@@ -1406,38 +1330,18 @@ function buildRuntimeHtml(libraryBase64, workerBase64) {
 </html>`
 }
 
-// =====================================================
-// NORMALISATION HASTUS
-// =====================================================
-
 function normalizeExtractedText(value) {
-  return (
-    String(value || "")
-      .replace(/\r\n?/g, "\n")
+  return String(value || "")
+    .replace(/\r\n?/g, "\n")
 
-      /*
-       * PDF.js inverse parfois l’ordre visuel
-       * des en-têtes de section HASTUS.
-       *
-       * Exemple extrait :
-       * 07 - 6 Voiture
-       *
-       * Forme attendue par CTS Parser :
-       * Voiture 07 - 6
-       */
-      .replace(/^\s*(\d{1,3})\s*-\s*(\d{1,3})\s+Voiture\s*$/gim, "Voiture $1 - $2")
+    .replace(/^\s*(\d{1,3})\s*-\s*(\d{1,3})\s+Voiture\s*$/gim, "Voiture $1 - $2")
 
-      .replace(/[ \t]+\n/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
 
-      .replace(/\n{3,}/g, "\n\n")
+    .replace(/\n{3,}/g, "\n\n")
 
-      .trim()
-  )
+    .trim()
 }
-
-// =====================================================
-// OUTILS INTERNES
-// =====================================================
 
 async function ensureDownloaded(
   path,
@@ -1455,15 +1359,7 @@ async function ensureDownloaded(
 
   if (!fm.isFileDownloaded(path)) {
     try {
-      /*
-       * Sans borne, cette attente peut ne jamais rendre la main : le
-       * widget meurt avant d'avoir rien affiché. Bornée, l'extraction
-       * échoue proprement et le PDF sera repris au réveil suivant.
-       */
-      await UTILS.withTimeout(
-        fm.downloadFileFromiCloud(path),
-        ICLOUD_DOWNLOAD_TIMEOUT_MS
-      )
+      await UTILS.withTimeout(fm.downloadFileFromiCloud(path), ICLOUD_DOWNLOAD_TIMEOUT_MS)
     } catch (error) {
       throw createTelemetryError(
         downloadCode,
@@ -1495,20 +1391,12 @@ async function ensureDownloaded(
   )
 }
 
-/* Timer de Scriptable compte en millisecondes, pas en secondes. */
 async function sleep(milliseconds) {
   await new Promise(resolve => {
     Timer.schedule(Math.max(0, Number(milliseconds) || 0), false, resolve)
   })
 }
 
-/*
- * Le message brut de JavaScriptCore ne suffit pas à localiser une panne
- * d'extraction : il faut savoir quelle page a échoué, quel type
- * d'erreur, quel mode de worker et quelle version de PDF.js. Ce
- * complément part dans le journal d'import, donc dans le rapport
- * Diagnostic de l'Installer.
- */
 function describeExtractionFailure(result) {
   const message = String(result?.error || "L’extraction du PDF a échoué.").trim()
 
@@ -1582,10 +1470,6 @@ function removeFileQuietly(path) {
     }
   } catch (_) {}
 }
-
-// =====================================================
-// EXPORTS
-// =====================================================
 
 module.exports = {
   PDFJS_VERSION,

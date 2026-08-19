@@ -11,26 +11,12 @@ const REPO = {
 }
 
 let repositoryRevision = REPO.branch
-
 const INSTALLER_FILE = "CTS Installer.js"
 const META_FILE = "installation.json"
 const TIMEOUT = 60
 const RETRIES = 2
 const THROTTLE_RETRY_DELAYS = [1500, 4000, 9000]
 const ICLOUD_DOWNLOAD_TIMEOUT = 15000
-
-/*
- * Crédit de l'auteur, source unique.
- *
- * Le nom vient de version.json, déjà porté par le manifeste : aucune
- * copie en dur, et la mention suit le manifeste si elle change un jour.
- * La valeur de repli ne sert que si l'installateur s'affiche avant
- * d'avoir pu lire le manifeste — un écran d'erreur réseau, par exemple.
- *
- * Il n'apparaît que dans les outils de gestion. Le widget lui-même n'en
- * porte aucune trace : c'est l'écran d'un conducteur en service, pas une
- * vitrine.
- */
 const DEFAULT_AUTHOR = "Emilio IPPOLITO"
 let projectAuthor = DEFAULT_AUTHOR
 
@@ -44,62 +30,26 @@ function credit() {
 }
 const RENDER_INTERVAL = 120
 const CONCURRENCY = 4
-
-/*
- * Toutes les constantes de premier niveau sont déclarées ici, avant
- * l'appel à main(). Une déclaration `const` placée plus bas dans le
- * fichier reste dans sa zone morte temporelle pendant toute l'exécution :
- * la fonction qui l'utilise lèverait « Cannot access … before
- * initialization ». Le contrôle correspondant est dans validate.mjs.
- *
- * Les deux bibliothèques PDF.js pèsent 1,77 Mo à elles seules, soit 90 %
- * de ce qu'une vérification télécharge, et sont figées sur une version
- * épinglée dans CTS PDF Engine. Quand le snapshot GitHub n'a pas bougé
- * depuis la dernière installation réussie, les retélécharger ne peut rien
- * apporter : le SHA identifie exactement leur contenu. La dispense
- * s'arrête à elles ; scripts et bases restent contrôlés à chaque passage.
- */
-const PINNED_LIBRARIES = new Set([
-  "pdf.min.mjs",
-  "pdf.worker.min.mjs"
-])
-
+const PINNED_LIBRARIES = new Set(["pdf.min.mjs", "pdf.worker.min.mjs"])
 const MINIMUM_LIBRARY_KILOBYTES = 100
-
-/* Pastilles par rangée dans la grille du diagnostic. */
 const DIAGNOSTIC_GRID_COLUMNS = 5
-
-/* Attente d'un fichier après écriture : pas et plafond, en millisecondes. */
 const FILE_WAIT_STEP = 20
 const FILE_WAIT_TIMEOUT = 300
 const ANALYTICS_MODULE = "CTS Analytics Client"
 
-/*
- * Chaque teinte a deux variantes. Les valeurs vives d'iOS sont pensées
- * pour un fond noir ; posées sur le blanc du mode clair, elles manquent
- * de contraste, en particulier le vert et l'orange. Les variantes claires
- * sont donc plus sombres, à teinte égale.
- */
 const COLORS = {
   blue: Color.dynamic(new Color("#0062CC"), new Color("#0A84FF")),
   green: Color.dynamic(new Color("#1F7A34"), new Color("#30D158")),
   orange: Color.dynamic(new Color("#9A4E00"), new Color("#FF9F0A")),
   red: Color.dynamic(new Color("#C00011"), new Color("#FF453A")),
   gray: Color.dynamic(new Color("#6D6D72"), new Color("#8E8E93")),
-  secondary: Color.dynamic(
-    new Color("#6D6D72"),
-    new Color("#98989D")
-  ),
-  primary: Color.dynamic(
-    new Color("#111111"),
-    new Color("#F5F5F7")
-  )
+  secondary: Color.dynamic(new Color("#6D6D72"), new Color("#98989D")),
+  primary: Color.dynamic(new Color("#111111"), new Color("#F5F5F7"))
 }
 
 const fm = FileManager.iCloud()
 const docs = fm.documentsDirectory()
 const join = (a, b) => fm.joinPath(a, b)
-
 const root = join(docs, "CTS Dashboard")
 const currentInstaller = join(docs, `${Script.name()}.js`)
 const canonicalInstaller = join(docs, INSTALLER_FILE)
@@ -126,14 +76,13 @@ async function main() {
   try {
     await preserveInstaller()
 
-    repositoryRevision =
-      await resolveRepositoryRevision()
+    repositoryRevision = await resolveRepositoryRevision()
 
     const manifest = await loadManifest()
     validateManifest(manifest)
     rememberAuthor(manifest)
 
-    if (!await handleInstallerUpdate(manifest)) {
+    if (!(await handleInstallerUpdate(manifest))) {
       return
     }
 
@@ -171,26 +120,16 @@ async function menu(manifest, state) {
     alert.addAction(`Installer la version ${manifest.version}`)
     alert.addCancelAction("Fermer")
 
-    return await alert.presentSheet() === 0
-      ? "install"
-      : null
+    return (await alert.presentSheet()) === 0 ? "install" : null
   }
 
-  const installedVersion =
-    state.installedVersion || "Non identifiée"
+  const installedVersion = state.installedVersion || "Non identifiée"
 
   const updateAvailable =
     Boolean(state.installedVersion) &&
-    compareVersions(
-      manifest.version,
-      state.installedVersion
-    ) > 0
+    compareVersions(manifest.version, state.installedVersion) > 0
 
-  const issues = [
-    ...state.missing,
-    ...state.invalid
-  ]
-
+  const issues = [...state.missing, ...state.invalid]
   const stateLabel = state.complete
     ? `${state.valid}/${state.total} fichiers locaux valides`
     : `${state.valid}/${state.total} fichiers valides — réparation nécessaire`
@@ -201,9 +140,7 @@ async function menu(manifest, state) {
       : `Dashboard ${installedVersion} · Installer ${INSTALLER_VERSION}`,
     "",
     stateLabel,
-    issues.length
-      ? `Fichiers concernés : ${issues.join(", ")}`
-      : "",
+    issues.length ? `Fichiers concernés : ${issues.join(", ")}` : "",
     "",
     updateAvailable
       ? "La nouvelle version est prête à être installée."
@@ -214,7 +151,9 @@ async function menu(manifest, state) {
     "CTS Installer, vos PDF et leurs archives seront conservés.",
     "",
     credit()
-  ].filter(Boolean).join("\n")
+  ]
+    .filter(Boolean)
+    .join("\n")
 
   alert.addAction(
     updateAvailable
@@ -245,7 +184,6 @@ async function inspect(manifest) {
   const missing = []
   const invalid = []
   const reasons = {}
-
   let existing = 0
   let valid = 0
 
@@ -258,10 +196,7 @@ async function inspect(manifest) {
 
     existing++
 
-    const result = await validateLocal(
-      entry.destination,
-      entry.name
-    )
+    const result = await validateLocal(entry.destination, entry.name)
 
     if (result.valid) {
       valid++
@@ -272,16 +207,8 @@ async function inspect(manifest) {
   }
 
   const total = entries.length
-
-  const present = Boolean(
-    metadata ||
-    existing ||
-    fm.fileExists(root)
-  )
-
-  const complete =
-    present &&
-    valid === total
+  const present = Boolean(metadata || existing || fm.fileExists(root))
+  const complete = present && valid === total
 
   const installedVersion =
     typeof metadata?.dashboardVersion === "string"
@@ -308,10 +235,7 @@ async function installOrUpdate(manifest, previous) {
 
   const versionUpdate =
     Boolean(previous.installedVersion) &&
-    compareVersions(
-      manifest.version,
-      previous.installedVersion
-    ) > 0
+    compareVersions(manifest.version, previous.installedVersion) > 0
 
   const operation = fresh
     ? "installation"
@@ -322,7 +246,6 @@ async function installOrUpdate(manifest, previous) {
         : "repair"
 
   const title = operationTitle(operation)
-
   const message = fresh
     ? [
         `CTS Dashboard ${manifest.version} va être installé.`,
@@ -339,7 +262,7 @@ async function installOrUpdate(manifest, previous) {
         "CTS Installer, vos PDF et leurs archives seront conservés."
       ].join("\n")
 
-  if (!await confirm(title, message, "Continuer")) {
+  if (!(await confirm(title, message, "Continuer"))) {
     return
   }
 
@@ -364,36 +287,18 @@ async function installOrUpdate(manifest, previous) {
 
   const failures = []
   const startedAt = Date.now()
-
-  /*
-   * Le snapshot de la dernière installation réussie décide si les
-   * bibliothèques épinglées peuvent être conservées telles quelles.
-   */
   const metadata = await readMetadata()
   const snapshotUnchanged =
-    Boolean(metadata?.repositoryRevision) &&
-    metadata.repositoryRevision === repositoryRevision
+    Boolean(metadata?.repositoryRevision) && metadata.repositoryRevision === repositoryRevision
 
   try {
-    await progress.system(
-      "installer",
-      "running",
-      "Protection de CTS Installer…"
-    )
+    await progress.system("installer", "running", "Protection de CTS Installer…")
 
     await preserveInstaller()
 
-    await progress.system(
-      "installer",
-      "success",
-      "Installateur protégé"
-    )
+    await progress.system("installer", "success", "Installateur protégé")
 
-    await progress.system(
-      "github",
-      "running",
-      "Validation du snapshot GitHub…"
-    )
+    await progress.system("github", "running", "Validation du snapshot GitHub…")
 
     verifyRepository(manifest)
 
@@ -403,51 +308,22 @@ async function installOrUpdate(manifest, previous) {
       `Snapshot ${repositoryRevision.slice(0, 7)} validé`
     )
 
-    await progress.system(
-      "directories",
-      "running",
-      "Préparation de l’arborescence…"
-    )
+    await progress.system("directories", "running", "Préparation de l’arborescence…")
 
     ensureDirectories()
 
-    await progress.system(
-      "directories",
-      "success",
-      "Arborescence prête"
-    )
+    await progress.system("directories", "success", "Arborescence prête")
 
-    /*
-     * Les fichiers sont traités par vagues de CONCURRENCY plutôt qu'un par
-     * un : l'essentiel du temps d'un fichier est une attente réseau, et
-     * rien n'oblige à attendre la fin de l'une avant de commencer la
-     * suivante. Les destinations étant toutes distinctes, deux écritures
-     * simultanées ne peuvent pas se gêner.
-     *
-     * La vague reste petite à dessein. Elle suffit à masquer la latence,
-     * sans ouvrir assez de connexions pour saturer un partage de connexion
-     * ni pour rendre le décompte de progression illisible.
-     */
     let completed = 0
 
-    for (
-      let start = 0;
-      start < entries.length;
-      start += CONCURRENCY
-    ) {
-      const wave = entries
-        .slice(start, start + CONCURRENCY)
-        .map((entry, offset) => ({
-          entry,
-          index: start + offset
-        }))
+    for (let start = 0; start < entries.length; start += CONCURRENCY) {
+      const wave = entries.slice(start, start + CONCURRENCY).map((entry, offset) => ({
+        entry,
+        index: start + offset
+      }))
 
       for (const item of wave) {
-        await progress.entry(
-          item.index,
-          "running",
-          `Contrôle de ${item.entry.name}`
-        )
+        await progress.entry(item.index, "running", `Contrôle de ${item.entry.name}`)
       }
 
       const results = await Promise.all(
@@ -470,15 +346,9 @@ async function installOrUpdate(manifest, previous) {
 
       for (const result of results) {
         if (result.status) {
-          summary[result.status].push(
-            result.entry.name
-          )
+          summary[result.status].push(result.entry.name)
 
-          await progress.entry(
-            result.index,
-            result.status,
-            statusLabel(result.status)
-          )
+          await progress.entry(result.index, result.status, statusLabel(result.status))
         } else {
           failures.push({
             index: result.index,
@@ -486,20 +356,13 @@ async function installOrUpdate(manifest, previous) {
             reason: result.reason
           })
 
-          await progress.entry(
-            result.index,
-            "retry",
-            "Nouvelle tentative programmée"
-          )
+          await progress.entry(result.index, "retry", "Nouvelle tentative programmée")
         }
 
         completed++
       }
 
-      await progress.advance(
-        completed,
-        entries.length
-      )
+      await progress.advance(completed, entries.length)
     }
 
     if (failures.length) {
@@ -517,70 +380,41 @@ async function installOrUpdate(manifest, previous) {
         )
 
         try {
-          const status = await syncFile(
-            failure.entry,
-            { force: true }
-          )
+          const status = await syncFile(failure.entry, { force: true })
 
-          summary[status].push(
-            failure.entry.name
-          )
+          summary[status].push(failure.entry.name)
 
           failure.resolved = true
 
-          await progress.entry(
-            failure.index,
-            status,
-            statusLabel(status)
-          )
+          await progress.entry(failure.index, status, statusLabel(status))
         } catch (error) {
           failure.reason = messageOf(error)
-          summary.failed.push(
-            failure.entry.name
-          )
+          summary.failed.push(failure.entry.name)
 
-          await progress.entry(
-            failure.index,
-            "error",
-            failure.reason
-          )
+          await progress.entry(failure.index, "error", failure.reason)
         }
       }
 
-      const unresolved = failures.filter(
-        item => !item.resolved
-      )
+      const unresolved = failures.filter(item => !item.resolved)
 
       await progress.system(
         "retry",
-        unresolved.length
-          ? "error"
-          : "success",
+        unresolved.length ? "error" : "success",
         unresolved.length
           ? `${plural(unresolved.length, "fichier")} encore en erreur`
           : "Toutes les nouvelles tentatives ont réussi"
       )
     } else {
-      await progress.system(
-        "retry",
-        "success",
-        "Aucune nouvelle tentative nécessaire"
-      )
+      await progress.system("retry", "success", "Aucune nouvelle tentative nécessaire")
     }
 
-    await progress.system(
-      "verification",
-      "running",
-      "Validation finale…"
-    )
+    await progress.system("verification", "running", "Validation finale…")
 
     const verification = await inspect(manifest)
 
     if (!verification.complete) {
       const issues = [
-        ...verification.missing.map(
-          name => `${name} — absent`
-        ),
+        ...verification.missing.map(name => `${name} — absent`),
         ...verification.invalid.map(
           name => `${name} — ${verification.reasons[name] || "invalide"}`
         )
@@ -597,9 +431,7 @@ async function installOrUpdate(manifest, previous) {
         title: "Installation non validée",
         message: [
           `${verification.valid}/${verification.total} fichiers sont valides.`,
-          issues.length
-            ? issues.join("\n")
-            : "Une erreur inconnue empêche la validation."
+          issues.length ? issues.join("\n") : "Une erreur inconnue empêche la validation."
         ].join("\n"),
         summary,
         duration: Date.now() - startedAt,
@@ -610,16 +442,11 @@ async function installOrUpdate(manifest, previous) {
       return
     }
 
-    await writeMetadata(
-      manifest,
-      summary
-    )
+    await writeMetadata(manifest, summary)
 
     await preserveInstaller()
 
-    await registerAnalyticsInstallation(
-      manifest.version
-    )
+    await registerAnalyticsInstallation(manifest.version)
 
     await progress.system(
       "verification",
@@ -637,11 +464,7 @@ async function installOrUpdate(manifest, previous) {
       total: verification.total
     })
   } catch (error) {
-    await progress.system(
-      "verification",
-      "error",
-      "Opération interrompue"
-    )
+    await progress.system("verification", "error", "Opération interrompue")
 
     await progress.finish({
       success: false,
@@ -664,17 +487,10 @@ async function canSkipPinnedLibrary(entry) {
     return false
   }
 
-  /*
-   * Une bibliothèque tronquée passerait le contrôle de contenu, qui ne
-   * vérifie qu'une longueur minimale de quatre-vingts caractères. Sa
-   * taille, elle, la trahit.
-   */
   let kilobytes = 0
 
   try {
-    kilobytes = Number(
-      fm.fileSize(entry.destination)
-    ) || 0
+    kilobytes = Number(fm.fileSize(entry.destination)) || 0
   } catch (_) {
     return false
   }
@@ -683,10 +499,7 @@ async function canSkipPinnedLibrary(entry) {
     return false
   }
 
-  const check = await validateLocal(
-    entry.destination,
-    entry.name
-  )
+  const check = await validateLocal(entry.destination, entry.name)
 
   return check.valid
 }
@@ -694,37 +507,24 @@ async function canSkipPinnedLibrary(entry) {
 async function syncFile(entry, options = {}) {
   const force = Boolean(options.force)
 
-  if (
-    !force &&
-    options.snapshotUnchanged &&
-    await canSkipPinnedLibrary(entry)
-  ) {
+  if (!force && options.snapshotUnchanged && (await canSkipPinnedLibrary(entry))) {
     return "unchanged"
   }
 
   let remote
   let lastError
 
-  for (
-    let attempt = 1;
-    attempt <= RETRIES;
-    attempt++
-  ) {
+  for (let attempt = 1; attempt <= RETRIES; attempt++) {
     try {
       remote = await downloadText(
         `${rawUrl(entry.name)}?t=${Date.now()}-${attempt}`,
         entry.name
       )
 
-      const validation = validateText(
-        remote,
-        entry.name
-      )
+      const validation = validateText(remote, entry.name)
 
       if (!validation.valid) {
-        throw new Error(
-          `Version GitHub invalide : ${validation.reason}`
-        )
+        throw new Error(`Version GitHub invalide : ${validation.reason}`)
       }
 
       break
@@ -738,68 +538,36 @@ async function syncFile(entry, options = {}) {
   }
 
   if (remote === undefined) {
-    throw lastError ||
-      new Error(
-        `${entry.name} impossible à télécharger.`
-      )
+    throw lastError || new Error(`${entry.name} impossible à télécharger.`)
   }
 
-  const existed = fm.fileExists(
-    entry.destination
-  )
-
+  const existed = fm.fileExists(entry.destination)
   let localValid = false
 
   if (existed) {
-    /*
-     * Une seule lecture du fichier local, réutilisée pour le contrôle de
-     * validité et pour la comparaison. La version précédente le lisait
-     * deux fois de suite, soit une lecture iCloud inutile par fichier.
-     */
-    const check = await inspectLocal(
-      entry.destination,
-      entry.name
-    )
+    const check = await inspectLocal(entry.destination, entry.name)
 
     localValid = check.valid
 
     if (
       !force &&
       localValid &&
-      normalize(check.content, entry.name) ===
-        normalize(remote, entry.name)
+      normalize(check.content, entry.name) === normalize(remote, entry.name)
     ) {
       return "unchanged"
     }
   }
 
-  await writeText(
-    entry.destination,
-    remote
-  )
+  await writeText(entry.destination, remote)
 
-  /*
-   * Le fichier écrit est relu une fois et sert aux deux contrôles :
-   * il doit être valide, et identique à ce que GitHub a renvoyé.
-   */
-  const result = await inspectLocal(
-    entry.destination,
-    entry.name
-  )
+  const result = await inspectLocal(entry.destination, entry.name)
 
   if (!result.valid) {
-    throw new Error(
-      `${entry.name} invalide après écriture : ${result.reason}`
-    )
+    throw new Error(`${entry.name} invalide après écriture : ${result.reason}`)
   }
 
-  if (
-    normalize(result.content, entry.name) !==
-    normalize(remote, entry.name)
-  ) {
-    throw new Error(
-      `${entry.name} ne correspond pas au snapshot GitHub après écriture.`
-    )
+  if (normalize(result.content, entry.name) !== normalize(remote, entry.name)) {
+    throw new Error(`${entry.name} ne correspond pas au snapshot GitHub après écriture.`)
   }
 
   if (!existed) {
@@ -814,22 +582,14 @@ async function syncFile(entry, options = {}) {
 }
 
 async function preserveInstaller() {
-  const canonical =
-    await readInstallerCandidate(
-      canonicalInstaller
-    )
+  const canonical = await readInstallerCandidate(canonicalInstaller)
 
   const current =
     currentInstaller === canonicalInstaller
       ? canonical
-      : await readInstallerCandidate(
-          currentInstaller
-        )
+      : await readInstallerCandidate(currentInstaller)
 
-  let selected = selectInstallerCandidate(
-    canonical,
-    current
-  )
+  let selected = selectInstallerCandidate(canonical, current)
 
   if (!selected) {
     const content = await downloadText(
@@ -837,42 +597,22 @@ async function preserveInstaller() {
       INSTALLER_FILE
     )
 
-    selected = createInstallerCandidate(
-      content
-    )
+    selected = createInstallerCandidate(content)
   }
 
   if (!selected) {
-    throw new Error(
-      "La copie de CTS Installer est invalide."
-    )
+    throw new Error("La copie de CTS Installer est invalide.")
   }
 
   if (
     !canonical ||
-    normalize(
-      canonical.content,
-      INSTALLER_FILE
-    ) !==
-      normalize(
-        selected.content,
-        INSTALLER_FILE
-      )
+    normalize(canonical.content, INSTALLER_FILE) !== normalize(selected.content, INSTALLER_FILE)
   ) {
-    await writeText(
-      canonicalInstaller,
-      selected.content
-    )
+    await writeText(canonicalInstaller, selected.content)
   }
 
-  if (
-    !await readInstallerCandidate(
-      canonicalInstaller
-    )
-  ) {
-    throw new Error(
-      "CTS Installer.js n’a pas pu être conservé."
-    )
+  if (!(await readInstallerCandidate(canonicalInstaller))) {
+    throw new Error("CTS Installer.js n’a pas pu être conservé.")
   }
 }
 
@@ -882,9 +622,7 @@ async function readInstallerCandidate(path) {
   }
 
   try {
-    return createInstallerCandidate(
-      await readText(path)
-    )
+    return createInstallerCandidate(await readText(path))
   } catch (_) {
     return null
   }
@@ -901,10 +639,7 @@ function createInstallerCandidate(content) {
   }
 }
 
-function selectInstallerCandidate(
-  canonical,
-  current
-) {
+function selectInstallerCandidate(canonical, current) {
   if (!canonical) {
     return current
   }
@@ -913,19 +648,11 @@ function selectInstallerCandidate(
     return canonical
   }
 
-  return compareVersions(
-    current.version,
-    canonical.version
-  ) >= 0
-    ? current
-    : canonical
+  return compareVersions(current.version, canonical.version) >= 0 ? current : canonical
 }
 
 function installerVersion(content) {
-  const match = String(content || "")
-    .match(
-      /const\s+INSTALLER_VERSION\s*=\s*"([^"]+)"/
-    )
+  const match = String(content || "").match(/const\s+INSTALLER_VERSION\s*=\s*"([^"]+)"/)
 
   return match?.[1]?.trim?.() || ""
 }
@@ -933,36 +660,18 @@ function installerVersion(content) {
 function isInstallerSource(content) {
   return Boolean(
     installerVersion(content) &&
-    content.includes(
-      `const INSTALLER_FILE = "${INSTALLER_FILE}"`
-    ) &&
-    content.includes(
-      "async function main()"
-    )
+    content.includes(`const INSTALLER_FILE = "${INSTALLER_FILE}"`) &&
+    content.includes("async function main()")
   )
 }
-
-// =====================================================
-// DIAGNOSTIC INTÉGRÉ
-// =====================================================
 
 async function runDiagnostic(manifest, state) {
   const diagnostic = {
     generatedAt: new Date().toISOString(),
-    dashboardVersion:
-      state.installedVersion || manifest.version || "?",
+    dashboardVersion: state.installedVersion || manifest.version || "?",
     installerVersion: INSTALLER_VERSION,
     iosVersion: Device.systemVersion(),
     snapshot: String(repositoryRevision || "").slice(0, 7),
-    /*
-     * Révision réellement installée, relue dans installation.json.
-     * Sans elle, un rapport ne disait pas quel code tourne : « 22/22
-     * fichiers valides » ne contrôle que le contenu non vide et le JSON
-     * lisible, jamais l'égalité avec GitHub, et le numéro de version ne
-     * bouge pas lors d'une correction publiée sans annonce. On a ainsi
-     * cherché une panne pendant des heures sans pouvoir affirmer que le
-     * correctif était bien en place.
-     */
     installedSnapshot: "",
     checks: [],
     lastImport: null,
@@ -971,8 +680,7 @@ async function runDiagnostic(manifest, state) {
 
   try {
     const metadata = await readMetadata()
-    diagnostic.installedSnapshot =
-      String(metadata?.repositoryRevision || "").slice(0, 7)
+    diagnostic.installedSnapshot = String(metadata?.repositoryRevision || "").slice(0, 7)
   } catch (_) {}
 
   addDiagnosticCheck(
@@ -982,12 +690,8 @@ async function runDiagnostic(manifest, state) {
     `${state.valid}/${state.total} fichiers locaux valides`
   )
 
-  /*
-   * Contrôle explicite : le code installé est-il celui publié ?
-   */
   const current =
-    diagnostic.installedSnapshot &&
-    diagnostic.installedSnapshot === diagnostic.snapshot
+    diagnostic.installedSnapshot && diagnostic.installedSnapshot === diagnostic.snapshot
 
   addDiagnosticCheck(
     diagnostic,
@@ -1010,16 +714,10 @@ async function runDiagnostic(manifest, state) {
       `Snapshot ${diagnostic.snapshot} accessible`
     )
   } catch (error) {
-    addDiagnosticCheck(
-      diagnostic,
-      "GitHub",
-      "error",
-      sanitizeDiagnosticText(messageOf(error))
-    )
+    addDiagnosticCheck(diagnostic, "GitHub", "error", sanitizeDiagnosticText(messageOf(error)))
   }
 
-  const directoryCheck =
-    inspectDiagnosticDirectories()
+  const directoryCheck = inspectDiagnosticDirectories()
 
   addDiagnosticCheck(
     diagnostic,
@@ -1028,68 +726,33 @@ async function runDiagnostic(manifest, state) {
     directoryCheck.detail
   )
 
-  const writeCheck =
-    await diagnosticWriteTest()
+  const writeCheck = await diagnosticWriteTest()
 
-  addDiagnosticCheck(
-    diagnostic,
-    "Écriture iCloud",
-    writeCheck.status,
-    writeCheck.detail
-  )
+  addDiagnosticCheck(diagnostic, "Écriture iCloud", writeCheck.status, writeCheck.detail)
 
-  const resourcesCheck =
-    await inspectDiagnosticResources()
+  const resourcesCheck = await inspectDiagnosticResources()
 
-  addDiagnosticCheck(
-    diagnostic,
-    "Ressources",
-    resourcesCheck.status,
-    resourcesCheck.detail
-  )
+  addDiagnosticCheck(diagnostic, "Ressources", resourcesCheck.status, resourcesCheck.detail)
 
-  const servicesCheck =
-    inspectDiagnosticServicesFolder()
+  const servicesCheck = inspectDiagnosticServicesFolder()
 
-  addDiagnosticCheck(
-    diagnostic,
-    "Dossier Services",
-    servicesCheck.status,
-    servicesCheck.detail
-  )
+  addDiagnosticCheck(diagnostic, "Dossier Services", servicesCheck.status, servicesCheck.detail)
 
-  const indexCheck =
-    await inspectDiagnosticIndex()
+  const indexCheck = await inspectDiagnosticIndex()
 
-  addDiagnosticCheck(
-    diagnostic,
-    "Index des services",
-    indexCheck.status,
-    indexCheck.detail
-  )
+  addDiagnosticCheck(diagnostic, "Index des services", indexCheck.status, indexCheck.detail)
 
-  const logCheck =
-    await inspectDiagnosticLog()
+  const logCheck = await inspectDiagnosticLog()
 
   diagnostic.lastImport = logCheck.lastImport
   diagnostic.lastFailure = logCheck.lastFailure
 
-  addDiagnosticCheck(
-    diagnostic,
-    "Journal d’import",
-    logCheck.status,
-    logCheck.detail
-  )
+  addDiagnosticCheck(diagnostic, "Journal d’import", logCheck.status, logCheck.detail)
 
   await presentDiagnostic(diagnostic)
 }
 
-function addDiagnosticCheck(
-  diagnostic,
-  title,
-  status,
-  detail
-) {
+function addDiagnosticCheck(diagnostic, title, status, detail) {
   diagnostic.checks.push({
     title: String(title || "Diagnostic"),
     status: diagnosticStatus(status),
@@ -1112,9 +775,7 @@ function inspectDiagnosticDirectories() {
     paths.pdf
   ]
 
-  const missing = required.filter(
-    path => !fm.fileExists(path)
-  )
+  const missing = required.filter(path => !fm.fileExists(path))
 
   return missing.length
     ? {
@@ -1135,10 +796,7 @@ async function diagnosticWriteTest() {
     }
   }
 
-  const testPath = join(
-    paths.data,
-    `.cts-diagnostic-${Date.now()}.tmp`
-  )
+  const testPath = join(paths.data, `.cts-diagnostic-${Date.now()}.tmp`)
 
   try {
     const token = `CTS-${Date.now()}`
@@ -1148,9 +806,7 @@ async function diagnosticWriteTest() {
     const saved = fm.readString(testPath)
 
     if (saved !== token) {
-      throw new Error(
-        "Le contenu relu ne correspond pas au test écrit."
-      )
+      throw new Error("Le contenu relu ne correspond pas au test écrit.")
     }
 
     removeQuietly(testPath)
@@ -1197,10 +853,7 @@ async function inspectDiagnosticResources() {
   const failures = []
 
   for (const resource of resources) {
-    const result = await validateLocal(
-      resource.path,
-      resource.name
-    )
+    const result = await validateLocal(resource.path, resource.name)
 
     if (result.valid) {
       valid++
@@ -1296,10 +949,7 @@ async function inspectDiagnosticIndex() {
   try {
     const importer = importModule("CTS Importer")
 
-    if (
-      !importer ||
-      typeof importer.readCurrentIndex !== "function"
-    ) {
+    if (!importer || typeof importer.readCurrentIndex !== "function") {
       return {
         status: "error",
         detail: "CTS Importer ne fournit pas readCurrentIndex()"
@@ -1307,9 +957,7 @@ async function inspectDiagnosticIndex() {
     }
 
     const index = await importer.readCurrentIndex()
-    const count = Array.isArray(index?.services)
-      ? index.services.length
-      : 0
+    const count = Array.isArray(index?.services) ? index.services.length : 0
 
     return count > 0
       ? {
@@ -1332,10 +980,7 @@ async function inspectDiagnosticLog() {
   try {
     const storage = importModule("CTS Storage")
 
-    if (
-      !storage ||
-      typeof storage.loadLog !== "function"
-    ) {
+    if (!storage || typeof storage.loadLog !== "function") {
       return {
         status: "error",
         detail: "CTS Storage ne fournit pas loadLog()",
@@ -1346,9 +991,7 @@ async function inspectDiagnosticLog() {
 
     const logs = await storage.loadLog()
     const entries = Array.isArray(logs)
-      ? logs.filter(
-          item => item && typeof item === "object"
-        )
+      ? logs.filter(item => item && typeof item === "object")
       : []
 
     if (!entries.length) {
@@ -1360,17 +1003,10 @@ async function inspectDiagnosticLog() {
       }
     }
 
-    const lastImport = normalizeDiagnosticLogEntry(
-      entries[entries.length - 1]
-    )
-
+    const lastImport = normalizeDiagnosticLogEntry(entries[entries.length - 1])
     const lastFailureSource = [...entries]
       .reverse()
-      .find(
-        item =>
-          item?.type === "exception" ||
-          item?.type === "validation-error"
-      )
+      .find(item => item?.type === "exception" || item?.type === "validation-error")
 
     const lastFailure = lastFailureSource
       ? normalizeDiagnosticLogEntry(lastFailureSource)
@@ -1411,36 +1047,23 @@ async function inspectDiagnosticLog() {
 }
 
 function normalizeDiagnosticLogEntry(entry) {
-  const details = isRecord(entry?.details)
-    ? entry.details
-    : {}
-
-  const technical = isRecord(details.details)
-    ? details.details
-    : {}
+  const details = isRecord(entry?.details) ? entry.details : {}
+  const technical = isRecord(details.details) ? details.details : {}
 
   return {
     timestamp: String(entry?.timestamp || ""),
     type: String(entry?.type || "info"),
     code: String(details.telemetryCode || ""),
     stage: String(details.telemetryStage || ""),
-    error: sanitizeDiagnosticText(
-      details.error || technical.message || ""
-    ),
-    name: sanitizeDiagnosticText(
-      technical.name || ""
-    ),
-    stack: sanitizeDiagnosticText(
-      technical.stack || ""
-    ),
+    error: sanitizeDiagnosticText(details.error || technical.message || ""),
+    name: sanitizeDiagnosticText(technical.name || ""),
+    stack: sanitizeDiagnosticText(technical.stack || ""),
     timings: normalizeDiagnosticTimings(details.timings)
   }
 }
 
 function normalizeDiagnosticTimings(value) {
-  const timings = isRecord(value)
-    ? value
-    : {}
+  const timings = isRecord(value) ? value : {}
 
   const fields = [
     "sourceInspectionMs",
@@ -1455,20 +1078,20 @@ function normalizeDiagnosticTimings(value) {
 
   for (const field of fields) {
     const number = Number(timings[field])
-    result[field] = Number.isFinite(number)
-      ? number
-      : null
+    result[field] = Number.isFinite(number) ? number : null
   }
 
   return result
 }
 
 function diagnosticLogTypeLabel(type) {
-  return {
-    success: "réussi",
-    exception: "erreur technique",
-    "validation-error": "validation refusée"
-  }[type] || String(type || "inconnu")
+  return (
+    {
+      success: "réussi",
+      exception: "erreur technique",
+      "validation-error": "validation refusée"
+    }[type] || String(type || "inconnu")
+  )
 }
 
 async function presentDiagnostic(diagnostic) {
@@ -1476,7 +1099,6 @@ async function presentDiagnostic(diagnostic) {
   table.showSeparators = true
 
   const counts = diagnosticCounts(diagnostic.checks)
-
   const header = new UITableRow()
   header.height = 82
   header.isHeader = true
@@ -1527,9 +1149,7 @@ async function presentDiagnostic(diagnostic) {
   reportText.subtitleColor = COLORS.secondary
 
   reportRow.onSelect = async () => {
-    Pasteboard.copyString(
-      buildDiagnosticReport(diagnostic)
-    )
+    Pasteboard.copyString(buildDiagnosticReport(diagnostic))
 
     const alert = new Alert()
     alert.title = "Rapport copié"
@@ -1564,36 +1184,15 @@ async function presentDiagnostic(diagnostic) {
   await table.present(true)
 }
 
-/*
- * Les dix contrôles tenaient sur dix lignes de cinquante-cinq points, soit
- * huit cent dix points en tout : la page débordait de l'écran, et un
- * diagnostic qu'il faut faire défiler pour voir s'il est vert rate son but.
- *
- * Ils tiennent maintenant sur deux rangées de pastilles, lisibles d'un coup
- * d'œil. Rien n'est perdu : la ligne suivante affiche le premier problème en
- * clair, et « Détails » ouvre la liste complète, celle d'avant.
- */
 function addDiagnosticGrid(table, checks) {
-  for (
-    let start = 0;
-    start < checks.length;
-    start += DIAGNOSTIC_GRID_COLUMNS
-  ) {
-    const slice = checks.slice(
-      start,
-      start + DIAGNOSTIC_GRID_COLUMNS
-    )
-
+  for (let start = 0; start < checks.length; start += DIAGNOSTIC_GRID_COLUMNS) {
+    const slice = checks.slice(start, start + DIAGNOSTIC_GRID_COLUMNS)
     const row = new UITableRow()
     row.height = 48
 
     for (const check of slice) {
       const visual = diagnosticVisual(check.status)
-
-      const cell = row.addText(
-        visual.marker,
-        diagnosticShortTitle(check.title)
-      )
+      const cell = row.addText(visual.marker, diagnosticShortTitle(check.title))
 
       cell.widthWeight = 100 / DIAGNOSTIC_GRID_COLUMNS
       cell.titleFont = Font.boldSystemFont(16)
@@ -1603,12 +1202,7 @@ function addDiagnosticGrid(table, checks) {
       cell.centerAligned()
     }
 
-    /* Une rangée incomplète reste alignée sur les autres. */
-    for (
-      let filler = slice.length;
-      filler < DIAGNOSTIC_GRID_COLUMNS;
-      filler++
-    ) {
+    for (let filler = slice.length; filler < DIAGNOSTIC_GRID_COLUMNS; filler++) {
       const cell = row.addText("", "")
       cell.widthWeight = 100 / DIAGNOSTIC_GRID_COLUMNS
     }
@@ -1617,10 +1211,6 @@ function addDiagnosticGrid(table, checks) {
   }
 }
 
-/*
- * Le conducteur n'a pas à chercher : la ligne annonce le premier point
- * qui mérite attention, ou confirme que tout est conforme.
- */
 function addDiagnosticFocusRow(table, checks) {
   const focus =
     checks.find(check => check.status === "error") ||
@@ -1631,17 +1221,13 @@ function addDiagnosticFocusRow(table, checks) {
 
   const text = row.addText(
     focus ? focus.title : "Aucune anomalie",
-    focus
-      ? focus.detail
-      : `${plural(checks.length, "contrôle")} passés avec succès`
+    focus ? focus.detail : `${plural(checks.length, "contrôle")} passés avec succès`
   )
 
   text.widthWeight = 100
   text.titleFont = Font.semiboldSystemFont(14)
   text.subtitleFont = Font.systemFont(10)
-  text.titleColor = focus
-    ? diagnosticVisual(focus.status).color
-    : COLORS.green
+  text.titleColor = focus ? diagnosticVisual(focus.status).color : COLORS.green
   text.subtitleColor = COLORS.secondary
 
   table.addRow(row)
@@ -1683,9 +1269,6 @@ function addDiagnosticDetailsRow(table, checks) {
   table.addRow(row)
 }
 
-/*
- * Les intitulés doivent tenir sous une pastille d'un cinquième de largeur.
- */
 function diagnosticShortTitle(title) {
   const short = {
     "Dossiers iCloud": "DOSSIERS",
@@ -1722,10 +1305,7 @@ function addDiagnosticSummaryRow(table, counts) {
   ]
 
   for (const item of values) {
-    const cell = row.addText(
-      String(item.title),
-      item.subtitle
-    )
+    const cell = row.addText(String(item.title), item.subtitle)
 
     cell.widthWeight = 100 / values.length
     cell.titleFont = Font.boldSystemFont(17)
@@ -1747,10 +1327,7 @@ function addDiagnosticRow(table, check) {
   marker.titleFont = Font.boldSystemFont(16)
   marker.titleColor = visual.color
 
-  const content = row.addText(
-    check.title,
-    check.detail
-  )
+  const content = row.addText(check.title, check.detail)
 
   content.widthWeight = 92
   content.titleFont = Font.semiboldSystemFont(12)
@@ -1778,22 +1355,11 @@ function diagnosticCounts(checks) {
 }
 
 function diagnosticOverallColor(counts) {
-  return counts.error > 0
-    ? COLORS.red
-    : counts.warning > 0
-      ? COLORS.orange
-      : COLORS.green
+  return counts.error > 0 ? COLORS.red : counts.warning > 0 ? COLORS.orange : COLORS.green
 }
 
 function diagnosticStatus(value) {
-  return [
-    "success",
-    "warning",
-    "error",
-    "info"
-  ].includes(value)
-    ? value
-    : "info"
+  return ["success", "warning", "error", "info"].includes(value) ? value : "info"
 }
 
 function diagnosticVisual(status) {
@@ -1856,20 +1422,12 @@ function buildDiagnosticReport(diagnostic) {
   ]
 
   for (const check of diagnostic.checks) {
-    lines.push(
-      `[${diagnosticReportStatus(check.status)}] ${check.title} — ${check.detail}`
-    )
+    lines.push(`[${diagnosticReportStatus(check.status)}] ${check.title} — ${check.detail}`)
   }
 
   if (diagnostic.lastFailure) {
     const failure = diagnostic.lastFailure
 
-    /*
-     * Un champ absent est écrit « ? », ce qui ressemble à une donnée
-     * perdue alors que le journal n'en a simplement jamais porté :
-     * une erreur de validation HASTUS n'a ni message JavaScript ni
-     * pile. On n'imprime que ce qui existe.
-     */
     lines.push(
       "",
       "DERNIÈRE ERREUR D’IMPORT",
@@ -1896,21 +1454,10 @@ function buildDiagnosticReport(diagnostic) {
     )
 
     if (failure.stack) {
-      lines.push(
-        "",
-        "STACK JAVASCRIPT",
-        "----------------",
-        failure.stack
-      )
+      lines.push("", "STACK JAVASCRIPT", "----------------", failure.stack)
     }
   }
 
-  /*
-   * Ce que le Dashboard a réellement fait à son dernier réveil. Un
-   * widget ne peut rien raconter par lui-même : cette section est la
-   * seule façon de savoir s'il s'est exécuté, combien de temps il a
-   * tenu, et ce qu'il a fini par afficher.
-   */
   const run = readLastRunTrace()
 
   if (run) {
@@ -1930,12 +1477,6 @@ function buildDiagnosticReport(diagnostic) {
       `PDF détectés : ${Number.isFinite(Number(run.detected)) ? run.detected : "?"}`
     )
 
-    /*
-     * Une tuile vide n'est jamais un rendu du Dashboard : ses quatre
-     * fabriques posent toutes un fond et du texte. Quand la dernière
-     * exécution a livré un affichage complet, une tuile blanche ou noire
-     * sans texte désigne donc un widget qui n'exécute pas ce script.
-     */
     if (run.committed && run.surface === "widget") {
       lines.push(
         "",
@@ -1969,48 +1510,41 @@ function diagnosticReportStatus(status) {
 function formatDiagnosticMs(value) {
   const number = Number(value)
 
-  return Number.isFinite(number)
-    ? `${number} ms`
-    : "non terminée"
+  return Number.isFinite(number) ? `${number} ms` : "non terminée"
 }
 
 function sanitizeDiagnosticText(value) {
   return String(value || "")
-    .replace(
-      /(?:\/private|\/var|\/mobile|\/Users)[^\n]*/gi,
-      "[chemin local masqué]"
-    )
-    .replace(
-      /[^\s\/\\]+\.pdf\b/gi,
-      "[PDF]"
-    )
-    .replace(
-      /Service_[^\s\/\\]+\.(?:json|txt)\b/gi,
-      "[cache service]"
-    )
+    .replace(/(?:\/private|\/var|\/mobile|\/Users)[^\n]*/gi, "[chemin local masqué]")
+    .replace(/[^\s\/\\]+\.pdf\b/gi, "[PDF]")
+    .replace(/Service_[^\s\/\\]+\.(?:json|txt)\b/gi, "[cache service]")
     .trim()
 }
 
 async function uninstall(manifest) {
-  if (!await confirm(
-    "Désinstaller CTS Dashboard",
-    [
-      "Les scripts et données techniques du Dashboard seront supprimés.",
-      "",
-      "CTS Installer, le dossier Services, vos PDF et leurs archives seront conservés."
-    ].join("\n"),
-    "Continuer",
-    true
-  )) {
+  if (
+    !(await confirm(
+      "Désinstaller CTS Dashboard",
+      [
+        "Les scripts et données techniques du Dashboard seront supprimés.",
+        "",
+        "CTS Installer, le dossier Services, vos PDF et leurs archives seront conservés."
+      ].join("\n"),
+      "Continuer",
+      true
+    ))
+  ) {
     return
   }
 
-  if (!await confirm(
-    "Confirmation définitive",
-    "Confirmez-vous la désinstallation de CTS Dashboard ?",
-    "Désinstaller",
-    true
-  )) {
+  if (
+    !(await confirm(
+      "Confirmation définitive",
+      "Confirmez-vous la désinstallation de CTS Dashboard ?",
+      "Désinstaller",
+      true
+    ))
+  ) {
     return
   }
 
@@ -2030,7 +1564,8 @@ async function uninstall(manifest) {
     }))
 
   const projectEntries = fm.fileExists(root)
-    ? fm.listContents(root)
+    ? fm
+        .listContents(root)
         .filter(name => name !== "Services")
         .map(name => ({
           name,
@@ -2039,10 +1574,7 @@ async function uninstall(manifest) {
         }))
     : []
 
-  const entries = [
-    ...scriptEntries,
-    ...projectEntries
-  ]
+  const entries = [...scriptEntries, ...projectEntries]
 
   const progress = progressTable({
     title: "Désinstaller CTS Dashboard",
@@ -2063,18 +1595,10 @@ async function uninstall(manifest) {
 
   const startedAt = Date.now()
 
-  for (
-    let index = 0;
-    index < entries.length;
-    index++
-  ) {
+  for (let index = 0; index < entries.length; index++) {
     const item = entries[index]
 
-    await progress.entry(
-      index,
-      "running",
-      `Suppression de ${item.name}`
-    )
+    await progress.entry(index, "running", `Suppression de ${item.name}`)
 
     try {
       if (fm.fileExists(item.destination)) {
@@ -2083,34 +1607,21 @@ async function uninstall(manifest) {
 
       summary.unchanged.push(item.name)
 
-      await progress.entry(
-        index,
-        "success",
-        "Supprimé"
-      )
+      await progress.entry(index, "success", "Supprimé")
     } catch (error) {
       summary.failed.push(item.name)
 
-      await progress.entry(
-        index,
-        "error",
-        messageOf(error)
-      )
+      await progress.entry(index, "error", messageOf(error))
     }
 
-    await progress.advance(
-      index + 1,
-      entries.length
-    )
+    await progress.advance(index + 1, entries.length)
   }
 
   await preserveInstaller()
 
   await progress.finish({
     success: summary.failed.length === 0,
-    title: summary.failed.length
-      ? "Désinstallation partielle"
-      : "Désinstallation terminée",
+    title: summary.failed.length ? "Désinstallation partielle" : "Désinstallation terminée",
     message: summary.failed.length
       ? `${plural(summary.failed.length, "élément n’a pas pu être supprimé", "éléments n’ont pas pu être supprimés")}.`
       : "CTS Dashboard a été supprimé.",
@@ -2121,16 +1632,7 @@ async function uninstall(manifest) {
   })
 }
 
-// =====================================================
-// INTERFACE PREMIUM COMPACTE
-// =====================================================
-
-function progressTable({
-  title,
-  version,
-  entries,
-  operation
-}) {
+function progressTable({ title, version, entries, operation }) {
   const table = new UITable()
   table.showSeparators = true
 
@@ -2178,26 +1680,12 @@ function progressTable({
     result: null
   }
 
-  /*
-   * Chaque micro-étape redessinait la table et attendait 25 ms. Sur une
-   * exécution complète cela faisait près de quatre-vingts redessins, soit
-   * environ deux secondes passées à attendre l'affichage plutôt qu'à
-   * travailler.
-   *
-   * L'affichage est désormais cadencé : au plus un redessin toutes les
-   * RENDER_INTERVAL millisecondes pour les fichiers, qui défilent trop
-   * vite pour être lus de toute façon, et un redessin immédiat pour les
-   * étapes système et l'écran final, qui doivent être vus.
-   */
   let lastRenderAt = 0
 
   const render = async (immediate = false) => {
     const now = Date.now()
 
-    if (
-      !immediate &&
-      now - lastRenderAt < RENDER_INTERVAL
-    ) {
+    if (!immediate && now - lastRenderAt < RENDER_INTERVAL) {
       return
     }
 
@@ -2205,17 +1693,9 @@ function progressTable({
     table.removeAllRows()
 
     if (state.result) {
-      renderFinalPage(
-        table,
-        state,
-        uninstalling
-      )
+      renderFinalPage(table, state, uninstalling)
     } else {
-      renderProgressPage(
-        table,
-        state,
-        uninstalling
-      )
+      renderProgressPage(table, state, uninstalling)
     }
 
     table.reload()
@@ -2232,10 +1712,7 @@ function progressTable({
         return
       }
 
-      Object.assign(
-        state.systems[key],
-        { status, detail }
-      )
+      Object.assign(state.systems[key], { status, detail })
 
       state.current = detail
       await render(true)
@@ -2246,10 +1723,7 @@ function progressTable({
         return
       }
 
-      Object.assign(
-        state.entries[index],
-        { status, detail }
-      )
+      Object.assign(state.entries[index], { status, detail })
 
       state.current = `${state.entries[index].name} · ${detail}`
       await render()
@@ -2264,9 +1738,7 @@ function progressTable({
     async finish(result) {
       state.result = result
 
-      state.current = result.success
-        ? "Opération terminée"
-        : "Une erreur est survenue"
+      state.current = result.success ? "Opération terminée" : "Une erreur est survenue"
 
       if (result.success) {
         state.completed = state.total
@@ -2277,119 +1749,56 @@ function progressTable({
   }
 }
 
-function renderProgressPage(
-  table,
-  state,
-  uninstalling
-) {
-  addCompactHeader(
-    table,
-    state.title,
-    state.version,
-    state.operation
-  )
+function renderProgressPage(table, state, uninstalling) {
+  addCompactHeader(table, state.title, state.version, state.operation)
 
-  addCompactProgress(
-    table,
-    state
-  )
+  addCompactProgress(table, state)
 
   if (!uninstalling) {
-    addSystemStrip(
-      table,
-      state.systems
-    )
+    addSystemStrip(table, state.systems)
   }
 
-  addProjectSummaryRow(
-    table,
-    state,
-    uninstalling
-  )
+  addProjectSummaryRow(table, state, uninstalling)
 
-  addProtectionRow(
-    table,
-    uninstalling
-  )
+  addProtectionRow(table, uninstalling)
 
   addCreditRow(table)
 }
 
-function renderFinalPage(
-  table,
-  state,
-  uninstalling
-) {
+function renderFinalPage(table, state, uninstalling) {
   const result = state.result
 
-  addResultHero(
-    table,
-    result,
-    state.version,
-    state.operation
-  )
+  addResultHero(table, result, state.version, state.operation)
 
-  addResultMetrics(
-    table,
-    result,
-    uninstalling
-  )
+  addResultMetrics(table, result, uninstalling)
 
   if (!uninstalling) {
-    addFinalValidationRow(
-      table,
-      state,
-      result
-    )
+    addFinalValidationRow(table, state, result)
 
-    addVerificationDetailsRow(
-      table,
-      state.entries
-    )
+    addVerificationDetailsRow(table, state.entries)
   }
 
-  addChangesRow(
-    table,
-    result,
-    uninstalling
-  )
+  addChangesRow(table, result, uninstalling)
 
-  addProtectionRow(
-    table,
-    uninstalling
-  )
+  addProtectionRow(table, uninstalling)
 
   addCreditRow(table)
 }
 
-function addCompactHeader(
-  table,
-  title,
-  version,
-  operation
-) {
+function addCompactHeader(table, title, version, operation) {
   const row = new UITableRow()
   row.height = 76
   row.isHeader = true
 
-  const symbol = SFSymbol.named(
-    operationSymbol(operation)
-  )
+  const symbol = SFSymbol.named(operationSymbol(operation))
 
-  symbol.applyFont(
-    Font.systemFont(24)
-  )
+  symbol.applyFont(Font.systemFont(24))
 
-  const image = row.addImage(
-    symbol.image
-  )
+  const image = row.addImage(symbol.image)
 
   image.widthWeight = 14
 
-  const text = row.addText(
-    title,
-    `Dashboard ${version}  ·  Installer ${INSTALLER_VERSION}`
-  )
+  const text = row.addText(title, `Dashboard ${version}  ·  Installer ${INSTALLER_VERSION}`)
 
   text.widthWeight = 86
   text.titleFont = Font.boldSystemFont(19)
@@ -2401,14 +1810,7 @@ function addCompactHeader(
 }
 
 function addCompactProgress(table, state) {
-  const percentage = state.total
-    ? Math.round(
-        state.completed /
-        state.total *
-        100
-      )
-    : 100
-
+  const percentage = state.total ? Math.round((state.completed / state.total) * 100) : 100
   const row = new UITableRow()
   row.height = 68
 
@@ -2417,32 +1819,19 @@ function addCompactProgress(table, state) {
     `${state.completed}/${state.total} · ${compactCurrent(state.current)}`
   )
 
-  progress.titleFont =
-    Font.boldMonospacedSystemFont(14)
+  progress.titleFont = Font.boldMonospacedSystemFont(14)
 
-  progress.subtitleFont =
-    Font.systemFont(10)
+  progress.subtitleFont = Font.systemFont(10)
 
-  progress.titleColor =
-    percentage === 100
-      ? COLORS.green
-      : COLORS.blue
+  progress.titleColor = percentage === 100 ? COLORS.green : COLORS.blue
 
   progress.subtitleColor = COLORS.secondary
 
   table.addRow(row)
 }
 
-/*
- * Une seule bande, pas deux. La version précédente affichait une ligne de
- * titre « Système ✓ Installer ✓ GitHub … » puis, juste en dessous, une
- * bande de pastilles disant exactement la même chose ; et le détail de
- * l'étape en cours figure déjà en sous-titre de la barre de progression.
- * Soixante points d'écran récupérés sans perdre une information.
- */
 function addSystemStrip(table, systems) {
-  const visible = Object.values(systems)
-    .filter(item => item.status !== "hidden")
+  const visible = Object.values(systems).filter(item => item.status !== "hidden")
 
   if (!visible.length) {
     return
@@ -2452,118 +1841,68 @@ function addSystemStrip(table, systems) {
   strip.height = 42
 
   for (const item of visible) {
-    const cell = strip.addText(
-      miniStatusMarker(item.status),
-      item.short.toUpperCase()
-    )
+    const cell = strip.addText(miniStatusMarker(item.status), item.short.toUpperCase())
 
     cell.widthWeight = 100 / visible.length
     cell.titleFont = Font.boldSystemFont(15)
     cell.subtitleFont = Font.boldSystemFont(8)
     cell.titleColor = statusVisual(item.status).color
-    cell.subtitleColor = item.status === "pending"
-      ? COLORS.secondary
-      : statusVisual(item.status).color
+    cell.subtitleColor =
+      item.status === "pending" ? COLORS.secondary : statusVisual(item.status).color
     cell.centerAligned()
   }
 
   table.addRow(strip)
 }
 
-function addProjectSummaryRow(
-  table,
-  state,
-  uninstalling
-) {
-  const counts = entryCounts(
-    state.entries
-  )
-
-  const scripts = state.entries.filter(
-    item => item.type === "Script"
-  ).length
-
-  const resources = state.entries.filter(
-    item => item.type === "Ressource"
-  ).length
-
+function addProjectSummaryRow(table, state, uninstalling) {
+  const counts = entryCounts(state.entries)
+  const scripts = state.entries.filter(item => item.type === "Script").length
+  const resources = state.entries.filter(item => item.type === "Ressource").length
   const row = new UITableRow()
   row.height = 62
   row.dismissOnSelect = false
 
-  const symbol = SFSymbol.named(
-    uninstalling
-      ? "trash.fill"
-      : "shippingbox.fill"
-  )
+  const symbol = SFSymbol.named(uninstalling ? "trash.fill" : "shippingbox.fill")
 
-  symbol.applyFont(
-    Font.systemFont(19)
-  )
+  symbol.applyFont(Font.systemFont(19))
 
-  const image = row.addImage(
-    symbol.image
-  )
+  const image = row.addImage(symbol.image)
 
   image.widthWeight = 12
 
-  const changed =
-    counts.installed +
-    counts.updated +
-    counts.repaired
-
+  const changed = counts.installed + counts.updated + counts.repaired
   const subtitle = uninstalling
     ? `${counts.success}/${state.total} supprimés · ${plural(counts.error, "erreur")}`
     : `${scripts} scripts · ${resources} ressources · ${counts.unchanged} à jour · ${plural(changed, "modifié", "modifiés")} · ${plural(counts.error, "erreur")}`
 
-  const text = row.addText(
-    uninstalling
-      ? "Éléments du projet"
-      : "Fichiers du projet",
-    subtitle
-  )
+  const text = row.addText(uninstalling ? "Éléments du projet" : "Fichiers du projet", subtitle)
 
   text.widthWeight = 88
   text.titleFont = Font.semiboldSystemFont(13)
   text.subtitleFont = Font.systemFont(9)
-  text.titleColor = counts.error
-    ? COLORS.red
-    : COLORS.primary
+  text.titleColor = counts.error ? COLORS.red : COLORS.primary
   text.subtitleColor = COLORS.secondary
 
   row.onSelect = async () => {
-    await presentEntryDetails(
-      state.entries,
-      uninstalling
-    )
+    await presentEntryDetails(state.entries, uninstalling)
   }
 
   table.addRow(row)
 }
 
-function addResultHero(
-  table,
-  result,
-  version,
-  operation
-) {
+function addResultHero(table, result, version, operation) {
   const row = new UITableRow()
   row.height = 88
   row.isHeader = true
 
   const symbol = SFSymbol.named(
-    result.success
-      ? "checkmark.seal.fill"
-      : "exclamationmark.triangle.fill"
+    result.success ? "checkmark.seal.fill" : "exclamationmark.triangle.fill"
   )
 
-  symbol.applyFont(
-    Font.systemFont(27)
-  )
+  symbol.applyFont(Font.systemFont(27))
 
-  const image = row.addImage(
-    symbol.image
-  )
+  const image = row.addImage(symbol.image)
 
   image.widthWeight = 15
 
@@ -2571,32 +1910,20 @@ function addResultHero(
     ? `CTS Dashboard ${version} est prêt · Installer ${INSTALLER_VERSION}`
     : firstMessageLine(result.message)
 
-  const text = row.addText(
-    result.title,
-    subtitle
-  )
+  const text = row.addText(result.title, subtitle)
 
   text.widthWeight = 85
   text.titleFont = Font.boldSystemFont(20)
   text.subtitleFont = Font.systemFont(11)
-  text.titleColor = result.success
-    ? COLORS.green
-    : COLORS.red
+  text.titleColor = result.success ? COLORS.green : COLORS.red
   text.subtitleColor = COLORS.secondary
 
   table.addRow(row)
 }
 
-function addResultMetrics(
-  table,
-  result,
-  uninstalling
-) {
+function addResultMetrics(table, result, uninstalling) {
   const summary = result.summary
-  const elapsed = result.duration
-    ? formatDuration(result.duration)
-    : "—"
-
+  const elapsed = result.duration ? formatDuration(result.duration) : "—"
   const row = new UITableRow()
   row.height = 70
 
@@ -2610,9 +1937,7 @@ function addResultMetrics(
         {
           title: summary.failed.length,
           subtitle: "ERREURS",
-          color: summary.failed.length
-            ? COLORS.red
-            : COLORS.green
+          color: summary.failed.length ? COLORS.red : COLORS.green
         },
         {
           title: elapsed,
@@ -2622,10 +1947,7 @@ function addResultMetrics(
       ]
     : [
         {
-          title:
-            summary.installed.length +
-            summary.updated.length +
-            summary.repaired.length,
+          title: summary.installed.length + summary.updated.length + summary.repaired.length,
           subtitle: "MODIFIÉS",
           color: COLORS.orange
         },
@@ -2637,9 +1959,7 @@ function addResultMetrics(
         {
           title: summary.failed.length,
           subtitle: "ERREURS",
-          color: summary.failed.length
-            ? COLORS.red
-            : COLORS.green
+          color: summary.failed.length ? COLORS.red : COLORS.green
         },
         {
           title: elapsed,
@@ -2649,10 +1969,7 @@ function addResultMetrics(
       ]
 
   for (const item of values) {
-    const cell = row.addText(
-      String(item.title),
-      item.subtitle
-    )
+    const cell = row.addText(String(item.title), item.subtitle)
 
     cell.widthWeight = 100 / values.length
     cell.titleFont = Font.boldSystemFont(17)
@@ -2664,51 +1981,30 @@ function addResultMetrics(
   table.addRow(row)
 }
 
-function addFinalValidationRow(
-  table,
-  state,
-  result
-) {
+function addFinalValidationRow(table, state, result) {
   const row = new UITableRow()
   row.height = 58
 
-  const symbol = SFSymbol.named(
-    result.success
-      ? "checkmark.shield.fill"
-      : "xmark.shield.fill"
-  )
+  const symbol = SFSymbol.named(result.success ? "checkmark.shield.fill" : "xmark.shield.fill")
 
-  symbol.applyFont(
-    Font.systemFont(18)
-  )
+  symbol.applyFont(Font.systemFont(18))
 
-  const image = row.addImage(
-    symbol.image
-  )
+  const image = row.addImage(symbol.image)
 
   image.widthWeight = 11
 
-  const valid = Number.isFinite(result.valid)
-    ? result.valid
-    : state.completed
-
-  const total = Number.isFinite(result.total)
-    ? result.total
-    : state.total
+  const valid = Number.isFinite(result.valid) ? result.valid : state.completed
+  const total = Number.isFinite(result.total) ? result.total : state.total
 
   const text = row.addText(
-    result.success
-      ? "Installation validée"
-      : "Validation incomplète",
+    result.success ? "Installation validée" : "Validation incomplète",
     `${valid}/${total} fichiers valides · Snapshot ${String(repositoryRevision).slice(0, 7)}`
   )
 
   text.widthWeight = 89
   text.titleFont = Font.semiboldSystemFont(13)
   text.subtitleFont = Font.systemFont(10)
-  text.titleColor = result.success
-    ? COLORS.green
-    : COLORS.red
+  text.titleColor = result.success ? COLORS.green : COLORS.red
   text.subtitleColor = COLORS.secondary
 
   table.addRow(row)
@@ -2743,23 +2039,13 @@ function addVerificationDetailsRow(table, entries) {
   table.addRow(row)
 }
 
-function addChangesRow(
-  table,
-  result,
-  uninstalling
-) {
+function addChangesRow(table, result, uninstalling) {
   const summary = result.summary
-
   const changed = uninstalling
     ? summary.unchanged
-    : [
-        ...summary.installed,
-        ...summary.updated,
-        ...summary.repaired
-      ]
+    : [...summary.installed, ...summary.updated, ...summary.repaired]
 
   const failed = summary.failed
-
   const row = new UITableRow()
   row.height = 58
   row.dismissOnSelect = false
@@ -2778,41 +2064,23 @@ function addChangesRow(
       ? compactNames(changed)
       : "Tous les fichiers correspondaient déjà à la version GitHub."
 
-  const text = row.addText(
-    title,
-    subtitle
-  )
+  const text = row.addText(title, subtitle)
 
   text.widthWeight = 100
   text.titleFont = Font.semiboldSystemFont(13)
   text.subtitleFont = Font.systemFont(9)
-  text.titleColor = failed.length
-    ? COLORS.red
-    : changed.length
-      ? COLORS.orange
-      : COLORS.green
+  text.titleColor = failed.length ? COLORS.red : changed.length ? COLORS.orange : COLORS.green
   text.subtitleColor = COLORS.secondary
 
   if (failed.length || changed.length) {
     row.onSelect = async () => {
-      await presentResultDetails(
-        result,
-        uninstalling
-      )
+      await presentResultDetails(result, uninstalling)
     }
   }
 
   table.addRow(row)
 }
 
-/*
- * Pied de page des écrans de gestion : une mention discrète, en retrait,
- * qui nomme l'auteur sans concurrencer le contenu.
- *
- * Un seul composant pour tous les tableaux — progression, résultat,
- * diagnostic — afin que le crédit ait exactement le même rendu partout et
- * qu'une retouche de style n'ait qu'un seul endroit où s'appliquer.
- */
 function addCreditRow(table) {
   const row = new UITableRow()
   row.height = 38
@@ -2829,17 +2097,11 @@ function addProtectionRow(table, uninstalling) {
   const row = new UITableRow()
   row.height = 50
 
-  const symbol = SFSymbol.named(
-    "lock.shield.fill"
-  )
+  const symbol = SFSymbol.named("lock.shield.fill")
 
-  symbol.applyFont(
-    Font.systemFont(16)
-  )
+  symbol.applyFont(Font.systemFont(16))
 
-  const image = row.addImage(
-    symbol.image
-  )
+  const image = row.addImage(symbol.image)
 
   image.widthWeight = 10
 
@@ -2859,10 +2121,7 @@ function addProtectionRow(table, uninstalling) {
   table.addRow(row)
 }
 
-async function presentEntryDetails(
-  entries,
-  uninstalling
-) {
+async function presentEntryDetails(entries, uninstalling) {
   const table = new UITable()
   table.showSeparators = true
 
@@ -2871,9 +2130,7 @@ async function presentEntryDetails(
   header.isHeader = true
 
   const text = header.addText(
-    uninstalling
-      ? "Détail de la désinstallation"
-      : "Détail des fichiers",
+    uninstalling ? "Détail de la désinstallation" : "Détail des fichiers",
     `${plural(entries.length, "élément")}`
   )
 
@@ -2889,18 +2146,13 @@ async function presentEntryDetails(
     const row = new UITableRow()
     row.height = 50
 
-    const marker = row.addText(
-      visual.marker
-    )
+    const marker = row.addText(visual.marker)
 
     marker.widthWeight = 8
     marker.titleFont = Font.boldSystemFont(16)
     marker.titleColor = visual.color
 
-    const content = row.addText(
-      entry.name,
-      entry.detail
-    )
+    const content = row.addText(entry.name, entry.detail)
 
     content.widthWeight = 92
     content.titleFont = Font.semiboldSystemFont(12)
@@ -2914,62 +2166,35 @@ async function presentEntryDetails(
   await table.present(true)
 }
 
-async function presentResultDetails(
-  result,
-  uninstalling
-) {
+async function presentResultDetails(result, uninstalling) {
   const summary = result.summary
-
   const lines = []
 
   if (uninstalling) {
     if (summary.unchanged.length) {
-      lines.push(
-        `Supprimés (${summary.unchanged.length})`,
-        ...summary.unchanged,
-        ""
-      )
+      lines.push(`Supprimés (${summary.unchanged.length})`, ...summary.unchanged, "")
     }
   } else {
     if (summary.installed.length) {
-      lines.push(
-        `Installés (${summary.installed.length})`,
-        ...summary.installed,
-        ""
-      )
+      lines.push(`Installés (${summary.installed.length})`, ...summary.installed, "")
     }
 
     if (summary.updated.length) {
-      lines.push(
-        `Mis à jour (${summary.updated.length})`,
-        ...summary.updated,
-        ""
-      )
+      lines.push(`Mis à jour (${summary.updated.length})`, ...summary.updated, "")
     }
 
     if (summary.repaired.length) {
-      lines.push(
-        `Réparés (${summary.repaired.length})`,
-        ...summary.repaired,
-        ""
-      )
+      lines.push(`Réparés (${summary.repaired.length})`, ...summary.repaired, "")
     }
   }
 
   if (summary.failed.length) {
-    lines.push(
-      `Erreurs (${summary.failed.length})`,
-      ...summary.failed
-    )
+    lines.push(`Erreurs (${summary.failed.length})`, ...summary.failed)
   }
 
   const alert = new Alert()
   alert.title = result.title
-  alert.message = [
-    lines.join("\n").trim() || result.message,
-    "",
-    credit()
-  ].join("\n")
+  alert.message = [lines.join("\n").trim() || result.message, "", credit()].join("\n")
   alert.addAction("Fermer")
   await alert.present()
 }
@@ -2988,10 +2213,7 @@ function entryCounts(entries) {
   }
 
   for (const entry of entries) {
-    const key = Object.prototype.hasOwnProperty.call(
-      counts,
-      entry.status
-    )
+    const key = Object.prototype.hasOwnProperty.call(counts, entry.status)
       ? entry.status
       : "pending"
 
@@ -3002,13 +2224,15 @@ function entryCounts(entries) {
 }
 
 function miniStatusMarker(status) {
-  return {
-    pending: "○",
-    running: "●",
-    retry: "↻",
-    success: "✓",
-    error: "!"
-  }[status] || "○"
+  return (
+    {
+      pending: "○",
+      running: "●",
+      retry: "↻",
+      success: "✓",
+      error: "!"
+    }[status] || "○"
+  )
 }
 
 function compactCurrent(value) {
@@ -3016,15 +2240,11 @@ function compactCurrent(value) {
     .replace(/^Contrôle de\s+/i, "")
     .replace(/^Nouvelle tentative\s*:\s*/i, "Nouvel essai · ")
 
-  return text.length > 52
-    ? `${text.slice(0, 49)}…`
-    : text
+  return text.length > 52 ? `${text.slice(0, 49)}…` : text
 }
 
 function compactNames(names) {
-  const list = Array.isArray(names)
-    ? names
-    : []
+  const list = Array.isArray(names) ? names : []
 
   if (!list.length) {
     return ""
@@ -3033,48 +2253,27 @@ function compactNames(names) {
   const visible = list.slice(0, 2)
   const remaining = list.length - visible.length
 
-  return remaining > 0
-    ? `${visible.join(" · ")} · +${remaining}`
-    : visible.join(" · ")
+  return remaining > 0 ? `${visible.join(" · ")} · +${remaining}` : visible.join(" · ")
 }
 
 function firstMessageLine(message) {
-  return String(message || "Erreur inconnue.")
-    .split("\n")
-    .map(line => line.trim())
-    .find(Boolean) || "Erreur inconnue."
+  return (
+    String(message || "Erreur inconnue.")
+      .split("\n")
+      .map(line => line.trim())
+      .find(Boolean) || "Erreur inconnue."
+  )
 }
 
-/*
- * Barre pleine plutôt qu'un chapelet de pastilles : à nombre de
- * caractères égal, les demi-blocs doublent la finesse — un pas de 5 %
- * au lieu de 10 % — et la barre se lit comme une jauge.
- */
 function progressBar(percentage) {
   const length = 12
-
-  const filled = Math.max(
-    0,
-    Math.min(
-      length * 2,
-      Math.round(percentage / 100 * length * 2)
-    )
-  )
-
+  const filled = Math.max(0, Math.min(length * 2, Math.round((percentage / 100) * length * 2)))
   const full = Math.floor(filled / 2)
   const half = filled % 2
 
-  return (
-    "█".repeat(full) +
-    "▌".repeat(half) +
-    "░".repeat(length - full - half)
-  )
+  return "█".repeat(full) + "▌".repeat(half) + "░".repeat(length - full - half)
 }
 
-/*
- * Accord en nombre. « 1 fichier(s) modifié(s) » est le genre de détail
- * qui trahit un affichage bricolé ; le conducteur lit une phrase juste.
- */
 function plural(count, singular, many = `${singular}s`) {
   return `${count} ${count > 1 ? many : singular}`
 }
@@ -3132,42 +2331,50 @@ function statusVisual(status) {
 }
 
 function operationTitle(operation) {
-  return {
-    installation: "Installer CTS Dashboard",
-    update: "Mettre à jour CTS Dashboard",
-    verification: "Vérifier CTS Dashboard",
-    repair: "Réparer CTS Dashboard",
-    uninstall: "Désinstaller CTS Dashboard"
-  }[operation] || "CTS Dashboard"
+  return (
+    {
+      installation: "Installer CTS Dashboard",
+      update: "Mettre à jour CTS Dashboard",
+      verification: "Vérifier CTS Dashboard",
+      repair: "Réparer CTS Dashboard",
+      uninstall: "Désinstaller CTS Dashboard"
+    }[operation] || "CTS Dashboard"
+  )
 }
 
 function operationResultTitle(operation) {
-  return {
-    installation: "Installation terminée",
-    update: "Mise à jour terminée",
-    verification: "Vérification terminée",
-    repair: "Réparation terminée"
-  }[operation] || "Opération terminée"
+  return (
+    {
+      installation: "Installation terminée",
+      update: "Mise à jour terminée",
+      verification: "Vérification terminée",
+      repair: "Réparation terminée"
+    }[operation] || "Opération terminée"
+  )
 }
 
 function operationSymbol(operation) {
-  return {
-    installation: "arrow.down.circle.fill",
-    update: "arrow.triangle.2.circlepath.circle.fill",
-    verification: "checkmark.shield.fill",
-    repair: "wrench.and.screwdriver.fill",
-    uninstall: "trash.circle.fill"
-  }[operation] || "gearshape.fill"
+  return (
+    {
+      installation: "arrow.down.circle.fill",
+      update: "arrow.triangle.2.circlepath.circle.fill",
+      verification: "checkmark.shield.fill",
+      repair: "wrench.and.screwdriver.fill",
+      uninstall: "trash.circle.fill"
+    }[operation] || "gearshape.fill"
+  )
 }
 
 function operationColor(operation) {
-  return {
-    installation: COLORS.green,
-    update: COLORS.orange,
-    verification: COLORS.blue,
-    repair: COLORS.orange,
-    uninstall: COLORS.red
-  }[operation] || COLORS.blue
+  return (
+    {
+      installation: COLORS.green,
+      update: COLORS.orange,
+      verification: COLORS.blue,
+      repair: COLORS.orange,
+      uninstall: COLORS.red
+    }[operation] || COLORS.blue
+  )
 }
 
 function manifestEntries(manifest) {
@@ -3179,14 +2386,11 @@ function manifestEntries(manifest) {
         type: "Script",
         destination: join(docs, name)
       })),
-    ...manifest.resources
-      .map(resource => ({
-        name: resource.name,
-        type: "Ressource",
-        destination: projectPath(
-          resource.destination
-        )
-      }))
+    ...manifest.resources.map(resource => ({
+      name: resource.name,
+      type: "Ressource",
+      destination: projectPath(resource.destination)
+    }))
   ]
 }
 
@@ -3198,9 +2402,7 @@ function validateManifest(manifest) {
     !manifest.scripts.length ||
     !Array.isArray(manifest.resources)
   ) {
-    throw new Error(
-      "Le manifeste GitHub de CTS Dashboard est invalide."
-    )
+    throw new Error("Le manifeste GitHub de CTS Dashboard est invalide.")
   }
 
   const names = new Set()
@@ -3212,9 +2414,7 @@ function validateManifest(manifest) {
       name === INSTALLER_FILE ||
       names.has(name)
     ) {
-      throw new Error(
-        `Script invalide dans version.json : ${name}`
-      )
+      throw new Error(`Script invalide dans version.json : ${name}`)
     }
 
     names.add(name)
@@ -3226,9 +2426,7 @@ function validateManifest(manifest) {
       typeof resource.name !== "string" ||
       typeof resource.destination !== "string"
     ) {
-      throw new Error(
-        "Une ressource de version.json est invalide."
-      )
+      throw new Error("Une ressource de version.json est invalide.")
     }
 
     projectPath(resource.destination)
@@ -3236,27 +2434,10 @@ function validateManifest(manifest) {
 }
 
 async function handleInstallerUpdate(manifest) {
-  const available = String(
-    manifest.installerVersion ||
-    INSTALLER_VERSION
-  )
-
-  const minimum = String(
-    manifest.minimumInstaller ||
-    "0.0.0"
-  )
-
-  const update =
-    compareVersions(
-      available,
-      INSTALLER_VERSION
-    ) > 0
-
-  const required =
-    compareVersions(
-      minimum,
-      INSTALLER_VERSION
-    ) > 0
+  const available = String(manifest.installerVersion || INSTALLER_VERSION)
+  const minimum = String(manifest.minimumInstaller || "0.0.0")
+  const update = compareVersions(available, INSTALLER_VERSION) > 0
+  const required = compareVersions(minimum, INSTALLER_VERSION) > 0
 
   if (!update && !required) {
     return true
@@ -3264,9 +2445,7 @@ async function handleInstallerUpdate(manifest) {
 
   const alert = new Alert()
 
-  alert.title = required
-    ? "Mise à jour obligatoire"
-    : "Nouvel installateur disponible"
+  alert.title = required ? "Mise à jour obligatoire" : "Nouvel installateur disponible"
 
   alert.message = [
     `Version actuelle : ${INSTALLER_VERSION}`,
@@ -3279,14 +2458,10 @@ async function handleInstallerUpdate(manifest) {
     "Après la mise à jour, relancez CTS Installer."
   ].join("\n")
 
-  alert.addAction(
-    `Installer la version ${available}`
-  )
+  alert.addAction(`Installer la version ${available}`)
 
   if (!required) {
-    alert.addAction(
-      "Continuer avec cette version"
-    )
+    alert.addAction("Continuer avec cette version")
   }
 
   alert.addCancelAction("Annuler")
@@ -3307,24 +2482,16 @@ async function updateInstaller(version) {
     INSTALLER_FILE
   )
 
-  if (!content.includes(
-    `INSTALLER_VERSION = "${version}"`
-  )) {
+  if (!content.includes(`INSTALLER_VERSION = "${version}"`)) {
     throw new Error(
       "La version publiée de CTS Installer ne correspond pas au manifeste GitHub."
     )
   }
 
-  await writeText(
-    canonicalInstaller,
-    content
-  )
+  await writeText(canonicalInstaller, content)
 
   if (currentInstaller !== canonicalInstaller) {
-    await writeText(
-      currentInstaller,
-      content
-    )
+    await writeText(currentInstaller, content)
   }
 
   const alert = new Alert()
@@ -3340,52 +2507,23 @@ async function updateInstaller(version) {
   await alert.present()
 }
 
-/*
- * GitHub met une adresse de côté quand elle a trop demandé : il répond
- * alors 429, puis parfois 503 le temps que la mise à l'écart se lève.
- * Les deux réponses sont temporaires — une même adresse peut recevoir
- * 429, 429, puis 200 en quelques secondes.
- *
- * Le manifeste était pourtant téléchargé sans la moindre reprise, alors
- * que les fichiers, eux, en avaient déjà deux. Une seule réponse 429
- * suffisait donc à rendre CTS Installer inutilisable, et à enfermer le
- * conducteur : l'outil de réparation était lui-même la panne.
- */
-/*
- * Rejoue une opération réseau tant que GitHub répond « trop de
- * demandes ». Toute autre erreur remonte immédiatement : une adresse
- * mise de côté mérite d'être attendue, un fichier absent non.
- */
 async function withThrottleRetry(operation) {
   let lastError
 
-  for (
-    let attempt = 0;
-    attempt <= THROTTLE_RETRY_DELAYS.length;
-    attempt++
-  ) {
+  for (let attempt = 0; attempt <= THROTTLE_RETRY_DELAYS.length; attempt++) {
     try {
       return await operation(attempt)
     } catch (error) {
       lastError = error
 
-      if (
-        !isThrottled(error) ||
-        attempt === THROTTLE_RETRY_DELAYS.length
-      ) {
+      if (!isThrottled(error) || attempt === THROTTLE_RETRY_DELAYS.length) {
         break
       }
 
-      await sleep(
-        THROTTLE_RETRY_DELAYS[attempt]
-      )
+      await sleep(THROTTLE_RETRY_DELAYS[attempt])
     }
   }
 
-  /*
-   * « Vérifiez votre connexion Internet » était trompeur : la connexion
-   * fonctionne, c'est GitHub qui refuse de répondre à cette adresse.
-   */
   throw isThrottled(lastError)
     ? new Error(
         [
@@ -3400,9 +2538,7 @@ async function withThrottleRetry(operation) {
 }
 
 function isThrottled(error) {
-  return /HTTP (429|503)/i.test(
-    messageOf(error)
-  )
+  return /HTTP (429|503)/i.test(messageOf(error))
 }
 
 function loadManifest() {
@@ -3415,38 +2551,23 @@ function loadManifest() {
     try {
       return JSON.parse(content)
     } catch (error) {
-      throw new Error(
-        `version.json invalide : ${messageOf(error)}`
-      )
+      throw new Error(`version.json invalide : ${messageOf(error)}`)
     }
   })
 }
 
-/*
- * Le manifeste a déjà été téléchargé depuis le snapshot épinglé, ce qui
- * prouve à la fois que GitHub répond et que la révision est accessible.
- * Le retélécharger une seconde fois, comme le faisait la version
- * précédente, n'apportait qu'un aller-retour réseau de plus.
- */
 function verifyRepository(manifest) {
   if (!isRecord(manifest) || !manifest.version) {
-    throw new Error(
-      "Connexion GitHub invalide : manifeste illisible"
-    )
+    throw new Error("Connexion GitHub invalide : manifeste illisible")
   }
 
   if (!/^[0-9a-f]{40}$/.test(String(repositoryRevision))) {
-    throw new Error(
-      "Connexion GitHub invalide : snapshot non résolu"
-    )
+    throw new Error("Connexion GitHub invalide : snapshot non résolu")
   }
 }
 
 function validateText(content, name) {
-  if (
-    typeof content !== "string" ||
-    !content.trim()
-  ) {
+  if (typeof content !== "string" || !content.trim()) {
     return {
       valid: false,
       reason: "contenu vide"
@@ -3454,9 +2575,7 @@ function validateText(content, name) {
   }
 
   const trimmed = content.trim()
-  const start = trimmed
-    .slice(0, 160)
-    .toLowerCase()
+  const start = trimmed.slice(0, 160).toLowerCase()
 
   if (
     trimmed === "404: Not Found" ||
@@ -3473,10 +2592,7 @@ function validateText(content, name) {
     try {
       const value = JSON.parse(content)
 
-      if (
-        value === null ||
-        typeof value !== "object"
-      ) {
+      if (value === null || typeof value !== "object") {
         return {
           valid: false,
           reason: "racine JSON invalide"
@@ -3490,13 +2606,7 @@ function validateText(content, name) {
     }
   }
 
-  if (
-    (
-      name.endsWith(".js") ||
-      name.endsWith(".mjs")
-    ) &&
-    trimmed.length < 80
-  ) {
+  if ((name.endsWith(".js") || name.endsWith(".mjs")) && trimmed.length < 80) {
     return {
       valid: false,
       reason: "fichier anormalement court"
@@ -3509,10 +2619,6 @@ function validateText(content, name) {
   }
 }
 
-/*
- * Contrôle du fichier local qui rend aussi son contenu, pour que l'appelant
- * puisse comparer sans relire le disque.
- */
 async function inspectLocal(path, name) {
   if (!fm.fileExists(path)) {
     return {
@@ -3547,18 +2653,6 @@ async function readText(path) {
   return fm.readString(path)
 }
 
-/*
- * Attente conditionnelle plutôt que temporisation fixe.
- *
- * iCloud ne rend pas toujours un fichier visible dans la milliseconde qui
- * suit son écriture, d'où les pauses de 80 et 100 ms que portait chaque
- * écriture — presque quatre secondes sur une installation complète, payées
- * même quand le fichier était prêt immédiatement.
- *
- * On interroge maintenant le système toutes les 20 ms jusqu'à 300 ms au
- * plus : la protection est la même, et plus longue qu'avant dans le pire
- * cas, mais on ne paie que le temps réellement nécessaire.
- */
 async function waitForFile(path) {
   const deadline = Date.now() + FILE_WAIT_TIMEOUT
 
@@ -3584,43 +2678,25 @@ async function writeText(destination, content) {
   removeQuietly(temporary)
   removeQuietly(rollback)
 
-  /*
-   * L'ancien fichier est mis de côté au lieu d'être supprimé :
-   * un déplacement raté ne doit jamais laisser la destination vide,
-   * a fortiori quand la destination est CTS Installer lui-même.
-   */
   let movedAside = false
 
   try {
-    fm.writeString(
-      temporary,
-      content
-    )
+    fm.writeString(temporary, content)
 
-    if (!await waitForFile(temporary)) {
-      throw new Error(
-        "Le fichier temporaire n’a pas été créé."
-      )
+    if (!(await waitForFile(temporary))) {
+      throw new Error("Le fichier temporaire n’a pas été créé.")
     }
 
     if (fm.fileExists(destination)) {
-      fm.move(
-        destination,
-        rollback
-      )
+      fm.move(destination, rollback)
 
       movedAside = true
     }
 
-    fm.move(
-      temporary,
-      destination
-    )
+    fm.move(temporary, destination)
 
-    if (!await waitForFile(destination)) {
-      throw new Error(
-        "Le fichier final n’a pas été créé."
-      )
+    if (!(await waitForFile(destination))) {
+      throw new Error("Le fichier final n’a pas été créé.")
     }
 
     await ensureDownloaded(destination)
@@ -3628,23 +2704,12 @@ async function writeText(destination, content) {
   } catch (error) {
     removeQuietly(temporary)
 
-    if (
-      movedAside &&
-      fm.fileExists(rollback) &&
-      !fm.fileExists(destination)
-    ) {
+    if (movedAside && fm.fileExists(rollback) && !fm.fileExists(destination)) {
       try {
-        fm.move(
-          rollback,
-          destination
-        )
+        fm.move(rollback, destination)
       } catch (_) {}
     }
 
-    /*
-     * Le fichier de secours n'est effacé que si la destination
-     * est réellement présente, jamais au prix du contenu d'origine.
-     */
     if (fm.fileExists(destination)) {
       removeQuietly(rollback)
     }
@@ -3659,13 +2724,9 @@ async function readMetadata() {
   }
 
   try {
-    const value = JSON.parse(
-      await readText(paths.metadata)
-    )
+    const value = JSON.parse(await readText(paths.metadata))
 
-    return isRecord(value)
-      ? value
-      : null
+    return isRecord(value) ? value : null
   } catch (_) {
     return null
   }
@@ -3702,10 +2763,7 @@ function ensureDirectories() {
     }
 
     if (!fm.fileExists(path)) {
-      fm.createDirectory(
-        path,
-        true
-      )
+      fm.createDirectory(path, true)
     }
   }
 }
@@ -3717,20 +2775,11 @@ function projectPath(relative) {
     .split("/")
     .filter(Boolean)
 
-  if (
-    !parts.length ||
-    parts.includes("..") ||
-    parts.includes(".")
-  ) {
-    throw new Error(
-      "Un chemin déclaré dans version.json est invalide."
-    )
+  if (!parts.length || parts.includes("..") || parts.includes(".")) {
+    throw new Error("Un chemin déclaré dans version.json est invalide.")
   }
 
-  return parts.reduce(
-    (path, part) => join(path, part),
-    root
-  )
+  return parts.reduce((path, part) => join(path, part), root)
 }
 
 function ensureParent(path) {
@@ -3743,10 +2792,7 @@ function ensureParent(path) {
   const parent = path.slice(0, index)
 
   if (!fm.fileExists(parent)) {
-    fm.createDirectory(
-      parent,
-      true
-    )
+    fm.createDirectory(parent, true)
   }
 }
 
@@ -3755,13 +2801,14 @@ function resolveRepositoryRevision() {
 }
 
 async function fetchRepositoryRevision() {
-  const url = [
-    "https://api.github.com/repos",
-    encodeURIComponent(REPO.owner),
-    encodeURIComponent(REPO.name),
-    "commits",
-    encodeURIComponent(REPO.branch)
-  ].join("/") + `?t=${Date.now()}`
+  const url =
+    [
+      "https://api.github.com/repos",
+      encodeURIComponent(REPO.owner),
+      encodeURIComponent(REPO.name),
+      "commits",
+      encodeURIComponent(REPO.branch)
+    ].join("/") + `?t=${Date.now()}`
 
   const request = new Request(url)
   request.timeoutInterval = TIMEOUT
@@ -3778,19 +2825,12 @@ async function fetchRepositoryRevision() {
   try {
     content = await request.loadString()
   } catch (error) {
-    throw new Error(
-      `Impossible de déterminer la version GitHub actuelle : ${messageOf(error)}`
-    )
+    throw new Error(`Impossible de déterminer la version GitHub actuelle : ${messageOf(error)}`)
   }
 
-  const status = Number(
-    request.response?.statusCode
-  )
+  const status = Number(request.response?.statusCode)
 
-  if (
-    Number.isFinite(status) &&
-    (status < 200 || status >= 300)
-  ) {
+  if (Number.isFinite(status) && (status < 200 || status >= 300)) {
     throw new Error(
       `Impossible de déterminer la version GitHub actuelle : réponse HTTP ${status}`
     )
@@ -3801,9 +2841,7 @@ async function fetchRepositoryRevision() {
   try {
     payload = JSON.parse(content)
   } catch (error) {
-    throw new Error(
-      `Réponse GitHub invalide : ${messageOf(error)}`
-    )
+    throw new Error(`Réponse GitHub invalide : ${messageOf(error)}`)
   }
 
   const sha = String(payload?.sha || "")
@@ -3811,9 +2849,7 @@ async function fetchRepositoryRevision() {
     .toLowerCase()
 
   if (!/^[0-9a-f]{40}$/.test(sha)) {
-    throw new Error(
-      "GitHub n’a pas renvoyé un identifiant de commit valide."
-    )
+    throw new Error("GitHub n’a pas renvoyé un identifiant de commit valide.")
   }
 
   return sha
@@ -3829,67 +2865,42 @@ async function downloadText(url, label) {
 
   try {
     const content = await request.loadString()
-    const status = Number(
-      request.response?.statusCode
-    )
+    const status = Number(request.response?.statusCode)
 
-    if (
-      Number.isFinite(status) &&
-      (status < 200 || status >= 300)
-    ) {
-      throw new Error(
-        `Réponse HTTP ${status}`
-      )
+    if (Number.isFinite(status) && (status < 200 || status >= 300)) {
+      throw new Error(`Réponse HTTP ${status}`)
     }
 
-    if (
-      typeof content !== "string" ||
-      !content.trim()
-    ) {
+    if (typeof content !== "string" || !content.trim()) {
       throw new Error("Réponse vide")
     }
 
     return content
   } catch (error) {
-    throw new Error(
-      `${label} impossible à télécharger : ${messageOf(error)}`
-    )
+    throw new Error(`${label} impossible à télécharger : ${messageOf(error)}`)
   }
 }
 
-function rawUrl(
-  name,
-  reference = repositoryRevision || REPO.branch
-) {
+function rawUrl(name, reference = repositoryRevision || REPO.branch) {
   return [
     "https://raw.githubusercontent.com",
     encodeURIComponent(REPO.owner),
     encodeURIComponent(REPO.name),
     encodeURIComponent(reference),
-    String(name)
-      .split("/")
-      .map(encodeURIComponent)
-      .join("/")
+    String(name).split("/").map(encodeURIComponent).join("/")
   ].join("/")
 }
 
-async function confirm(
-  title,
-  message,
-  action,
-  destructive = false
-) {
+async function confirm(title, message, action, destructive = false) {
   const alert = new Alert()
   alert.title = title
   alert.message = message
 
-  destructive
-    ? alert.addDestructiveAction(action)
-    : alert.addAction(action)
+  destructive ? alert.addDestructiveAction(action) : alert.addAction(action)
 
   alert.addCancelAction("Annuler")
 
-  return await alert.present() === 0
+  return (await alert.present()) === 0
 }
 
 async function errorAlert(error) {
@@ -3905,18 +2916,8 @@ async function errorAlert(error) {
 }
 
 async function ensureDownloaded(path) {
-  if (
-    fm.fileExists(path) &&
-    !fm.isFileDownloaded(path)
-  ) {
-    /*
-     * L'installateur tourne dans l'application, mais une attente iCloud
-     * sans limite y reste une porte ouverte sur un écran figé.
-     */
-    await Promise.race([
-      fm.downloadFileFromiCloud(path),
-      sleep(ICLOUD_DOWNLOAD_TIMEOUT)
-    ])
+  if (fm.fileExists(path) && !fm.isFileDownloaded(path)) {
+    await Promise.race([fm.downloadFileFromiCloud(path), sleep(ICLOUD_DOWNLOAD_TIMEOUT)])
   }
 }
 
@@ -3929,13 +2930,15 @@ function removeQuietly(path) {
 }
 
 function statusLabel(status) {
-  return {
-    installed: "Installé",
-    updated: "Mis à jour",
-    repaired: "Réparé",
-    unchanged: "Déjà à jour",
-    success: "Validé"
-  }[status] || status
+  return (
+    {
+      installed: "Installé",
+      updated: "Mis à jour",
+      repaired: "Réparé",
+      unchanged: "Déjà à jour",
+      success: "Validé"
+    }[status] || status
+  )
 }
 
 function normalize(value, name = "") {
@@ -3950,24 +2953,17 @@ function normalize(value, name = "") {
 
   return text
     .split("\n")
-    .map(line =>
-      line.replace(/[ \t]+$/g, "")
-    )
+    .map(line => line.replace(/[ \t]+$/g, ""))
     .join("\n")
     .replace(/\n+$/g, "")
 }
 
 function stripScriptableMetadata(value) {
-  const lines = String(value ?? "")
-    .split("\n")
-
+  const lines = String(value ?? "").split("\n")
   let index = 0
 
   while (index < lines.length) {
-    while (
-      index < lines.length &&
-      !lines[index].trim()
-    ) {
+    while (index < lines.length && !lines[index].trim()) {
       index++
     }
 
@@ -3987,10 +2983,7 @@ function stripScriptableMetadata(value) {
     index += 3
   }
 
-  while (
-    index < lines.length &&
-    !lines[index].trim()
-  ) {
+  while (index < lines.length && !lines[index].trim()) {
     index++
   }
 
@@ -4000,24 +2993,13 @@ function stripScriptableMetadata(value) {
 function compareVersions(first, second) {
   const a = versionParts(first)
   const b = versionParts(second)
-  const length = Math.max(
-    a.length,
-    b.length
-  )
+  const length = Math.max(a.length, b.length)
 
-  for (
-    let index = 0;
-    index < length;
-    index++
-  ) {
-    const difference =
-      (a[index] || 0) -
-      (b[index] || 0)
+  for (let index = 0; index < length; index++) {
+    const difference = (a[index] || 0) - (b[index] || 0)
 
     if (difference) {
-      return difference > 0
-        ? 1
-        : -1
+      return difference > 0 ? 1 : -1
     }
   }
 
@@ -4027,47 +3009,28 @@ function compareVersions(first, second) {
 function versionParts(value) {
   return String(value || "")
     .split(".")
-    .map(
-      part =>
-        Number.parseInt(part, 10) || 0
-    )
+    .map(part => Number.parseInt(part, 10) || 0)
 }
 
 function isRecord(value) {
-  return Boolean(
-    value &&
-    typeof value === "object" &&
-    !Array.isArray(value)
-  )
+  return Boolean(value && typeof value === "object" && !Array.isArray(value))
 }
 
 function formatDuration(milliseconds) {
-  const seconds = Math.max(
-    0,
-    Math.round(milliseconds / 1000)
-  )
+  const seconds = Math.max(0, Math.round(milliseconds / 1000))
 
-  return seconds < 60
-    ? `${seconds} s`
-    : `${Math.floor(seconds / 60)} min ${seconds % 60} s`
+  return seconds < 60 ? `${seconds} s` : `${Math.floor(seconds / 60)} min ${seconds % 60} s`
 }
 
 function messageOf(error) {
-  return (
-    error?.message?.trim?.() ||
-    String(error || "Erreur inconnue.")
-  )
+  return error?.message?.trim?.() || String(error || "Erreur inconnue.")
 }
 
-async function registerAnalyticsInstallation(
-  dashboardVersion
-) {
+async function registerAnalyticsInstallation(dashboardVersion) {
   let analytics
 
   try {
-    analytics = importModule(
-      ANALYTICS_MODULE
-    )
+    analytics = importModule(ANALYTICS_MODULE)
   } catch (_) {
     return
   }
@@ -4077,34 +3040,20 @@ async function registerAnalyticsInstallation(
       return
     }
 
-    const result =
-      await analytics.registerInstallation({
-        dashboardVersion:
-          String(dashboardVersion || "").trim()
-      })
+    const result = await analytics.registerInstallation({
+      dashboardVersion: String(dashboardVersion || "").trim()
+    })
 
     if (!result?.ok) {
-      console.warn(
-        "[Analytics]",
-        result?.error ||
-          "Installation non enregistrée."
-      )
+      console.warn("[Analytics]", result?.error || "Installation non enregistrée.")
     }
   } catch (error) {
-    console.warn(
-      "[Analytics]",
-      messageOf(error)
-    )
+    console.warn("[Analytics]", messageOf(error))
   }
 }
 
-/* Timer de Scriptable compte en millisecondes, pas en secondes. */
 function sleep(milliseconds) {
   return new Promise(resolve => {
-    Timer.schedule(
-      Math.max(0, Number(milliseconds) || 0),
-      false,
-      resolve
-    )
+    Timer.schedule(Math.max(0, Number(milliseconds) || 0), false, resolve)
   })
 }

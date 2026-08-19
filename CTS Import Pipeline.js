@@ -2,30 +2,14 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: purple; icon-glyph: tray.and.arrow.down.fill;
 
-// CTS Import Pipeline.js
-// Pipeline lourd d’import PDF HASTUS. Chargé uniquement lorsqu’un PDF doit être importé.
-
 const CONFIG = importModule("CTS Config")
 const PDF_ENGINE = importModule("CTS PDF Engine")
 const PARSER = importModule("CTS Parser")
 const STORAGE = importModule("CTS Storage")
 const DATABASE = importModule("CTS Database")
 const UTILS = importModule("CTS Utils")
-
-const {
-  fm,
-  paths,
-  files
-} = CONFIG
-
-/*
- * Ces fonctions vivaient ici en double. Une liaison remplace la copie :
- * les appels du fichier ne changent pas, et une correction faite à la
- * source profite désormais à tous les modules.
- */
+const { fm, paths, files } = CONFIG
 const errorMessage = UTILS.errorMessage
-
-
 const INDEX_VERSION = 2
 
 async function importPdf(pdfPath, options = {}) {
@@ -83,11 +67,7 @@ async function importPdf(pdfPath, options = {}) {
 
     timings.parserMs = elapsedMs(stageStartedAt)
 
-    if (
-      !service ||
-      typeof service !== "object" ||
-      Array.isArray(service)
-    ) {
+    if (!service || typeof service !== "object" || Array.isArray(service)) {
       throw createTelemetryError(
         "PARSER_INVALID_RESULT",
         "parser",
@@ -95,10 +75,7 @@ async function importPdf(pdfPath, options = {}) {
       )
     }
 
-    if (
-      !service.validation ||
-      typeof service.validation !== "object"
-    ) {
+    if (!service.validation || typeof service.validation !== "object") {
       throw createTelemetryError(
         "PARSER_VALIDATION_MISSING",
         "parser",
@@ -109,29 +86,16 @@ async function importPdf(pdfPath, options = {}) {
     if (!service.validation.valid) {
       timings.totalMs = elapsedMs(startedAtMs)
 
-      const result = buildValidationFailure(
-        sourceInfo,
-        extraction,
-        service,
-        timings
-      )
+      const result = buildValidationFailure(sourceInfo, extraction, service, timings)
 
-      await STORAGE.appendLog(
-        "validation-error",
-        "Import PDF HASTUS refusé",
-        result
-      )
+      await STORAGE.appendLog("validation-error", "Import PDF HASTUS refusé", result)
 
       return result
     }
 
     stageStartedAt = Date.now()
 
-    const registration = await registerImportedService(
-      service,
-      extraction,
-      sourceInfo
-    )
+    const registration = await registerImportedService(service, extraction, sourceInfo)
 
     timings.registrationMs = elapsedMs(stageStartedAt)
     timings.totalMs = elapsedMs(startedAtMs)
@@ -161,19 +125,11 @@ async function importPdf(pdfPath, options = {}) {
       timings: cloneTimings(timings)
     }
 
-    await STORAGE.appendLog(
-      "success",
-      "Service PDF importé",
-      result
-    )
+    await STORAGE.appendLog("success", "Service PDF importé", result)
 
     return result
   } catch (error) {
-    const telemetry = telemetryFromError(
-      error,
-      "SERVICE_IMPORT_FAILED",
-      "import"
-    )
+    const telemetry = telemetryFromError(error, "SERVICE_IMPORT_FAILED", "import")
     const safeError = UTILS.safeError(error)
 
     timings.totalMs = elapsedMs(startedAtMs)
@@ -191,11 +147,7 @@ async function importPdf(pdfPath, options = {}) {
       timings: cloneTimings(timings)
     }
 
-    await STORAGE.appendLog(
-      "exception",
-      "Erreur pendant l’importation locale d’un PDF",
-      result
-    )
+    await STORAGE.appendLog("exception", "Erreur pendant l’importation locale d’un PDF", result)
 
     return result
   }
@@ -252,7 +204,7 @@ async function inspectSourcePdf(pdfPath) {
   }
 
   try {
-    if (!await STORAGE.ensureDownloaded(normalizedPath)) {
+    if (!(await STORAGE.ensureDownloaded(normalizedPath))) {
       throw createTelemetryError(
         "PDF_SOURCE_NOT_FOUND",
         "source",
@@ -293,9 +245,7 @@ async function inspectSourcePdf(pdfPath) {
     )
   }
 
-  const maximumKilobytes =
-    (Number(CONFIG.pdf.maximumFileSizeBytes) || 20 * 1024 * 1024) /
-    1024
+  const maximumKilobytes = (Number(CONFIG.pdf.maximumFileSizeBytes) || 20 * 1024 * 1024) / 1024
 
   if (sizeKilobytes > maximumKilobytes) {
     throw createTelemetryError(
@@ -306,9 +256,7 @@ async function inspectSourcePdf(pdfPath) {
   }
 
   const modificationDate = STORAGE.safeModificationDate(normalizedPath)
-  const modifiedAt = modificationDate
-    ? modificationDate.toISOString()
-    : ""
+  const modifiedAt = modificationDate ? modificationDate.toISOString() : ""
 
   return {
     path: normalizedPath,
@@ -323,11 +271,7 @@ async function inspectSourcePdf(pdfPath) {
   }
 }
 
-async function registerImportedService(
-  service,
-  extraction,
-  sourceInfo
-) {
+async function registerImportedService(service, extraction, sourceInfo) {
   const plan = await withTelemetryError(
     () => Promise.resolve(createImportPlan(service, sourceInfo)),
     "SERVICE_IMPORT_PLAN_FAILED",
@@ -376,13 +320,7 @@ async function registerImportedService(
     pdfTransaction = await movePdfToCanonicalName(plan)
 
     const index = await withTelemetryError(
-      () => buildUpdatedIndex(
-        plan,
-        service,
-        extraction,
-        sourceInfo,
-        pdfTransaction.fileName
-      ),
+      () => buildUpdatedIndex(plan, service, extraction, sourceInfo, pdfTransaction.fileName),
       "SERVICE_INDEX_BUILD_FAILED",
       "index",
       "Le nouvel index des services n’a pas pu être construit."
@@ -395,9 +333,7 @@ async function registerImportedService(
       "L’index des services n’a pas pu être enregistré."
     )
 
-    const indexEntry = index.services.find(
-      entry => entry.id === plan.id
-    ) || null
+    const indexEntry = index.services.find(entry => entry.id === plan.id) || null
 
     return {
       id: plan.id,
@@ -490,11 +426,7 @@ async function movePdfToCanonicalName(plan) {
     }
 
     archivedPreviousPath = getUniqueArchivePath(
-      [
-        "Remplace",
-        timestampForFileName(),
-        plan.pdfFileName
-      ].join("_")
+      ["Remplace", timestampForFileName(), plan.pdfFileName].join("_")
     )
 
     try {
@@ -512,10 +444,7 @@ async function movePdfToCanonicalName(plan) {
   try {
     fm.move(plan.sourcePath, plan.pdfPath)
   } catch (error) {
-    restoreArchivedPreviousPdf(
-      archivedPreviousPath,
-      plan.pdfPath
-    )
+    restoreArchivedPreviousPdf(archivedPreviousPath, plan.pdfPath)
 
     throw createTelemetryError(
       "PDF_CANONICAL_MOVE_FAILED",
@@ -529,31 +458,18 @@ async function movePdfToCanonicalName(plan) {
     fileName: plan.pdfFileName,
     rollback: async () => {
       try {
-        if (
-          fm.fileExists(plan.pdfPath) &&
-          !fm.fileExists(plan.sourcePath)
-        ) {
+        if (fm.fileExists(plan.pdfPath) && !fm.fileExists(plan.sourcePath)) {
           fm.move(plan.pdfPath, plan.sourcePath)
         }
 
-        restoreArchivedPreviousPdf(
-          archivedPreviousPath,
-          plan.pdfPath
-        )
+        restoreArchivedPreviousPdf(archivedPreviousPath, plan.pdfPath)
       } catch (_) {}
     }
   }
 }
 
-function restoreArchivedPreviousPdf(
-  archivedPath,
-  canonicalPath
-) {
-  if (
-    archivedPath &&
-    fm.fileExists(archivedPath) &&
-    !fm.fileExists(canonicalPath)
-  ) {
+function restoreArchivedPreviousPdf(archivedPath, canonicalPath) {
+  if (archivedPath && fm.fileExists(archivedPath) && !fm.fileExists(canonicalPath)) {
     try {
       fm.move(archivedPath, canonicalPath)
     } catch (_) {}
@@ -561,41 +477,23 @@ function restoreArchivedPreviousPdf(
 }
 
 function getUniqueArchivePath(fileName) {
-  let candidate = fm.joinPath(
-    paths.servicesArchive,
-    fileName
-  )
+  let candidate = fm.joinPath(paths.servicesArchive, fileName)
   let suffix = 2
 
   while (fm.fileExists(candidate)) {
-    const extensionIndex = fileName
-      .toLowerCase()
-      .lastIndexOf(".pdf")
-    const baseName = extensionIndex >= 0
-      ? fileName.slice(0, extensionIndex)
-      : fileName
+    const extensionIndex = fileName.toLowerCase().lastIndexOf(".pdf")
+    const baseName = extensionIndex >= 0 ? fileName.slice(0, extensionIndex) : fileName
 
-    candidate = fm.joinPath(
-      paths.servicesArchive,
-      `${baseName}_${suffix}.pdf`
-    )
+    candidate = fm.joinPath(paths.servicesArchive, `${baseName}_${suffix}.pdf`)
     suffix++
   }
 
   return candidate
 }
 
-async function buildUpdatedIndex(
-  plan,
-  service,
-  extraction,
-  sourceInfo,
-  pdfFileName
-) {
+async function buildUpdatedIndex(plan, service, extraction, sourceInfo, pdfFileName) {
   const current = await readCurrentIndex()
-  const previousEntry = current.services.find(
-    entry => entry.id === plan.id
-  ) || null
+  const previousEntry = current.services.find(entry => entry.id === plan.id) || null
   const now = new Date().toISOString()
 
   const entry = {
@@ -666,34 +564,22 @@ async function readCurrentIndex() {
     version: Number(value.version) || INDEX_VERSION,
     updatedAt: String(value.updatedAt || ""),
     services: value.services.filter(
-      entry =>
-        entry &&
-        typeof entry === "object" &&
-        !Array.isArray(entry)
+      entry => entry && typeof entry === "object" && !Array.isArray(entry)
     )
   }
 }
 
 function compareIndexEntries(first, second) {
-  const byDate = String(first.date).localeCompare(
-    String(second.date)
-  )
+  const byDate = String(first.date).localeCompare(String(second.date))
 
   if (byDate !== 0) {
     return byDate
   }
 
-  return String(first.service).localeCompare(
-    String(second.service)
-  )
+  return String(first.service).localeCompare(String(second.service))
 }
 
-function buildValidationFailure(
-  sourceInfo,
-  extraction,
-  service,
-  timings
-) {
+function buildValidationFailure(sourceInfo, extraction, service, timings) {
   return {
     success: false,
     status: "validation-error",
@@ -703,9 +589,7 @@ function buildValidationFailure(
     sourceFileName: sourceInfo.fileName,
     service: service.service || "",
     date: service.date || "",
-    errors: Array.isArray(service.validation.errors)
-      ? [...service.validation.errors]
-      : [],
+    errors: Array.isArray(service.validation.errors) ? [...service.validation.errors] : [],
     warnings: Array.isArray(service.validation.warnings)
       ? [...service.validation.warnings]
       : [],
@@ -720,7 +604,7 @@ function buildValidationFailure(
 }
 
 async function snapshotTextFile(path) {
-  if (!await STORAGE.ensureDownloaded(path)) {
+  if (!(await STORAGE.ensureDownloaded(path))) {
     return {
       existed: false,
       content: ""
@@ -746,12 +630,7 @@ async function restoreTextFile(path, snapshot) {
   } catch (_) {}
 }
 
-async function withTelemetryError(
-  operation,
-  fallbackCode,
-  fallbackStage,
-  fallbackMessage
-) {
+async function withTelemetryError(operation, fallbackCode, fallbackStage, fallbackMessage) {
   try {
     return await operation()
   } catch (error) {
@@ -762,30 +641,19 @@ async function withTelemetryError(
     throw createTelemetryError(
       fallbackCode,
       fallbackStage,
-      [
-        String(fallbackMessage || "").trim(),
-        errorMessage(error)
-      ].filter(Boolean).join(" ").trim(),
+      [String(fallbackMessage || "").trim(), errorMessage(error)]
+        .filter(Boolean)
+        .join(" ")
+        .trim(),
       error
     )
   }
 }
 
-function createTelemetryError(
-  code,
-  stage,
-  message,
-  cause = null
-) {
+function createTelemetryError(code, stage, message, cause = null) {
   return UTILS.createTelemetryError(
-    UTILS.normalizeTelemetryCode(
-      code,
-      "SERVICE_IMPORT_FAILED"
-    ),
-    UTILS.normalizeTelemetryStage(
-      stage,
-      "import"
-    ),
+    UTILS.normalizeTelemetryCode(code, "SERVICE_IMPORT_FAILED"),
+    UTILS.normalizeTelemetryStage(stage, "import"),
     message,
     cause
   )
@@ -795,24 +663,14 @@ function hasTelemetryError(error) {
   return UTILS.hasTelemetryError(error)
 }
 
-function telemetryFromError(
-  error,
-  fallbackCode,
-  fallbackStage
-) {
-  return UTILS.telemetryFromError(
-    error,
-    fallbackCode,
-    fallbackStage
-  )
+function telemetryFromError(error, fallbackCode, fallbackStage) {
+  return UTILS.telemetryFromError(error, fallbackCode, fallbackStage)
 }
 
 function elapsedMs(startedAt) {
   const value = Date.now() - Number(startedAt)
 
-  return Number.isFinite(value)
-    ? Math.max(0, Math.round(value))
-    : null
+  return Number.isFinite(value) ? Math.max(0, Math.round(value)) : null
 }
 
 function cloneTimings(timings) {

@@ -3,13 +3,9 @@
 // icon-color: deep-blue; icon-glyph: chart.bar.xaxis;
 
 const API_URL = "https://cts-analytics.nameless-frog-624d.workers.dev"
-
 const REQUEST_TIMEOUT_SECONDS = 12
-
 const TELEMETRY_TIMEOUT_SECONDS = 8
-
 const RETRY_DELAY_MS = 60 * 60 * 1000
-
 const MAX_TELEMETRY_ISSUES = 50
 
 const KEYS = {
@@ -37,9 +33,7 @@ const TELEMETRY_STAGE_VALUES = {
 }
 
 const TELEMETRY_RUN_STATUSES = new Set(["success", "warning", "error"])
-
 const TELEMETRY_SEVERITIES = new Set(["warning", "error", "fatal"])
-
 const TELEMETRY_CONTEXTS = new Set(["widget", "app"])
 
 function createOpaqueId() {
@@ -123,7 +117,6 @@ async function registerActivity({ dashboardVersion }) {
 
 async function registerDailyActivity({ dashboardVersion }) {
   const version = normalizeVersion(dashboardVersion)
-
   const today = new Date().toISOString().slice(0, 10)
 
   if (readKey(KEYS.lastActivityDay) === today) {
@@ -233,9 +226,7 @@ function setTelemetryStage(run, stage, status) {
   ensureTelemetryRun(run)
 
   const stageName = String(stage || "").trim()
-
   const property = TELEMETRY_STAGE_PROPERTIES[stageName]
-
   const allowedValues = TELEMETRY_STAGE_VALUES[stageName]
 
   if (!property || !allowedValues) {
@@ -253,15 +244,7 @@ function setTelemetryStage(run, stage, status) {
   return run
 }
 
-function addTelemetryIssue(
-  run,
-  {
-    severity = "error",
-    errorCode,
-    module,
-    stage = null
-  }
-) {
+function addTelemetryIssue(run, { severity = "error", errorCode, module, stage = null }) {
   ensureTelemetryRun(run)
 
   if (run.issues.length >= MAX_TELEMETRY_ISSUES) {
@@ -275,7 +258,6 @@ function addTelemetryIssue(
   }
 
   const normalizedCode = normalizeErrorCode(errorCode)
-
   const normalizedModule = normalizeTelemetryLabel(module, "module")
 
   const normalizedStage =
@@ -293,14 +275,6 @@ function addTelemetryIssue(
 
   run.issues.push(issue)
 
-  /*
-   * Le statut global est calculé uniquement
-   * à la fin de l’exécution.
-   *
-   * Cela permet de retirer proprement les
-   * signaux techniques bénins avant l’envoi
-   * sans conserver un ancien statut warning.
-   */
   return issue
 }
 
@@ -324,7 +298,6 @@ function finishTelemetryRun(run) {
 
 async function registerTelemetry({ dashboardVersion, run }) {
   const version = normalizeVersion(dashboardVersion)
-
   const telemetryRun = normalizeTelemetryRunForSend(finishTelemetryRun(run))
 
   return sendRequest({
@@ -399,20 +372,10 @@ function normalizeTelemetrySignals(run) {
   run.issues = issues.filter(issue => {
     const code = String(issue?.errorCode || "").trim()
 
-    /*
-     * Un verrou de scan est un mécanisme normal
-     * de concurrence entre plusieurs exécutions.
-     * Ce n’est pas un incident fonctionnel.
-     */
     if (code === "SERVICES_SCAN_LOCKED") {
       return false
     }
 
-    /*
-     * L’absence d’un nouveau PDF n’est pas un
-     * problème si un service valide a déjà été
-     * trouvé et peut être affiché.
-     */
     if (code === "PDF_NOT_FOUND" && serviceFound) {
       return false
     }
@@ -472,7 +435,6 @@ function strongestTelemetryStatus(first, second) {
   }
 
   const firstValue = weights[first] ?? 0
-
   const secondValue = weights[second] ?? 0
 
   return secondValue > firstValue ? second : first
@@ -653,7 +615,6 @@ async function sendRequest({
 
   try {
     const response = await request.loadJSON()
-
     const statusCode = Number(request.response?.statusCode)
 
     if (

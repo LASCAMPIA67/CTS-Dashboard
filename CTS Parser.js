@@ -4,19 +4,6 @@
 
 const DB = importModule("CTS Database")
 const UTILS = importModule("CTS Utils")
-
-/*
- * Codes des lignes de tram, 80 à 85 pour A à F. Ils décident du
- * vocabulaire affiché : un tram a un « début d'exploitation » là où un
- * bus a une « mise en ligne ».
- *
- * Les codes 90 et 92, qui portent les lettres G et H dans lines.json,
- * n'ont rien à faire ici : ce sont des lignes de bus à haut niveau de
- * service, confirmé par Emilio. Leur lettre ressemble à une lettre de
- * tram, et c'est précisément le piège — les ajouter ferait parler le
- * widget d'exploitation à des conducteurs de bus. Le contrôle
- * correspondant est dans tools/preview/database-smoke.mjs.
- */
 const TRAM_LINE_CODES = new Set(["80", "81", "82", "83", "84", "85"])
 
 const { normalizeText, normalizeTime, isValidTime, toMinutes, escapeRegex, normalizeCode } =
@@ -26,7 +13,6 @@ async function parseService(rawText) {
   const text = normalizeText(rawText)
   const errors = []
   const warnings = []
-
   const service = extractServiceNumber(text)
   const date = extractServiceDate(text)
   const driver = extractDriver(text)
@@ -70,13 +56,7 @@ async function enrichSlices(text, slices) {
     slices.map(async slice => {
       const startsAtDepot = await DB.isDepot(slice.startPlaceCode)
       const endsAtDepot = await DB.isDepot(slice.endPlaceCode)
-
-      const details = await extractDepartureDetails(
-        text,
-        slice,
-        startsAtDepot,
-        endsAtDepot
-      )
+      const details = await extractDepartureDetails(text, slice, startsAtDepot, endsAtDepot)
 
       return {
         startsAtDepot,
@@ -137,7 +117,6 @@ function extractServiceDate(text) {
   if (!match) return null
 
   const day = String(Number(match[1])).padStart(2, "0")
-
   const month = String(Number(match[2])).padStart(2, "0")
 
   const date = `${match[3]}-${month}-${day}`
@@ -172,19 +151,12 @@ async function extractSlices(text) {
 
   while ((match = regex.exec(flatText)) !== null) {
     const lineCode = normalizeCode(match[1])
-
     const vehicle = Number(match[2])
-
     const dutyStart = normalizeTime(match[3])
-
     const startPlaceCode = normalizeCode(match[4])
-
     const operationStart = normalizeTime(match[5])
-
     const end = normalizeTime(match[6])
-
     const endPlaceCode = normalizeCode(match[7])
-
     const dutyEnd = normalizeTime(match[8])
 
     slices.push({
@@ -228,18 +200,6 @@ async function extractDepartureDetails(text, slice, startsAtDepot, endsAtDepot) 
   }
 }
 
-/*
- * Rentrée dépôt, symétrique de la sortie.
- *
- * Le bloc « Entrée / » ouvre le trajet de retour : l'heure portée sur sa
- * propre ligne est celle du départ du dernier arrêt commercial, pas celle
- * de l'arrivée au dépôt. L'arrivée est le dernier point horodaté de la
- * section, exactement comme la mise en ligne est le premier point horodaté
- * après « Sortie / ».
- *
- * On refuse toute heure antérieure à la fin d'exploitation ou postérieure
- * à la fin de service : mieux vaut ne rien afficher qu'une heure fausse.
- */
 function extractDepotReturnTime(lines, slice) {
   const returnIndex = lines.findIndex(line => /^Entrée\s*\/\s*\S+/i.test(line))
   if (returnIndex === -1) return ""
@@ -247,9 +207,8 @@ function extractDepotReturnTime(lines, slice) {
   let candidate = ""
 
   for (let index = returnIndex; index < lines.length; index++) {
-    const stop = index === returnIndex
-      ? extractActivityStop(lines[index])
-      : extractTimedStop(lines[index])
+    const stop =
+      index === returnIndex ? extractActivityStop(lines[index]) : extractTimedStop(lines[index])
 
     if (index > returnIndex && isActivityLine(lines[index])) break
     if (stop && isValidTime(stop.time)) candidate = stop.time
@@ -305,11 +264,8 @@ function extractVehicleSection(text, slice) {
   }
 
   const start = match.index + match[0].length
-
   const rest = text.slice(start)
-
   const nextHeader = /\bVoiture\s+\d{1,3}\s*-\s*\d{1,3}\b/i.exec(rest)
-
   const end = nextHeader ? start + nextHeader.index : text.length
 
   return text.slice(start, end).trim()
@@ -329,28 +285,10 @@ function rebuildSectionLines(section) {
 }
 
 async function extractLineUpPlace(section, lines, slice) {
-  /*
-   * TRAM :
-   *
-   * Une sortie dépôt peut emprunter les rails
-   * d'une autre ligne et comporter un ou
-   * plusieurs blocs Haut-le-pied.
-   *
-   * Le début réel d'exploitation est donc
-   * le premier bloc Régulier de la ligne
-   * concernée.
-   */
   if (isTramLineCode(slice?.lineCode)) {
     return await extractTramOperationStart(lines, slice)
   }
 
-  /*
-   * BUS :
-   *
-   * Conservation de la logique historique :
-   * premier arrêt rencontré après la sortie
-   * dépôt, avant le bloc d'activité suivant.
-   */
   const exitIndex = lines.findIndex(line => /^Sortie\s*\/\s*\S+/i.test(line))
 
   if (exitIndex !== -1) {
@@ -386,7 +324,6 @@ async function extractLineUpPlace(section, lines, slice) {
 
 async function extractTramOperationStart(lines, slice) {
   const exitIndex = lines.findIndex(line => /^Sortie\s*\/\s*\S+/i.test(line))
-
   const expectedLine = String(slice?.line || "")
     .trim()
     .toUpperCase()
@@ -395,7 +332,6 @@ async function extractTramOperationStart(lines, slice) {
 
   for (let index = startIndex; index < lines.length; index++) {
     const line = lines[index]
-
     const match = line.match(/^Régulier\s*\/\s*(\S+)\s+(.+?)\s+(\d{1,2}:\d{2})$/i)
 
     if (!match) {
@@ -406,11 +342,6 @@ async function extractTramOperationStart(lines, slice) {
       .trim()
       .toUpperCase()
 
-    /*
-     * On s'assure que le premier bloc
-     * Régulier appartient bien à la ligne
-     * de la tranche.
-     */
     if (expectedLine && activityLine !== expectedLine) {
       continue
     }
@@ -430,7 +361,6 @@ async function extractFirstDirection(section, lines) {
 
   if (regularIndex !== -1) {
     const departure = extractActivityStop(lines[regularIndex])
-
     let direction = departure ? await DB.formatStop(departure.name) : ""
 
     for (let index = regularIndex + 1; index < lines.length; index++) {
@@ -457,7 +387,6 @@ async function extractFirstDirection(section, lines) {
 
 async function extractDirectionFromFlatText(section) {
   const flatText = section.replace(/\n/g, " ").replace(/\s+/g, " ").trim()
-
   const start = flatText.search(/\bRégulier\s*\/\s*\S+/i)
 
   if (start === -1) {
@@ -465,7 +394,6 @@ async function extractDirectionFromFlatText(section) {
   }
 
   const afterStart = flatText.slice(start)
-
   const nextBlock = afterStart
     .slice(1)
     .search(
@@ -533,9 +461,7 @@ function isDirectionBoundary(line) {
 
 function extractBreaks(text, slices) {
   const breaks = []
-
   const regex = /\bCoupure\s+(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})\b/gi
-
   let match
 
   while ((match = regex.exec(text)) !== null) {
@@ -548,11 +474,8 @@ function extractBreaks(text, slices) {
 
   for (let index = 0; index < slices.length - 1; index++) {
     const current = slices[index]
-
     const next = slices[index + 1]
-
     const start = current.end
-
     const end = next.operationStart
 
     if (toMinutes(end) <= toMinutes(start)) {

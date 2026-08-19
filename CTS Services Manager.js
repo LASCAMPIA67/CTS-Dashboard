@@ -2,31 +2,15 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: blue; icon-glyph: folder.badge.gearshape;
 
-// CTS Services Manager.js
-// Détection, importation et sélection automatique des services PDF.
-
 const CONFIG = importModule("CTS Config")
 const IMPORTER = importModule("CTS Importer")
 const STORAGE = importModule("CTS Storage")
 const UTILS = importModule("CTS Utils")
 const SERVICES_CLEANER = importModule("CTS Services Cleaner")
-
 const { fm, paths, files, pdf } = CONFIG
-
-/*
- * Ces fonctions vivaient ici en double. Une liaison remplace la copie :
- * les appels du fichier ne changent pas, et une correction faite à la
- * source profite désormais à tous les modules.
- */
 const removeFileQuietly = STORAGE.removeFileQuietly
 const finiteOrNull = UTILS.finiteOrNull
 const isUsableDate = UTILS.isUsableDate
-/*
- * Lancé depuis Scriptable, le script n'a pas la limite de temps d'un
- * widget et doit toujours pouvoir réessayer sur-le-champ : sans cette
- * porte, la mise en attente d'un import interrompu bloquerait le seul
- * moyen de rattrapage dont dispose un conducteur.
- */
 const runsInApplication = UTILS.runsInApplication
 
 const {
@@ -79,7 +63,6 @@ async function performScan(options) {
   const servicePdfs = listing.files
   const detectionErrors = listing.detectionErrors
   const now = new Date()
-
   const candidates = servicePdfs
     .filter(file => shouldProcessPdf(file, index, state, now))
     .sort(compareCandidates)
@@ -90,19 +73,6 @@ async function performScan(options) {
   const failed = []
 
   for (const candidate of selectedCandidates) {
-    /*
-     * La tentative est inscrite AVANT d'être menée.
-     *
-     * iOS accorde quelques secondes à un widget, alors que la lecture
-     * d'un PDF peut en demander vingt-cinq. Quand le processus est tué en
-     * cours de route, rien n'était écrit : shouldProcessPdf revoyait un
-     * fichier « jamais tenté » et le resélectionnait au rafraîchissement
-     * suivant, indéfiniment. Le widget repartait donc sur le même import
-     * impossible à chaque réveil, sans jamais laisser de trace.
-     *
-     * Inscrite d'abord, une tentative interrompue se voit — et le
-     * fichier attend, au lieu d'occuper toutes les exécutions suivantes.
-     */
     recordAttemptedImport(state, candidate)
     state.updatedAt = new Date().toISOString()
     await saveScanState(state)
@@ -121,11 +91,7 @@ async function performScan(options) {
     await saveScanState(state)
   }
 
-  const knownFailures = collectKnownFailures(
-    servicePdfs,
-    state,
-    failed
-  )
+  const knownFailures = collectKnownFailures(servicePdfs, state, failed)
 
   state.updatedAt = new Date().toISOString()
   state.lastScan = {
@@ -171,11 +137,7 @@ async function importCandidate(candidate) {
     }
   } catch (error) {
     const safeError = UTILS.safeError(error)
-    const telemetry = telemetryFromError(
-      error,
-      "SERVICE_IMPORT_FAILED",
-      "import"
-    )
+    const telemetry = telemetryFromError(error, "SERVICE_IMPORT_FAILED", "import")
 
     return {
       success: false,
@@ -236,10 +198,7 @@ async function inspectServicesDirectory() {
       })
 
       detectionErrors.push(failure)
-      await logDetectionFailure(
-        "PDF détecté mais métadonnées inaccessibles",
-        failure
-      )
+      await logDetectionFailure("PDF détecté mais métadonnées inaccessibles", failure)
       continue
     }
 
@@ -260,10 +219,7 @@ async function inspectServicesDirectory() {
       })
 
       detectionErrors.push(failure)
-      await logDetectionFailure(
-        "PDF détecté mais inaccessible",
-        failure
-      )
+      await logDetectionFailure("PDF détecté mais inaccessible", failure)
     }
   }
 
@@ -274,13 +230,7 @@ async function inspectServicesDirectory() {
   }
 }
 
-function buildDetectionFailure({
-  error,
-  fileName,
-  path,
-  stage,
-  fallbackCode
-}) {
+function buildDetectionFailure({ error, fileName, path, stage, fallbackCode }) {
   const safeError = UTILS.safeError(error)
   const telemetry = telemetryFromError(error, fallbackCode, stage)
 
@@ -308,15 +258,11 @@ async function logDetectionFailure(message, failure) {
 
 async function inspectPdf(path) {
   if (!fm.fileExists(path)) {
-    throw createTelemetryError(
-      "PDF_SOURCE_NOT_FOUND",
-      "inspection",
-      "Le PDF est introuvable."
-    )
+    throw createTelemetryError("PDF_SOURCE_NOT_FOUND", "inspection", "Le PDF est introuvable.")
   }
 
   try {
-    if (!await STORAGE.ensureDownloaded(path)) {
+    if (!(await STORAGE.ensureDownloaded(path))) {
       throw createTelemetryError(
         "PDF_SOURCE_NOT_FOUND",
         "inspection",
@@ -359,9 +305,7 @@ async function inspectPdf(path) {
   }
 
   const modificationDate = STORAGE.safeModificationDate(path)
-  const modifiedAt = modificationDate
-    ? modificationDate.toISOString()
-    : ""
+  const modifiedAt = modificationDate ? modificationDate.toISOString() : ""
 
   return {
     path,
@@ -393,41 +337,16 @@ function shouldProcessPdf(file, index, state, now) {
   }
 
   switch (previous.status) {
-    /*
-     * « Importé » et « indexé » affirment un enregistrement : une entrée
-     * d'index et un cache. isIndexedAndCurrent vient précisément de dire
-     * que cet enregistrement n'existe plus.
-     *
-     * L'état de balayage ne peut pas faire autorité contre l'index : il
-     * décrit ce qui a été fait, pas ce qui est encore là. Sans cette
-     * distinction, un cache perdu — effacé à la main, égaré dans une
-     * synchronisation, jamais redescendu sur un nouvel appareil —
-     * condamnait le PDF : détecté à chaque balayage, jamais réimporté,
-     * et le widget annonçait « 1 PDF détecté, aucun service exploitable »
-     * indéfiniment. Seul un changement de nom du fichier en sortait.
-     *
-     * Il n'y a pas de boucle à craindre : une réimportation réussie
-     * recrée le cache, et un échec bascule en « exception », qui patiente.
-     */
     case "imported":
     case "indexed":
       return true
 
-    /*
-     * Un refus de validation porte sur le contenu du PDF, pas sur son
-     * enregistrement : le même fichier donnera le même refus.
-     */
     case "validation-error":
       return false
 
     case "exception":
       return retryDelayElapsed(previous.lastAttemptAt, now)
 
-    /*
-     * Tentative jamais terminée : le processus a été tué avant d'écrire
-     * son résultat. On patiente comme après une exception, sauf lorsque
-     * le script tourne dans l'application — là, le temps ne manque pas.
-     */
     case "interrupted":
       return runsInApplication() || retryDelayElapsed(previous.lastAttemptAt, now)
 
@@ -436,48 +355,29 @@ function shouldProcessPdf(file, index, state, now) {
   }
 }
 
-
 function isIndexedAndCurrent(file, index) {
-  const services = Array.isArray(index?.services)
-    ? index.services
-    : []
-
+  const services = Array.isArray(index?.services) ? index.services : []
   const entry = services.find(item => item?.pdfFile === file.fileName)
 
   if (!entry?.cacheFile) {
     return false
   }
 
-  /*
-   * Le cache d'un service terminé est effacé une heure après sa fin,
-   * alors que son PDF reste dans Services jusqu'à l'archivage. Sans
-   * cette condition, l'absence de cache ferait passer le fichier pour
-   * nouveau : il serait réimporté, son cache recréé, puis effacé à
-   * nouveau, à chaque rafraîchissement pendant une heure.
-   */
   if (entry.cache?.clearedAt) {
     return true
   }
 
-  const cachePath = fm.joinPath(
-    paths.servicesCache,
-    entry.cacheFile
-  )
+  const cachePath = fm.joinPath(paths.servicesCache, entry.cacheFile)
 
   if (!fm.fileExists(cachePath)) {
     return false
   }
 
   const indexedSize = Number(entry.source?.sizeKilobytes)
-  const sameSize =
-    !Number.isFinite(indexedSize) ||
-    indexedSize === file.sizeKilobytes
-
+  const sameSize = !Number.isFinite(indexedSize) || indexedSize === file.sizeKilobytes
   const indexedModifiedAt = String(entry.source?.modifiedAt || "")
   const sameModificationDate =
-    !indexedModifiedAt ||
-    !file.modifiedAt ||
-    indexedModifiedAt === file.modifiedAt
+    !indexedModifiedAt || !file.modifiedAt || indexedModifiedAt === file.modifiedAt
 
   return sameSize && sameModificationDate
 }
@@ -485,8 +385,10 @@ function isIndexedAndCurrent(file, index) {
 function retryDelayElapsed(lastAttemptAt, now) {
   const lastAttemptTime = Date.parse(String(lastAttemptAt || ""))
 
-  return !Number.isFinite(lastAttemptTime) ||
+  return (
+    !Number.isFinite(lastAttemptTime) ||
     now.getTime() - lastAttemptTime >= EXCEPTION_RETRY_DELAY_MS
+  )
 }
 
 async function recordSuccessfulImport(state, candidate, result) {
@@ -510,10 +412,7 @@ async function recordSuccessfulImport(state, candidate, result) {
     return
   }
 
-  const canonicalPath = fm.joinPath(
-    paths.services,
-    result.pdfFileName
-  )
+  const canonicalPath = fm.joinPath(paths.services, result.pdfFileName)
 
   if (!fm.fileExists(canonicalPath)) {
     return
@@ -534,17 +433,9 @@ async function recordSuccessfulImport(state, candidate, result) {
       timings,
       error: ""
     }
-  } catch (_) {
-    // L’import principal reste valide si l’empreinte canonique ne peut pas être relue.
-  }
+  } catch (_) {}
 }
 
-/*
- * Trace minimale d'une tentative commencée. Elle est écrasée quelques
- * instants plus tard par son résultat réel — succès, échec de validation
- * ou exception. Elle ne survit donc que si l'exécution n'est jamais
- * arrivée au bout.
- */
 function recordAttemptedImport(state, candidate) {
   const previous = state.files[candidate.fileName]
 
@@ -572,31 +463,21 @@ function recordFailedImport(state, candidate, result) {
     canonicalFileName: "",
     telemetryCode: normalizeTelemetryCode(
       result.telemetryCode,
-      validationFailure
-        ? "HASTUS_VALIDATION_FAILED"
-        : "SERVICE_IMPORT_FAILED"
+      validationFailure ? "HASTUS_VALIDATION_FAILED" : "SERVICE_IMPORT_FAILED"
     ),
     telemetryStage: normalizeTelemetryStage(
       result.telemetryStage,
       validationFailure ? "validation" : "import"
     ),
     timings: normalizeTimings(result.timings),
-    error: result.error || (
-      Array.isArray(result.errors)
-        ? result.errors.join(" · ")
-        : ""
-    )
+    error: result.error || (Array.isArray(result.errors) ? result.errors.join(" · ") : "")
   }
 }
 
 function collectKnownFailures(servicePdfs, state, currentFailures) {
   const currentNames = new Set(
     currentFailures
-      .map(item => String(
-        item?.detectedFileName ||
-        item?.sourceFileName ||
-        ""
-      ).trim())
+      .map(item => String(item?.detectedFileName || item?.sourceFileName || "").trim())
       .filter(Boolean)
   )
 
@@ -609,10 +490,7 @@ function collectKnownFailures(servicePdfs, state, currentFailures) {
 
     const previous = state.files[file.fileName]
 
-    if (
-      !previous ||
-      !["validation-error", "exception"].includes(previous.status)
-    ) {
+    if (!previous || !["validation-error", "exception"].includes(previous.status)) {
       continue
     }
 
@@ -630,9 +508,7 @@ function collectKnownFailures(servicePdfs, state, currentFailures) {
       detectedFileName: file.fileName,
       telemetryCode: normalizeTelemetryCode(
         previous.telemetryCode,
-        validationFailure
-          ? "HASTUS_VALIDATION_FAILED"
-          : "SERVICE_IMPORT_FAILED"
+        validationFailure ? "HASTUS_VALIDATION_FAILED" : "SERVICE_IMPORT_FAILED"
       ),
       telemetryStage: normalizeTelemetryStage(
         previous.telemetryStage,
@@ -667,9 +543,7 @@ async function loadScanState() {
   }
 
   const storedFiles =
-    value.files &&
-    typeof value.files === "object" &&
-    !Array.isArray(value.files)
+    value.files && typeof value.files === "object" && !Array.isArray(value.files)
       ? value.files
       : {}
 
@@ -677,9 +551,7 @@ async function loadScanState() {
     version: Number(value.version) || SCAN_STATE_VERSION,
     updatedAt: String(value.updatedAt || ""),
     lastScan:
-      value.lastScan &&
-      typeof value.lastScan === "object" &&
-      !Array.isArray(value.lastScan)
+      value.lastScan && typeof value.lastScan === "object" && !Array.isArray(value.lastScan)
         ? value.lastScan
         : null,
     files: storedFiles
@@ -740,24 +612,8 @@ async function acquireScanLock() {
 
     const lockTime = Date.parse(String(existingLock?.createdAt || ""))
     const lockIsActive =
-      Number.isFinite(lockTime) &&
-      now.getTime() - lockTime < SCAN_LOCK_TTL_MS
+      Number.isFinite(lockTime) && now.getTime() - lockTime < SCAN_LOCK_TTL_MS
 
-    /*
-     * L'application reprend un verrou laissé par un widget.
-     *
-     * Un réveil de widget peut être tué en pleine lecture de PDF : il
-     * laisse alors son verrou derrière lui pendant deux minutes. Sans
-     * cette reprise, le seul contexte capable de terminer l'import —
-     * l'application, où le temps ne manque pas — se voyait refuser le
-     * travail par le contexte qui, lui, ne pouvait pas le finir. Le
-     * conducteur voyait « Analyse en cours » des deux côtés, et sa carte
-     * agent n'était jamais importée.
-     *
-     * La reprise est volontairement asymétrique : deux exécutions de même
-     * nature continuent de se respecter. Seule l'application passe devant
-     * un widget, jamais l'inverse.
-     */
     const heldByWidget = String(existingLock?.surface || "") === "widget"
     const canTakeOver = heldByWidget && runsInApplication()
 
@@ -780,10 +636,6 @@ async function acquireScanLock() {
         {
           token,
           createdAt: now.toISOString(),
-          /*
-           * Qui tient le verrou. Un widget peut être tué sans le rendre ;
-           * l'application, elle, va au bout.
-           */
           surface: runsInApplication() ? "application" : "widget"
         },
         null,
@@ -853,11 +705,7 @@ async function writeJsonAtomically(path, value) {
   } catch (error) {
     removeFileQuietly(temporaryPath)
 
-    if (
-      previousMoved &&
-      fm.fileExists(rollbackPath) &&
-      !fm.fileExists(path)
-    ) {
+    if (previousMoved && fm.fileExists(rollbackPath) && !fm.fileExists(path)) {
       try {
         fm.move(rollbackPath, path)
       } catch (_) {}
@@ -895,10 +743,8 @@ async function resolveServiceForDate(currentDate = new Date()) {
     currentDate.getDate() - 1
   )
   const yesterdayKey = localDateKey(yesterdayDate)
-
   let previousDayFallback = null
   let todayFallback = null
-
   const previousDayEntries = entries
     .filter(entry => entry.date === yesterdayKey)
     .sort(compareEntriesByNewest)
@@ -913,12 +759,7 @@ async function resolveServiceForDate(currentDate = new Date()) {
     const timing = resolveServiceDisplayTiming(source, currentDate)
 
     if (!timing.switchAfterDate || currentDate < timing.switchAfterDate) {
-      return buildServiceSelection(
-        entry,
-        source,
-        "overnight",
-        timing
-      )
+      return buildServiceSelection(entry, source, "overnight", timing)
     }
 
     if (!previousDayFallback) {
@@ -968,12 +809,7 @@ async function resolveServiceForDate(currentDate = new Date()) {
   const fallback = todayFallback || previousDayFallback
 
   if (fallback) {
-    return buildServiceSelection(
-      fallback.entry,
-      fallback.source,
-      "last-known",
-      fallback.timing
-    )
+    return buildServiceSelection(fallback.entry, fallback.source, "last-known", fallback.timing)
   }
 
   return emptyServiceSelection("no-usable-service")
@@ -984,11 +820,7 @@ async function loadIndexedService(entry) {
     return null
   }
 
-  const cachePath = fm.joinPath(
-    paths.servicesCache,
-    entry.cacheFile
-  )
-
+  const cachePath = fm.joinPath(paths.servicesCache, entry.cacheFile)
   let source
 
   try {
@@ -1035,9 +867,7 @@ function resolveServiceDisplayTiming(source, currentDate) {
     }
   }
 
-  const switchAfterDate = new Date(
-    serviceEndDate.getTime() + SERVICE_DISPLAY_GRACE_MS
-  )
+  const switchAfterDate = new Date(serviceEndDate.getTime() + SERVICE_DISPLAY_GRACE_MS)
   const currentTime = currentDate.getTime()
 
   return {
@@ -1046,8 +876,7 @@ function resolveServiceDisplayTiming(source, currentDate) {
     serviceEndAt: serviceEndDate.toISOString(),
     switchAfter: switchAfterDate.toISOString(),
     withinGracePeriod:
-      currentTime >= serviceEndDate.getTime() &&
-      currentTime < switchAfterDate.getTime(),
+      currentTime >= serviceEndDate.getTime() && currentTime < switchAfterDate.getTime(),
     expired: currentTime >= switchAfterDate.getTime()
   }
 }
@@ -1062,21 +891,12 @@ function isUsableServiceEntry(entry) {
     return false
   }
 
-  return Boolean(
-    UTILS.parseDate(
-      String(entry.date || "")
-    )
-  )
+  return Boolean(UTILS.parseDate(String(entry.date || "")))
 }
 
 function compareEntriesByNewest(first, second) {
-  const firstTime = Date.parse(String(
-    first.indexedAt || first.importedAt || ""
-  ))
-  const secondTime = Date.parse(String(
-    second.indexedAt || second.importedAt || ""
-  ))
-
+  const firstTime = Date.parse(String(first.indexedAt || first.importedAt || ""))
+  const secondTime = Date.parse(String(second.indexedAt || second.importedAt || ""))
   const safeFirstTime = Number.isFinite(firstTime) ? firstTime : 0
   const safeSecondTime = Number.isFinite(secondTime) ? secondTime : 0
 
@@ -1086,9 +906,7 @@ function compareEntriesByNewest(first, second) {
 function compareFutureEntries(first, second) {
   const byDate = String(first.date).localeCompare(String(second.date))
 
-  return byDate !== 0
-    ? byDate
-    : compareEntriesByNewest(first, second)
+  return byDate !== 0 ? byDate : compareEntriesByNewest(first, second)
 }
 
 function buildServiceSelection(entry, source, reason, timing = {}) {
@@ -1152,19 +970,8 @@ function resolveMaximumFiles(requestedValue) {
   const configuredValue = Number(pdf.maximumFilesPerRun) || 2
   const value = Number(requestedValue)
   const resolved = Number.isFinite(value) ? value : configuredValue
-
   const bounded = Math.max(1, Math.min(10, Math.floor(resolved)))
 
-  /*
-   * Dans un widget, une seule carte agent par réveil.
-   *
-   * La lecture d'un PDF dispose de vingt-cinq secondes, alors qu'iOS en
-   * accorde bien moins à un widget entier. En enchaîner deux revient à
-   * garantir que l'exécution sera tuée avant d'avoir pu dessiner quoi
-   * que ce soit — et un widget tué n'affiche rien de neuf, il laisse à
-   * l'écran l'image précédente. L'application, elle, garde le rythme
-   * normal : c'est là que le rattrapage se fait.
-   */
   return runsInApplication() ? bounded : Math.min(1, bounded)
 }
 
@@ -1176,11 +983,7 @@ function compareCandidates(first, second) {
   const firstTime = Date.parse(first.modifiedAt)
   const secondTime = Date.parse(second.modifiedAt)
 
-  if (
-    Number.isFinite(firstTime) &&
-    Number.isFinite(secondTime) &&
-    firstTime !== secondTime
-  ) {
+  if (Number.isFinite(firstTime) && Number.isFinite(secondTime) && firstTime !== secondTime) {
     return firstTime - secondTime
   }
 
@@ -1195,9 +998,7 @@ function isPdfFileName(fileName) {
 }
 
 function isCanonicalPdfName(fileName) {
-  return /^Service_\d{4}-\d{2}-\d{2}_[A-Z0-9_-]+\.pdf$/i.test(
-    String(fileName || "")
-  )
+  return /^Service_\d{4}-\d{2}-\d{2}_[A-Z0-9_-]+\.pdf$/i.test(String(fileName || ""))
 }
 
 module.exports = {

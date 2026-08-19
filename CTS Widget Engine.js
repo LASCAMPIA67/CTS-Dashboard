@@ -2,58 +2,25 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: cyan; icon-glyph: squares.below.rectangle;
 
-// CTS Widget Engine.js
-// Préparation centralisée des données du widget CTS.
-
 const CONFIG = importModule("CTS Config")
-
 const STORAGE = importModule("CTS Storage")
-
 const UTILS = importModule("CTS Utils")
-
 const SERVICE_ENGINE = importModule("CTS Service")
-
 const SERVICES_MANAGER = importModule("CTS Services Manager")
-
 const SERVICES_CLEANER = importModule("CTS Services Cleaner")
-
-/*
- * Ces fonctions vivaient ici en double. Une liaison remplace la copie :
- * les appels du fichier ne changent pas, et une correction faite à la
- * source profite désormais à tous les modules.
- */
 const telemetryFromError = UTILS.telemetryFromError
 const finiteOrNull = UTILS.finiteOrNull
 const isValidDate = UTILS.isUsableDate
-
-
 const SERVICES_SCAN_REFRESH_MS = 15 * 60 * 1000
-
 const PENDING_SCAN_REFRESH_MS = 60 * 1000
-
 const FAILED_SCAN_REFRESH_MS = 5 * 60 * 1000
-
 const MAX_TELEMETRY_ISSUES = 12
-
-// CHARGEMENT DU CONTEXTE
 
 async function loadContext(currentDate = new Date()) {
   CONFIG.ensureDirectories()
 
-  /*
-   * 1. Détection et importation des PDF.
-   * 2. Sélection du service approprié.
-   */
   const resolution = await resolveServiceSource(currentDate)
-
-  /*
-   * 3. Archivage et suppression des anciens PDF.
-   *
-   * Une erreur de nettoyage ne doit jamais
-   * empêcher l’affichage du widget.
-   */
   const cleanup = await runServicesCleanup(currentDate)
-
   const source = resolution.source
 
   if (!source) {
@@ -62,12 +29,6 @@ async function loadContext(currentDate = new Date()) {
 
   const telemetry = buildContextTelemetry(resolution, cleanup, true)
 
-  /*
-   * normalizeService résout les noms de lieux en lisant places.json de
-   * façon synchrone : si iCloud n'a pas encore descendu le fichier, les
-   * lieux retombent silencieusement sur des libellés de repli. On force
-   * donc sa disponibilité avant, sans jamais bloquer l'affichage.
-   */
   try {
     await STORAGE.ensureReadable(CONFIG.files.places)
   } catch (_) {}
@@ -88,16 +49,8 @@ async function loadContext(currentDate = new Date()) {
   }
 
   const service = normalized.service
-
   const state = SERVICE_ENGINE.computeState(service, currentDate)
 
-  /*
-   * Service terminé et plus aucune carte agent à traiter : afficher
-   * indéfiniment un service passé n'apporte rien. On invite plutôt à
-   * déposer la carte suivante. Le PDF du service terminé a rejoint
-   * Services/Archive une heure après sa fin, et les sous-dossiers ne
-   * comptent pas comme des cartes.
-   */
   if (state.type === "DONE" && servicesFolderIsEmpty(resolution)) {
     telemetry.pdfStatus = "missing"
 
@@ -114,7 +67,6 @@ async function loadContext(currentDate = new Date()) {
   }
 
   const stats = SERVICE_ENGINE.computeStats(service)
-
   const displaySlice = SERVICE_ENGINE.getDisplaySlice(service, state)
 
   if (!displaySlice) {
@@ -176,11 +128,8 @@ async function loadContext(currentDate = new Date()) {
   }
 }
 
-// DÉTECTION ET SÉLECTION DU SERVICE
-
 async function resolveServiceSource(currentDate) {
   const scan = await runServicesScan()
-
   const selection = await resolveIndexedService(currentDate)
 
   if (selection.result?.found && selection.result.source) {
@@ -198,16 +147,6 @@ async function resolveServiceSource(currentDate) {
     }
   }
 
-  /*
-   * Il exista ici un secours de compatibilité : à défaut d'index, le
-   * dernier service valide était relu dans Data/service.json.
-   *
-   * Ce fichier n'est plus écrit depuis que l'index et le cache ont pris
-   * la relève — le seul appel du projet demandait explicitement de ne pas
-   * l'activer. Le secours ne pouvait donc plus rien rattraper : il ne
-   * rendait pas le widget plus robuste, il donnait seulement l'illusion
-   * d'un filet là où il n'y en avait plus.
-   */
   return {
     source: null,
     origin: "none",
@@ -224,10 +163,7 @@ async function resolveServiceSource(currentDate) {
 
 async function runServicesScan() {
   try {
-    const maximumFiles = Math.max(
-      1,
-      Number(CONFIG.pdf?.maximumFilesPerRun) || 1
-    )
+    const maximumFiles = Math.max(1, Number(CONFIG.pdf?.maximumFilesPerRun) || 1)
 
     const result = await SERVICES_MANAGER.scanServices({
       maximumFiles
@@ -241,11 +177,6 @@ async function runServicesScan() {
     }
   } catch (error) {
     const safeError = UTILS.safeError(error)
-
-    /*
-     * Une erreur de balayage ne doit jamais
-     * empêcher l’affichage d’un service connu.
-     */
     const telemetry = telemetryFromError(error, "SERVICES_SCAN_FAILED", "scan")
 
     return {
@@ -269,7 +200,6 @@ async function resolveIndexedService(currentDate) {
     }
   } catch (error) {
     const safeError = UTILS.safeError(error)
-
     const telemetry = telemetryFromError(error, "SERVICE_SELECTION_FAILED", "selection")
 
     return {
@@ -281,16 +211,11 @@ async function resolveIndexedService(currentDate) {
   }
 }
 
-// NETTOYAGE AUTOMATIQUE
-
 async function runServicesCleanup(currentDate) {
   try {
     const result = await SERVICES_CLEANER.maintainServices(currentDate)
-
     const cleanupError = extractCleanupError(result)
-
     const telemetryIssues = extractCleanupTelemetryIssues(result)
-
     const primaryTelemetry = telemetryIssues[0] || null
 
     return {
@@ -304,11 +229,6 @@ async function runServicesCleanup(currentDate) {
     }
   } catch (error) {
     const safeError = UTILS.safeError(error)
-
-    /*
-     * Une erreur d’entretien ne doit jamais
-     * empêcher la création du widget.
-     */
     const telemetry = telemetryFromError(error, "SERVICES_CLEANUP_FAILED", "archive")
 
     return {
@@ -332,7 +252,6 @@ function extractCleanupError(result) {
   }
 
   const errors = Array.isArray(result.errors) ? result.errors : []
-
   const messages = errors.map(item => String(item?.error || "").trim()).filter(Boolean)
 
   if (messages.length) {
@@ -348,7 +267,6 @@ function extractCleanupTelemetryIssues(result) {
   }
 
   const errors = Array.isArray(result.errors) ? result.errors : []
-
   const issues = []
 
   for (const item of errors) {
@@ -380,14 +298,6 @@ function extractCleanupTelemetryIssues(result) {
   return issues
 }
 
-// DIAGNOSTIC D'ABSENCE DE SERVICE
-
-/*
- * failure() remet servicesScan à null, si bien qu'un écran d'échec ne
- * gardait aucune trace de l'analyse qui l'avait provoqué. C'est
- * exactement ce qui manquait pour comprendre un widget bloqué. On
- * rattache donc le résultat du balayage à tout écran construit ici.
- */
 function buildMissingServiceFailure(resolution, cleanup, currentDate) {
   return {
     ...buildMissingServiceContext(resolution, cleanup, currentDate),
@@ -398,9 +308,7 @@ function buildMissingServiceFailure(resolution, cleanup, currentDate) {
 
 function buildMissingServiceContext(resolution, cleanup, currentDate) {
   const scanResult = resolution?.scanResult
-
   const telemetry = buildContextTelemetry(resolution, cleanup, false)
-
   const scanError = String(resolution?.scanError || "").trim()
 
   if (scanError) {
@@ -418,9 +326,7 @@ function buildMissingServiceContext(resolution, cleanup, currentDate) {
 
   if (detectionErrors.length) {
     const first = detectionErrors[0]
-
     const fileName = displayFileName(first?.fileName)
-
     const error = firstUsefulError(first)
 
     return failure(
@@ -437,18 +343,13 @@ function buildMissingServiceContext(resolution, cleanup, currentDate) {
   }
 
   const currentFailures = Array.isArray(scanResult?.failed) ? scanResult.failed : []
-
   const knownFailures = Array.isArray(scanResult?.knownFailures) ? scanResult.knownFailures : []
-
   const failedImports = currentFailures.length ? currentFailures : knownFailures
 
   if (failedImports.length) {
     const first = failedImports[0]
-
     const fileName = displayFileName(first?.detectedFileName || first?.sourceFileName)
-
     const error = firstUsefulError(first)
-
     const validationFailure = String(first?.status || "") === "validation-error"
 
     return failure(
@@ -484,20 +385,6 @@ function buildMissingServiceContext(resolution, cleanup, currentDate) {
     )
   }
 
-  /*
-   * Analyse déjà en cours : c'est un état passager, et il doit être
-   * affiché comme tel.
-   *
-   * Le verrou d'analyse vit au plus deux minutes (SCAN_LOCK_TTL_MS), or
-   * failure() programme le réveil suivant sur le rythme « inconnu », soit
-   * cinq minutes. Un état qui dure deux secondes restait donc affiché
-   * cinq minutes au minimum — et bien plus dès qu'iOS espace les réveils.
-   * Vu du conducteur, le widget paraissait figé, et toucher la tuile n'y
-   * changeait rien puisqu'elle relançait le même traitement.
-   *
-   * Le réveil repasse donc sur le rythme actif : au prochain regard, le
-   * verrou est soit relâché, soit périmé.
-   */
   if (scanResult?.status === "locked") {
     addDiagnosticIssue(telemetry, {
       severity: "warning",
@@ -606,8 +493,6 @@ function displayFileName(value) {
   return fileName || "Le PDF"
 }
 
-// DIAGNOSTIC STRUCTURÉ POUR ANALYTICS
-
 function buildContextTelemetry(resolution, cleanup, hasSource) {
   const telemetry = {
     pdfStatus: "not_checked",
@@ -619,7 +504,6 @@ function buildContextTelemetry(resolution, cleanup, hasSource) {
   }
 
   const scanResult = resolution?.scanResult
-
   const detected = Math.max(0, Number(scanResult?.detected ?? scanResult?.scanned ?? 0) || 0)
 
   if (detected > 0) {
@@ -732,9 +616,7 @@ function applyImportFailureTelemetry(telemetry, item, hasSource) {
     status === "validation-error" ? "HASTUS_VALIDATION_FAILED" : "SERVICE_IMPORT_FAILED"
 
   const fallbackStage = status === "validation-error" ? "validation" : "import"
-
   const code = normalizeTelemetryCode(item?.telemetryCode, fallbackCode)
-
   const stage = normalizeTelemetryStage(item?.telemetryStage, fallbackStage)
 
   const pdfStages = new Set([
@@ -869,11 +751,8 @@ function normalizeImportTimings(value) {
   }
 }
 
-// ACTUALISATION AUTOMATIQUE
-
 function computeAutomaticRefreshDate(serviceRefreshAfterDate, resolution, currentDate) {
   const scanRefreshAfterDate = computeScanRefreshDate(resolution, currentDate)
-
   const switchAfterDate = computeSelectionSwitchDate(resolution, currentDate)
 
   return earliestValidDate(
@@ -896,10 +775,6 @@ function computeSelectionSwitchDate(resolution, currentDate) {
     return null
   }
 
-  /*
-   * Une date déjà passée ne doit pas provoquer
-   * une boucle d’actualisations immédiates.
-   */
   if (switchAfterDate.getTime() <= currentDate.getTime()) {
     return null
   }
@@ -909,22 +784,12 @@ function computeSelectionSwitchDate(resolution, currentDate) {
 
 function computeScanRefreshDate(resolution, currentDate) {
   const scanResult = resolution?.scanResult
-
   let delay = SERVICES_SCAN_REFRESH_MS
 
-  /*
-   * Une nouvelle tentative est demandée
-   * rapidement si un traitement est en attente.
-   */
   if (scanResult?.status === "locked" || Number(scanResult?.remaining) > 0) {
     delay = PENDING_SCAN_REFRESH_MS
   }
 
-  /*
-   * Une erreur de balayage, de sélection
-   * ou d’entretien déclenche une nouvelle
-   * tentative au bout de cinq minutes.
-   */
   if (resolution?.scanError || resolution?.selectionError || resolution?.cleanupError) {
     delay = FAILED_SCAN_REFRESH_MS
   }
@@ -932,10 +797,6 @@ function computeScanRefreshDate(resolution, currentDate) {
   return new Date(currentDate.getTime() + delay)
 }
 
-/*
- * Une date déjà passée provoquerait des actualisations en boucle :
- * seules les échéances réellement à venir sont retenues.
- */
 function earliestValidDate(values, fallback, after) {
   const validDates = values
     .filter(
@@ -949,8 +810,6 @@ function earliestValidDate(values, fallback, after) {
 
   return fallback
 }
-
-// ACTUALISATION SELON L’ÉTAT DU SERVICE
 
 function computeNextRefreshDate(service, state, currentDate = new Date()) {
   const fallbackRefreshDate = new Date(currentDate.getTime() + CONFIG.refresh.unknownMs)
@@ -995,11 +854,6 @@ function computeNextRefreshDate(service, state, currentDate = new Date()) {
   }
 }
 
-/*
- * « Avant le service » couvre la prise de service puis la mise en
- * ligne. Le widget se réveille à la prochaine de ces deux transitions
- * qui soit encore à venir, jamais sur une heure déjà passée.
- */
 function computeBeforeRefreshDate(serviceDate, firstSlice, currentDate) {
   const transitions = [firstSlice.dutyStart, firstSlice.start]
 
@@ -1060,34 +914,10 @@ function dateForServiceTime(serviceDate, time, extraSeconds = 0) {
   )
 }
 
-// INFORMATIONS D’AFFICHAGE
-
-/*
- * La famille réellement demandée par iOS, sans la travestir.
- *
- * Cette fonction ramenait toute valeur inconnue à « large ». Or iOS en
- * produit d'autres que small/medium/large : les widgets d'écran
- * verrouillé (accessoryCircular, accessoryRectangular, accessoryInline)
- * et extraLarge. Le moteur construisait donc la grande carte — en-tête,
- * bloc horaires, programme, statistiques — dans une tuile de quelques
- * millimètres, ce qui ne donne rien de lisible et peut se rendre vide.
- *
- * Pire, la coercition rendait createLargeOnlyWidget() inatteignable,
- * alors que cette carte existe précisément pour dire « utilisez le grand
- * format ». On renvoie donc la famille telle quelle ; « large » ne reste
- * le défaut que hors widget, où config.widgetFamily est absent.
- */
 function getWidgetFamily() {
   return String(config.widgetFamily || "").trim() || "large"
 }
 
-// ÉCHEC SÉCURISÉ
-
-/*
- * Le dossier Services ne contient aucune carte agent. On ne l'affirme
- * que si le balayage a réellement pu lire le dossier : une erreur, un
- * verrou ou un résultat absent ne valent pas « dossier vide ».
- */
 function servicesFolderIsEmpty(resolution) {
   const scan = resolution?.scanResult
 
@@ -1098,11 +928,6 @@ function servicesFolderIsEmpty(resolution) {
   return Number(scan.detected) === 0
 }
 
-/*
- * Message d'information : ce n'est pas une panne, seulement une action
- * attendue du conducteur. Le Dashboard le présente autrement qu'une
- * erreur.
- */
 function information(title, message, currentDate, telemetry) {
   return {
     ...failure(title, message, currentDate, telemetry),
@@ -1141,10 +966,6 @@ function failure(title, message, currentDate = new Date(), telemetry = null) {
     }
   }
 }
-
-// OUTILS INTERNES
-
-// EXPORTS
 
 module.exports = {
   loadContext,
