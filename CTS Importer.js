@@ -5,7 +5,7 @@
 const CONFIG = importModule("CTS Config")
 const STORAGE = importModule("CTS Storage")
 const UTILS = importModule("CTS Utils")
-const INDEX_VERSION = 2
+const INDEX_VERSION = CONFIG.servicesIndexVersion
 
 async function importPdf(pdfPath, options = {}) {
   return pipeline().importPdf(pdfPath, options)

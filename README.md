@@ -110,7 +110,7 @@ Ce dépôt est **public** et ne contient que ce qui est destiné aux conducteurs
 | **22 fichiers distribués** | 17 scripts + 5 ressources, listés dans `version.json`, installés par CTS Installer |
 | **`CTS Installer.js`** | téléchargé depuis l'URL brute, se met à jour lui-même, hors manifeste |
 | **`CTS Repair.js`** | remplace un installateur bloqué, installé à la main en cas de besoin |
-| **`tools/preview/`** | bancs d'essai exécutés en intégration continue, jamais sur un iPhone |
+| **`tools/preview/`** | bancs d'essai et outils de mesure, exécutés hors iPhone |
 
 Les outils de maintenance du mainteneur — console de statistiques, simulateur,
 éditeur de base, testeur PDF — **ne figurent pas dans ce dépôt**. Ils vivent
@@ -129,16 +129,31 @@ statistiques répond 401, quel que soit le code exécuté.
 métadonnées Scriptable, la cohérence des versions, les libellés d'arrêts, le
 contraste de la palette et l'absence d'outil admin.
 
-Cinq bancs d'essai complètent la CI, parce qu'une vérification statique ne voit
-pas ce qui casse à l'exécution :
+Dix bancs d'essai complètent la CI, parce qu'une vérification statique ne voit
+pas ce qui casse à l'exécution. Chacun est né d'un défaut réel :
 
 | Banc | Ce qu'il empêche |
 |---|---|
 | `modules-smoke` | une fonction appelée d'un module à l'autre qui n'existe pas |
-| `database-smoke` | un arrêt affiché sous forme de code |
+| `dashboard-smoke` | un widget blanc, vide, ou rendu dans une taille non prévue |
+| `scan-smoke` | une carte agent détectée mais jamais importée |
+| `storage-smoke` | un fichier lisible qu'iCloud refuse de confirmer, une écriture interrompue |
 | `cleanup-smoke` | un PDF jamais archivé, un cache effacé trop tôt |
+| `database-smoke` | un arrêt affiché sous forme de code |
+| `layout-smoke` | une grille horaires qui déborde selon l'appareil |
+| `utils-smoke` | une attente sans borne, une date jugée valide par un seul module |
 | `installer-smoke` | une constante inaccessible à l'exécution |
 | `repair-smoke` | un dépannage qui laisse l'iPhone sans installateur |
+
+Trois outils du même dossier ne sont pas des bancs et ne tournent pas en CI :
+ils s'exécutent à la demande et **ne doivent pas être pris pour des fichiers
+orphelins** — rien ne les référence parce que ce sont des points d'entrée.
+
+| Outil | Usage |
+|---|---|
+| `preview.mjs` | rend les états du widget en images, pour juger le rendu sans iPhone |
+| `installer.mjs` | rend les pages de CTS Installer de la même façon |
+| `installer-bench.mjs` | mesure une installation complète : requêtes, octets, temps |
 
 ## Développeur
 

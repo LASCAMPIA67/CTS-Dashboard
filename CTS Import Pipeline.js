@@ -12,7 +12,7 @@ const { fm, paths, files } = CONFIG
 const errorMessage = UTILS.errorMessage
 const hasTelemetryError = UTILS.hasTelemetryError
 const telemetryFromError = UTILS.telemetryFromError
-const INDEX_VERSION = 2
+const INDEX_VERSION = CONFIG.servicesIndexVersion
 
 async function importPdf(pdfPath, options = {}) {
   CONFIG.ensureDirectories()

@@ -4,6 +4,7 @@
 
 const fm = FileManager.iCloud()
 const DASHBOARD_VERSION = "1.0.27"
+const SERVICES_INDEX_VERSION = 2
 const SECOND_MS = 1000
 const MINUTE_MS = 60 * SECOND_MS
 const HOUR_MS = 60 * MINUTE_MS
@@ -92,5 +93,6 @@ module.exports = {
   refresh,
   pdf,
   dashboardVersion: DASHBOARD_VERSION,
+  servicesIndexVersion: SERVICES_INDEX_VERSION,
   ensureDirectories
 }
