@@ -162,9 +162,7 @@ async function performScan(options) {
 
 async function importCandidate(candidate) {
   try {
-    const result = await IMPORTER.importPdf(candidate.path, {
-      activate: false
-    })
+    const result = await IMPORTER.importPdf(candidate.path)
 
     return {
       ...result,
@@ -395,8 +393,30 @@ function shouldProcessPdf(file, index, state, now) {
   }
 
   switch (previous.status) {
+    /*
+     * « Importé » et « indexé » affirment un enregistrement : une entrée
+     * d'index et un cache. isIndexedAndCurrent vient précisément de dire
+     * que cet enregistrement n'existe plus.
+     *
+     * L'état de balayage ne peut pas faire autorité contre l'index : il
+     * décrit ce qui a été fait, pas ce qui est encore là. Sans cette
+     * distinction, un cache perdu — effacé à la main, égaré dans une
+     * synchronisation, jamais redescendu sur un nouvel appareil —
+     * condamnait le PDF : détecté à chaque balayage, jamais réimporté,
+     * et le widget annonçait « 1 PDF détecté, aucun service exploitable »
+     * indéfiniment. Seul un changement de nom du fichier en sortait.
+     *
+     * Il n'y a pas de boucle à craindre : une réimportation réussie
+     * recrée le cache, et un échec bascule en « exception », qui patiente.
+     */
     case "imported":
     case "indexed":
+      return true
+
+    /*
+     * Un refus de validation porte sur le contenu du PDF, pas sur son
+     * enregistrement : le même fichier donnera le même refus.
+     */
     case "validation-error":
       return false
 

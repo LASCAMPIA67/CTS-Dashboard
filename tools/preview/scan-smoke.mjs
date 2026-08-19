@@ -26,7 +26,16 @@ const repository = path.resolve(here, "..", "..")
 const failures = []
 
 const SERVICES = "/documents/CTS Dashboard/Services"
-const LOCK = "/documents/CTS Dashboard/Data/services-scan.lock"
+const DATA = "/documents/CTS Dashboard/Data"
+const LOCK = `${DATA}/services-scan.lock`
+const STATE = `${DATA}/services-scan-state.json`
+
+/*
+ * Une date de modification figée : l'empreinte d'un fichier vaut
+ * « nom | taille | date de modification », et un banc qui la laisse
+ * bouger ne peut rien affirmer sur ce que le balayage a déjà vu.
+ */
+const FIXED_MODIFICATION_DATE = new Date("2026-08-19T06:00:00.000Z")
 
 function createFileManager(disk) {
   return {
@@ -53,7 +62,7 @@ function createFileManager(disk) {
         .filter(name => !name.includes("/")),
     isDirectory: target => disk.get(target) === "",
     fileSize: () => 1,
-    modificationDate: () => new Date()
+    modificationDate: () => FIXED_MODIFICATION_DATE
   }
 }
 
@@ -176,6 +185,95 @@ for (const { held, runsInWidget, expected, label } of CASES) {
   }
 }
 
+/*
+ * Un enregistrement perdu doit être refait.
+ *
+ * L'état de balayage retient qu'un PDF a été importé puis indexé. Mais
+ * cet état ne décrit que ce qui a été fait — il ne prouve pas que le
+ * cache et l'entrée d'index sont encore là. Un cache effacé à la main,
+ * égaré dans une synchronisation ou jamais redescendu sur un nouvel
+ * appareil laissait le fichier dans un angle mort : détecté à chaque
+ * balayage, jamais réimporté, et le widget annonçait « 1 PDF détecté,
+ * aucun service exploitable » sans fin. Seul un changement de nom du
+ * fichier en sortait.
+ *
+ * Ici l'index est vide et l'état dit « indexé » : les deux se
+ * contredisent, et c'est l'index qui fait foi.
+ */
+{
+  const canonical = "Service_2026-08-20_EA05.pdf"
+  const disk = new Map()
+  disk.set(SERVICES, "")
+  disk.set(`${SERVICES}/${canonical}`, "%PDF-1.4 contenu")
+
+  disk.set(STATE, JSON.stringify({
+    version: 1,
+    files: {
+      [canonical]: {
+        fingerprint: [
+          canonical.toLowerCase(),
+          1,
+          FIXED_MODIFICATION_DATE.toISOString()
+        ].join("|"),
+        status: "indexed",
+        lastAttemptAt: new Date().toISOString(),
+        service: "EA05",
+        date: "2026-08-20",
+        canonicalFileName: canonical
+      }
+    }
+  }))
+
+  const { manager, imports } = loadManager(disk, { runsInWidget: false })
+  await manager.scanServices({})
+
+  if (!imports.length) {
+    failures.push(
+      "enregistrement perdu : le PDF reste ignoré alors que son cache " +
+      "et son entrée d'index ont disparu"
+    )
+  }
+}
+
+/*
+ * Le refus de validation, lui, doit tenir. Il porte sur le contenu du
+ * PDF, pas sur son enregistrement : le même fichier donnera le même
+ * refus, et le réessayer à chaque réveil ne ferait que brûler le temps
+ * que le widget n'a pas.
+ */
+{
+  const rejected = "Service_2026-08-20_EA05.pdf"
+  const disk = new Map()
+  disk.set(SERVICES, "")
+  disk.set(`${SERVICES}/${rejected}`, "%PDF-1.4 contenu")
+
+  disk.set(STATE, JSON.stringify({
+    version: 1,
+    files: {
+      [rejected]: {
+        fingerprint: [
+          rejected.toLowerCase(),
+          1,
+          FIXED_MODIFICATION_DATE.toISOString()
+        ].join("|"),
+        status: "validation-error",
+        lastAttemptAt: new Date().toISOString(),
+        error: "Carte agent illisible"
+      }
+    }
+  }))
+
+  const { manager, imports } = loadManager(disk, { runsInWidget: false })
+  await manager.scanServices({})
+
+  if (imports.length) {
+    failures.push(
+      "refus de validation : le PDF est réanalysé alors que son contenu " +
+      "n'a pas changé"
+    )
+  }
+}
+
 /* Le verrou pris porte la nature de l'exécution, sinon la reprise est aveugle. */
 for (const runsInWidget of [true, false]) {
   const disk = newDisk()
@@ -200,9 +298,9 @@ for (const runsInWidget of [true, false]) {
 }
 
 if (failures.length) {
-  console.log("ÉCHEC  verrou d'analyse des services")
+  console.log("ÉCHEC  balayage des services")
   for (const failure of failures) console.log(`         ${failure}`)
   process.exit(1)
 }
 
-console.log("ok     verrou d'analyse des services (4 combinaisons, détection, nature du verrou)")
+console.log("ok     balayage des services (verrou : 4 combinaisons, nature ; détection ; enregistrement perdu ; refus de validation)")

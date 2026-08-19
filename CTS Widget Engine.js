@@ -199,27 +199,15 @@ async function resolveServiceSource(currentDate) {
   }
 
   /*
-   * Secours de compatibilité :
-   * si l’index ou le balayage rencontre un problème,
-   * le dernier service valide reste affichable.
+   * Il exista ici un secours de compatibilité : à défaut d'index, le
+   * dernier service valide était relu dans Data/service.json.
+   *
+   * Ce fichier n'est plus écrit depuis que l'index et le cache ont pris
+   * la relève — le seul appel du projet demandait explicitement de ne pas
+   * l'activer. Le secours ne pouvait donc plus rien rattraper : il ne
+   * rendait pas le widget plus robuste, il donnait seulement l'illusion
+   * d'un filet là où il n'y en avait plus.
    */
-  const legacySource = await STORAGE.loadService()
-
-  if (legacySource) {
-    return {
-      source: legacySource,
-      origin: "service-json-fallback",
-      selection: selection.result,
-      scanResult: scan.result,
-      scanError: scan.error,
-      scanTelemetryCode: scan.telemetryCode,
-      scanTelemetryStage: scan.telemetryStage,
-      selectionError: selection.error,
-      selectionTelemetryCode: selection.telemetryCode,
-      selectionTelemetryStage: selection.telemetryStage
-    }
-  }
-
   return {
     source: null,
     origin: "none",

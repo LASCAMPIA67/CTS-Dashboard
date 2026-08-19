@@ -161,19 +161,6 @@ async function importPdf(pdfPath, options = {}) {
       timings: cloneTimings(timings)
     }
 
-    if (options.activate === true) {
-      const activation = await activateService(service)
-      result.activated = activation.success
-      result.activationError = activation.error
-      result.activationTelemetryCode = activation.telemetryCode
-      result.activationTelemetryStage = activation.telemetryStage
-    } else {
-      result.activated = false
-      result.activationError = ""
-      result.activationTelemetryCode = ""
-      result.activationTelemetryStage = ""
-    }
-
     await STORAGE.appendLog(
       "success",
       "Service PDF importé",
@@ -701,28 +688,6 @@ function compareIndexEntries(first, second) {
   )
 }
 
-async function activateService(service) {
-  try {
-    await STORAGE.saveService(service)
-
-    return {
-      success: true,
-      error: "",
-      telemetryCode: "",
-      telemetryStage: ""
-    }
-  } catch (error) {
-    const safeError = UTILS.safeError(error)
-
-    return {
-      success: false,
-      error: safeError.message,
-      telemetryCode: "SERVICE_ACTIVATION_FAILED",
-      telemetryStage: "activation"
-    }
-  }
-}
-
 function buildValidationFailure(
   sourceInfo,
   extraction,
@@ -874,6 +839,5 @@ function timestampForFileName() {
 }
 
 module.exports = {
-  importPdf,
-  activateService
+  importPdf
 }

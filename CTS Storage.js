@@ -205,29 +205,6 @@ async function writeJsonSafely(path, value, pretty = true) {
   await writeTextSafely(path, JSON.stringify(value, null, pretty ? 2 : 0))
 }
 
-async function backupService() {
-  try {
-    if (!await ensureDownloaded(files.service)) return false
-    await writeTextSafely(files.serviceBackup, fm.readString(files.service))
-    return true
-  } catch (_) {
-    return false
-  }
-}
-
-async function saveService(service) {
-  await backupService()
-  await writeJsonSafely(files.service, service)
-}
-
-async function loadService() {
-  return readJson(files.service, null)
-}
-
-async function loadBackupService() {
-  return readJson(files.serviceBackup, null)
-}
-
 function emptyServicesIndex() {
   return { version: SERVICES_INDEX_VERSION, updatedAt: "", services: [] }
 }
@@ -351,10 +328,6 @@ module.exports = {
   writeJson,
   writeTextSafely,
   writeJsonSafely,
-  backupService,
-  saveService,
-  loadService,
-  loadBackupService,
   loadServicesIndex,
   saveServicesIndex,
   appendLog,

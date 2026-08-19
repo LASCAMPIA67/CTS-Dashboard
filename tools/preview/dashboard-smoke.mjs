@@ -47,6 +47,37 @@ function createFileManager(disk) {
   }
 }
 
+/*
+ * L'heure est figée.
+ *
+ * Le service semé va de 05:30 à 12:55. Tant que le banc lisait l'horloge
+ * réelle, il éprouvait un service en cours le matin et un service terminé
+ * l'après-midi — deux contextes différents, donc deux rendus différents,
+ * pour le même code. Le banc passait ou échouait selon l'heure du commit,
+ * ce qui est la pire forme d'échec : celle qu'on met sur le compte du
+ * hasard.
+ *
+ * 09:00 heure locale place le service en pleine exploitation, le cas
+ * nominal que ce banc doit couvrir. Les cas de bord horaires relèvent de
+ * CTS Simulator, sur l'iPhone, pas d'ici.
+ */
+const FROZEN_NOW = new Date(2026, 7, 19, 9, 0, 0)
+
+class FrozenDate extends Date {
+  constructor(...args) {
+    if (args.length === 0) {
+      super(FROZEN_NOW.getTime())
+      return
+    }
+
+    super(...args)
+  }
+
+  static now() {
+    return FROZEN_NOW.getTime()
+  }
+}
+
 function collectText(node) {
   if (!node || typeof node !== "object") return ""
 
@@ -57,10 +88,14 @@ function collectText(node) {
 }
 
 /*
- * Un service réel, déposé là où le moteur sait le retrouver sans index ni
- * cache : Data/service.json, le secours de compatibilité. Il permet
- * d'éprouver le fonctionnement nominal — contexte valide, grande carte —
- * et donc le routage par famille, que la carte d'erreur court-circuite.
+ * Un service réel, déposé là où le moteur va réellement le chercher :
+ * une entrée dans Data/services-index.json et son cache dans
+ * Cache/Services. C'est le seul chemin depuis que Data/service.json a
+ * disparu — il n'était plus écrit par personne.
+ *
+ * Il permet d'éprouver le fonctionnement nominal — contexte valide,
+ * grande carte — et donc le routage par famille, que la carte d'erreur
+ * court-circuite.
  */
 function seedService(disk, today) {
   const iso = [
@@ -69,7 +104,26 @@ function seedService(disk, today) {
     String(today.getDate()).padStart(2, "0")
   ].join("-")
 
-  disk.set("/documents/CTS Dashboard/Data/service.json", JSON.stringify({
+  const stem = `Service_${iso}_EA05`
+
+  disk.set("/documents/CTS Dashboard/Data/services-index.json", JSON.stringify({
+    version: 2,
+    updatedAt: new Date().toISOString(),
+    services: [{
+      id: stem,
+      date: iso,
+      service: "EA05",
+      pdfFile: `${stem}.pdf`,
+      cacheFile: `${stem}.json`,
+      textFile: `${stem}.txt`,
+      importedAt: new Date().toISOString(),
+      indexedAt: new Date().toISOString(),
+      warnings: 0,
+      slices: 1
+    }]
+  }))
+
+  disk.set(`/documents/CTS Dashboard/Cache/Services/${stem}.json`, JSON.stringify({
     service: "EA05",
     date: iso,
     driver: { name: "", id: "" },
@@ -104,12 +158,12 @@ async function run(surface, { family = "large", label = surface, service = false
   const presented = []
   const runsInWidget = surface === "widget"
 
-  if (service) seedService(disk, new Date())
+  if (service) seedService(disk, FROZEN_NOW)
 
   const sandbox = {
     FileManager: { iCloud: () => fileManager, local: () => fileManager },
     console: { log: () => {}, warn: () => {}, error: () => {} },
-    Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
+    Date: FrozenDate, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
     Promise, RegExp, Error, isNaN, parseInt, parseFloat, Intl,
     encodeURIComponent, decodeURIComponent,
     config: { runsInWidget, widgetFamily: runsInWidget ? family : null },

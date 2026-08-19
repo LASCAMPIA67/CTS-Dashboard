@@ -11,10 +11,6 @@ async function importPdf(pdfPath, options = {}) {
   return pipeline().importPdf(pdfPath, options)
 }
 
-async function activateService(service) {
-  return pipeline().activateService(service)
-}
-
 async function readCurrentIndex() {
   const exists = CONFIG.fm.fileExists(CONFIG.files.servicesIndex)
   const value = await STORAGE.readJson(CONFIG.files.servicesIndex, null)
@@ -53,11 +49,7 @@ function pipeline() {
     )
   }
 
-  if (
-    !module ||
-    typeof module.importPdf !== "function" ||
-    typeof module.activateService !== "function"
-  ) {
+  if (!module || typeof module.importPdf !== "function") {
     throw UTILS.createTelemetryError(
       "IMPORT_PIPELINE_UNAVAILABLE",
       "import",
@@ -67,4 +59,4 @@ function pipeline() {
   return module
 }
 
-module.exports = { importPdf, activateService, readCurrentIndex }
+module.exports = { importPdf, readCurrentIndex }
