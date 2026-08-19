@@ -37,6 +37,11 @@ jobs:
       # Une analyse statique ne voit pas une constante inaccessible à
       # l'exécution : ces deux tests exécutent réellement les scripts,
       # point d'entrée compris, sur des doublures hors ligne.
+      # La grille du bandeau horaires n'est symétrique que si elle entre
+      # dans la carte : sans jeu, l'alignement casse selon l'appareil.
+      - name: Run layout geometry test
+        run: node tools/preview/layout-smoke.mjs
+
       # withTimeout borne tout ce que le projet ne peut pas annuler.
       - name: Run shared primitives test
         run: node tools/preview/utils-smoke.mjs

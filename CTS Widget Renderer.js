@@ -791,8 +791,20 @@ function estimateWidgetWidth(screen) {
  * réparti également des deux côtés par les ressorts, et la symétrie reste
  * exacte ; une surestimation, elle, comprimerait le texte. La largeur
  * déclarée par la densité sert de plancher.
+ *
+ * La marge vaut l'écart le plus large entre deux lignes voisines de la
+ * table — 18 pt, de 364 à 382. C'est ce qu'il faut pour qu'une erreur
+ * d'une ligne ne puisse pas faire déborder la grille.
+ *
+ * Elle était de 6 pt, soit un tiers de cet écart. Un appareil situé
+ * exactement sur la dernière ligne connue n'avait alors presque aucun jeu :
+ * la moindre imprécision de la table faisait déborder la ligne, les
+ * ressorts s'écrasaient et la symétrie — donc l'alignement des deux
+ * colonnes et le centrage de la flèche — disparaissait. Un appareil plus
+ * grand que toutes les lignes connues, lui, était protégé par
+ * l'estimation basse : d'où deux iPhone voisins, l'un aligné, l'autre non.
  */
-const COLUMN_SAFETY_MARGIN = 6
+const COLUMN_SAFETY_MARGIN = 18
 
 function withColumnWidth(density, screen) {
   const inner =
@@ -1104,8 +1116,16 @@ function createInfoWidget(title, message) {
   return markRendered(widget)
 }
 
+/*
+ * Exportées pour le banc de géométrie : ce sont des fonctions pures, et
+ * c'est la seule façon de vérifier l'invariant de la grille sans dupliquer
+ * la table des largeurs dans le test — une copie qui divergerait un jour.
+ */
 module.exports = {
   isRenderedWidget,
+  getDensity,
+  estimateWidgetWidth,
+  gridGutter,
   createWidget,
   createLargeWidget,
   createErrorWidget,
