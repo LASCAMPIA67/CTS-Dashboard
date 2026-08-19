@@ -37,6 +37,11 @@ jobs:
       # Une analyse statique ne voit pas une constante inaccessible à
       # l'exécution : ces deux tests exécutent réellement les scripts,
       # point d'entrée compris, sur des doublures hors ligne.
+      # Un verrou laissé par un widget tué ne doit pas empêcher
+      # l'application d'importer la carte agent.
+      - name: Run services scan test
+        run: node tools/preview/scan-smoke.mjs
+
       # La grille du bandeau horaires n'est symétrique que si elle entre
       # dans la carte : sans jeu, l'alignement casse selon l'appareil.
       - name: Run layout geometry test

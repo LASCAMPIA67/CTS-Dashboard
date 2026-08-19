@@ -723,7 +723,25 @@ async function acquireScanLock() {
       Number.isFinite(lockTime) &&
       now.getTime() - lockTime < SCAN_LOCK_TTL_MS
 
-    if (lockIsActive) {
+    /*
+     * L'application reprend un verrou laissé par un widget.
+     *
+     * Un réveil de widget peut être tué en pleine lecture de PDF : il
+     * laisse alors son verrou derrière lui pendant deux minutes. Sans
+     * cette reprise, le seul contexte capable de terminer l'import —
+     * l'application, où le temps ne manque pas — se voyait refuser le
+     * travail par le contexte qui, lui, ne pouvait pas le finir. Le
+     * conducteur voyait « Analyse en cours » des deux côtés, et sa carte
+     * agent n'était jamais importée.
+     *
+     * La reprise est volontairement asymétrique : deux exécutions de même
+     * nature continuent de se respecter. Seule l'application passe devant
+     * un widget, jamais l'inverse.
+     */
+    const heldByWidget = String(existingLock?.surface || "") === "widget"
+    const canTakeOver = heldByWidget && runsInApplication()
+
+    if (lockIsActive && !canTakeOver) {
       return {
         acquired: false,
         token: ""
@@ -738,7 +756,19 @@ async function acquireScanLock() {
   try {
     fm.writeString(
       SCAN_LOCK_PATH,
-      JSON.stringify({ token, createdAt: now.toISOString() }, null, 2)
+      JSON.stringify(
+        {
+          token,
+          createdAt: now.toISOString(),
+          /*
+           * Qui tient le verrou. Un widget peut être tué sans le rendre ;
+           * l'application, elle, va au bout.
+           */
+          surface: runsInApplication() ? "application" : "widget"
+        },
+        null,
+        2
+      )
     )
   } catch (error) {
     throw createTelemetryError(
