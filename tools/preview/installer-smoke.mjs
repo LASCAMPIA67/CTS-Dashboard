@@ -110,11 +110,30 @@ async function runAction(label, choice, { seed = true, forbidden = null, throttl
    */
   const selectable = []
 
+  /*
+   * Chaque tableau retient son propre texte. Le crédit doit accompagner
+   * chaque écran de gestion, pas seulement apparaître une fois dans la
+   * course : c'est la différence entre « présent quelque part » et
+   * « présent partout où il doit l'être ».
+   */
+  const tables = []
+
   class RecordingTable extends ui.UITable {
+    constructor() {
+      super()
+      this.recorded = []
+      tables.push(this)
+    }
     addRow(row) {
       for (const cell of row.cells || []) {
-        if (cell.title) shown.push(String(cell.title))
-        if (cell.subtitle) shown.push(String(cell.subtitle))
+        if (cell.title) {
+          shown.push(String(cell.title))
+          this.recorded.push(String(cell.title))
+        }
+        if (cell.subtitle) {
+          shown.push(String(cell.subtitle))
+          this.recorded.push(String(cell.subtitle))
+        }
       }
       if (typeof row.onSelect === "function") selectable.push(row)
       super.addRow(row)
@@ -305,6 +324,20 @@ async function runAction(label, choice, { seed = true, forbidden = null, throttl
    */
   if (!shown.some(text => /Créé et développé par Emilio IPPOLITO/.test(text))) {
     failures.push("aucun crédit d'auteur affiché sur cet écran de gestion")
+  }
+
+  /*
+   * « Données protégées » ferme chaque page de gestion : progression,
+   * résultat, diagnostic. Le crédit doit la suivre partout.
+   */
+  for (const table of tables) {
+    const text = table.recorded.join(" ")
+
+    if (!/Données protégées/.test(text)) continue
+
+    if (!/Créé et développé par Emilio IPPOLITO/.test(text)) {
+      failures.push("une page de gestion ne porte pas le crédit d'auteur")
+    }
   }
 
   if (expected && !shown.some(text => expected.test(text))) {

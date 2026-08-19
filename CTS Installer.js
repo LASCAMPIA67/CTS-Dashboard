@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.13"
+const INSTALLER_VERSION = "1.0.14"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -1559,19 +1559,7 @@ async function presentDiagnostic(diagnostic) {
 
   table.addRow(privacyRow)
 
-  /*
-   * Pied de page. Une seule mention par écran, en retrait : elle nomme
-   * l'auteur sans concurrencer le diagnostic lui-même.
-   */
-  const creditRow = new UITableRow()
-  creditRow.height = 38
-
-  const creditText = creditRow.addText(credit())
-  creditText.titleFont = Font.systemFont(10)
-  creditText.titleColor = COLORS.secondary
-  creditText.centerAligned()
-
-  table.addRow(creditRow)
+  addCreditRow(table)
 
   await table.present(true)
 }
@@ -2323,6 +2311,8 @@ function renderProgressPage(
     table,
     uninstalling
   )
+
+  addCreditRow(table)
 }
 
 function renderFinalPage(
@@ -2368,6 +2358,8 @@ function renderFinalPage(
     table,
     uninstalling
   )
+
+  addCreditRow(table)
 }
 
 function addCompactHeader(
@@ -2809,6 +2801,26 @@ function addChangesRow(
       )
     }
   }
+
+  table.addRow(row)
+}
+
+/*
+ * Pied de page des écrans de gestion : une mention discrète, en retrait,
+ * qui nomme l'auteur sans concurrencer le contenu.
+ *
+ * Un seul composant pour tous les tableaux — progression, résultat,
+ * diagnostic — afin que le crédit ait exactement le même rendu partout et
+ * qu'une retouche de style n'ait qu'un seul endroit où s'appliquer.
+ */
+function addCreditRow(table) {
+  const row = new UITableRow()
+  row.height = 38
+
+  const text = row.addText(credit())
+  text.titleFont = Font.systemFont(10)
+  text.titleColor = COLORS.secondary
+  text.centerAligned()
 
   table.addRow(row)
 }
