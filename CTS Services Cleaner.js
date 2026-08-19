@@ -12,6 +12,9 @@ const UTILS = importModule("CTS Utils")
 
 const { fm, paths, files, pdf } = CONFIG
 
+/* Copie locale supprimée : une seule définition, dans CTS Utils. */
+const isUsableDate = UTILS.isUsableDate
+
 /*
  * Ces fonctions vivaient ici en double. Une liaison remplace la copie :
  * les appels du fichier ne changent pas, et une correction faite à la
@@ -695,12 +698,6 @@ function isUsableIndexEntry(entry) {
   }
 
   return Boolean(UTILS.parseDate(String(entry.date || "")))
-}
-
-function isUsableDate(value) {
-  return Boolean(
-    value && typeof value.getTime === "function" && Number.isFinite(value.getTime())
-  )
 }
 
 function resolveNonNegativeDelay(requested, configured, fallback) {

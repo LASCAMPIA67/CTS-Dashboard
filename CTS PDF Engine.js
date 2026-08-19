@@ -53,6 +53,22 @@ const ICLOUD_READY_ATTEMPTS = 8
  */
 const ICLOUD_DOWNLOAD_TIMEOUT_MS = 12000
 
+/*
+ * Garde-fou natif des appels WebView.
+ *
+ * Les délais du moteur — ENGINE_START_TIMEOUT_MS et extractionTimeoutMs —
+ * sont implémentés dans la page injectée : c'est elle qui rappelle la
+ * fonction de complétion à l'échéance. Si WebKit n'exécute jamais ce
+ * script, aucun de ces délais ne se déclenche et l'attente native ne se
+ * résout pas — le widget est alors tué avant d'avoir rien dessiné.
+ *
+ * Ces bornes sont volontairement plus longues que les délais internes :
+ * en marche normale, c'est toujours la page qui répond la première. Elles
+ * ne servent que lorsqu'elle est morte.
+ */
+const WEBVIEW_LOAD_TIMEOUT_MS = 15000
+const WEBVIEW_CALL_MARGIN_MS = 5000
+
 const ICLOUD_READY_RETRY_MS = 150
 
 // =====================================================
@@ -318,7 +334,14 @@ async function extractText(pdfPath) {
   const runtimeHtml = buildRuntimeHtml(libraryBase64, workerBase64)
 
   try {
-    await webView.loadHTML(runtimeHtml)
+    const loaded = await UTILS.withTimeout(
+      webView.loadHTML(runtimeHtml).then(() => "loaded"),
+      WEBVIEW_LOAD_TIMEOUT_MS
+    )
+
+    if (loaded !== "loaded") {
+      throw new Error("la WebView n’a pas répondu dans le délai imparti.")
+    }
   } catch (error) {
     throw createTelemetryError(
       "PDF_ENGINE_WEBVIEW_LOAD_FAILED",
@@ -648,7 +671,13 @@ async function waitForEngine(webView) {
   `
 
   try {
-    return normalizeWebResult(await webView.evaluateJavaScript(script, true))
+    const result = await UTILS.withTimeout(
+      webView.evaluateJavaScript(script, true),
+      ENGINE_START_TIMEOUT_MS + WEBVIEW_CALL_MARGIN_MS,
+      { ok: false, code: "PDF_ENGINE_INIT_TIMEOUT", error: "PDF.js n’a pas répondu." }
+    )
+
+    return normalizeWebResult(result)
   } catch (error) {
     return {
       ok: false,
@@ -731,7 +760,15 @@ async function evaluateExtraction(webView, pdfBase64) {
   `
 
   try {
-    return await webView.evaluateJavaScript(script, true)
+    return await UTILS.withTimeout(
+      webView.evaluateJavaScript(script, true),
+      timeoutMs + WEBVIEW_CALL_MARGIN_MS,
+      {
+        ok: false,
+        code: "PDF_EXTRACTION_TIMEOUT",
+        error: "La lecture du PDF n’a pas répondu dans le délai imparti."
+      }
+    )
   } catch (error) {
     return {
       ok: false,

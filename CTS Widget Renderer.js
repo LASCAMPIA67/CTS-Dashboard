@@ -629,14 +629,6 @@ function addDivider(parent) {
   divider.addSpacer()
 }
 
-function addCenteredText(parent, value, font, color) {
-  const row = parent.addStack()
-  row.centerAlignContent()
-  row.addSpacer()
-  addText(row, value, font, color, 1, 0.75).centerAlignText()
-  row.addSpacer()
-}
-
 /*
  * Centrage par ressorts plutôt que par alignement seul : le texte garde sa
  * largeur naturelle et les deux ressorts se partagent le reste, ce qui le
@@ -738,10 +730,6 @@ function getDeviceSize() {
     }
   } catch (_) {}
   return { width: 390, height: 844 }
-}
-
-function getDeviceWidth() {
-  return getDeviceSize().width
 }
 
 /*

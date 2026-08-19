@@ -24,6 +24,7 @@ const SERVICES_CLEANER = importModule("CTS Services Cleaner")
  */
 const telemetryFromError = UTILS.telemetryFromError
 const finiteOrNull = UTILS.finiteOrNull
+const isValidDate = UTILS.isUsableDate
 
 
 const SERVICES_SCAN_REFRESH_MS = 15 * 60 * 1000
@@ -1154,12 +1155,6 @@ function failure(title, message, currentDate = new Date(), telemetry = null) {
 }
 
 // OUTILS INTERNES
-
-function isValidDate(value) {
-  return Boolean(
-    value && typeof value.getTime === "function" && Number.isFinite(value.getTime())
-  )
-}
 
 // EXPORTS
 

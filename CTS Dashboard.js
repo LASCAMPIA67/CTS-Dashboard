@@ -100,7 +100,16 @@ async function main() {
 
   widget = ensureRenderedWidget(widget)
 
-  if (UTILS.isValidDate(context?.refreshAfterDate)) {
+  /*
+   * isUsableDate, et non isValidDate : cette date vient de CTS Widget
+   * Engine, donc d'un autre module. Le test « instanceof Date » peut
+   * échouer d'un contexte d'exécution à l'autre pour une date pourtant
+   * parfaitement utilisable — CTS Utils l'explique là où isUsableDate est
+   * défini, et tout le reste du projet l'utilise déjà. Ici, un refus
+   * signifiait que le widget ne demandait plus jamais son propre
+   * rafraîchissement.
+   */
+  if (UTILS.isUsableDate(context?.refreshAfterDate)) {
     widget.refreshAfterDate = context.refreshAfterDate
   }
 
