@@ -47,7 +47,56 @@ function createFileManager(disk) {
   }
 }
 
-async function run(surface) {
+function collectText(node) {
+  if (!node || typeof node !== "object") return ""
+
+  const own = node.kind === "text" ? `${node.value} ` : ""
+  const children = Array.isArray(node.children) ? node.children : []
+
+  return own + children.map(collectText).join("")
+}
+
+/*
+ * Un service réel, déposé là où le moteur sait le retrouver sans index ni
+ * cache : Data/service.json, le secours de compatibilité. Il permet
+ * d'éprouver le fonctionnement nominal — contexte valide, grande carte —
+ * et donc le routage par famille, que la carte d'erreur court-circuite.
+ */
+function seedService(disk, today) {
+  const iso = [
+    today.getFullYear(),
+    String(today.getMonth() + 1).padStart(2, "0"),
+    String(today.getDate()).padStart(2, "0")
+  ].join("-")
+
+  disk.set("/documents/CTS Dashboard/Data/service.json", JSON.stringify({
+    service: "EA05",
+    date: iso,
+    driver: { name: "", id: "" },
+    slices: [{
+      index: 1,
+      lineCode: "10",
+      line: "10",
+      vehicle: "5",
+      dutyStart: "05:30",
+      operationStart: "05:48",
+      end: "12:40",
+      dutyEnd: "12:55",
+      startPlaceCode: "CRB",
+      startPlace: "Cronenbourg",
+      endPlaceCode: "ELS",
+      endPlace: "Elsau",
+      depotExitAt: "05:40",
+      depotReturnAt: "12:50",
+      lineUpAt: "",
+      direction: "Elsau"
+    }],
+    breaks: [],
+    validation: { valid: true, errors: [], warnings: [] }
+  }))
+}
+
+async function run(surface, { family = "large", label = surface, service = false } = {}) {
   const disk = new Map()
   const fileManager = createFileManager(disk)
   const modules = new Map()
@@ -55,13 +104,15 @@ async function run(surface) {
   const presented = []
   const runsInWidget = surface === "widget"
 
+  if (service) seedService(disk, new Date())
+
   const sandbox = {
     FileManager: { iCloud: () => fileManager, local: () => fileManager },
     console: { log: () => {}, warn: () => {}, error: () => {} },
     Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
     Promise, RegExp, Error, isNaN, parseInt, parseFloat, Intl,
     encodeURIComponent, decodeURIComponent,
-    config: { runsInWidget, widgetFamily: runsInWidget ? "large" : null },
+    config: { runsInWidget, widgetFamily: runsInWidget ? family : null },
     args: { plainTexts: [], shortcutParameter: null },
     Device: { screenSize: () => new shim.Size(430, 932), systemVersion: () => "27.0" },
     Keychain: {
@@ -137,7 +188,7 @@ async function run(surface) {
   }
 
   if (runsInWidget && !widgetsSet.length) {
-    failures.push("widget : Script.setWidget n'a jamais été appelé, rien ne serait affiché")
+    failures.push(`${label} : Script.setWidget n'a jamais été appelé, rien ne serait affiché`)
   }
 
   /*
@@ -146,10 +197,29 @@ async function run(surface) {
    */
   for (const widget of widgetsSet) {
     if (!widget?.children?.length) {
-      failures.push("widget : la vignette validée ne contient aucun élément")
+      failures.push(`${label} : la vignette validée ne contient aucun élément`)
     }
     if (!widget?.backgroundGradient && !widget?.backgroundColor) {
-      failures.push("widget : la vignette validée n'a aucun fond")
+      failures.push(`${label} : la vignette validée n'a aucun fond`)
+    }
+
+    const words = collectText(widget)
+
+    if (!words.trim()) {
+      failures.push(`${label} : la vignette validée ne porte aucun texte`)
+    }
+
+    /*
+     * Une famille autre que « large » doit recevoir la carte qui le dit,
+     * pas la grande carte de service comprimée dans une tuile d'écran
+     * verrouillé. C'est ce que la coercition de getWidgetFamily rendait
+     * impossible à distinguer.
+     */
+    if (runsInWidget && family !== "large" && !/Widget grand requis/.test(words)) {
+      failures.push(
+        `${label} : la grande carte est livrée à une tuile ${family} ` +
+        `au lieu de « Widget grand requis »`
+      )
     }
   }
 
@@ -187,9 +257,25 @@ async function run(surface) {
   }
 }
 
-for (const surface of ["widget", "application"]) {
-  await run(surface)
+await run("widget")
+await run("application")
+
+/*
+ * Familles autres que « large ».
+ *
+ * getWidgetFamily ramenait toute valeur inconnue à « large », si bien que
+ * la grande carte était construite pour un widget d'écran verrouillé de
+ * quelques millimètres — illisible, voire vide. Ces familles doivent
+ * recevoir la carte « grand format uniquement », qui a un fond et du
+ * texte.
+ */
+for (const family of ["accessoryRectangular", "accessoryCircular", "accessoryInline", "extraLarge", "medium", "small"]) {
+  await run("widget", { family, label: `widget ${family}`, service: true })
 }
+
+/* Fonctionnement nominal : un service réel doit produire la grande carte. */
+await run("widget", { label: "widget service", service: true })
+await run("application", { label: "application service", service: true })
 
 if (failures.length) {
   console.log("ÉCHEC  exécution de CTS Dashboard")
@@ -197,4 +283,7 @@ if (failures.length) {
   process.exit(1)
 }
 
-console.log("ok     exécution de CTS Dashboard (widget et application, rendu validé, trace écrite)")
+console.log(
+  "ok     exécution de CTS Dashboard " +
+  "(widget, application, 6 familles, rendu validé, jamais vide)"
+)

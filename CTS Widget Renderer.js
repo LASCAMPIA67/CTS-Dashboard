@@ -5,6 +5,34 @@
 const UTILS = importModule("CTS Utils")
 const THEME = importModule("CTS Widget Theme")
 
+/*
+ * Registre des vignettes réellement construites ici.
+ *
+ * Une vignette vide est le pire des rendus : iOS affiche le fond système
+ * — blanc en apparence claire, noir en apparence sombre — sans le
+ * moindre texte, et rien n'indique au conducteur que quelque chose ne va
+ * pas. Aucun chemin de ce fichier n'en produit : les quatre fabriques
+ * posent toutes un fond et du contenu. Le registre permet au point
+ * d'entrée de le vérifier avant de livrer, plutôt que de le supposer.
+ */
+const rendered = new WeakSet()
+
+function markRendered(widget) {
+  try {
+    rendered.add(widget)
+  } catch (_) {}
+
+  return widget
+}
+
+function isRenderedWidget(widget) {
+  try {
+    return rendered.has(widget)
+  } catch (_) {
+    return false
+  }
+}
+
 function createWidget(family, context) {
   const validation = validateContext(context)
   if (!validation.valid) return createErrorWidget("Service invalide", validation.error)
@@ -32,7 +60,7 @@ function createLargeWidget(context) {
   addProgram(widget, service, state, density)
   widget.addSpacer(density.sectionGap)
   addStats(widget, stats, density)
-  return widget
+  return markRendered(widget)
 }
 
 function createLargeOnlyWidget() {
@@ -58,7 +86,7 @@ function createLargeOnlyWidget() {
   addText(text, "CTS Dashboard", Font.boldSystemFont(15), Color.white())
   text.addSpacer(2)
   addText(text, "Widget grand requis", Font.semiboldSystemFont(9), new Color("#9EC8FF"))
-  return widget
+  return markRendered(widget)
 }
 
 function addHeader(parent, service, state, density) {
@@ -1052,7 +1080,7 @@ function createErrorWidget(title, message) {
     borderAlpha: 0.07
   })
   addText(card, message, Font.mediumSystemFont(11), secondary(), 4, 0.72)
-  return widget
+  return markRendered(widget)
 }
 
 /*
@@ -1085,10 +1113,11 @@ function createInfoWidget(title, message) {
     borderAlpha: 0.07
   })
   addText(card, message, Font.mediumSystemFont(11), secondary(), 6, 0.72)
-  return widget
+  return markRendered(widget)
 }
 
 module.exports = {
+  isRenderedWidget,
   createWidget,
   createLargeWidget,
   createErrorWidget,

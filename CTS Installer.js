@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.11"
+const INSTALLER_VERSION = "1.0.12"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -1898,6 +1898,20 @@ function buildDiagnosticReport(diagnostic) {
       `Rendu validé : ${run.committed ? "oui" : "non"}`,
       `PDF détectés : ${Number.isFinite(Number(run.detected)) ? run.detected : "?"}`
     )
+
+    /*
+     * Une tuile vide n'est jamais un rendu du Dashboard : ses quatre
+     * fabriques posent toutes un fond et du texte. Quand la dernière
+     * exécution a livré un affichage complet, une tuile blanche ou noire
+     * sans texte désigne donc un widget qui n'exécute pas ce script.
+     */
+    if (run.committed && run.surface === "widget") {
+      lines.push(
+        "",
+        "Affichage livré. Une tuile vide, blanche ou noire et sans texte,",
+        "n’exécute pas CTS Dashboard : vérifier le champ Script du widget."
+      )
+    }
   }
 
   lines.push(

@@ -98,17 +98,92 @@ async function main() {
     widget = RENDERER.createErrorWidget(ERROR_TITLE, ERROR_MESSAGE)
   }
 
+  widget = ensureRenderedWidget(widget)
+
   if (UTILS.isValidDate(context?.refreshAfterDate)) {
     widget.refreshAfterDate = context.refreshAfterDate
   }
 
-  await displayWidget(
-    widget,
-    family,
-    sendTelemetrySafely(analytics, telemetryRun)
-  )
+  /*
+   * Livrer reste la dernière chose qui peut échouer. Si elle échoue, on
+   * livre au moins une carte lisible : un widget vide ne dit rien au
+   * conducteur, une carte d'erreur lui dit quoi faire.
+   */
+  try {
+    await displayWidget(
+      widget,
+      family,
+      sendTelemetrySafely(analytics, telemetryRun)
+    )
+  } catch (error) {
+    console.warn("[Dashboard]", UTILS.errorMessage(error))
+
+    registerTelemetryIssueSafely(analytics, telemetryRun, {
+      severity: "fatal",
+      errorCode: "WIDGET_DELIVERY_FAILED",
+      module: "Dashboard",
+      stage: "render"
+    })
+
+    await deliverLastResort()
+  }
 
   markRunCommitted()
+}
+
+/*
+ * Aucune vignette non construite par le renderer ne part à l'écran.
+ *
+ * Une vignette vide est le seul rendu que le conducteur ne peut pas
+ * interpréter : iOS affiche le fond système — blanc en apparence claire,
+ * noir en apparence sombre — sans un mot. Les quatre fabriques du
+ * renderer posent toutes un fond et du contenu et s'enregistrent ; tout
+ * ce qui n'est pas passé par elles est remplacé par une carte d'erreur,
+ * qui au moins se lit.
+ */
+function ensureRenderedWidget(widget) {
+  if (widget && RENDERER.isRenderedWidget(widget)) return widget
+
+  console.warn("[Dashboard] vignette non construite par le renderer")
+
+  registerTelemetryIssueSafely(analytics, telemetryRun, {
+    severity: "fatal",
+    errorCode: "WIDGET_NOT_RENDERED",
+    module: "Dashboard",
+    stage: "render"
+  })
+
+  return RENDERER.createErrorWidget(
+    "Affichage indisponible",
+    [
+      "Le widget n’a pas pu être dessiné.",
+      "",
+      "Ouvre Scriptable puis lance CTS Dashboard pour voir le détail."
+    ].join("\n")
+  )
+}
+
+async function deliverLastResort() {
+  try {
+    const widget = RENDERER.createErrorWidget(
+      "Affichage indisponible",
+      [
+        "Le widget n’a pas pu être affiché.",
+        "",
+        "Ouvre Scriptable puis lance CTS Dashboard."
+      ].join("\n")
+    )
+
+    if (config.runsInWidget) {
+      Script.setWidget(widget)
+      await UTILS.sleep(WIDGET_COMMIT_YIELD_MS)
+      return
+    }
+
+    await presentWidget(widget, family)
+  } catch (error) {
+    console.warn("[Dashboard]", UTILS.errorMessage(error))
+  }
 }
 
 /*

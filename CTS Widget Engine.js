@@ -1073,14 +1073,23 @@ function dateForServiceTime(serviceDate, time, extraSeconds = 0) {
 
 // INFORMATIONS D’AFFICHAGE
 
+/*
+ * La famille réellement demandée par iOS, sans la travestir.
+ *
+ * Cette fonction ramenait toute valeur inconnue à « large ». Or iOS en
+ * produit d'autres que small/medium/large : les widgets d'écran
+ * verrouillé (accessoryCircular, accessoryRectangular, accessoryInline)
+ * et extraLarge. Le moteur construisait donc la grande carte — en-tête,
+ * bloc horaires, programme, statistiques — dans une tuile de quelques
+ * millimètres, ce qui ne donne rien de lisible et peut se rendre vide.
+ *
+ * Pire, la coercition rendait createLargeOnlyWidget() inatteignable,
+ * alors que cette carte existe précisément pour dire « utilisez le grand
+ * format ». On renvoie donc la famille telle quelle ; « large » ne reste
+ * le défaut que hors widget, où config.widgetFamily est absent.
+ */
 function getWidgetFamily() {
-  const family = String(config.widgetFamily || "large")
-
-  if (family === "small" || family === "medium" || family === "large") {
-    return family
-  }
-
-  return "large"
+  return String(config.widgetFamily || "").trim() || "large"
 }
 
 // ÉCHEC SÉCURISÉ
