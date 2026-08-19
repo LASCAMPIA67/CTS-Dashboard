@@ -238,10 +238,123 @@ function diagnosticState() {
   }
 }
 
+/*
+ * Les trois états d'accueil. Ce sont eux que le conducteur voit en
+ * premier, et ils partagent le même squelette : identité, versions,
+ * santé, actions, crédit. Les rendre côte à côte est la seule façon de
+ * juger s'ils appartiennent au même produit.
+ */
+function menuStates() {
+  const files = MANIFEST.scripts.length + MANIFEST.resources.length
+
+  return [
+    {
+      label: "Mise à jour Installer",
+      run: () => installer.handleInstallerUpdate({ ...MANIFEST, installerVersion: "1.0.16" })
+    },
+    {
+      label: "Mise à jour Dashboard",
+      run: () =>
+        installer.menu(MANIFEST, {
+          present: true,
+          complete: true,
+          existing: files,
+          valid: files,
+          total: files,
+          installedVersion: "1.0.27",
+          missing: [],
+          invalid: [],
+          reasons: {}
+        })
+    },
+    {
+      label: "Tout est à jour",
+      run: () =>
+        installer.menu(MANIFEST, {
+          present: true,
+          complete: true,
+          existing: files,
+          valid: files,
+          total: files,
+          installedVersion: MANIFEST.version,
+          missing: [],
+          invalid: [],
+          reasons: {}
+        })
+    },
+    {
+      label: "Réparation nécessaire",
+      run: () =>
+        installer.menu(MANIFEST, {
+          present: true,
+          complete: false,
+          existing: files - 3,
+          valid: files - 4,
+          total: files,
+          installedVersion: MANIFEST.version,
+          missing: ["CTS Parser.js", "stops.json"],
+          invalid: ["CTS Widget Renderer.js", "CTS Services Manager.js"],
+          reasons: {}
+        })
+    },
+    {
+      label: "Textes longs",
+      run: () =>
+        installer.menu(
+          { ...MANIFEST, version: "10.12.144" },
+          {
+            present: true,
+            complete: false,
+            existing: files,
+            valid: files - 9,
+            total: files,
+            installedVersion: "10.12.143",
+            missing: [
+              "CTS Widget Renderer.js",
+              "CTS Services Manager.js",
+              "CTS Import Pipeline.js",
+              "CTS Analytics Client.js",
+              "pdf.worker.min.mjs"
+            ],
+            invalid: ["CTS Parser.js", "CTS PDF Engine.js", "stops.json", "places.json"],
+            reasons: {}
+          }
+        )
+    },
+    {
+      label: "Installation neuve",
+      run: () =>
+        installer.menu(MANIFEST, {
+          present: false,
+          complete: false,
+          existing: 0,
+          valid: 0,
+          total: files,
+          installedVersion: null,
+          missing: [],
+          invalid: [],
+          reasons: {}
+        })
+    }
+  ]
+}
+
 /* ------------------------------------------------------------------ */
 
 async function main() {
   const panels = []
+
+  for (const scheme of ["dark", "light"]) {
+    for (const state of menuStates()) {
+      tables.length = 0
+      await state.run()
+      const table = tables[tables.length - 1]
+      if (table) {
+        table.showSeparators = true
+        panels.push({ ...renderTable(table, { scheme, label: `${state.label} — ${scheme}` }) })
+      }
+    }
+  }
 
   for (const scheme of ["dark", "light"]) {
     const progress = new installer.UITable()

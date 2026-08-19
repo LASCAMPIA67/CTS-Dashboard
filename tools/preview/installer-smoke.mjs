@@ -118,6 +118,8 @@ async function runAction(label, choice, { seed = true, forbidden = null, throttl
    */
   const tables = []
 
+  let pendingSelection = choice
+
   class RecordingTable extends ui.UITable {
     constructor() {
       super()
@@ -137,6 +139,25 @@ async function runAction(label, choice, { seed = true, forbidden = null, throttl
       }
       if (typeof row.onSelect === "function") selectable.push(row)
       super.addRow(row)
+    }
+
+    /*
+     * Le menu n'est plus une alerte système mais une UITable : on ne
+     * répond plus un index, on désigne une ligne. La sélection est
+     * consommée par la première table présentée — le menu — de sorte que
+     * les pages suivantes, progression et diagnostic, restent intactes.
+     */
+    present() {
+      if (pendingSelection !== null) {
+        const actions = this.rows.filter(row => typeof row.onSelect === "function")
+        const target = actions[pendingSelection]
+
+        pendingSelection = null
+
+        if (target) target.onSelect()
+      }
+
+      return Promise.resolve()
     }
   }
 

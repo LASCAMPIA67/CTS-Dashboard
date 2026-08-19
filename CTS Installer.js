@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.15"
+const INSTALLER_VERSION = "1.0.16"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -101,26 +101,173 @@ async function main() {
   }
 }
 
+function screenTable() {
+  const table = new UITable()
+  table.showSeparators = true
+  return table
+}
+
+function addHeroRow(table, { symbol, title, subtitle, tone }) {
+  const row = new UITableRow()
+  row.height = 92
+  row.isHeader = true
+  row.dismissOnSelect = false
+
+  const glyph = SFSymbol.named(symbol)
+  glyph.applyFont(Font.systemFont(30))
+
+  const image = row.addImage(glyph.image)
+  image.widthWeight = 16
+
+  const text = row.addText(title, subtitle)
+  text.widthWeight = 84
+  text.titleFont = Font.boldSystemFont(22)
+  text.subtitleFont = Font.systemFont(12)
+  text.titleColor = tone
+  text.subtitleColor = COLORS.secondary
+
+  table.addRow(row)
+}
+
+function addVersionBand(table, cells) {
+  const row = new UITableRow()
+  row.height = 72
+  row.dismissOnSelect = false
+
+  const weight = 100 / cells.reduce((total, cell) => total + (cell.arrow ? 0.5 : 1), 0)
+
+  for (const cell of cells) {
+    const text = row.addText(
+      cell.arrow ? "→" : cell.value,
+      cell.arrow ? "" : cell.label.toUpperCase()
+    )
+
+    text.widthWeight = weight * (cell.arrow ? 0.5 : 1)
+    text.titleFont = cell.arrow
+      ? Font.systemFont(17)
+      : Font.boldMonospacedSystemFont(cell.strong ? 21 : 18)
+    text.subtitleFont = Font.boldSystemFont(9)
+    text.titleColor = cell.arrow
+      ? COLORS.gray
+      : cell.strong
+        ? cell.tone || COLORS.primary
+        : COLORS.primary
+    text.subtitleColor = COLORS.secondary
+    text.centerAligned()
+  }
+
+  table.addRow(row)
+}
+
+function addStatusRow(table, { symbol, title, detail, tone }) {
+  const row = new UITableRow()
+  row.height = 48
+  row.dismissOnSelect = false
+
+  const glyph = SFSymbol.named(symbol)
+  glyph.applyFont(Font.systemFont(15))
+
+  const image = row.addImage(glyph.image)
+  image.widthWeight = 12
+
+  const text = row.addText(title, detail)
+  text.widthWeight = 88
+  text.titleFont = Font.semiboldSystemFont(13)
+  text.subtitleFont = Font.systemFont(10)
+  text.titleColor = tone || COLORS.primary
+  text.subtitleColor = COLORS.secondary
+
+  table.addRow(row)
+}
+
+function addSectionRow(table, label) {
+  const row = new UITableRow()
+  row.height = 34
+  row.dismissOnSelect = false
+
+  const text = row.addText(label.toUpperCase())
+  text.titleFont = Font.boldSystemFont(10)
+  text.titleColor = COLORS.secondary
+
+  table.addRow(row)
+}
+
+function addActionRow(table, { symbol, label, detail, tone, primary, onSelect }) {
+  const row = new UITableRow()
+  row.height = primary ? 62 : 50
+  row.onSelect = onSelect
+
+  const glyph = SFSymbol.named(symbol)
+  glyph.applyFont(Font.systemFont(primary ? 19 : 15))
+
+  const image = row.addImage(glyph.image)
+  image.widthWeight = 12
+
+  const text = row.addText(label, detail || "")
+  text.widthWeight = 82
+  text.titleFont = primary ? Font.boldSystemFont(17) : Font.systemFont(15)
+  text.subtitleFont = Font.systemFont(10)
+  text.titleColor = tone || (primary ? COLORS.blue : COLORS.primary)
+  text.subtitleColor = COLORS.secondary
+
+  const chevron = SFSymbol.named("chevron.right")
+  chevron.applyFont(Font.systemFont(11))
+
+  const arrow = row.addImage(chevron.image)
+  arrow.widthWeight = 6
+
+  table.addRow(row)
+}
+
 async function menu(manifest, state) {
-  const alert = new Alert()
-  alert.title = "CTS Dashboard"
+  const table = screenTable()
+  let choice = null
+
+  const select = value => () => {
+    choice = value
+  }
 
   if (!state.present) {
-    alert.message = [
-      `Version disponible : ${manifest.version}`,
-      `CTS Installer : ${INSTALLER_VERSION}`,
-      "",
-      "Installation automatique des scripts, ressources et dossiers nécessaires.",
-      "",
-      "Vos services PDF resteront protégés.",
-      "",
-      credit()
-    ].join("\n")
+    addHeroRow(table, {
+      symbol: "square.and.arrow.down.fill",
+      title: "Installation",
+      subtitle: "CTS Dashboard",
+      tone: COLORS.blue
+    })
 
-    alert.addAction(`Installer la version ${manifest.version}`)
-    alert.addCancelAction("Fermer")
+    addVersionBand(table, [
+      { value: manifest.version, label: "À installer", strong: true, tone: COLORS.blue },
+      { value: INSTALLER_VERSION, label: "Installer" }
+    ])
 
-    return (await alert.presentSheet()) === 0 ? "install" : null
+    addStatusRow(table, {
+      symbol: "shippingbox.fill",
+      title: `${manifestEntries(manifest).length} fichiers à installer`,
+      detail: "Scripts, ressources et dossiers nécessaires"
+    })
+
+    addStatusRow(table, {
+      symbol: "lock.shield.fill",
+      title: "Données protégées",
+      detail: "Vos services PDF resteront conservés.",
+      tone: COLORS.green
+    })
+
+    addSectionRow(table, "Action")
+
+    addActionRow(table, {
+      symbol: "arrow.down.circle.fill",
+      label: `Installer ${manifest.version}`,
+      detail: "Installation complète et automatique",
+      primary: true,
+      onSelect: select("install")
+    })
+
+    addCreditRow(table)
+
+    await table.present(true)
+
+    return choice
   }
 
   const installedVersion = state.installedVersion || "Non identifiée"
@@ -130,52 +277,103 @@ async function menu(manifest, state) {
     compareVersions(manifest.version, state.installedVersion) > 0
 
   const issues = [...state.missing, ...state.invalid]
-  const stateLabel = state.complete
-    ? `${state.valid}/${state.total} fichiers locaux valides`
-    : `${state.valid}/${state.total} fichiers valides — réparation nécessaire`
 
-  alert.message = [
-    updateAvailable
-      ? `Mise à jour : ${installedVersion} → ${manifest.version}`
-      : `Dashboard ${installedVersion} · Installer ${INSTALLER_VERSION}`,
-    "",
-    stateLabel,
-    issues.length ? `Fichiers concernés : ${issues.join(", ")}` : "",
-    "",
-    updateAvailable
-      ? "La nouvelle version est prête à être installée."
+  if (updateAvailable) {
+    addHeroRow(table, {
+      symbol: "arrow.down.circle.fill",
+      title: "Mise à jour disponible",
+      subtitle: "CTS Dashboard",
+      tone: COLORS.blue
+    })
+
+    addVersionBand(table, [
+      { value: installedVersion, label: "Installée" },
+      { arrow: true },
+      { value: manifest.version, label: "Nouvelle", strong: true, tone: COLORS.blue }
+    ])
+  } else if (state.complete) {
+    addHeroRow(table, {
+      symbol: "checkmark.seal.fill",
+      title: "Tout est à jour",
+      subtitle: "Installation vérifiée",
+      tone: COLORS.green
+    })
+
+    addVersionBand(table, [
+      { value: installedVersion, label: "Dashboard", strong: true, tone: COLORS.green },
+      { value: INSTALLER_VERSION, label: "Installer" }
+    ])
+  } else {
+    addHeroRow(table, {
+      symbol: "exclamationmark.triangle.fill",
+      title: "Réparation nécessaire",
+      subtitle: "CTS Dashboard",
+      tone: COLORS.orange
+    })
+
+    addVersionBand(table, [
+      { value: installedVersion, label: "Installée" },
+      { value: INSTALLER_VERSION, label: "Installer" }
+    ])
+  }
+
+  addStatusRow(table, {
+    symbol: state.complete ? "checkmark.circle.fill" : "xmark.circle.fill",
+    title: `${state.valid}/${state.total} fichiers valides`,
+    detail: issues.length ? compactNames(issues) : "Aucun fichier manquant ni altéré",
+    tone: state.complete ? COLORS.green : COLORS.orange
+  })
+
+  addStatusRow(table, {
+    symbol: "lock.shield.fill",
+    title: "Données protégées",
+    detail: "CTS Installer, services PDF et archives sont conservés.",
+    tone: COLORS.green
+  })
+
+  addSectionRow(table, "Actions")
+
+  addActionRow(table, {
+    symbol: updateAvailable
+      ? "arrow.down.circle.fill"
       : state.complete
-        ? "L’installation locale est valide. Lancez une vérification pour la comparer au snapshot GitHub actuel."
-        : "Les fichiers absents ou invalides seront réparés.",
-    "",
-    "CTS Installer, vos PDF et leurs archives seront conservés.",
-    "",
-    credit()
-  ]
-    .filter(Boolean)
-    .join("\n")
-
-  alert.addAction(
-    updateAvailable
+        ? "arrow.triangle.2.circlepath"
+        : "wrench.and.screwdriver.fill",
+    label: updateAvailable
       ? `Mettre à jour vers ${manifest.version}`
       : state.complete
         ? "Vérifier les fichiers"
-        : "Réparer l’installation"
-  )
+        : "Réparer l’installation",
+    detail: updateAvailable
+      ? "Prête à être installée"
+      : state.complete
+        ? "Comparer avec la version publiée"
+        : "Les fichiers absents ou invalides seront rétablis",
+    tone: state.complete && !updateAvailable ? COLORS.blue : undefined,
+    primary: true,
+    onSelect: select("install")
+  })
 
-  alert.addAction("Diagnostic")
-  alert.addDestructiveAction("Désinstaller")
-  alert.addCancelAction("Fermer")
+  addActionRow(table, {
+    symbol: "stethoscope",
+    label: "Diagnostic",
+    detail: "Rapport complet de l’installation",
+    onSelect: select("diagnostic")
+  })
 
-  const choice = await alert.presentSheet()
+  addActionRow(table, {
+    symbol: "trash",
+    label: "Désinstaller",
+    detail: "Vos PDF et leurs archives sont conservés",
+    tone: COLORS.red,
+    onSelect: select("uninstall")
+  })
 
-  return choice === 0
-    ? "install"
-    : choice === 1
-      ? "diagnostic"
-      : choice === 2
-        ? "uninstall"
-        : null
+  addCreditRow(table)
+
+  await table.present(true)
+
+  return choice
 }
 
 async function inspect(manifest) {
@@ -2443,37 +2641,77 @@ async function handleInstallerUpdate(manifest) {
     return true
   }
 
-  const alert = new Alert()
+  const table = screenTable()
+  let choice = null
 
-  alert.title = required ? "Mise à jour obligatoire" : "Nouvel installateur disponible"
+  addHeroRow(table, {
+    symbol: required ? "exclamationmark.triangle.fill" : "arrow.down.circle.fill",
+    title: required ? "Mise à jour requise" : "Nouvel installateur",
+    subtitle: "CTS Installer",
+    tone: required ? COLORS.orange : COLORS.blue
+  })
 
-  alert.message = [
-    `Version actuelle : ${INSTALLER_VERSION}`,
-    `Version disponible : ${available}`,
-    "",
-    required
-      ? "Cette mise à jour est nécessaire pour continuer."
-      : "Une nouvelle version de CTS Installer est disponible.",
-    "",
-    "Après la mise à jour, relancez CTS Installer."
-  ].join("\n")
+  addVersionBand(table, [
+    { value: INSTALLER_VERSION, label: "Installée" },
+    { arrow: true },
+    {
+      value: available,
+      label: "Disponible",
+      strong: true,
+      tone: required ? COLORS.orange : COLORS.blue
+    }
+  ])
 
-  alert.addAction(`Installer la version ${available}`)
+  addStatusRow(table, {
+    symbol: "arrow.clockwise",
+    title: "Relance nécessaire",
+    detail: "Après l’installation, relancez CTS Installer.",
+    tone: COLORS.primary
+  })
 
-  if (!required) {
-    alert.addAction("Continuer avec cette version")
+  if (required) {
+    addStatusRow(table, {
+      symbol: "exclamationmark.circle.fill",
+      title: "Version trop ancienne",
+      detail: "Cette mise à jour est nécessaire pour continuer.",
+      tone: COLORS.orange
+    })
   }
 
-  alert.addCancelAction("Annuler")
+  addSectionRow(table, required ? "Action" : "Actions")
 
-  const choice = await alert.presentSheet()
+  addActionRow(table, {
+    symbol: "arrow.down.circle.fill",
+    label: `Installer ${available}`,
+    detail: "Remplace CTS Installer sur cet iPhone",
+    tone: required ? COLORS.orange : COLORS.blue,
+    primary: true,
+    onSelect: () => {
+      choice = "install"
+    }
+  })
 
-  if (choice === 0) {
+  if (!required) {
+    addActionRow(table, {
+      symbol: "arrow.right.circle",
+      label: `Continuer avec ${INSTALLER_VERSION}`,
+      detail: "La mise à jour restera proposée",
+      onSelect: () => {
+        choice = "continue"
+      }
+    })
+  }
+
+  addCreditRow(table)
+
+  await table.present(true)
+
+  if (choice === "install") {
     await updateInstaller(available)
     return false
   }
 
-  return !required && choice === 1
+  return !required && choice === "continue"
 }
 
 async function updateInstaller(version) {
