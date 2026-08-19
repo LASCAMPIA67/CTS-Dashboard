@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.16"
+const INSTALLER_VERSION = "1.0.17"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -444,25 +444,6 @@ async function installOrUpdate(manifest, previous) {
         : "repair"
 
   const title = operationTitle(operation)
-  const message = fresh
-    ? [
-        `CTS Dashboard ${manifest.version} va être installé.`,
-        "",
-        "Tous les éléments nécessaires seront créés automatiquement.",
-        "",
-        "Une connexion Internet est nécessaire."
-      ].join("\n")
-    : [
-        `CTS Dashboard ${manifest.version} va être contrôlé.`,
-        "",
-        "Chaque fichier sera comparé au snapshot GitHub actuel. Les fichiers différents, absents ou invalides seront remplacés.",
-        "",
-        "CTS Installer, vos PDF et leurs archives seront conservés."
-      ].join("\n")
-
-  if (!(await confirm(title, message, "Continuer"))) {
-    return
-  }
 
   const entries = manifestEntries(manifest)
 
@@ -2731,18 +2712,6 @@ async function updateInstaller(version) {
   if (currentInstaller !== canonicalInstaller) {
     await writeText(currentInstaller, content)
   }
-
-  const alert = new Alert()
-
-  alert.title = "CTS Installer mis à jour"
-  alert.message = [
-    `La version ${version} a été installée.`,
-    "",
-    "Relancez CTS Installer pour continuer."
-  ].join("\n")
-
-  alert.addAction("Terminer")
-  await alert.present()
 }
 
 async function withThrottleRetry(operation) {

@@ -37,7 +37,11 @@ function repositoryFile(name) {
  * Chaque action du menu est jouée dans son propre système de fichiers, et
  * l'alerte répond toujours le même index — celui de l'action visée.
  */
-async function runAction(label, choice, { seed = true, forbidden = null, throttle = 0, expected = null } = {}) {
+async function runAction(
+  label,
+  choice,
+  { seed = true, forbidden = null, throttle = 0, expected = null, silent = false } = {}
+) {
   /*
    * Nombre de réponses 429 servies avant la première réponse utile, pour
    * rejouer une adresse mise de côté par GitHub.
@@ -118,6 +122,7 @@ async function runAction(label, choice, { seed = true, forbidden = null, throttl
    */
   const tables = []
 
+  const alerted = []
   let pendingSelection = choice
 
   class RecordingTable extends ui.UITable {
@@ -245,6 +250,7 @@ async function runAction(label, choice, { seed = true, forbidden = null, throttl
       }
       set title(value) {
         shown.push(String(value))
+        alerted.push(String(value))
         this._title = value
       }
       get title() {
@@ -361,6 +367,18 @@ async function runAction(label, choice, { seed = true, forbidden = null, throttl
     }
   }
 
+  /*
+   * Une opération qui aboutit se raconte dans la nouvelle interface, et
+   * nulle part ailleurs. Les alertes qui doublaient l'écran — la
+   * confirmation avant contrôle, l'avis après remplacement de
+   * l'installateur — ont été retirées ; ce garde empêche qu'une
+   * équivalente revienne. Seules les erreurs et la désinstallation, qui
+   * exige un accord explicite, ont encore le droit d'interrompre.
+   */
+  if (silent && alerted.length) {
+    failures.push(`alerte superflue après l’opération : ${alerted.join(" · ")}`)
+  }
+
   if (expected && !shown.some(text => expected.test(text))) {
     failures.push(`section attendue absente du rapport : ${expected}`)
   }
@@ -383,7 +401,7 @@ async function runAction(label, choice, { seed = true, forbidden = null, throttl
  * illisible » à un conducteur dont tout allait bien.
  */
 const scenarios = [
-  { label: "vérification", choice: 0 },
+  { label: "vérification", choice: 0, silent: true },
   {
     label: "diagnostic",
     choice: 1,
@@ -391,7 +409,7 @@ const scenarios = [
     expected: /DERNIÈRE EXÉCUTION DU DASHBOARD/
   },
   { label: "désinstallation", choice: 2 },
-  { label: "installation neuve", choice: 0, seed: false },
+  { label: "installation neuve", choice: 0, seed: false, silent: true },
   /*
    * Une seule réponse 429 suffisait à rendre CTS Installer inutilisable,
    * alors que GitHub répond souvent correctement à la tentative
@@ -407,7 +425,8 @@ for (const scenario of scenarios) {
     seed: scenario.seed !== false,
     forbidden: scenario.forbidden || null,
     throttle: scenario.throttle || 0,
-    expected: scenario.expected || null
+    expected: scenario.expected || null,
+    silent: scenario.silent === true
   })
 
   if (failures.length) {
