@@ -253,6 +253,62 @@ function buildUniqueToken() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
+async function writeJsonAtomically(path, value, options = {}) {
+  const {
+    writeCode = "JSON_TEMP_WRITE_FAILED",
+    commitCode = "JSON_COMMIT_FAILED",
+    stage = "storage",
+    writeMessage = "Le fichier temporaire ne peut pas être écrit",
+    commitMessage = "Le fichier n’a pas pu être validé"
+  } = options
+
+  const token = buildUniqueToken()
+  const temporaryPath = `${path}.tmp-${token}`
+  const rollbackPath = `${path}.rollback-${token}`
+
+  removeFileQuietly(temporaryPath)
+  removeFileQuietly(rollbackPath)
+
+  try {
+    fm.writeString(temporaryPath, JSON.stringify(value, null, 2))
+  } catch (error) {
+    throw UTILS.createTelemetryError(
+      writeCode,
+      stage,
+      `${writeMessage} : ${UTILS.errorMessage(error)}`,
+      error
+    )
+  }
+
+  let previousMoved = false
+
+  try {
+    if (fm.fileExists(path)) {
+      fm.move(path, rollbackPath)
+      previousMoved = true
+    }
+
+    fm.move(temporaryPath, path)
+  } catch (error) {
+    removeFileQuietly(temporaryPath)
+
+    if (previousMoved && fm.fileExists(rollbackPath) && !fm.fileExists(path)) {
+      try {
+        fm.move(rollbackPath, path)
+      } catch (_) {}
+    }
+
+    throw UTILS.createTelemetryError(
+      commitCode,
+      stage,
+      `${commitMessage} : ${UTILS.errorMessage(error)}`,
+      error
+    )
+  }
+
+  removeFileQuietly(rollbackPath)
+}
+
 function sanitizeDetails(value) {
   if (value === undefined) return null
   if (value instanceof Error) return UTILS.safeError(value)
@@ -273,6 +329,7 @@ module.exports = {
   writeJson,
   writeTextSafely,
   writeJsonSafely,
+  writeJsonAtomically,
   loadServicesIndex,
   saveServicesIndex,
   appendLog,

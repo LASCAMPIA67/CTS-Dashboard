@@ -9,7 +9,7 @@ const SERVICE_ENGINE = importModule("CTS Service")
 const SERVICES_MANAGER = importModule("CTS Services Manager")
 const SERVICES_CLEANER = importModule("CTS Services Cleaner")
 const telemetryFromError = UTILS.telemetryFromError
-const finiteOrNull = UTILS.finiteOrNull
+const normalizeImportTimings = UTILS.normalizeImportTimings
 const isValidDate = UTILS.isUsableDate
 const SERVICES_SCAN_REFRESH_MS = 15 * 60 * 1000
 const PENDING_SCAN_REFRESH_MS = 60 * 1000
@@ -734,21 +734,6 @@ function normalizeTelemetryStage(value, fallback) {
 
 function normalizeTelemetryLabel(value, fallback) {
   return normalizeTelemetryStage(value, fallback)
-}
-
-function normalizeImportTimings(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null
-  }
-
-  return {
-    sourceInspectionMs: finiteOrNull(value.sourceInspectionMs),
-    pdfExtractionMs: finiteOrNull(value.pdfExtractionMs),
-    databaseReloadMs: finiteOrNull(value.databaseReloadMs),
-    parserMs: finiteOrNull(value.parserMs),
-    registrationMs: finiteOrNull(value.registrationMs),
-    totalMs: finiteOrNull(value.totalMs)
-  }
 }
 
 function computeAutomaticRefreshDate(serviceRefreshAfterDate, resolution, currentDate) {

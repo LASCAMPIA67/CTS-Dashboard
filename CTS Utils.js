@@ -159,6 +159,21 @@ function errorMessage(error) {
   return error?.message?.trim?.() || String(error || "Erreur inconnue")
 }
 
+function normalizeImportTimings(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null
+  }
+
+  return {
+    sourceInspectionMs: finiteOrNull(value.sourceInspectionMs),
+    pdfExtractionMs: finiteOrNull(value.pdfExtractionMs),
+    databaseReloadMs: finiteOrNull(value.databaseReloadMs),
+    parserMs: finiteOrNull(value.parserMs),
+    registrationMs: finiteOrNull(value.registrationMs),
+    totalMs: finiteOrNull(value.totalMs)
+  }
+}
+
 function normalizeTelemetryCode(value, fallback = "UNKNOWN_ERROR") {
   return (
     String(value || fallback || "UNKNOWN_ERROR")
@@ -317,6 +332,7 @@ module.exports = {
   isValidDate,
   isUsableDate,
   finiteOrNull,
+  normalizeImportTimings,
   startOfDay,
   dayDifference,
   formatDateLong,

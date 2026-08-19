@@ -9,6 +9,8 @@ const UTILS = importModule("CTS Utils")
 const { fm, paths, files, pdf } = CONFIG
 const isUsableDate = UTILS.isUsableDate
 const removeFileQuietly = STORAGE.removeFileQuietly
+const CLEANUP_WRITE_MESSAGE = "Le fichier temporaire d’entretien ne peut pas être écrit"
+const CLEANUP_COMMIT_MESSAGE = "Le fichier d’entretien n’a pas pu être validé"
 const CLEANUP_VERSION = 1
 const CLEANUP_LOCK_TTL_MS = 2 * 60 * 1000
 const CLEANUP_LOCK_PATH = fm.joinPath(paths.data, "services-cleanup.lock")
@@ -129,10 +131,12 @@ async function performMaintenance(currentDate, options) {
   if (indexChanged) {
     index.updatedAt = new Date().toISOString()
 
-    await writeJsonAtomically(files.servicesIndex, index, {
+    await STORAGE.writeJsonAtomically(files.servicesIndex, index, {
       writeCode: "ARCHIVE_INDEX_TEMP_WRITE_FAILED",
       commitCode: "ARCHIVE_INDEX_COMMIT_FAILED",
-      stage: "archive"
+      stage: "archive",
+      writeMessage: CLEANUP_WRITE_MESSAGE,
+      commitMessage: CLEANUP_COMMIT_MESSAGE
     })
   }
 
@@ -479,10 +483,12 @@ async function saveCleanupState(result) {
     }
   }
 
-  await writeJsonAtomically(CLEANUP_STATE_PATH, state, {
+  await STORAGE.writeJsonAtomically(CLEANUP_STATE_PATH, state, {
     writeCode: "CLEANUP_STATE_TEMP_WRITE_FAILED",
     commitCode: "CLEANUP_STATE_COMMIT_FAILED",
-    stage: "archive"
+    stage: "archive",
+    writeMessage: CLEANUP_WRITE_MESSAGE,
+    commitMessage: CLEANUP_COMMIT_MESSAGE
   })
 }
 
@@ -516,7 +522,7 @@ async function acquireCleanupLock() {
     removeFileQuietly(CLEANUP_LOCK_PATH)
   }
 
-  const token = uniqueToken()
+  const token = STORAGE.buildUniqueToken()
 
   try {
     fm.writeString(
@@ -559,62 +565,6 @@ async function releaseCleanupLock(lock) {
   } catch (_) {
     removeFileQuietly(CLEANUP_LOCK_PATH)
   }
-}
-
-async function writeJsonAtomically(
-  path,
-  value,
-  {
-    writeCode = "CLEANUP_JSON_TEMP_WRITE_FAILED",
-    commitCode = "CLEANUP_JSON_COMMIT_FAILED",
-    stage = "archive"
-  } = {}
-) {
-  const token = uniqueToken()
-  const temporaryPath = `${path}.tmp-${token}`
-  const rollbackPath = `${path}.rollback-${token}`
-
-  removeFileQuietly(temporaryPath)
-  removeFileQuietly(rollbackPath)
-
-  try {
-    fm.writeString(temporaryPath, JSON.stringify(value, null, 2))
-  } catch (error) {
-    throw UTILS.createTelemetryError(
-      writeCode,
-      stage,
-      `Le fichier temporaire d’entretien ne peut pas être écrit : ${UTILS.errorMessage(error)}`,
-      error
-    )
-  }
-
-  let previousMoved = false
-
-  try {
-    if (fm.fileExists(path)) {
-      fm.move(path, rollbackPath)
-      previousMoved = true
-    }
-
-    fm.move(temporaryPath, path)
-  } catch (error) {
-    removeFileQuietly(temporaryPath)
-
-    if (previousMoved && fm.fileExists(rollbackPath) && !fm.fileExists(path)) {
-      try {
-        fm.move(rollbackPath, path)
-      } catch (_) {}
-    }
-
-    throw UTILS.createTelemetryError(
-      commitCode,
-      stage,
-      `Le fichier d’entretien n’a pas pu être validé : ${UTILS.errorMessage(error)}`,
-      error
-    )
-  }
-
-  removeFileQuietly(rollbackPath)
 }
 
 function isUsableIndexEntry(entry) {
@@ -695,10 +645,6 @@ function failureResult(
       }
     ]
   }
-}
-
-function uniqueToken() {
-  return [Date.now(), Math.random().toString(36).slice(2, 10)].join("-")
 }
 
 module.exports = {

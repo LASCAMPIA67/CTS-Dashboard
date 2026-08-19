@@ -184,7 +184,16 @@ function buildWorld({ lastEnd, serviceDate }) {
       }
     },
     ensureDownloaded: async () => true,
-    appendLog: async () => {}
+    appendLog: async () => {},
+    buildUniqueToken: () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    /*
+     * L'écriture atomique réelle vit dans CTS Storage et c'est
+     * storage-smoke qui l'éprouve, bascule interrompue comprise. Ici on
+     * n'a besoin que de son effet : le fichier est remplacé, sans reste.
+     */
+    writeJsonAtomically: async (target, value) => {
+      files.set(target, JSON.stringify(value, null, 2))
+    }
   }
 
   loaded["CTS Importer"] = {

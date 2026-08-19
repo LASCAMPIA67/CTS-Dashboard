@@ -10,6 +10,8 @@ const DATABASE = importModule("CTS Database")
 const UTILS = importModule("CTS Utils")
 const { fm, paths, files } = CONFIG
 const errorMessage = UTILS.errorMessage
+const hasTelemetryError = UTILS.hasTelemetryError
+const telemetryFromError = UTILS.telemetryFromError
 const INDEX_VERSION = 2
 
 async function importPdf(pdfPath, options = {}) {
@@ -657,14 +659,6 @@ function createTelemetryError(code, stage, message, cause = null) {
     message,
     cause
   )
-}
-
-function hasTelemetryError(error) {
-  return UTILS.hasTelemetryError(error)
-}
-
-function telemetryFromError(error, fallbackCode, fallbackStage) {
-  return UTILS.telemetryFromError(error, fallbackCode, fallbackStage)
 }
 
 function elapsedMs(startedAt) {

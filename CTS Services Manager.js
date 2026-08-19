@@ -9,7 +9,7 @@ const UTILS = importModule("CTS Utils")
 const SERVICES_CLEANER = importModule("CTS Services Cleaner")
 const { fm, paths, files, pdf } = CONFIG
 const removeFileQuietly = STORAGE.removeFileQuietly
-const finiteOrNull = UTILS.finiteOrNull
+const normalizeTimings = UTILS.normalizeImportTimings
 const isUsableDate = UTILS.isUsableDate
 const runsInApplication = UTILS.runsInApplication
 
@@ -578,7 +578,13 @@ async function saveScanState(state) {
   }
 
   try {
-    await writeJsonAtomically(files.servicesScanState, value)
+    await STORAGE.writeJsonAtomically(files.servicesScanState, value, {
+      writeCode: "SERVICES_SCAN_STATE_TEMP_WRITE_FAILED",
+      commitCode: "SERVICES_SCAN_STATE_COMMIT_FAILED",
+      stage: "scan_state",
+      writeMessage: "Le fichier temporaire d’état ne peut pas être écrit",
+      commitMessage: "L’état du balayage n’a pas pu être validé"
+    })
   } catch (error) {
     if (hasTelemetryError(error)) {
       throw error
@@ -671,55 +677,6 @@ async function releaseScanLock(lock) {
   } catch (_) {
     removeFileQuietly(SCAN_LOCK_PATH)
   }
-}
-
-async function writeJsonAtomically(path, value) {
-  const token = STORAGE.buildUniqueToken()
-  const temporaryPath = `${path}.tmp-${token}`
-  const rollbackPath = `${path}.rollback-${token}`
-  const content = JSON.stringify(value, null, 2)
-
-  removeFileQuietly(temporaryPath)
-  removeFileQuietly(rollbackPath)
-
-  try {
-    fm.writeString(temporaryPath, content)
-  } catch (error) {
-    throw createTelemetryError(
-      "SERVICES_SCAN_STATE_TEMP_WRITE_FAILED",
-      "scan_state",
-      `Le fichier temporaire d’état ne peut pas être écrit : ${errorMessage(error)}`,
-      error
-    )
-  }
-
-  let previousMoved = false
-
-  try {
-    if (fm.fileExists(path)) {
-      fm.move(path, rollbackPath)
-      previousMoved = true
-    }
-
-    fm.move(temporaryPath, path)
-  } catch (error) {
-    removeFileQuietly(temporaryPath)
-
-    if (previousMoved && fm.fileExists(rollbackPath) && !fm.fileExists(path)) {
-      try {
-        fm.move(rollbackPath, path)
-      } catch (_) {}
-    }
-
-    throw createTelemetryError(
-      "SERVICES_SCAN_STATE_COMMIT_FAILED",
-      "scan_state",
-      `L’état du balayage n’a pas pu être validé : ${errorMessage(error)}`,
-      error
-    )
-  }
-
-  removeFileQuietly(rollbackPath)
 }
 
 async function resolveServiceForDate(currentDate = new Date()) {
@@ -949,21 +906,6 @@ function localDateKey(date) {
     String(date.getMonth() + 1).padStart(2, "0"),
     String(date.getDate()).padStart(2, "0")
   ].join("-")
-}
-
-function normalizeTimings(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null
-  }
-
-  return {
-    sourceInspectionMs: finiteOrNull(value.sourceInspectionMs),
-    pdfExtractionMs: finiteOrNull(value.pdfExtractionMs),
-    databaseReloadMs: finiteOrNull(value.databaseReloadMs),
-    parserMs: finiteOrNull(value.parserMs),
-    registrationMs: finiteOrNull(value.registrationMs),
-    totalMs: finiteOrNull(value.totalMs)
-  }
 }
 
 function resolveMaximumFiles(requestedValue) {

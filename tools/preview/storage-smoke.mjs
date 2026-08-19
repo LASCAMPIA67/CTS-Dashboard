@@ -56,6 +56,11 @@ function createFileManager({ confirmsDownloads, stalls = false, unreadable = fal
     },
     writeString: (target, value) => disk.set(target, String(value)),
     remove: target => disk.delete(target),
+    move: (from, to) => {
+      if (!disk.has(from)) throw new Error(`fichier absent : ${from}`)
+      disk.set(to, disk.get(from))
+      disk.delete(from)
+    },
     fileSize: target => (disk.has(target) ? 1 : 0),
     modificationDate: () => new Date()
   }
@@ -220,6 +225,93 @@ for (const confirmsDownloads of [true, false]) {
   }
 }
 
+/*
+ * Écriture atomique JSON.
+ *
+ * Ce code vivait en double, recopié à l'identique dans le gestionnaire
+ * de services et dans le nettoyeur, et aucune des deux copies n'était
+ * éprouvée. Elles n'en font plus qu'une, ce qui rend ce contrôle
+ * nécessaire : l'état du balayage et l'index des services passent par
+ * là, et une écriture interrompue ne doit jamais laisser un fichier
+ * tronqué derrière elle.
+ */
+{
+  const fm = createFileManager({ confirmsDownloads: true })
+  const STORAGE = loadStorage(fm)
+  const target = "/documents/CTS Dashboard/Data/services-scan-state.json"
+
+  await STORAGE.writeJsonAtomically(target, { version: 1, files: {} })
+
+  const written = fm.disk.get(target)
+
+  if (!written) {
+    failures.push("écriture atomique : le fichier n'est pas écrit")
+  } else {
+    try {
+      const parsed = JSON.parse(written)
+      if (parsed.version !== 1) {
+        failures.push("écriture atomique : le contenu écrit ne correspond pas")
+      }
+    } catch (_) {
+      failures.push("écriture atomique : le fichier écrit n'est pas du JSON")
+    }
+  }
+
+  const leftovers = [...fm.disk.keys()].filter(key => /\.(tmp|rollback)-/.test(key))
+
+  if (leftovers.length) {
+    failures.push(`écriture atomique : ${leftovers.length} fichier(s) temporaire(s) laissé(s)`)
+  }
+}
+
+/*
+ * Le même, interrompu au moment de la bascule. L'ancien contenu doit
+ * revenir intact : c'est toute la raison d'être du fichier de secours.
+ */
+{
+  const fm = createFileManager({ confirmsDownloads: true })
+  const STORAGE = loadStorage(fm)
+  const target = "/documents/CTS Dashboard/Data/services-index.json"
+  const original = JSON.stringify(INDEX)
+
+  fm.disk.set(target, original)
+
+  const move = fm.move
+  fm.move = (from, to) => {
+    if (from.includes(".tmp-")) throw new Error("bascule interrompue")
+    return move(from, to)
+  }
+
+  let thrown = null
+
+  try {
+    await STORAGE.writeJsonAtomically(target, { version: 99 }, {
+      commitCode: "TEST_COMMIT_FAILED",
+      stage: "test"
+    })
+  } catch (error) {
+    thrown = error
+  }
+
+  fm.move = move
+
+  if (!thrown) {
+    failures.push("bascule interrompue : aucune erreur n'est levée")
+  } else if (thrown.telemetryCode !== "TEST_COMMIT_FAILED") {
+    failures.push(`bascule interrompue : code « ${thrown.telemetryCode} » inattendu`)
+  }
+
+  if (fm.disk.get(target) !== original) {
+    failures.push("bascule interrompue : l'ancien contenu n'est pas restauré")
+  }
+
+  const leftovers = [...fm.disk.keys()].filter(key => /\.(tmp|rollback)-/.test(key))
+
+  if (leftovers.length) {
+    failures.push(`bascule interrompue : ${leftovers.length} fichier(s) temporaire(s) laissé(s)`)
+  }
+}
+
 if (failures.length) {
   console.log("ÉCHEC  lecture des fichiers iCloud")
   for (const failure of failures) console.log(`         ${failure}`)
@@ -228,5 +320,6 @@ if (failures.length) {
 
 console.log(
   "ok     lecture des fichiers iCloud " +
-  "(iCloud muet, iCloud normal, absent, illisible, sans réponse, aucune attente inutile)"
+  "(iCloud muet, iCloud normal, absent, illisible, sans réponse, aucune attente inutile, " +
+  "écriture atomique, bascule interrompue)"
 )
