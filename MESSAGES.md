@@ -31,7 +31,11 @@ la marche à suivre.** Rien d'autre.
    ligne de rappel quand une version intermédiaire n'a pas été annoncée.
 8. **Markdown WhatsApp** : `*gras*`, `_italique_`. Le message est livré
    dans un bloc de code, prêt à copier.
-9. **Aucun émoji.** Ni en puce, ni en décoration, ni en fin de phrase. Le
+9. **Toujours terminer par le pied de version**, sur deux lignes en gras :
+   la version du Dashboard puis celle de l'Installer. C'est ce qu'un
+   collègue relit pour vérifier où il en est, et il figure dans tous les
+   messages déjà envoyés — un message qui l'omet détonne.
+10. **Aucun émoji.** Ni en puce, ni en décoration, ni en fin de phrase. Le
    gras et la puce suffisent à guider l'œil ; le reste fait perdre au
    message le sérieux d'une note de version.
 
@@ -70,6 +74,9 @@ Une phrase qui dit ce que le conducteur y gagne.
 4. Attendez _« 22/22 fichiers valides »_
 
 Vos cartes agent et vos archives sont conservées.
+
+*Version actuelle : CTS Dashboard 1.0.X*
+*CTS Installer : 1.0.Y*
 
 _Une erreur ? Coupez le Wi-Fi, puis relancez CTS Installer._
 ```
