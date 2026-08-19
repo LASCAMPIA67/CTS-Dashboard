@@ -140,6 +140,19 @@ async function run(surface) {
     failures.push("widget : Script.setWidget n'a jamais été appelé, rien ne serait affiché")
   }
 
+  /*
+   * Une vignette validée mais vide est ce qu'un conducteur voit comme un
+   * écran noir : le fond du widget, et rien dessus.
+   */
+  for (const widget of widgetsSet) {
+    if (!widget?.children?.length) {
+      failures.push("widget : la vignette validée ne contient aucun élément")
+    }
+    if (!widget?.backgroundGradient && !widget?.backgroundColor) {
+      failures.push("widget : la vignette validée n'a aucun fond")
+    }
+  }
+
   if (!runsInWidget && !presented.length) {
     failures.push("application : aucun widget présenté")
   }

@@ -14,6 +14,11 @@ const ERROR_REFRESH_MS = 5 * 60 * 1000
 const TELEMETRY_WIDGET_WAIT_MS = 1500
 
 /*
+ * Délai laissé au moteur pour retenir la vignette. Voir displayWidget.
+ */
+const WIDGET_COMMIT_YIELD_MS = 150
+
+/*
  * Déclarée AVANT l'appel au point d'entrée.
  *
  * Placée plus bas, cette variable est inaccessible pendant toute
@@ -306,8 +311,29 @@ function logTelemetryFailure(result) {
 async function displayWidget(widget, widgetFamily, telemetryPromise) {
   if (config.runsInWidget) {
     Script.setWidget(widget)
+
+    /*
+     * Rendre la main une fois avant de terminer.
+     *
+     * Script.complete() appelé dans la foulée de setWidget a livré une
+     * vignette entièrement noire, sans le dégradé de fond ni le moindre
+     * contenu : le moteur n'avait pas fini de retenir le widget. La
+     * version précédente attendait la télémétrie à cet endroit, et cette
+     * attente jouait ce rôle sans qu'on le sache — la supprimer a créé
+     * l'écran noir.
+     *
+     * On rétablit donc la pause, mais bornée et détachée du réseau : la
+     * télémétrie en profite si elle est prête, sinon elle est abandonnée.
+     * Le rendu ne dépend plus de personne.
+     */
+    await Promise.race([
+      telemetryPromise,
+      UTILS.sleep(WIDGET_COMMIT_YIELD_MS)
+    ])
+
     return
   }
+
   await Promise.all([presentWidget(widget, widgetFamily), telemetryPromise])
 }
 
