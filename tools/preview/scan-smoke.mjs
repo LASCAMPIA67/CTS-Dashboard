@@ -274,6 +274,46 @@ for (const { held, runsInWidget, expected, label } of CASES) {
   }
 }
 
+/*
+ * Un balayage qui ne trouve rien n'écrit rien.
+ *
+ * L'état du balayage était réenregistré à chaque réveil, uniquement pour
+ * y inscrire une nouvelle date. Un widget réveillé souvent écrivait donc
+ * dans iCloud plusieurs fois par heure sans qu'aucun fichier n'ait
+ * changé — de l'usure, et autant d'occasions d'être tué en pleine
+ * écriture. L'état n'est plus écrit que lorsqu'il apporte quelque chose,
+ * ou une fois par heure pour rester lisible dans le diagnostic.
+ */
+{
+  const disk = new Map()
+  disk.set(SERVICES, "")
+
+  const { manager, fm } = loadManager(disk, { runsInWidget: false })
+  let writes = 0
+
+  const original = fm.writeString
+  fm.writeString = (target, value) => {
+    if (String(target).startsWith(STATE)) writes++
+    return original(target, value)
+  }
+
+  await manager.scanServices({})
+  const afterFirst = writes
+
+  if (afterFirst === 0) {
+    failures.push("dossier vide : le premier balayage n'écrit jamais son état")
+  }
+
+  await manager.scanServices({})
+  await manager.scanServices({})
+
+  if (writes > afterFirst) {
+    failures.push(
+      `dossier inchangé : ${writes - afterFirst} écriture(s) d'état inutile(s)`
+    )
+  }
+}
+
 /* Le verrou pris porte la nature de l'exécution, sinon la reprise est aveugle. */
 for (const runsInWidget of [true, false]) {
   const disk = newDisk()
@@ -303,4 +343,5 @@ if (failures.length) {
   process.exit(1)
 }
 
-console.log("ok     balayage des services (verrou : 4 combinaisons, nature ; détection ; enregistrement perdu ; refus de validation)")
+console.log("ok     balayage des services (verrou : 4 combinaisons, nature ; détection ; " +
+  "enregistrement perdu ; refus de validation ; aucune écriture inutile)")

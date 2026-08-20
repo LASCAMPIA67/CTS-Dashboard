@@ -290,6 +290,36 @@ async function run(surface, { family = "large", label = surface, service = false
   }
 
   /*
+   * Le rythme de réveil demandé à iOS.
+   *
+   * Le widget réclamait un réveil par minute pendant tout le service. Or
+   * rien à l'écran ne change entre deux transitions : le temps restant et
+   * la progression sont calculés puis jamais dessinés. Soixante réveils
+   * par heure redessinaient donc la même image, en dépensant le budget
+   * qu'iOS accorde — et le seul réveil qui compte, celui du changement de
+   * tranche, risquait d'être celui qu'iOS refuse.
+   *
+   * Le service semé est en pleine exploitation à 09:00. Le prochain
+   * réveil doit être lointain ; on vérifie qu'il ne retombe pas sur la
+   * cadence à la minute. Le contrôle ne vaut que lorsqu'un service est
+   * semé : sans service, un réveil rapproché est le bon comportement.
+   */
+  for (const widget of service ? widgetsSet : []) {
+    const refreshAt = widget?.refreshAfterDate
+
+    if (!(refreshAt instanceof Date)) continue
+
+    const minutes = (refreshAt.getTime() - FROZEN_NOW.getTime()) / 60000
+
+    if (minutes < 10) {
+      failures.push(
+        `${label} : réveil demandé dans ${minutes.toFixed(1)} min — ` +
+        `la cadence à la minute est de retour`
+      )
+    }
+  }
+
+  /*
    * La trace de la dernière exécution doit exister et porter committed,
    * sans quoi le Diagnostic ne peut rien dire d'un widget qui n'affiche
    * pas ce qu'on attend.

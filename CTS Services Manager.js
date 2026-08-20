@@ -25,6 +25,7 @@ const {
 const SCAN_STATE_VERSION = 1
 const SCAN_LOCK_PATH = fm.joinPath(paths.data, "services-scan.lock")
 const SCAN_LOCK_TTL_MS = 2 * 60 * 1000
+const SCAN_STATE_HEARTBEAT_MS = 60 * 60 * 1000
 const EXCEPTION_RETRY_DELAY_MS = 15 * 60 * 1000
 const SERVICE_DISPLAY_GRACE_MS = 60 * 60 * 1000
 
@@ -59,6 +60,8 @@ async function scanServices(options = {}) {
 async function performScan(options) {
   const index = await IMPORTER.readCurrentIndex()
   const state = await loadScanState()
+  const signatureBefore = scanStateSignature(state)
+  const previousWriteAt = Date.parse(String(state.updatedAt || ""))
   const listing = await inspectServicesDirectory()
   const servicePdfs = listing.files
   const detectionErrors = listing.detectionErrors
@@ -105,7 +108,7 @@ async function performScan(options) {
     failedCount: failed.length + detectionErrors.length
   }
 
-  await saveScanState(state)
+  await saveScanStateIfUseful(state, signatureBefore, previousWriteAt, now)
 
   return {
     success: failed.length === 0 && detectionErrors.length === 0,
@@ -565,6 +568,29 @@ function emptyScanState() {
     lastScan: null,
     files: {}
   }
+}
+
+function scanStateSignature(state) {
+  const lastScan =
+    state.lastScan && typeof state.lastScan === "object" && !Array.isArray(state.lastScan)
+      ? { ...state.lastScan }
+      : null
+
+  if (lastScan) delete lastScan.scannedAt
+
+  return JSON.stringify({ files: state.files, lastScan })
+}
+
+async function saveScanStateIfUseful(state, signatureBefore, previousWriteAt, now) {
+  const unchanged = scanStateSignature(state) === signatureBefore
+  const elapsed = now.getTime() - previousWriteAt
+  const recent =
+    Number.isFinite(previousWriteAt) && elapsed >= 0 && elapsed < SCAN_STATE_HEARTBEAT_MS
+
+  if (unchanged && recent) return false
+
+  await saveScanState(state)
+  return true
 }
 
 async function saveScanState(state) {

@@ -874,7 +874,7 @@ function computeWorkRefreshDate(serviceDate, state, currentDate) {
     CONFIG.refresh.transitionDelaySeconds
   )
 
-  return activeRefreshDate < sliceEndDate ? activeRefreshDate : sliceEndDate
+  return sliceEndDate.getTime() > currentDate.getTime() ? sliceEndDate : activeRefreshDate
 }
 
 function dateForServiceTime(serviceDate, time, extraSeconds = 0) {
