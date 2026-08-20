@@ -116,7 +116,9 @@ async function performScan(options) {
       ? "processed"
       : detectionErrors.length
         ? "detection-error"
-        : "idle",
+        : candidates.length
+          ? "deferred"
+          : "idle",
     detected: listing.detected,
     scanned: servicePdfs.length,
     candidates: candidates.length,
@@ -935,12 +937,13 @@ function localDateKey(date) {
 }
 
 function resolveMaximumFiles(requestedValue) {
+  if (!runsInApplication()) return 0
+
   const configuredValue = Number(pdf.maximumFilesPerRun) || 2
   const value = Number(requestedValue)
   const resolved = Number.isFinite(value) ? value : configuredValue
-  const bounded = Math.max(1, Math.min(10, Math.floor(resolved)))
 
-  return runsInApplication() ? bounded : Math.min(1, bounded)
+  return Math.max(1, Math.min(10, Math.floor(resolved)))
 }
 
 function compareCandidates(first, second) {

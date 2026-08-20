@@ -124,6 +124,7 @@ async function loadContext(currentDate = new Date()) {
     serviceSelectionError: resolution.selectionError,
     servicesCleanup: cleanup.result,
     servicesCleanupError: cleanup.error,
+    pendingImports: Math.max(0, Number(resolution.scanResult?.remaining) || 0),
     telemetry
   }
 }
@@ -408,6 +409,26 @@ function buildMissingServiceContext(resolution, cleanup, currentDate) {
       ...locked,
       refreshAfterDate: new Date(currentDate.getTime() + CONFIG.refresh.activeMs)
     }
+  }
+
+  if (Number(scanResult?.remaining) > 0) {
+    telemetry.pdfStatus = "found"
+    telemetry.serviceStatus = "not_found"
+
+    const waiting = Number(scanResult.remaining)
+
+    return information(
+      "Carte agent à importer",
+      [
+        waiting > 1
+          ? `${waiting} cartes agent attendent d’être lues.`
+          : "Ta carte agent attend d’être lue.",
+        "",
+        "Touche ce widget : la lecture se fait dans l’application, où le temps ne manque pas."
+      ].join("\n"),
+      currentDate,
+      telemetry
+    )
   }
 
   const detected = Math.max(0, Number(scanResult?.detected ?? scanResult?.scanned ?? 0) || 0)
@@ -771,7 +792,7 @@ function computeScanRefreshDate(resolution, currentDate) {
   const scanResult = resolution?.scanResult
   let delay = SERVICES_SCAN_REFRESH_MS
 
-  if (scanResult?.status === "locked" || Number(scanResult?.remaining) > 0) {
+  if (scanResult?.status === "locked") {
     delay = PENDING_SCAN_REFRESH_MS
   }
 

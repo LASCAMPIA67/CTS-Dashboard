@@ -42,7 +42,7 @@ function createLargeWidget(context) {
     density.paddingHorizontal
   )
 
-  addHeader(widget, service, state, density)
+  addHeader(widget, service, state, density, context)
   widget.addSpacer(density.sectionGap)
   addTimingCard(widget, focus, state, density)
   widget.addSpacer(density.sectionGap)
@@ -50,6 +50,41 @@ function createLargeWidget(context) {
   widget.addSpacer(density.sectionGap)
   addStats(widget, stats, density)
   return markRendered(widget)
+}
+
+function addPendingBadge(parent, context, state, density) {
+  const waiting = Math.max(0, Number(context?.pendingImports) || 0)
+
+  if (!waiting) return
+
+  const badge = parent.addStack()
+  badge.centerAlignContent()
+  badge.setPadding(
+    density.badgePaddingVertical,
+    density.pendingPaddingHorizontal,
+    density.badgePaddingVertical,
+    density.pendingPaddingHorizontal
+  )
+  badge.cornerRadius = 10
+  badge.backgroundColor = accentAlpha(state, 0.1)
+  badge.borderWidth = 0.5
+  badge.borderColor = accentAlpha(state, 0.22)
+
+  addSymbol(badge, "tray.and.arrow.down.fill", density.pendingSymbolSize, accent(state))
+
+  if (waiting > 1) {
+    badge.addSpacer(density.pendingSymbolGap)
+    addText(
+      badge,
+      String(waiting),
+      Font.semiboldSystemFont(density.badgeSize),
+      accent(state),
+      1,
+      0.8
+    )
+  }
+
+  parent.addSpacer(density.pendingSymbolGap)
 }
 
 function createLargeOnlyWidget() {
@@ -78,7 +113,7 @@ function createLargeOnlyWidget() {
   return markRendered(widget)
 }
 
-function addHeader(parent, service, state, density) {
+function addHeader(parent, service, state, density, context) {
   const row = parent.addStack()
   row.centerAlignContent()
 
@@ -116,6 +151,7 @@ function addHeader(parent, service, state, density) {
   )
 
   row.addSpacer()
+  addPendingBadge(row, context, state, density)
   addStatusPill(row, state, density)
 }
 
@@ -766,6 +802,9 @@ function densityComfortable() {
     sliceDetailGap: 3,
     statPaddingHorizontal: 24,
     statPaddingVertical: 5,
+    pendingSymbolSize: 11,
+    pendingSymbolGap: 5,
+    pendingPaddingHorizontal: 7,
     statRadius: 12,
     statValueSize: 14,
     statLabelSize: 7.5,
@@ -833,6 +872,9 @@ function densityStandard() {
     sliceDetailGap: 2,
     statPaddingHorizontal: 19,
     statPaddingVertical: 4,
+    pendingSymbolSize: 10,
+    pendingSymbolGap: 4,
+    pendingPaddingHorizontal: 6,
     statValueSize: 13,
     statLabelSize: 7.8,
     statSeparatorHeight: 24

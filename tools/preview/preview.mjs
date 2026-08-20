@@ -231,6 +231,22 @@ for (const count of [1, 2, 3]) {
   }
 }
 
+/*
+ * Une carte agent déposée pendant qu'un service est déjà affiché. Le
+ * widget ne l'importe plus lui-même : il le signale sur une ligne, et la
+ * lecture se fait dans l'application. Cette vignette existe pour juger
+ * cette ligne sur un widget déjà bien rempli.
+ */
+SCENARIOS["Carte agent en attente · 2 tranches"] = {
+  service: "EA05",
+  date: "2026-08-12",
+  slices: buildSlices(2),
+  breaks: buildBreaks(2, false),
+  at: "07:30",
+  dayOffset: 0,
+  pendingImports: 1
+}
+
 function buildContext(name, screen) {
   const definition = SCENARIOS[name]
   const base = definition.reuse ? SCENARIOS[definition.reuse] : definition
@@ -255,7 +271,8 @@ function buildContext(name, screen) {
     service: normalized.service,
     state,
     stats: SERVICE.computeStats(normalized.service),
-    displaySlice: SERVICE.getDisplaySlice(normalized.service, state)
+    displaySlice: SERVICE.getDisplaySlice(normalized.service, state),
+    pendingImports: base.pendingImports || 0
   }
 }
 

@@ -38,7 +38,19 @@ const SCREENS = [
   { label: "12 Pro Max", width: 428, height: 926 },
   { label: "15 Pro Max", width: 430, height: 932 },
   { label: "16 Pro Max", width: 440, height: 956 },
-  { label: "modèle inconnu plus grand", width: 460, height: 1000 }
+  { label: "modèle inconnu plus grand", width: 460, height: 1000 },
+  /*
+   * Écrans qui ne figurent dans aucune ligne de la table du renderer.
+   * L'estimation retombe alors sur la ligne connue immédiatement
+   * inférieure, donc sous-estime — ce qui est le bon sens de l'erreur.
+   * Encore faut-il que la grille tienne quand même : c'est ce que ces
+   * quatre-là vérifient, entre deux lignes, en dessous de la plus petite
+   * et au-delà de la plus grande.
+   */
+  { label: "inconnu entre deux lignes", width: 400, height: 860 },
+  { label: "inconnu large et court", width: 420, height: 900 },
+  { label: "inconnu plus petit", width: 360, height: 780 },
+  { label: "inconnu sous la table", width: 300, height: 500 }
 ]
 
 function loadRenderer() {

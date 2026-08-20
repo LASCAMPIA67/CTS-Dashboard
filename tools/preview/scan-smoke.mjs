@@ -186,6 +186,42 @@ for (const { held, runsInWidget, expected, label } of CASES) {
 }
 
 /*
+ * Le widget détecte, l'application importe.
+ *
+ * Lire une carte agent demande jusqu'à vingt-cinq secondes ; iOS en
+ * accorde quelques-unes à un widget. Le widget ne lance donc plus
+ * d'import : il compte ce qui attend et le signale. L'application, elle,
+ * va au bout.
+ */
+for (const runsInWidget of [true, false]) {
+  const disk = newDisk()
+  const { manager, imports } = loadManager(disk, { runsInWidget })
+  const result = await manager.scanServices({})
+
+  if (result.detected !== 1) {
+    failures.push(
+      `${runsInWidget ? "widget" : "application"} : ${result.detected} PDF détecté(s) au lieu de 1`
+    )
+  }
+
+  if (runsInWidget) {
+    if (imports.length) {
+      failures.push("widget : une lecture de PDF a été lancée alors qu'il n'en a pas le temps")
+    }
+
+    if (result.remaining !== 1) {
+      failures.push(`widget : ${result.remaining} carte(s) annoncée(s) en attente au lieu de 1`)
+    }
+
+    if (result.status !== "deferred") {
+      failures.push(`widget : statut « ${result.status} » au lieu de « deferred »`)
+    }
+  } else if (!imports.length) {
+    failures.push("application : la carte agent déposée n'est pas importée")
+  }
+}
+
+/*
  * Un enregistrement perdu doit être refait.
  *
  * L'état de balayage retient qu'un PDF a été importé puis indexé. Mais
@@ -344,4 +380,5 @@ if (failures.length) {
 }
 
 console.log("ok     balayage des services (verrou : 4 combinaisons, nature ; détection ; " +
-  "enregistrement perdu ; refus de validation ; aucune écriture inutile)")
+  "enregistrement perdu ; refus de validation ; aucune écriture inutile ; " +
+  "import réservé à l\u2019application)")
