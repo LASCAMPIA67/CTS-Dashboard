@@ -153,6 +153,46 @@ async function writeJsonSafely(path, value, pretty = true) {
   await writeTextSafely(path, JSON.stringify(value, null, pretty ? 2 : 0))
 }
 
+const TEXT_SCALES = Object.freeze([1, 1.25])
+
+function defaultPreferences() {
+  return { textScale: TEXT_SCALES[0] }
+}
+
+function normalizePreferences(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return defaultPreferences()
+  }
+
+  const scale = Number(value.textScale)
+
+  if (!Number.isFinite(scale)) return defaultPreferences()
+
+  const nearest = TEXT_SCALES.reduce((best, candidate) =>
+    Math.abs(candidate - scale) < Math.abs(best - scale) ? candidate : best
+  )
+
+  return { textScale: nearest }
+}
+
+function textScales() {
+  return [...TEXT_SCALES]
+}
+
+async function loadPreferences() {
+  try {
+    if (!fm.fileExists(files.preferences)) return defaultPreferences()
+
+    return normalizePreferences(await readJson(files.preferences, null))
+  } catch (_) {
+    return defaultPreferences()
+  }
+}
+
+async function savePreferences(value) {
+  await writeJsonSafely(files.preferences, normalizePreferences(value))
+}
+
 function emptyServicesIndex() {
   return { version: SERVICES_INDEX_VERSION, updatedAt: "", services: [] }
 }
@@ -330,6 +370,10 @@ module.exports = {
   writeTextSafely,
   writeJsonSafely,
   writeJsonAtomically,
+  loadPreferences,
+  textScales,
+  savePreferences,
+  normalizePreferences,
   loadServicesIndex,
   saveServicesIndex,
   appendLog,

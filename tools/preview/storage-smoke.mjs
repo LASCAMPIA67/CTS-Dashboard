@@ -312,6 +312,54 @@ for (const confirmsDownloads of [true, false]) {
   }
 }
 
+/*
+ * Préférences d'affichage.
+ *
+ * Le widget les lit à chaque réveil et ne les écrit jamais. Un fichier
+ * absent, vide, illisible ou farci de n'importe quoi doit donc rendre le
+ * réglage par défaut sans bruit : une préférence corrompue ne peut pas
+ * être une raison de ne pas afficher le service du jour.
+ */
+{
+  const target = "/documents/CTS Dashboard/Data/preferences.json"
+
+  const cases = [
+    { label: "fichier absent", content: null, expected: 1 },
+    { label: "fichier vide", content: "", expected: 1 },
+    { label: "JSON invalide", content: "{ textScale:", expected: 1 },
+    { label: "tableau", content: "[]", expected: 1 },
+    { label: "valeur absurde", content: JSON.stringify({ textScale: 42 }), expected: 1.25 },
+    { label: "valeur négative", content: JSON.stringify({ textScale: -3 }), expected: 1 },
+    { label: "valeur texte", content: JSON.stringify({ textScale: "grand" }), expected: 1 },
+    { label: "réglage standard", content: JSON.stringify({ textScale: 1 }), expected: 1 },
+    { label: "réglage agrandi", content: JSON.stringify({ textScale: 1.25 }), expected: 1.25 }
+  ]
+
+  for (const item of cases) {
+    const fm = createFileManager({ confirmsDownloads: true })
+    const STORAGE = loadStorage(fm)
+
+    if (item.content !== null) fm.disk.set(target, item.content)
+
+    const preferences = await STORAGE.loadPreferences()
+
+    if (preferences.textScale !== item.expected) {
+      failures.push(
+        `préférences · ${item.label} : textScale ${preferences.textScale} ` +
+        `au lieu de ${item.expected}`
+      )
+    }
+  }
+
+  /* Une échelle inconnue se ramène au réglage testé le plus proche. */
+  const fm = createFileManager({ confirmsDownloads: true })
+  const STORAGE = loadStorage(fm)
+
+  if (STORAGE.normalizePreferences({ textScale: 1.2 }).textScale !== 1.25) {
+    failures.push("préférences : une échelle intermédiaire ne se ramène pas à un réglage connu")
+  }
+}
+
 if (failures.length) {
   console.log("ÉCHEC  lecture des fichiers iCloud")
   for (const failure of failures) console.log(`         ${failure}`)
@@ -321,5 +369,5 @@ if (failures.length) {
 console.log(
   "ok     lecture des fichiers iCloud " +
   "(iCloud muet, iCloud normal, absent, illisible, sans réponse, aucune attente inutile, " +
-  "écriture atomique, bascule interrompue)"
+  "écriture atomique, bascule interrompue, préférences)"
 )

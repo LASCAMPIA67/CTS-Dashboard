@@ -37,6 +37,7 @@ const resolvedPaths = Object.freeze({
 })
 
 const files = Object.freeze({
+  preferences: joinPath(resolvedPaths.data, "preferences.json"),
   importLog: joinPath(resolvedPaths.data, "import-log.json"),
   servicesIndex: joinPath(resolvedPaths.data, "services-index.json"),
   servicesScanState: joinPath(resolvedPaths.data, "services-scan-state.json"),

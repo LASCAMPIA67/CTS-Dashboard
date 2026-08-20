@@ -40,7 +40,14 @@ function repositoryFile(name) {
 async function runAction(
   label,
   choice,
-  { seed = true, forbidden = null, throttle = 0, expected = null, silent = false } = {}
+  {
+    seed = true,
+    forbidden = null,
+    throttle = 0,
+    expected = null,
+    silent = false,
+    preferences = false
+  } = {}
 ) {
   /*
    * Nombre de réponses 429 servies avant la première réponse utile, pour
@@ -123,7 +130,8 @@ async function runAction(
   const tables = []
 
   const alerted = []
-  let pendingSelection = choice
+  const preferencesStore = preferences ? { value: { textScale: 1 } } : null
+  const selections = Array.isArray(choice) ? [...choice] : [choice]
 
   class RecordingTable extends ui.UITable {
     constructor() {
@@ -153,11 +161,9 @@ async function runAction(
      * les pages suivantes, progression et diagnostic, restent intactes.
      */
     present() {
-      if (pendingSelection !== null) {
+      if (selections.length) {
         const actions = this.rows.filter(row => typeof row.onSelect === "function")
-        const target = actions[pendingSelection]
-
-        pendingSelection = null
+        const target = actions[selections.shift()]
 
         if (target) target.onSelect()
       }
@@ -234,7 +240,23 @@ async function runAction(
     Device: { systemVersion: () => "26.6" },
     Pasteboard: { copyString: value => shown.push(String(value)) },
     FileManager: { iCloud: () => fileManager, local: () => fileManager },
-    importModule: () => {
+    /*
+     * L'installateur importe CTS Storage à la demande, et uniquement
+     * pour deux choses : relire le journal d'import, et lire ou écrire
+     * les préférences d'affichage. Le doublon ne fournit ce module que
+     * dans le scénario qui l'exige, pour que les autres continuent
+     * d'éprouver le chemin où il manque.
+     */
+    importModule: name => {
+      if (name === "CTS Storage" && preferencesStore) {
+        return {
+          loadPreferences: async () => ({ ...preferencesStore.value }),
+          savePreferences: async value => {
+            preferencesStore.value = { textScale: Number(value?.textScale) || 1 }
+          }
+        }
+      }
+
       throw new Error("module absent")
     },
     Alert: class {
@@ -375,6 +397,12 @@ async function runAction(
    * équivalente revienne. Seules les erreurs et la désinstallation, qui
    * exige un accord explicite, ont encore le droit d'interrompre.
    */
+  if (preferencesStore && Math.abs(preferencesStore.value.textScale - 1.25) > 0.01) {
+    failures.push(
+      `réglage non enregistré : textScale ${preferencesStore.value.textScale} au lieu de 1,25`
+    )
+  }
+
   if (silent && alerted.length) {
     failures.push(`alerte superflue après l’opération : ${alerted.join(" · ")}`)
   }
@@ -408,7 +436,12 @@ const scenarios = [
     forbidden: /illisible|invalide|inaccessible|non résolu/i,
     expected: /DERNIÈRE EXÉCUTION DU DASHBOARD/
   },
-  { label: "désinstallation", choice: 2 },
+  /*
+   * L'écran de réglage vit entre le diagnostic et la désinstallation :
+   * un ajout au menu déplace les suivants, et ce banc le voit.
+   */
+  { label: "taille du texte", choice: [2, 1], preferences: true, silent: true, expected: /Grandes polices/ },
+  { label: "désinstallation", choice: 3 },
   { label: "installation neuve", choice: 0, seed: false, silent: true },
   /*
    * Une seule réponse 429 suffisait à rendre CTS Installer inutilisable,
@@ -426,7 +459,8 @@ for (const scenario of scenarios) {
     forbidden: scenario.forbidden || null,
     throttle: scenario.throttle || 0,
     expected: scenario.expected || null,
-    silent: scenario.silent === true
+    silent: scenario.silent === true,
+    preferences: scenario.preferences === true
   })
 
   if (failures.length) {

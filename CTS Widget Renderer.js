@@ -32,7 +32,7 @@ function createWidget(family, context) {
 
 function createLargeWidget(context) {
   const { service, state, stats, displaySlice: focus } = context
-  const density = getDensity(service.slices.length)
+  const density = getDensity(service.slices.length, context?.preferences?.textScale)
   const widget = THEME.createBaseWidget(state.type)
 
   widget.setPadding(
@@ -179,6 +179,7 @@ function addTimingCard(parent, focus, state, density) {
 
   closeGridRow(timing)
 
+  if (density.hidesOperationalDetails) return
   if (!hasOperationalDetails(focus)) return
   card.addSpacer(density.detailsSectionGap)
   addDivider(card)
@@ -673,12 +674,53 @@ function getDeviceSize() {
   return { width: 390, height: 844 }
 }
 
-function getDensity(sliceCountValue) {
+const TEXT_KEYS = Object.freeze([
+  "badgeSize",
+  "dateSize",
+  "detailLabelSize",
+  "detailMinimumSize",
+  "detailTimeSize",
+  "detailValueSize",
+  "directionSize",
+  "durationSize",
+  "numberFont",
+  "placeMinimumSize",
+  "placeSize",
+  "rangeSize",
+  "routeMinimumSize",
+  "sectionHeaderSize",
+  "serviceSize",
+  "sliceDetailSize",
+  "sliceTitleSize",
+  "statLabelSize",
+  "statValueSize",
+  "timeSize",
+  "timingLabelSize",
+  "titleMinimumSize"
+])
+
+function withTextScale(density, scaleValue) {
+  const scale = Number(scaleValue)
+
+  if (!Number.isFinite(scale) || scale <= 1) return density
+
+  const scaled = { ...density, hidesOperationalDetails: true }
+
+  for (const key of TEXT_KEYS) {
+    if (typeof scaled[key] === "number") {
+      scaled[key] = Math.round(scaled[key] * scale * 10) / 10
+    }
+  }
+
+  return scaled
+}
+
+function getDensity(sliceCountValue, textScale = 1) {
   const count = Math.max(1, Number(sliceCountValue) || 1)
   const base =
     count >= 4 ? densityCompact() : count >= 3 ? densityStandard() : densityComfortable()
   const screen = getDeviceSize()
-  return withColumnWidth(adaptDensity(base, screen.width), screen)
+  return withColumnWidth(withTextScale(adaptDensity(base, screen.width), textScale), screen)
 }
 
 const LARGE_WIDGET_WIDTHS = Object.freeze([

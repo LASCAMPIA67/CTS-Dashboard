@@ -66,6 +66,7 @@ async function loadContext(currentDate = new Date()) {
     )
   }
 
+  const preferences = await STORAGE.loadPreferences()
   const stats = SERVICE_ENGINE.computeStats(service)
   const displaySlice = SERVICE_ENGINE.getDisplaySlice(service, state)
 
@@ -125,6 +126,7 @@ async function loadContext(currentDate = new Date()) {
     servicesCleanup: cleanup.result,
     servicesCleanupError: cleanup.error,
     pendingImports: Math.max(0, Number(resolution.scanResult?.remaining) || 0),
+    preferences,
     telemetry
   }
 }

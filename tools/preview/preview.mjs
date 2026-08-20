@@ -272,7 +272,8 @@ function buildContext(name, screen) {
     state,
     stats: SERVICE.computeStats(normalized.service),
     displaySlice: SERVICE.getDisplaySlice(normalized.service, state),
-    pendingImports: base.pendingImports || 0
+    pendingImports: base.pendingImports || 0,
+    preferences: { textScale: Number(process.env.PREVIEW_TEXT_SCALE) || 1 }
   }
 }
 

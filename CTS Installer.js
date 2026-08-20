@@ -47,6 +47,19 @@ const COLORS = {
   primary: Color.dynamic(new Color("#111111"), new Color("#F5F5F7"))
 }
 
+const TEXT_SIZE_MODES = [
+  {
+    scale: 1,
+    label: "Standard",
+    detail: "Toutes les informations, texte de taille habituelle"
+  },
+  {
+    scale: 1.25,
+    label: "Grandes polices",
+    detail: "Texte 25 % plus grand, détails du dépôt et de la direction masqués"
+  }
+]
+
 const fm = FileManager.iCloud()
 const docs = fm.documentsDirectory()
 const join = (a, b) => fm.joinPath(a, b)
@@ -93,6 +106,8 @@ async function main() {
       await installOrUpdate(manifest, state)
     } else if (action === "diagnostic") {
       await runDiagnostic(manifest, state)
+    } else if (action === "preferences") {
+      await editPreferences()
     } else if (action === "uninstall") {
       await uninstall(manifest)
     }
@@ -362,6 +377,13 @@ async function menu(manifest, state) {
   })
 
   addActionRow(table, {
+    symbol: "textformat.size",
+    label: "Taille du texte",
+    detail: preferencesLabel(),
+    onSelect: select("preferences")
+  })
+
+  addActionRow(table, {
     symbol: "trash",
     label: "Désinstaller",
     detail: "Vos PDF et leurs archives sont conservés",
@@ -374,6 +396,85 @@ async function menu(manifest, state) {
   await table.present(true)
 
   return choice
+}
+
+function preferencesModule() {
+  const storage = importModule("CTS Storage")
+
+  if (
+    !storage ||
+    typeof storage.loadPreferences !== "function" ||
+    typeof storage.savePreferences !== "function"
+  ) {
+    throw new Error("CTS Storage ne gère pas encore les préférences d’affichage.")
+  }
+
+  return storage
+}
+
+function preferencesLabel() {
+  try {
+    const path = join(paths.data, "preferences.json")
+
+    if (!fm.fileExists(path)) return TEXT_SIZE_MODES[0].label
+
+    const scale = Number(JSON.parse(fm.readString(path))?.textScale)
+    const mode = TEXT_SIZE_MODES.find(item => Math.abs(item.scale - scale) < 0.01)
+
+    return (mode || TEXT_SIZE_MODES[0]).label
+  } catch (_) {
+    return TEXT_SIZE_MODES[0].label
+  }
+}
+
+/*
+ * Le widget lit ce réglage, il ne l'écrit jamais : un widget peut être
+ * tué en pleine écriture, et c'est l'installateur qui a le temps.
+ */
+async function editPreferences() {
+  const storage = preferencesModule()
+  const current = await storage.loadPreferences()
+  const table = screenTable()
+  let chosen = null
+
+  addHeroRow(table, {
+    symbol: "textformat.size",
+    title: "Taille du texte",
+    subtitle: "Widget CTS Dashboard",
+    tone: COLORS.blue
+  })
+
+  addStatusRow(table, {
+    symbol: "eye",
+    title: "Réglage actuel",
+    detail: preferencesLabel(),
+    tone: COLORS.primary
+  })
+
+  addSectionRow(table, "Choisir")
+
+  for (const mode of TEXT_SIZE_MODES) {
+    const active = Math.abs(current.textScale - mode.scale) < 0.01
+
+    addActionRow(table, {
+      symbol: active ? "checkmark.circle.fill" : "circle",
+      label: mode.label,
+      detail: mode.detail,
+      tone: active ? COLORS.green : undefined,
+      primary: active,
+      onSelect: () => {
+        chosen = mode.scale
+      }
+    })
+  }
+
+  addCreditRow(table)
+
+  await table.present(true)
+
+  if (chosen === null || Math.abs(chosen - current.textScale) < 0.01) return
+
+  await storage.savePreferences({ textScale: chosen })
 }
 
 async function inspect(manifest) {

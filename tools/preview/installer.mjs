@@ -104,7 +104,10 @@ function loadInstaller() {
         modificationDate: () => new Date()
       })
     },
-    importModule: () => ({})
+    importModule: () => ({
+      loadPreferences: async () => ({ textScale: 1 }),
+      savePreferences: async () => {}
+    })
   }
 
   vm.createContext(sandbox)
@@ -320,6 +323,10 @@ function menuStates() {
             reasons: {}
           }
         )
+    },
+    {
+      label: "Taille du texte",
+      run: () => installer.editPreferences()
     },
     {
       label: "Installation neuve",
