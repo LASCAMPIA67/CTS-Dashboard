@@ -25,6 +25,41 @@ const FILE_READ_RETRY_MS = 250
 const ICLOUD_READY_ATTEMPTS = 8
 const ICLOUD_DOWNLOAD_TIMEOUT_MS = 12000
 const WEBVIEW_LOAD_TIMEOUT_MS = 15000
+
+function widgetBudget(key, fallback) {
+  if (UTILS.runsInApplication()) return fallback
+
+  const value = Number(pdf[key])
+
+  return Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+function callMargin() {
+  return widgetBudget("widgetCallMarginMs", WEBVIEW_CALL_MARGIN_MS)
+}
+
+function budgets() {
+  const load = loadTimeout()
+  const engine = engineTimeout() + callMargin()
+  const extraction = extractionTimeout() + callMargin()
+
+  return { load, engine, extraction, total: load + engine + extraction }
+}
+
+function loadTimeout() {
+  return widgetBudget("widgetLoadTimeoutMs", WEBVIEW_LOAD_TIMEOUT_MS)
+}
+
+function engineTimeout() {
+  return widgetBudget("widgetEngineTimeoutMs", ENGINE_START_TIMEOUT_MS)
+}
+
+function extractionTimeout() {
+  return widgetBudget(
+    "widgetExtractionTimeoutMs",
+    Math.max(1000, Number(pdf.extractionTimeoutMs) || 25000)
+  )
+}
 const WEBVIEW_CALL_MARGIN_MS = 5000
 const ICLOUD_READY_RETRY_MS = 150
 
@@ -285,7 +320,7 @@ async function extractText(pdfPath) {
   try {
     const loaded = await UTILS.withTimeout(
       webView.loadHTML(runtimeHtml).then(() => "loaded"),
-      WEBVIEW_LOAD_TIMEOUT_MS
+      loadTimeout()
     )
 
     if (loaded !== "loaded") {
@@ -588,7 +623,7 @@ async function waitForEngine(webView) {
 
         if (
           Date.now() - startedAt >
-          ${ENGINE_START_TIMEOUT_MS}
+          ${engineTimeout()}
         ) {
           finish({
             ok: false,
@@ -616,7 +651,7 @@ async function waitForEngine(webView) {
   try {
     const result = await UTILS.withTimeout(
       webView.evaluateJavaScript(script, true),
-      ENGINE_START_TIMEOUT_MS + WEBVIEW_CALL_MARGIN_MS,
+      engineTimeout() + callMargin(),
       { ok: false, code: "PDF_ENGINE_INIT_TIMEOUT", error: "PDF.js n’a pas répondu." }
     )
 
@@ -633,11 +668,7 @@ async function waitForEngine(webView) {
 }
 
 async function evaluateExtraction(webView, pdfBase64) {
-  const timeoutMs = Math.max(
-    1000,
-
-    Number(pdf.extractionTimeoutMs) || 25000
-  )
+  const timeoutMs = extractionTimeout()
 
   const encodedPdf = JSON.stringify(pdfBase64)
 
@@ -705,7 +736,7 @@ async function evaluateExtraction(webView, pdfBase64) {
   try {
     return await UTILS.withTimeout(
       webView.evaluateJavaScript(script, true),
-      timeoutMs + WEBVIEW_CALL_MARGIN_MS,
+      timeoutMs + callMargin(),
       {
         ok: false,
         code: "PDF_EXTRACTION_TIMEOUT",
@@ -1472,6 +1503,7 @@ function removeFileQuietly(path) {
 }
 
 module.exports = {
+  budgets,
   PDFJS_VERSION,
   ensureReady,
   extractText

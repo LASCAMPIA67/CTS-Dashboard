@@ -420,13 +420,13 @@ function buildMissingServiceContext(resolution, cleanup, currentDate) {
     const waiting = Number(scanResult.remaining)
 
     return information(
-      "Carte agent à importer",
+      "Lecture en attente",
       [
         waiting > 1
           ? `${waiting} cartes agent attendent d’être lues.`
-          : "Ta carte agent attend d’être lue.",
+          : "Ta carte agent n’a pas pu être lue dans le temps accordé au widget.",
         "",
-        "Touche ce widget : la lecture se fait dans l’application, où le temps ne manque pas."
+        "Elle sera reprise automatiquement. Touche ce widget pour ne pas attendre."
       ].join("\n"),
       currentDate,
       telemetry

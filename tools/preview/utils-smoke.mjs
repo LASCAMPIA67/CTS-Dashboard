@@ -137,10 +137,97 @@ const UTILS = loadUtils()
   }
 }
 
+/*
+ * Budget accordé au moteur PDF selon le contexte.
+ *
+ * C'est la véritable protection derrière l'import automatique. Dans
+ * l'application, le moteur peut attendre le chargement de la WebView,
+ * l'initialisation de PDF.js puis l'extraction — jusqu'à une minute au
+ * total, ce qui ne gêne personne. Dans un widget, cette même attente
+ * garantit d'être tué avant d'avoir dessiné quoi que ce soit : la carte
+ * agent n'est pas lue, et l'écran d'accueil garde son image précédente.
+ *
+ * Le widget doit donc renoncer vite, et de lui-même.
+ */
+{
+  const WIDGET_CEILING_MS = 15000
+  const APPLICATION_FLOOR_MS = 40000
+
+  const load = runsInWidget => {
+    const loaded = {}
+    const modules = ["CTS Config", "CTS Utils", "CTS PDF Engine"]
+
+    for (const name of modules) {
+      const source = fs.readFileSync(path.join(repository, `${name}.js`), "utf8")
+      const module = { exports: {} }
+
+      const sandbox = {
+        module,
+        console: { log: () => {}, warn: () => {}, error: () => {} },
+        Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
+        Promise, RegExp, Error, isNaN, parseInt, parseFloat,
+        encodeURIComponent, decodeURIComponent,
+        config: { runsInWidget },
+        args: { plainTexts: [], shortcutParameter: null },
+        Timer: class {
+          static schedule(milliseconds, repeats, callback) {
+            setTimeout(callback, 0)
+            return new this()
+          }
+          invalidate() {}
+        },
+        FileManager: {
+          iCloud: () => ({
+            joinPath: (a, b) => `${a}/${b}`,
+            documentsDirectory: () => "/documents",
+            fileExists: () => false,
+            createDirectory: () => {}
+          })
+        },
+        importModule: name => loaded[name]
+      }
+
+      vm.createContext(sandbox)
+      vm.runInContext(source, sandbox, { filename: name })
+      loaded[name] = module.exports
+    }
+
+    return loaded["CTS PDF Engine"].budgets()
+  }
+
+  const widget = load(true)
+  const application = load(false)
+
+  if (widget.total > WIDGET_CEILING_MS) {
+    failures.push(
+      `budget PDF du widget : ${widget.total} ms, au-delà du plafond de ${WIDGET_CEILING_MS} ms`
+    )
+  }
+
+  if (application.total < APPLICATION_FLOOR_MS) {
+    failures.push(
+      `budget PDF de l'application : ${application.total} ms, en deçà du plancher de ` +
+      `${APPLICATION_FLOOR_MS} ms — une lecture lente serait abandonnée à tort`
+    )
+  }
+
+  for (const phase of ["load", "engine", "extraction"]) {
+    if (widget[phase] >= application[phase]) {
+      failures.push(
+        `budget PDF · ${phase} : le widget attend ${widget[phase]} ms, ` +
+        `autant que l'application`
+      )
+    }
+  }
+}
+
 if (failures.length) {
   console.log("ÉCHEC  primitives partagées")
   for (const failure of failures) console.log(`         ${failure}`)
   process.exit(1)
 }
 
-console.log("ok     primitives partagées (bornes, contexte d'exécution, dates inter-modules)")
+console.log(
+  "ok     primitives partagées (bornes, contexte d'exécution, dates inter-modules, " +
+  "budget PDF par contexte)"
+)

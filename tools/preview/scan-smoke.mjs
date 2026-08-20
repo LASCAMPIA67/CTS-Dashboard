@@ -71,7 +71,7 @@ function createFileManager(disk) {
  * Seul l'importateur est doublé : c'est lui qui lit réellement le PDF, ce
  * qu'aucun banc hors iPhone ne peut faire.
  */
-function loadManager(disk, { runsInWidget }) {
+function loadManager(disk, { runsInWidget, importOutcome = null }) {
   const loaded = {}
   const imports = []
   const fm = createFileManager(disk)
@@ -102,6 +102,9 @@ function loadManager(disk, { runsInWidget }) {
         readCurrentIndex: async () => ({ version: 2, services: [] }),
         importPdf: async pdfPath => {
           imports.push(pdfPath)
+
+          if (importOutcome) return { ...importOutcome }
+
           return { success: true, service: "EA05", date: "2026-08-20" }
         }
       }
@@ -186,38 +189,91 @@ for (const { held, runsInWidget, expected, label } of CASES) {
 }
 
 /*
- * Le widget détecte, l'application importe.
+ * Le widget importe, mais une carte à la fois.
  *
- * Lire une carte agent demande jusqu'à vingt-cinq secondes ; iOS en
- * accorde quelques-unes à un widget. Le widget ne lance donc plus
- * d'import : il compte ce qui attend et le signale. L'application, elle,
- * va au bout.
+ * Lire une carte agent demande jusqu'à vingt-cinq secondes dans
+ * l'application, quand iOS n'en accorde que quelques-unes à un widget.
+ * L'import automatique est conservé — un conducteur qui dépose sa carte
+ * ne doit rien avoir à faire — mais le widget s'en tient à un seul
+ * fichier par réveil, et le moteur PDF y travaille sous un budget bien
+ * plus court, vérifié par le banc des budgets.
  */
-for (const runsInWidget of [true, false]) {
+{
   const disk = newDisk()
-  const { manager, imports } = loadManager(disk, { runsInWidget })
+  disk.set(`${SERVICES}/DriverTimeCard (4).pdf`, "%PDF-1.4 second")
+
+  const { manager, imports } = loadManager(disk, { runsInWidget: true })
   const result = await manager.scanServices({})
 
-  if (result.detected !== 1) {
+  if (imports.length !== 1) {
+    failures.push(`widget : ${imports.length} carte(s) lue(s) en un réveil au lieu d'une seule`)
+  }
+
+  if (result.remaining !== 1) {
+    failures.push(`widget : ${result.remaining} carte(s) annoncée(s) en attente au lieu de 1`)
+  }
+}
+
+{
+  const disk = newDisk()
+  disk.set(`${SERVICES}/DriverTimeCard (4).pdf`, "%PDF-1.4 second")
+
+  const { manager, imports } = loadManager(disk, { runsInWidget: false })
+  await manager.scanServices({})
+
+  if (imports.length !== 2) {
+    failures.push(`application : ${imports.length} carte(s) lue(s) au lieu des deux déposées`)
+  }
+}
+
+/*
+ * Budget dépassé dans le widget : la carte agent n'est pas fautive.
+ *
+ * Un widget qui renonce au bout de quelques secondes n'a rien appris du
+ * PDF. L'annoncer comme un échec d'import afficherait au conducteur
+ * « CTS Dashboard n'a pas réussi à importer ce PDF » pour un fichier
+ * parfaitement valide, et poserait un délai de quinze minutes avant la
+ * prochaine tentative. La carte reste donc simplement en attente, et
+ * l'application la reprendra.
+ */
+{
+  const timeout = {
+    success: false,
+    status: "exception",
+    telemetryCode: "PDF_EXTRACTION_TIMEOUT",
+    error: "La lecture du PDF n’a pas répondu dans le délai imparti."
+  }
+
+  const widgetDisk = newDisk()
+  const widget = loadManager(widgetDisk, { runsInWidget: true, importOutcome: timeout })
+  const widgetResult = await widget.manager.scanServices({})
+
+  if (widgetResult.failed.length) {
+    failures.push("budget dépassé : le widget annonce un échec d'import au conducteur")
+  }
+
+  if (widgetResult.remaining !== 1) {
     failures.push(
-      `${runsInWidget ? "widget" : "application"} : ${result.detected} PDF détecté(s) au lieu de 1`
+      `budget dépassé : ${widgetResult.remaining} carte(s) en attente au lieu de 1`
     )
   }
 
-  if (runsInWidget) {
-    if (imports.length) {
-      failures.push("widget : une lecture de PDF a été lancée alors qu'il n'en a pas le temps")
-    }
+  const state = JSON.parse(widgetDisk.get(STATE) || "{}")
+  const entry = Object.values(state.files || {})[0]
 
-    if (result.remaining !== 1) {
-      failures.push(`widget : ${result.remaining} carte(s) annoncée(s) en attente au lieu de 1`)
-    }
+  if (entry?.status !== "interrupted") {
+    failures.push(
+      `budget dépassé : la carte est marquée « ${entry?.status} » au lieu de « interrupted »`
+    )
+  }
 
-    if (result.status !== "deferred") {
-      failures.push(`widget : statut « ${result.status} » au lieu de « deferred »`)
-    }
-  } else if (!imports.length) {
-    failures.push("application : la carte agent déposée n'est pas importée")
+  /* Le même échec dans l'application est un vrai échec, lui. */
+  const appDisk = newDisk()
+  const application = loadManager(appDisk, { runsInWidget: false, importOutcome: timeout })
+  const appResult = await application.manager.scanServices({})
+
+  if (!appResult.failed.length) {
+    failures.push("budget dépassé : l'application passe un échec réel sous silence")
   }
 }
 
@@ -381,4 +437,4 @@ if (failures.length) {
 
 console.log("ok     balayage des services (verrou : 4 combinaisons, nature ; détection ; " +
   "enregistrement perdu ; refus de validation ; aucune écriture inutile ; " +
-  "import réservé à l\u2019application)")
+  "une carte par réveil ; budget dépassé)")

@@ -29,6 +29,12 @@ const SCAN_STATE_HEARTBEAT_MS = 60 * 60 * 1000
 const EXCEPTION_RETRY_DELAY_MS = 15 * 60 * 1000
 const SERVICE_DISPLAY_GRACE_MS = 60 * 60 * 1000
 
+const BUDGET_TIMEOUT_CODES = Object.freeze([
+  "PDF_EXTRACTION_TIMEOUT",
+  "PDF_ENGINE_INIT_TIMEOUT",
+  "PDF_ENGINE_WEBVIEW_LOAD_FAILED"
+])
+
 async function scanServices(options = {}) {
   CONFIG.ensureDirectories()
 
@@ -74,6 +80,7 @@ async function performScan(options) {
   const selectedCandidates = candidates.slice(0, maximumFiles)
   const imported = []
   const failed = []
+  const deferred = []
 
   for (const candidate of selectedCandidates) {
     recordAttemptedImport(state, candidate)
@@ -85,6 +92,8 @@ async function performScan(options) {
     if (result.success) {
       imported.push(result)
       await recordSuccessfulImport(state, candidate, result)
+    } else if (ranOutOfWidgetBudget(result)) {
+      deferred.push(result)
     } else {
       failed.push(result)
       recordFailedImport(state, candidate, result)
@@ -127,8 +136,14 @@ async function performScan(options) {
     failed,
     knownFailures,
     detectionErrors,
-    remaining: Math.max(0, candidates.length - selectedCandidates.length)
+    remaining: Math.max(0, candidates.length - selectedCandidates.length + deferred.length)
   }
+}
+
+function ranOutOfWidgetBudget(result) {
+  if (runsInApplication()) return false
+
+  return BUDGET_TIMEOUT_CODES.includes(String(result?.telemetryCode || ""))
 }
 
 async function importCandidate(candidate) {
@@ -937,13 +952,12 @@ function localDateKey(date) {
 }
 
 function resolveMaximumFiles(requestedValue) {
-  if (!runsInApplication()) return 0
-
   const configuredValue = Number(pdf.maximumFilesPerRun) || 2
   const value = Number(requestedValue)
   const resolved = Number.isFinite(value) ? value : configuredValue
+  const bounded = Math.max(1, Math.min(10, Math.floor(resolved)))
 
-  return Math.max(1, Math.min(10, Math.floor(resolved)))
+  return runsInApplication() ? bounded : Math.min(1, bounded)
 }
 
 function compareCandidates(first, second) {
