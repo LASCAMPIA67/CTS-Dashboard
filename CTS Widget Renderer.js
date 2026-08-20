@@ -68,11 +68,15 @@ function accessoryFocus(context) {
     return { label: "REPRISE", time: focus?.start || "", place: focus?.from || "" }
   }
 
-  if (type === "NEXT") {
-    return { label: "PROCHAIN", time: focus?.dutyStart || focus?.start || "", place: focus?.from || "" }
+  return accessoryStart(focus)
+}
+
+function accessoryStart(focus) {
+  if (focus?.dutyStart) {
+    return { label: "PRISE", time: focus.dutyStart, place: focus.from || "" }
   }
 
-  return { label: "PRISE", time: focus?.dutyStart || focus?.start || "", place: focus?.from || "" }
+  return { label: "DÉPART", time: focus?.start || "", place: focus?.from || "" }
 }
 
 function createAccessoryWidget(family, context) {
