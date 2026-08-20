@@ -12,6 +12,8 @@ const telemetryFromError = UTILS.telemetryFromError
 const normalizeImportTimings = UTILS.normalizeImportTimings
 const isValidDate = UTILS.isUsableDate
 const SERVICES_SCAN_REFRESH_MS = 15 * 60 * 1000
+const ON_DUTY_SCAN_REFRESH_MS = 5 * 60 * 1000
+const ON_DUTY_STATES = ["WORK", "PAUSE", "CUT"]
 const PENDING_SCAN_REFRESH_MS = 60 * 1000
 const FAILED_SCAN_REFRESH_MS = 5 * 60 * 1000
 const MAX_TELEMETRY_ISSUES = 12
@@ -103,7 +105,8 @@ async function loadContext(currentDate = new Date()) {
   const refreshAfterDate = computeAutomaticRefreshDate(
     serviceRefreshAfterDate,
     automaticResolution,
-    currentDate
+    currentDate,
+    state
   )
 
   return {
@@ -759,15 +762,22 @@ function normalizeTelemetryLabel(value, fallback) {
   return normalizeTelemetryStage(value, fallback)
 }
 
-function computeAutomaticRefreshDate(serviceRefreshAfterDate, resolution, currentDate) {
-  const scanRefreshAfterDate = computeScanRefreshDate(resolution, currentDate)
+function computeAutomaticRefreshDate(serviceRefreshAfterDate, resolution, currentDate, state) {
+  const fallbackDelay = onDutyDelay(state)
+  const scanRefreshAfterDate = computeScanRefreshDate(resolution, currentDate, fallbackDelay)
   const switchAfterDate = computeSelectionSwitchDate(resolution, currentDate)
 
   return earliestValidDate(
     [serviceRefreshAfterDate, scanRefreshAfterDate, switchAfterDate],
-    new Date(currentDate.getTime() + SERVICES_SCAN_REFRESH_MS),
+    new Date(currentDate.getTime() + fallbackDelay),
     currentDate
   )
+}
+
+function onDutyDelay(state) {
+  return ON_DUTY_STATES.includes(String(state?.type || ""))
+    ? ON_DUTY_SCAN_REFRESH_MS
+    : SERVICES_SCAN_REFRESH_MS
 }
 
 function computeSelectionSwitchDate(resolution, currentDate) {
@@ -790,9 +800,9 @@ function computeSelectionSwitchDate(resolution, currentDate) {
   return switchAfterDate
 }
 
-function computeScanRefreshDate(resolution, currentDate) {
+function computeScanRefreshDate(resolution, currentDate, baseDelay = SERVICES_SCAN_REFRESH_MS) {
   const scanResult = resolution?.scanResult
-  let delay = SERVICES_SCAN_REFRESH_MS
+  let delay = baseDelay
 
   if (scanResult?.status === "locked") {
     delay = PENDING_SCAN_REFRESH_MS

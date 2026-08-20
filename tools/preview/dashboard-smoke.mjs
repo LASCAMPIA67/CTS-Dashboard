@@ -330,10 +330,15 @@ async function run(surface, { family = "large", label = surface, service = false
    * qu'iOS accorde — et le seul réveil qui compte, celui du changement de
    * tranche, risquait d'être celui qu'iOS refuse.
    *
-   * Le service semé est en pleine exploitation à 09:00. Le prochain
-   * réveil doit être lointain ; on vérifie qu'il ne retombe pas sur la
-   * cadence à la minute. Le contrôle ne vaut que lorsqu'un service est
-   * semé : sans service, un réveil rapproché est le bon comportement.
+   * Le service semé est en pleine exploitation à 09:00, donc en service :
+   * le rattrapage y vaut cinq minutes, choisi pour qu'une entrée en pause
+   * ne traîne pas sur l'écran d'accueil. Hors service il vaut un quart
+   * d'heure. Ce contrôle vérifie qu'on ne redescend pas sous ces cinq
+   * minutes — c'est la cadence à la minute qu'il empêche de revenir, pas
+   * le rattrapage lui-même.
+   *
+   * Il ne vaut que lorsqu'un service est semé : sans service, un réveil
+   * rapproché est le bon comportement.
    */
   for (const widget of service ? widgetsSet : []) {
     const refreshAt = widget?.refreshAfterDate
@@ -342,10 +347,10 @@ async function run(surface, { family = "large", label = surface, service = false
 
     const minutes = (refreshAt.getTime() - FROZEN_NOW.getTime()) / 60000
 
-    if (minutes < 10) {
+    if (minutes < 4.9) {
       failures.push(
         `${label} : réveil demandé dans ${minutes.toFixed(1)} min — ` +
-        `la cadence à la minute est de retour`
+        `sous le rattrapage de cinq minutes en service`
       )
     }
   }
