@@ -61,6 +61,8 @@ function createFileManager(disk) {
  * nominal que ce banc doit couvrir. Les cas de bord horaires relèvent de
  * CTS Simulator, sur l'iPhone, pas d'ici.
  */
+const ACCESSORY = ["accessoryRectangular", "accessoryCircular", "accessoryInline"]
+
 const FROZEN_NOW = new Date(2026, 7, 19, 9, 0, 0)
 
 class FrozenDate extends Date {
@@ -248,12 +250,16 @@ async function run(surface, { family = "large", label = surface, service = false
   /*
    * Une vignette validée mais vide est ce qu'un conducteur voit comme un
    * écran noir : le fond du widget, et rien dessus.
+   *
+   * Le fond n'est exigé que sur l'écran d'accueil. Les tuiles d'écran
+   * verrouillé sont dessinées par iOS sur son propre fond : leur en
+   * imposer un les rendrait opaques au milieu du fond d'écran.
    */
   for (const widget of widgetsSet) {
     if (!widget?.children?.length) {
       failures.push(`${label} : la vignette validée ne contient aucun élément`)
     }
-    if (!widget?.backgroundGradient && !widget?.backgroundColor) {
+    if (!ACCESSORY.includes(family) && !widget?.backgroundGradient && !widget?.backgroundColor) {
       failures.push(`${label} : la vignette validée n'a aucun fond`)
     }
 
@@ -272,16 +278,41 @@ async function run(surface, { family = "large", label = surface, service = false
     }
 
     /*
-     * Une famille autre que « large » doit recevoir la carte qui le dit,
-     * pas la grande carte de service comprimée dans une tuile d'écran
-     * verrouillé. C'est ce que la coercition de getWidgetFamily rendait
-     * impossible à distinguer.
+     * Les tailles d'écran d'accueil autres que « large » reçoivent la
+     * carte qui le dit : la grande carte comprimée y serait illisible.
+     * C'est ce que la coercition de getWidgetFamily rendait impossible à
+     * distinguer.
      */
-    if (runsInWidget && family !== "large" && !/Widget grand requis/.test(words)) {
+    if (
+      runsInWidget &&
+      family !== "large" &&
+      !ACCESSORY.includes(family) &&
+      !/Widget grand requis/.test(words)
+    ) {
       failures.push(
         `${label} : la grande carte est livrée à une tuile ${family} ` +
         `au lieu de « Widget grand requis »`
       )
+    }
+
+    /*
+     * Une tuile d'écran verrouillé reçoit au contraire un rendu qui lui
+     * est propre : l'heure du prochain événement et son lieu. Elle ne
+     * doit ni réclamer un grand widget, ni recevoir le programme complet
+     * de la journée, qui n'y tiendrait pas.
+     */
+    if (runsInWidget && ACCESSORY.includes(family)) {
+      if (/Widget grand requis/.test(words)) {
+        failures.push(`${label} : une tuile d'écran verrouillé réclame un grand widget`)
+      }
+
+      if (/PROGRAMME|Amplitude/.test(words)) {
+        failures.push(`${label} : la grande carte est livrée à une tuile ${family}`)
+      }
+
+      if (service && !/\d{1,2}:\d{2}/.test(words)) {
+        failures.push(`${label} : aucune heure affichée sur la tuile ${family}`)
+      }
     }
   }
 

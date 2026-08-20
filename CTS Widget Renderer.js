@@ -24,11 +24,190 @@ function isRenderedWidget(widget) {
 
 function createWidget(family, context) {
   const validation = validateContext(context)
-  if (!validation.valid) return createErrorWidget("Service invalide", validation.error)
-  return normalizeFamily(family) === "large"
-    ? createLargeWidget(context)
-    : createLargeOnlyWidget()
+
+  if (!validation.valid) {
+    return createErrorWidget("Service invalide", validation.error, family)
+  }
+
+  if (normalizeFamily(family) === "large") return createLargeWidget(context)
+  if (isAccessoryFamily(family)) return createAccessoryWidget(family, context)
+
+  return createLargeOnlyWidget()
 }
+
+const ACCESSORY_FAMILIES = Object.freeze([
+  "accessoryrectangular",
+  "accessorycircular",
+  "accessoryinline"
+])
+
+function isAccessoryFamily(family) {
+  return ACCESSORY_FAMILIES.includes(normalizeFamily(family))
+}
+
+function createAccessoryBase() {
+  const widget = new ListWidget()
+  widget.setPadding(0, 0, 0, 0)
+  return widget
+}
+
+function accessoryFocus(context) {
+  const state = context.state
+  const focus = context.displaySlice
+  const type = String(state?.type || "")
+
+  if (type === "DONE") {
+    return { label: "TERMINÉ", time: focus?.end || "", place: "" }
+  }
+
+  if (type === "WORK") {
+    return { label: "FIN", time: focus?.end || "", place: focus?.to || "" }
+  }
+
+  if (type === "PAUSE" || type === "CUT") {
+    return { label: "REPRISE", time: focus?.start || "", place: focus?.from || "" }
+  }
+
+  if (type === "NEXT") {
+    return { label: "PROCHAIN", time: focus?.dutyStart || focus?.start || "", place: focus?.from || "" }
+  }
+
+  return { label: "PRISE", time: focus?.dutyStart || focus?.start || "", place: focus?.from || "" }
+}
+
+function createAccessoryWidget(family, context) {
+  const normalized = normalizeFamily(family)
+  const focus = accessoryFocus(context)
+  const service = context.service
+
+  if (normalized === "accessoryinline") {
+    const widget = createAccessoryBase()
+    const label = sentenceCase(focus.label)
+    const parts = [service.number, focus.time ? `${label} ${focus.time}` : label]
+
+    if (focus.place) parts.push(focus.place)
+
+    widget.addText(parts.join(" · "))
+    return markRendered(widget)
+  }
+
+  if (normalized === "accessorycircular") {
+    const widget = createAccessoryBase()
+    const column = widget.addStack()
+    column.layoutVertically()
+    column.centerAlignContent()
+    column.addSpacer()
+    addCenteredLine(column, focus.label, Font.boldSystemFont(9), Color.white(), 0.6)
+    column.addSpacer(1)
+    addCenteredLine(
+      column,
+      focus.time || "—",
+      Font.boldMonospacedSystemFont(15),
+      Color.white(),
+      0.5
+    )
+    column.addSpacer()
+    return markRendered(widget)
+  }
+
+  const widget = createAccessoryBase()
+  const column = widget.addStack()
+  column.layoutVertically()
+
+  const heading = column.addStack()
+  heading.centerAlignContent()
+  addSymbol(heading, getTransportIcon(service), 11, Color.white())
+  heading.addSpacer(4)
+  addText(
+    heading,
+    `${service.number} · ${accessoryStateLabel(context)}`,
+    Font.semiboldSystemFont(11),
+    Color.white(),
+    1,
+    0.6
+  )
+
+  column.addSpacer(2)
+
+  const timing = column.addStack()
+  timing.centerAlignContent()
+  addText(timing, focus.label, Font.boldSystemFont(9), Color.white(), 1, 0.6)
+  timing.addSpacer(5)
+  addText(
+    timing,
+    focus.time || "—",
+    Font.boldMonospacedSystemFont(17),
+    Color.white(),
+    1,
+    0.6
+  )
+
+  if (focus.place) {
+    column.addSpacer(1)
+    addText(column, focus.place, Font.mediumSystemFont(11), Color.white(), 1, 0.55)
+  }
+
+  return markRendered(widget)
+}
+
+function sentenceCase(value) {
+  const text = String(value || "").toLowerCase()
+
+  return text ? text[0].toUpperCase() + text.slice(1) : text
+}
+
+function accessoryStateLabel(context) {
+  return String(context.state?.label || "").trim() || "Service"
+}
+
+function createAccessoryMessage(family, title, message) {
+  const normalized = normalizeFamily(family)
+  const shortTitle = String(title || "CTS Dashboard").trim()
+
+  if (normalized === "accessoryinline") {
+    const widget = createAccessoryBase()
+    widget.addText(shortTitle)
+    return markRendered(widget)
+  }
+
+  if (normalized === "accessorycircular") {
+    const widget = createAccessoryBase()
+    const column = widget.addStack()
+    column.layoutVertically()
+    column.centerAlignContent()
+    column.addSpacer()
+    const row = column.addStack()
+    row.centerAlignContent()
+    row.addSpacer()
+    addSymbol(row, "exclamationmark.triangle.fill", 18, Color.white())
+    row.addSpacer()
+    column.addSpacer()
+    return markRendered(widget)
+  }
+
+  const widget = createAccessoryBase()
+  const column = widget.addStack()
+  column.layoutVertically()
+
+  const heading = column.addStack()
+  heading.centerAlignContent()
+  addSymbol(heading, "exclamationmark.triangle.fill", 11, Color.white())
+  heading.addSpacer(4)
+  addText(heading, shortTitle, Font.semiboldSystemFont(12), Color.white(), 1, 0.6)
+
+  column.addSpacer(2)
+  addText(column, firstLine(message), Font.mediumSystemFont(10), Color.white(), 2, 0.55)
+
+  return markRendered(widget)
+}
+
+function firstLine(value) {
+  return String(value || "")
+    .split("\n")
+    .map(line => line.trim())
+    .filter(Boolean)[0] || ""
+}
+
 
 function createLargeWidget(context) {
   const { service, state, stats, displaySlice: focus } = context
@@ -997,7 +1176,9 @@ function validateContext(context) {
   return { valid: true, error: "" }
 }
 
-function createErrorWidget(title, message) {
+function createErrorWidget(title, message, family) {
+  if (isAccessoryFamily(family)) return createAccessoryMessage(family, title, message)
+
   const widget = new ListWidget()
   widget.backgroundColor = THEME.getErrorBackgroundColor()
   widget.setPadding(18, 18, 18, 18)
@@ -1026,7 +1207,9 @@ function createErrorWidget(title, message) {
   return markRendered(widget)
 }
 
-function createInfoWidget(title, message) {
+function createInfoWidget(title, message, family) {
+  if (isAccessoryFamily(family)) return createAccessoryMessage(family, title, message)
+
   const widget = THEME.createBaseWidget("NEXT")
   widget.setPadding(18, 18, 18, 18)
 
@@ -1056,6 +1239,7 @@ function createInfoWidget(title, message) {
 
 module.exports = {
   isRenderedWidget,
+  isAccessoryFamily,
   getDensity,
   estimateWidgetWidth,
   gridGutter,

@@ -278,6 +278,16 @@ function buildContext(name, screen) {
 }
 
 /* Tailles réelles du widget « large ». */
+/*
+ * Tailles des tuiles d'écran verrouillé, mesurées par Apple et
+ * indépendantes du scénario. Elles ne servent que sous PREVIEW_FAMILY.
+ */
+const ACCESSORY_SIZES = {
+  accessoryRectangular: { width: 160, height: 72 },
+  accessoryCircular: { width: 76, height: 76 },
+  accessoryInline: { width: 200, height: 26 }
+}
+
 const SCREENS = [
   { name: "Pro Max", screen: 428, screenHeight: 926, width: 364, height: 382 },
   { name: "standard", screen: 390, screenHeight: 844, width: 338, height: 354 },
@@ -296,11 +306,12 @@ export function collectItems() {
       if (screensWanted && !screensWanted.includes(screen.name)) continue
       deviceScreen = { width: screen.screen, height: screen.screenHeight }
       const context = buildContext(name, screen)
-      const widget = renderer().createWidget("large", context)
+      const requested = process.env.PREVIEW_FAMILY || "large"
+      const widget = renderer().createWidget(requested, context)
       items.push({
         label: `${name} — ${screen.name} — ${context.state.label}`,
-        width: screen.width,
-        height: screen.height,
+        width: ACCESSORY_SIZES[requested]?.width || screen.width,
+        height: ACCESSORY_SIZES[requested]?.height || screen.height,
         body: widgetBody(widget)
       })
     }
