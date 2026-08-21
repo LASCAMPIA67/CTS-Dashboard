@@ -416,6 +416,21 @@ function buildMissingServiceContext(resolution, cleanup, currentDate) {
     }
   }
 
+  if (String(resolution?.selection?.reason || "") === "service-finished") {
+    telemetry.serviceStatus = "not_found"
+
+    return information(
+      "Aucune carte agent",
+      [
+        "Ton dernier service est terminé et aucune prochaine carte agent n’est disponible.",
+        "",
+        "Dépose ta prochaine carte agent PDF dans le dossier Services."
+      ].join("\n"),
+      currentDate,
+      telemetry
+    )
+  }
+
   if (Number(scanResult?.remaining) > 0) {
     telemetry.pdfStatus = "found"
     telemetry.serviceStatus = "not_found"

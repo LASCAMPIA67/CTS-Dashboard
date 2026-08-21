@@ -42,6 +42,11 @@ jobs:
       - name: Run services scan test
         run: node tools/preview/scan-smoke.mjs
 
+      # Un service terminé ne doit ni disparaître trop tôt, ni bloquer le
+      # suivant : la temporisation dépend de la présence d'une carte agent.
+      - name: Run service handover test
+        run: node tools/preview/selection-smoke.mjs
+
       # La grille du bandeau horaires n'est symétrique que si elle entre
       # dans la carte : sans jeu, l'alignement casse selon l'appareil.
       - name: Run layout geometry test

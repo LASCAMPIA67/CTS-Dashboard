@@ -28,6 +28,7 @@ const SCAN_LOCK_TTL_MS = 2 * 60 * 1000
 const SCAN_STATE_HEARTBEAT_MS = 60 * 60 * 1000
 const EXCEPTION_RETRY_DELAY_MS = 15 * 60 * 1000
 const SERVICE_DISPLAY_GRACE_MS = 60 * 60 * 1000
+const SERVICE_HANDOVER_GRACE_MS = 5 * 60 * 1000
 
 const BUDGET_TIMEOUT_CODES = Object.freeze([
   "PDF_EXTRACTION_TIMEOUT",
@@ -736,6 +737,11 @@ async function resolveServiceForDate(currentDate = new Date()) {
     return emptyServiceSelection("empty-index")
   }
 
+  const findSuccessorOfYesterday = successorFinder(entries, localDateKey(new Date(
+    currentDate.getFullYear(),
+    currentDate.getMonth(),
+    currentDate.getDate() - 1
+  )))
   const todayKey = localDateKey(currentDate)
   const yesterdayDate = new Date(
     currentDate.getFullYear(),
@@ -743,8 +749,8 @@ async function resolveServiceForDate(currentDate = new Date()) {
     currentDate.getDate() - 1
   )
   const yesterdayKey = localDateKey(yesterdayDate)
-  let previousDayFallback = null
-  let todayFallback = null
+  const findSuccessorOfToday = successorFinder(entries, localDateKey(currentDate))
+  let expiredCandidate = null
   const previousDayEntries = entries
     .filter(entry => entry.date === yesterdayKey)
     .sort(compareEntriesByNewest)
@@ -756,15 +762,13 @@ async function resolveServiceForDate(currentDate = new Date()) {
       continue
     }
 
-    const timing = resolveServiceDisplayTiming(source, currentDate)
+    const timing = await resolveDisplayTiming(source, currentDate, findSuccessorOfYesterday)
 
     if (!timing.switchAfterDate || currentDate < timing.switchAfterDate) {
       return buildServiceSelection(entry, source, "overnight", timing)
     }
 
-    if (!previousDayFallback) {
-      previousDayFallback = { entry, source, timing }
-    }
+    expiredCandidate = expiredCandidate || { entry, source, timing }
   }
 
   const todayEntries = entries
@@ -778,15 +782,13 @@ async function resolveServiceForDate(currentDate = new Date()) {
       continue
     }
 
-    const timing = resolveServiceDisplayTiming(source, currentDate)
+    const timing = await resolveDisplayTiming(source, currentDate, findSuccessorOfToday)
 
     if (!timing.switchAfterDate || currentDate < timing.switchAfterDate) {
       return buildServiceSelection(entry, source, "today", timing)
     }
 
-    if (!todayFallback) {
-      todayFallback = { entry, source, timing }
-    }
+    expiredCandidate = { entry, source, timing }
   }
 
   const futureEntries = entries
@@ -806,10 +808,8 @@ async function resolveServiceForDate(currentDate = new Date()) {
     }
   }
 
-  const fallback = todayFallback || previousDayFallback
-
-  if (fallback) {
-    return buildServiceSelection(fallback.entry, fallback.source, "last-known", fallback.timing)
+  if (expiredCandidate) {
+    return emptyServiceSelection("service-finished")
   }
 
   return emptyServiceSelection("no-usable-service")
@@ -853,7 +853,7 @@ async function loadIndexedService(entry) {
   return source
 }
 
-function resolveServiceDisplayTiming(source, currentDate) {
+function resolveServiceDisplayTiming(source, currentDate, graceMs = SERVICE_DISPLAY_GRACE_MS) {
   const serviceEndDate = SERVICES_CLEANER.resolveServiceEndDate(source)
 
   if (!isUsableDate(serviceEndDate)) {
@@ -862,12 +862,13 @@ function resolveServiceDisplayTiming(source, currentDate) {
       switchAfterDate: null,
       serviceEndAt: "",
       switchAfter: "",
+      graceMs,
       withinGracePeriod: false,
       expired: false
     }
   }
 
-  const switchAfterDate = new Date(serviceEndDate.getTime() + SERVICE_DISPLAY_GRACE_MS)
+  const switchAfterDate = new Date(serviceEndDate.getTime() + graceMs)
   const currentTime = currentDate.getTime()
 
   return {
@@ -875,9 +876,50 @@ function resolveServiceDisplayTiming(source, currentDate) {
     switchAfterDate,
     serviceEndAt: serviceEndDate.toISOString(),
     switchAfter: switchAfterDate.toISOString(),
+    graceMs,
     withinGracePeriod:
       currentTime >= serviceEndDate.getTime() && currentTime < switchAfterDate.getTime(),
     expired: currentTime >= switchAfterDate.getTime()
+  }
+}
+
+async function resolveDisplayTiming(source, currentDate, findSuccessor) {
+  const provisional = resolveServiceDisplayTiming(source, currentDate)
+
+  if (!provisional.serviceEndDate) return provisional
+  if (currentDate.getTime() < provisional.serviceEndDate.getTime()) return provisional
+
+  const successor = await findSuccessor()
+
+  if (!successor) return provisional
+
+  return resolveServiceDisplayTiming(source, currentDate, SERVICE_HANDOVER_GRACE_MS)
+}
+
+function successorFinder(entries, afterDateKey) {
+  let resolved
+  let done = false
+
+  return async () => {
+    if (done) return resolved
+
+    done = true
+    resolved = null
+
+    const later = entries
+      .filter(entry => String(entry.date) > afterDateKey)
+      .sort(compareFutureEntries)
+
+    for (const entry of later) {
+      const source = await loadIndexedService(entry)
+
+      if (source) {
+        resolved = { entry, source }
+        break
+      }
+    }
+
+    return resolved
   }
 }
 
@@ -921,7 +963,7 @@ function buildServiceSelection(entry, source, reason, timing = {}) {
     pdfFile: String(entry.pdfFile || ""),
     serviceEndAt: String(timing.serviceEndAt || ""),
     switchAfter: String(timing.switchAfter || ""),
-    displayGraceMs: SERVICE_DISPLAY_GRACE_MS,
+    displayGraceMs: Number(timing.graceMs) || SERVICE_DISPLAY_GRACE_MS,
     withinGracePeriod: Boolean(timing.withinGracePeriod)
   }
 }
