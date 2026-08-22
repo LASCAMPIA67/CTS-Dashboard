@@ -46,7 +46,8 @@ async function runAction(
     throttle = 0,
     expected = null,
     silent = false,
-    preferences = false
+    preferences = false,
+    residue = false
   } = {}
 ) {
   /*
@@ -100,6 +101,27 @@ async function runAction(
         detected: 0
       })
     )
+  }
+
+  /*
+   * Restes d'écriture à la racine de Scriptable.
+   *
+   * writeText passe par « .download » puis met l'ancien fichier de côté
+   * en « .rollback ». Coupé entre les deux, le script disparaît de
+   * Scriptable et n'existe plus que sous son nom de secours. Les deux
+   * cas orphelins portent sur des scripts hors manifeste : la
+   * synchronisation ne les recrée pas, donc c'est bien le balayage qui
+   * décide de leur sort — remettre en place ce qui se relit, garder ce
+   * qui ne se relit pas.
+   */
+  const legitimate = repositoryFile("CTS Utils.js")
+
+  if (residue) {
+    fs.writeFileSync(path.join(docs, "CTS Utils.js.download"), "moitié téléchargé")
+    fs.writeFileSync(path.join(docs, "CTS Parser.js.rollback"), "ancienne version")
+    fs.writeFileSync(path.join(docs, "CTS Simulator.js.rollback"), legitimate)
+    fs.writeFileSync(path.join(docs, "CTS Cassé.js.rollback"), "x")
+    fs.writeFileSync(path.join(docs, "Mes Notes.js.rollback"), "à moi")
   }
 
   const failures = []
@@ -417,6 +439,36 @@ async function runAction(
     )
   }
 
+  if (residue) {
+    const here = name => fs.existsSync(path.join(docs, name))
+
+    if (here("CTS Utils.js.download")) {
+      failures.push("un téléchargement inachevé survit au balayage")
+    }
+
+    if (here("CTS Parser.js.rollback")) {
+      failures.push("une copie de secours survit alors que son script est en place")
+    }
+
+    if (!here("CTS Utils.js") || !here("CTS Parser.js")) {
+      failures.push("le balayage a emporté un script réel")
+    }
+
+    if (here("CTS Simulator.js.rollback") || !here("CTS Simulator.js")) {
+      failures.push("un script absent n’a pas été remis en place depuis sa copie de secours")
+    } else if (fs.readFileSync(path.join(docs, "CTS Simulator.js"), "utf8") !== legitimate) {
+      failures.push("le script remis en place ne porte pas le contenu de la copie de secours")
+    }
+
+    if (!here("CTS Cassé.js.rollback") || here("CTS Cassé.js")) {
+      failures.push("une copie de secours illisible a été remise en place ou supprimée")
+    }
+
+    if (!here("Mes Notes.js.rollback")) {
+      failures.push("le balayage a touché un fichier qui n’appartient pas au projet")
+    }
+  }
+
   fs.rmSync(sandboxRoot, { recursive: true, force: true })
   return [...new Set(failures)]
 }
@@ -430,6 +482,7 @@ async function runAction(
  */
 const scenarios = [
   { label: "vérification", choice: 0, silent: true },
+  { label: "restes d’écriture à la racine", choice: 0, silent: true, residue: true },
   {
     label: "diagnostic",
     choice: 1,
@@ -460,7 +513,8 @@ for (const scenario of scenarios) {
     throttle: scenario.throttle || 0,
     expected: scenario.expected || null,
     silent: scenario.silent === true,
-    preferences: scenario.preferences === true
+    preferences: scenario.preferences === true,
+    residue: scenario.residue === true
   })
 
   if (failures.length) {

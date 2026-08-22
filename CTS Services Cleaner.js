@@ -199,13 +199,14 @@ async function performMaintenance(currentDate, options) {
     await saveCleanupState(result, previousState)
   }
 
-  if (residue && (residue.removed.length || residue.errors.length)) {
+  if (residue && (residue.removed.length || residue.restored.length || residue.errors.length)) {
     try {
       await STORAGE.appendLog(
-        residue.errors.length ? "cleanup-warning" : "cleanup",
+        residue.errors.length || residue.restored.length ? "cleanup-warning" : "cleanup",
         "Nettoyage des restes d’écriture",
         {
           removed: residue.removed.map(item => item.fileName),
+          restored: residue.restored.map(item => item.restoredAs),
           preserved: residue.preserved.length,
           errors: residue.errors
         }
@@ -689,8 +690,58 @@ function classifyResidue(fileName) {
   return null
 }
 
+/*
+ * Remise en place d'une copie de sécurité orpheline.
+ *
+ * Son fichier d'origine manque : l'écriture a été coupée entre le
+ * déplacement de l'ancien et l'arrivée du nouveau. Cette copie était le
+ * fichier vivant une seconde plus tôt — elle est complète, jamais
+ * partielle. La remettre en place est sûr pour tous les fichiers que ce
+ * projet écrit, parce qu'aucun d'eux ne peut faire de dégât en étant un
+ * peu en retard : un index périmé ne bloque pas la réimportation, car
+ * isIndexedAndCurrent exige que le cache existe ; un cache périmé est
+ * réécrit au balayage suivant pour la même raison ; le journal, les
+ * préférences et les états d'exécution sont sans conséquence ; une base
+ * de données retrouvée évite un téléchargement.
+ *
+ * La seule chose qui serait pire que l'absence, c'est du contenu
+ * illisible : un index absent rend un index vide et tout se réimporte,
+ * un index corrompu lève SERVICE_INDEX_INVALID et bloque l'entretien
+ * comme l'import. On ne remet donc en place que ce qu'on a pu relire.
+ */
+function restoreOrphanRollback(rollbackPath, basePath) {
+  let content
+
+  try {
+    content = fm.readString(rollbackPath)
+  } catch (_) {
+    return "rollback-unreadable"
+  }
+
+  if (typeof content !== "string" || !content.trim()) return "rollback-empty"
+
+  if (/\.json$/i.test(basePath)) {
+    try {
+      const value = JSON.parse(content)
+
+      if (!value || typeof value !== "object") return "rollback-unusable"
+    } catch (_) {
+      return "rollback-unusable"
+    }
+  }
+
+  try {
+    fm.move(rollbackPath, basePath)
+  } catch (_) {
+    return "restore-failed"
+  }
+
+  return ""
+}
+
 async function sweepResidue(currentDate, graceMs) {
   const removed = []
+  const restored = []
   const preserved = []
   const errors = []
   const directories = Array.isArray(CONFIG.residueDirectories)
@@ -747,11 +798,28 @@ async function sweepResidue(currentDate, graceMs) {
       /*
        * Une copie de sécurité ou un téléchargement partiel dont la
        * destination manque peut être le dernier état lisible du
-       * fichier. On ne l'efface pas.
+       * fichier. On ne l'efface jamais. Une copie de sécurité relisible
+       * reprend sa place ; un téléchargement partiel, qu'on ne sait pas
+       * vérifier, est simplement gardé — le moteur PDF le remplace de
+       * lui-même au prochain téléchargement.
        */
       if (residue.kind !== "temp" && residue.kind !== "diagnostic") {
-        if (!fm.fileExists(fm.joinPath(directory, residue.baseName))) {
-          preserved.push({ fileName, reason: "original-missing" })
+        const basePath = fm.joinPath(directory, residue.baseName)
+
+        if (!fm.fileExists(basePath)) {
+          if (residue.kind !== "rollback") {
+            preserved.push({ fileName, reason: "original-missing" })
+            continue
+          }
+
+          const failure = restoreOrphanRollback(path, basePath)
+
+          if (failure) {
+            preserved.push({ fileName, reason: failure })
+          } else {
+            restored.push({ fileName, restoredAs: residue.baseName })
+          }
+
           continue
         }
       }
@@ -770,7 +838,7 @@ async function sweepResidue(currentDate, graceMs) {
     }
   }
 
-  return { removed, preserved, errors }
+  return { removed, restored, preserved, errors }
 }
 
 /*
@@ -877,6 +945,7 @@ async function saveCleanupState(result, previousState) {
       ? {
           checkedAt: result.checkedAt,
           removed: result.residue.removed.length,
+          restored: result.residue.restored.length,
           /*
            * Un reste écarté parce qu'il vient d'être écrit n'a rien
            * d'anormal : il partira au balayage suivant. Seuls comptent

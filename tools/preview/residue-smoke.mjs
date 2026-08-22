@@ -13,6 +13,12 @@
  * supprime PAS : une copie de sécurité orpheline, un reste trop récent,
  * un fichier dont l'âge est illisible, et tout ce qui ne porte pas une
  * de nos extensions de travail.
+ *
+ * Et ce qu'il remet en place. Une copie de sécurité orpheline était le
+ * fichier vivant une seconde avant la coupure : si elle se relit, elle
+ * reprend sa place. Si elle ne se relit pas, elle reste où elle est —
+ * un index absent rend un index vide et tout se réimporte, un index
+ * corrompu bloque l'entretien comme l'import.
  */
 
 import fs from "node:fs"
@@ -263,28 +269,95 @@ loaded["CTS Utils"] = (() => {
 {
   const disk = createDisk()
 
-  disk.put(`${DATA}/services-index.json.rollback-1755000000000-ab12cd34`, '{"services":[]}')
   disk.put(`${ENGINE}/pdf.worker.min.mjs.download`, "worker")
 
   const CLEANER = loadCleaner(disk)
   const result = await CLEANER.maintainServices(NOW)
-  const preserved = result.residue.preserved
 
-  check(
-    disk.has(`${DATA}/services-index.json.rollback-1755000000000-ab12cd34`),
-    "la copie de sécurité orpheline de l'index a été supprimée"
-  )
   check(
     disk.has(`${ENGINE}/pdf.worker.min.mjs.download`),
     "le téléchargement partiel du worker a été supprimé alors que le fichier manque"
   )
   check(
-    preserved.filter(item => item.reason === "original-missing").length === 2,
-    "les fichiers conservés ne sont pas signalés comme orphelins"
+    result.residue.preserved.some(item => item.reason === "original-missing"),
+    "le téléchargement partiel n'est pas signalé comme orphelin"
   )
   check(
-    result.residue.removed.length === 0,
-    "un fichier a été effacé alors qu'aucun n'était prouvé inutile"
+    result.residue.removed.length === 0 && result.residue.restored.length === 0,
+    "un fichier a été touché alors qu'on ne sait pas vérifier son contenu"
+  )
+}
+
+/*
+ * Test 2 bis — une copie de sécurité relisible reprend sa place.
+ *
+ * Elle était le fichier vivant une seconde avant la coupure : elle est
+ * complète, jamais partielle. La laisser de côté reviendrait à laisser
+ * les données perdues alors qu'un exemplaire intact est juste à côté.
+ * Rien ne peut être écrasé au passage, puisqu'on n'agit que lorsque le
+ * fichier d'origine manque.
+ */
+{
+  const disk = createDisk()
+  const index = JSON.stringify({ version: 2, updatedAt: "", services: [] })
+
+  disk.put(`${DATA}/services-index.json.rollback-1755000000000-ab12cd34`, index)
+  disk.put(`${CACHE}/Service_2026-08-20_EA05.json.rollback-1755000000000-ef56gh78`, "{}")
+
+  const CLEANER = loadCleaner(disk)
+  const result = await CLEANER.maintainServices(NOW)
+
+  check(
+    disk.files.get(`${DATA}/services-index.json`)?.content === index,
+    "l'index n'a pas été remis en place à partir de sa copie de sécurité"
+  )
+  check(
+    !disk.has(`${DATA}/services-index.json.rollback-1755000000000-ab12cd34`),
+    "la copie de sécurité subsiste après la remise en place"
+  )
+  check(
+    disk.has(`${CACHE}/Service_2026-08-20_EA05.json`),
+    "le cache de service n'a pas été remis en place"
+  )
+  check(
+    result.residue.restored.length === 2,
+    `${result.residue.restored.length} remise(s) en place au lieu de deux`
+  )
+}
+
+/*
+ * Test 2 ter — mais jamais du contenu illisible.
+ *
+ * Un index absent rend un index vide et tout se réimporte ; un index
+ * corrompu lève SERVICE_INDEX_INVALID et bloque l'entretien comme
+ * l'import. Le pire n'est donc pas l'absence, c'est le remplacement par
+ * quelque chose qu'on ne sait pas relire.
+ */
+{
+  const disk = createDisk()
+
+  disk.put(`${DATA}/services-index.json.rollback-1755000000000-ab12cd34`, "{ pas du JSON")
+  disk.put(`${DATA}/import-log.json.rollback-1755000000000-ef56gh78`, "   ")
+
+  const CLEANER = loadCleaner(disk)
+  const result = await CLEANER.maintainServices(NOW)
+
+  check(
+    !disk.has(`${DATA}/services-index.json`),
+    "un index illisible a été remis en place"
+  )
+  check(
+    !disk.has(`${DATA}/import-log.json`),
+    "un journal vide a été remis en place"
+  )
+  check(
+    disk.has(`${DATA}/services-index.json.rollback-1755000000000-ab12cd34`) &&
+      disk.has(`${DATA}/import-log.json.rollback-1755000000000-ef56gh78`),
+    "une copie de sécurité illisible a été supprimée au lieu d'être conservée"
+  )
+  check(
+    result.residue.restored.length === 0,
+    "une remise en place a eu lieu malgré un contenu illisible"
   )
 }
 
@@ -319,7 +392,7 @@ loaded["CTS Utils"] = (() => {
 
   disk.put(`${DATA}/services-index.json`, "{}")
   disk.put(`${DATA}/services-index.json.tmp-1755000000000-ab12cd34`, "{}", RECENT)
-  disk.put(`${DATA}/import-log.json.rollback-1755000000000-ef56gh78`, "[]")
+  disk.put(`${DATA}/import-log.json.rollback-1755000000000-ef56gh78`, "{ pas du JSON")
 
   const CLEANER = loadCleaner(disk)
   await CLEANER.maintainServices(NOW)
@@ -651,6 +724,7 @@ if (failures.length) {
 console.log(
   "ok     balayage des restes d’écriture " +
   "(temporaires, copies orphelines conservées, reste récent, âge illisible, " +
-  "fichiers réels intacts, PDF supplantés, caches orphelins, index borné, " +
+  "fichiers réels intacts, copies relisibles remises en place, copies " +
+  "illisibles gardées, PDF supplantés, caches orphelins, index borné, " +
   "espacement, écriture d’état)"
 )

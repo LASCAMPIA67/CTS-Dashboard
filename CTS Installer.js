@@ -66,6 +66,7 @@ const join = (a, b) => fm.joinPath(a, b)
 const root = join(docs, "CTS Dashboard")
 const currentInstaller = join(docs, `${Script.name()}.js`)
 const canonicalInstaller = join(docs, INSTALLER_FILE)
+const SCRIPT_RESIDUE = /^(CTS .+\.js)\.(download|rollback)$/
 
 const paths = {
   root,
@@ -690,6 +691,10 @@ async function installOrUpdate(manifest, previous) {
 
     await progress.system("verification", "running", "Validation finale…")
 
+    for (const name of sweepScriptResidue().restored) {
+      summary.repaired.push(name)
+    }
+
     const verification = await inspect(manifest)
 
     if (!verification.complete) {
@@ -1116,6 +1121,15 @@ async function diagnosticWriteTest() {
  * été conservés faute de pouvoir prouver qu'ils étaient inutiles.
  */
 function inspectDiagnosticResidue() {
+  const scripts = countScriptResidue()
+
+  if (scripts) {
+    return {
+      status: "warning",
+      detail: `${plural(scripts, "reste de script", "restes de script")} à la racine Scriptable`
+    }
+  }
+
   const statePath = join(paths.data, "services-cleanup-state.json")
 
   if (!fm.fileExists(statePath)) {
@@ -1137,6 +1151,7 @@ function inspectDiagnosticResidue() {
   }
 
   const preserved = Number(residue.preserved) || 0
+  const restored = Number(residue.restored) || 0
   const removed = Number(residue.removed) || 0
   const errors = Number(residue.errors) || 0
 
@@ -1144,6 +1159,13 @@ function inspectDiagnosticResidue() {
     return {
       status: "error",
       detail: `${plural(errors, "reste non supprimé", "restes non supprimés")}`
+    }
+  }
+
+  if (restored) {
+    return {
+      status: "warning",
+      detail: `${plural(restored, "fichier remis en place", "fichiers remis en place")}`
     }
   }
 
@@ -2930,6 +2952,87 @@ function verifyRepository(manifest) {
   if (!/^[0-9a-f]{40}$/.test(String(repositoryRevision))) {
     throw new Error("Connexion GitHub invalide : snapshot non résolu")
   }
+}
+
+/*
+ * Restes d'écriture à la racine de Scriptable.
+ *
+ * writeText passe par « .download » puis met l'ancien fichier de côté
+ * en « .rollback ». iOS peut arrêter l'installateur entre les deux : le
+ * script disparaît alors de Scriptable et n'existe plus que sous son
+ * nom de secours. Le widget ne balaie pas cet endroit — il n'a rien à y
+ * faire, et là un fichier manquant ne se répare pas tout seul.
+ *
+ * Ce balayage passe APRÈS la synchronisation, donc après que GitHub a
+ * eu sa chance de réécrire les fichiers. Ce qui manque encore à ce
+ * stade manque vraiment : une copie de secours relisible reprend alors
+ * sa place, ce qui sauve l'installation quand le réseau a lâché en
+ * cours de route. Rien qui ne commence pas par « CTS » n'est touché.
+ */
+function sweepScriptResidue() {
+  const removed = []
+  const restored = []
+  const preserved = []
+
+  let names
+
+  try {
+    names = fm.listContents(docs)
+  } catch (_) {
+    return { removed, restored, preserved }
+  }
+
+  for (const name of Array.isArray(names) ? names : []) {
+    const found = SCRIPT_RESIDUE.exec(String(name || ""))
+
+    if (!found) continue
+
+    const path = join(docs, name)
+    const destination = join(docs, found[1])
+
+    if (found[2] === "download" || fm.fileExists(destination)) {
+      removeQuietly(path)
+      removed.push(name)
+      continue
+    }
+
+    let content
+
+    try {
+      content = fm.readString(path)
+    } catch (_) {
+      preserved.push(name)
+      continue
+    }
+
+    if (!validateText(content, found[1]).valid) {
+      preserved.push(name)
+      continue
+    }
+
+    try {
+      fm.move(path, destination)
+      restored.push(found[1])
+    } catch (_) {
+      preserved.push(name)
+    }
+  }
+
+  return { removed, restored, preserved }
+}
+
+function countScriptResidue() {
+  let names
+
+  try {
+    names = fm.listContents(docs)
+  } catch (_) {
+    return 0
+  }
+
+  return (Array.isArray(names) ? names : []).filter(name =>
+    SCRIPT_RESIDUE.test(String(name || ""))
+  ).length
 }
 
 function validateText(content, name) {
