@@ -144,8 +144,18 @@ function loadCleaner(disk, { readableDates = true } = {}) {
     }
   }
 
+  /* Comme le vrai : l'index vient du disque, pas d'une copie figée. */
   loaded["CTS Importer"] = {
-    readCurrentIndex: async () => ({ version: 2, updatedAt: "", services: [] })
+    readCurrentIndex: async () => {
+      const entry = disk.files.get(`${DATA}/services-index.json`)
+      const value = entry ? JSON.parse(entry.content) : null
+
+      return {
+        version: Number(value?.version) || 2,
+        updatedAt: String(value?.updatedAt || ""),
+        services: Array.isArray(value?.services) ? value.services : []
+      }
+    }
   }
 
   const source = fs.readFileSync(path.join(repository, "CTS Services Cleaner.js"), "utf8")
@@ -361,6 +371,23 @@ loaded["CTS Utils"] = (() => {
 
   for (const target of untouched) disk.put(target, "{}", ANCIENT)
 
+  disk.put(
+    `${DATA}/services-index.json`,
+    JSON.stringify({
+      version: 2,
+      updatedAt: "",
+      services: [
+        {
+          id: "2026-08-20_EA05",
+          date: "2026-08-20",
+          service: "EA05",
+          cacheFile: "Service_2026-08-20_EA05.json"
+        }
+      ]
+    }),
+    ANCIENT
+  )
+
   const CLEANER = loadCleaner(disk)
   await CLEANER.maintainServices(NOW)
 
@@ -458,6 +485,129 @@ loaded["CTS Utils"] = (() => {
   )
 }
 
+/*
+ * Test 9 — l'oubli des services entièrement liquidés.
+ *
+ * L'index est relu à chaque réveil du widget. Une entrée qui ne désigne
+ * plus aucun fichier ne peut plus rien apprendre à personne : ni au
+ * balayage, ni au scanner, ni au widget. Elle part. Tout le reste — un
+ * PDF encore là, une archive encore là, un cache encore là, une date
+ * trop récente, une liquidation inachevée — reste.
+ */
+{
+  const disk = createDisk()
+
+  const entry = (id, extra = {}) => ({
+    id,
+    date: id.slice(0, 10),
+    service: id.slice(11),
+    pdfFile: `Service_${id}.pdf`,
+    cacheFile: `Service_${id}.json`,
+    textFile: `Service_${id}.txt`,
+    archive: { fileName: `Service_${id}.pdf`, archivedAt: "", deletedAt: "2026-08-01T00:00:00.000Z" },
+    cache: { clearedAt: "2026-08-01T00:00:00.000Z" },
+    ...extra
+  })
+
+  const services = [
+    entry("2026-07-01_EA01"),
+    entry("2026-07-02_EA02"),
+    entry("2026-07-03_EA03"),
+    entry("2026-07-04_EA04"),
+    entry("2026-08-20_EA05"),
+    entry("2026-07-05_EA06", { archive: { fileName: "x.pdf", archivedAt: "", deletedAt: "" } }),
+    entry("2026-07-06_EA07", { cache: { clearedAt: "" } })
+  ]
+
+  disk.put(`${DATA}/services-index.json`, JSON.stringify({ version: 2, updatedAt: "", services }))
+  disk.put(`${SERVICES}/Service_2026-07-02_EA02.pdf`, "%PDF")
+  disk.put(`${ARCHIVE}/Service_2026-07-03_EA03.pdf`, "%PDF")
+  disk.put(`${CACHE}/Service_2026-07-04_EA04.json`, "{}")
+
+  const CLEANER = loadCleaner(disk)
+  const result = await CLEANER.maintainServices(NOW)
+
+  check(
+    result.forgotten.join(",") === "2026-07-01_EA01",
+    `oubli inattendu : « ${result.forgotten.join(", ")} »`
+  )
+
+  const remaining = JSON.parse(disk.files.get(`${DATA}/services-index.json`).content)
+
+  check(remaining.services.length === 6, "l'index n'a pas été réécrit sans l'entrée oubliée")
+}
+
+/*
+ * Test 10 — les caches sans entrée d'index.
+ *
+ * Ils ne sont plus atteignables. Mais un index absent n'est pas un
+ * index vide : il peut être en reconstruction, et le cache servira. On
+ * ne balaie donc rien tant que le fichier d'index n'existe pas, ni
+ * avant la rétention.
+ */
+{
+  const disk = createDisk()
+
+  disk.put(
+    `${DATA}/services-index.json`,
+    JSON.stringify({
+      version: 2,
+      updatedAt: "",
+      services: [
+        {
+          id: "2026-08-20_EA05",
+          date: "2026-08-20",
+          service: "EA05",
+          cacheFile: "Service_2026-08-20_EA05.json",
+          textFile: "Service_2026-08-20_EA05.txt"
+        }
+      ]
+    })
+  )
+
+  disk.put(`${CACHE}/Service_2026-08-20_EA05.json`, "{}", ANCIENT)
+  disk.put(`${CACHE}/Service_2026-01-01_EA99.json`, "{}", ANCIENT)
+  disk.put(`${TEXT_CACHE}/Service_2026-01-01_EA99.txt`, "x", ANCIENT)
+  disk.put(`${TEXT_CACHE}/Service_2026-08-21_EA06.txt`, "x", new Date(NOW.getTime() - 2 * DAY))
+
+  const CLEANER = loadCleaner(disk)
+
+  await CLEANER.maintainServices(NOW)
+
+  check(
+    disk.has(`${CACHE}/Service_2026-08-20_EA05.json`),
+    "un cache nommé par l'index a été effacé"
+  )
+  check(
+    !disk.has(`${CACHE}/Service_2026-01-01_EA99.json`),
+    "un cache orphelin de janvier n'a pas été effacé"
+  )
+  check(
+    !disk.has(`${TEXT_CACHE}/Service_2026-01-01_EA99.txt`),
+    "un texte orphelin de janvier n'a pas été effacé"
+  )
+  check(
+    disk.has(`${TEXT_CACHE}/Service_2026-08-21_EA06.txt`),
+    "un cache orphelin vieux de deux jours a été effacé avant la rétention"
+  )
+}
+
+/* Sans fichier d'index, rien n'est touché : il peut être en reconstruction. */
+{
+  const disk = createDisk()
+
+  disk.put(`${CACHE}/Service_2026-01-01_EA99.json`, "{}", ANCIENT)
+
+  const CLEANER = loadCleaner(disk)
+
+  await CLEANER.maintainServices(NOW)
+
+  check(
+    disk.has(`${CACHE}/Service_2026-01-01_EA99.json`),
+    "un cache a été effacé alors que l'index n'existe pas"
+  )
+}
+
 /* Le classement des noms, isolé du reste. */
 {
   const disk = createDisk()
@@ -501,5 +651,6 @@ if (failures.length) {
 console.log(
   "ok     balayage des restes d’écriture " +
   "(temporaires, copies orphelines conservées, reste récent, âge illisible, " +
-  "fichiers réels intacts, PDF supplantés, espacement, écriture d’état)"
+  "fichiers réels intacts, PDF supplantés, caches orphelins, index borné, " +
+  "espacement, écriture d’état)"
 )

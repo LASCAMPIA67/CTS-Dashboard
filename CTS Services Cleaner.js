@@ -138,6 +138,15 @@ async function performMaintenance(currentDate, options) {
     }
   }
 
+  const sweeping =
+    options.sweepResidue !== false && shouldSweepResidue(previousState, currentDate)
+
+  const forgotten = sweeping
+    ? forgetSpentEntries(index, currentDate, archiveRetentionMs)
+    : []
+
+  if (forgotten.length) indexChanged = true
+
   if (indexChanged) {
     index.updatedAt = new Date().toISOString()
 
@@ -152,16 +161,21 @@ async function performMaintenance(currentDate, options) {
 
   let residue = null
 
-  if (options.sweepResidue !== false && shouldSweepResidue(previousState, currentDate)) {
+  if (sweeping) {
     residue = await sweepResidue(currentDate, residueGraceMs)
 
     const replaced = sweepReplacedArchives(currentDate, archiveRetentionMs)
+    const orphans = sweepOrphanCaches(index, currentDate, archiveRetentionMs)
 
     for (const fileName of replaced.removed) {
       residue.removed.push({ fileName, kind: "replaced-archive" })
     }
 
-    residue.errors.push(...replaced.errors)
+    for (const fileName of orphans.removed) {
+      residue.removed.push({ fileName, kind: "orphan-cache" })
+    }
+
+    residue.errors.push(...replaced.errors, ...orphans.errors)
   }
 
   const result = {
@@ -175,6 +189,7 @@ async function performMaintenance(currentDate, options) {
     archived,
     deleted,
     cacheCleared,
+    forgotten,
     residue,
     skipped,
     errors
@@ -508,6 +523,132 @@ function resolveServiceEndDate(source) {
     0,
     0
   )
+}
+
+/*
+ * Oubli des services entièrement liquidés.
+ *
+ * Une entrée d'index n'était jamais retirée : l'index grossissait d'un
+ * service par jour, indéfiniment, alors qu'il est relu à chaque réveil
+ * du widget. Une entrée peut être oubliée quand elle ne désigne plus
+ * rien du tout — PDF archivé puis supprimé, cache vidé, et aucun des
+ * quatre fichiers qu'elle nomme encore présent sur le disque. Elle ne
+ * peut alors plus rien apprendre à personne : ni au balayage, qui n'a
+ * plus de fichier à traiter, ni au scanner, qui ne retrouvera aucun PDF
+ * à réimporter, ni au widget, dont le service est fini depuis des
+ * jours. Toute autre entrée est conservée.
+ */
+function forgetSpentEntries(index, currentDate, archiveRetentionMs) {
+  const services = Array.isArray(index?.services) ? index.services : []
+  const forgotten = []
+  const kept = []
+
+  for (const entry of services) {
+    if (isSpentEntry(entry, currentDate, archiveRetentionMs)) {
+      forgotten.push(String(entry.id || ""))
+    } else {
+      kept.push(entry)
+    }
+  }
+
+  if (forgotten.length) index.services = kept
+
+  return forgotten
+}
+
+function isSpentEntry(entry, currentDate, archiveRetentionMs) {
+  if (!isUsableIndexEntry(entry)) return false
+  if (!entry.archive?.deletedAt || !entry.cache?.clearedAt) return false
+
+  const serviceDate = UTILS.parseDate(String(entry.date || ""))
+
+  if (!serviceDate) return false
+  if (currentDate.getTime() - serviceDate.getTime() < archiveRetentionMs) return false
+
+  const named = [
+    [paths.services, entry.pdfFile],
+    [paths.servicesArchive, entry.archive.fileName],
+    [paths.servicesCache, entry.cacheFile],
+    [paths.servicesTextCache, entry.textFile]
+  ]
+
+  for (const [directory, fileName] of named) {
+    const name = String(fileName || "").trim()
+
+    if (name && fm.fileExists(fm.joinPath(directory, name))) return false
+  }
+
+  return true
+}
+
+/*
+ * Caches sans entrée d'index.
+ *
+ * Ils ne peuvent plus être atteints : la sélection du service ne lit
+ * que les fichiers nommés par l'index. Mais un index absent n'est pas
+ * un index vide — il peut être en cours de reconstruction. On ne
+ * balaie donc que si l'index existe vraiment, et seulement au-delà de
+ * la rétention, jamais sur un cache du jour.
+ */
+function sweepOrphanCaches(index, currentDate, retentionMs) {
+  const removed = []
+  const errors = []
+
+  if (!fm.fileExists(files.servicesIndex)) return { removed, errors }
+
+  const known = new Set()
+
+  for (const entry of Array.isArray(index?.services) ? index.services : []) {
+    for (const name of [entry?.cacheFile, entry?.textFile]) {
+      const value = String(name || "").trim()
+
+      if (value) known.add(value)
+    }
+  }
+
+  for (const directory of [paths.servicesCache, paths.servicesTextCache]) {
+    if (!fm.fileExists(directory)) continue
+
+    let fileNames
+
+    try {
+      fileNames = fm.listContents(directory)
+    } catch (error) {
+      errors.push({
+        directory,
+        telemetryCode: "RESIDUE_DIRECTORY_READ_FAILED",
+        telemetryStage: "residue",
+        error: UTILS.errorMessage(error)
+      })
+      continue
+    }
+
+    for (const fileName of Array.isArray(fileNames) ? fileNames : []) {
+      const name = String(fileName || "")
+
+      if (!/^Service_.+\.(json|txt)$/.test(name) || known.has(name)) continue
+
+      const path = fm.joinPath(directory, name)
+      const modifiedAt = STORAGE.safeModificationDate(path)
+
+      if (!modifiedAt) continue
+      if (currentDate.getTime() - modifiedAt.getTime() < retentionMs) continue
+
+      try {
+        fm.remove(path)
+        removed.push(name)
+      } catch (error) {
+        errors.push({
+          fileName: name,
+          telemetryCode: "ORPHAN_CACHE_DELETE_FAILED",
+          telemetryStage: "residue",
+          error: UTILS.errorMessage(error)
+        })
+      }
+    }
+  }
+
+  return { removed, errors }
 }
 
 /*
