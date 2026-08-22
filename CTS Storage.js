@@ -266,9 +266,16 @@ function removeFile(path) {
   }
 }
 
+/*
+ * Restes des anciennes écritures, avant que les noms ne portent un
+ * jeton. Le temporaire ne contient rien que quelqu'un ait pu lire ; la
+ * copie de sécurité, elle, est le dernier exemplaire connu du fichier
+ * tant que celui-ci n'a pas repris sa place. On ne l'efface donc que
+ * lorsque l'original existe.
+ */
 function cleanupLegacyWriteFiles(path) {
   removeFileQuietly(`${path}.tmp`)
-  removeFileQuietly(`${path}.rollback`)
+  if (fm.fileExists(path)) removeFileQuietly(`${path}.rollback`)
 }
 
 function removeFileQuietly(path) {
@@ -306,6 +313,7 @@ async function writeJsonAtomically(path, value, options = {}) {
   const temporaryPath = `${path}.tmp-${token}`
   const rollbackPath = `${path}.rollback-${token}`
 
+  cleanupLegacyWriteFiles(path)
   removeFileQuietly(temporaryPath)
   removeFileQuietly(rollbackPath)
 

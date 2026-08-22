@@ -7,12 +7,14 @@ const STORAGE = importModule("CTS Storage")
 const IMPORTER = importModule("CTS Importer")
 const UTILS = importModule("CTS Utils")
 const { fm, paths, files, pdf } = CONFIG
+const REPLACED_PDF_PREFIX = "Remplace_"
 const isUsableDate = UTILS.isUsableDate
 const removeFileQuietly = STORAGE.removeFileQuietly
 const CLEANUP_WRITE_MESSAGE = "Le fichier temporaire d’entretien ne peut pas être écrit"
 const CLEANUP_COMMIT_MESSAGE = "Le fichier d’entretien n’a pas pu être validé"
 const CLEANUP_VERSION = 1
 const CLEANUP_LOCK_TTL_MS = 2 * 60 * 1000
+const CLEANUP_STATE_HEARTBEAT_MS = 60 * 60 * 1000
 const CLEANUP_LOCK_PATH = fm.joinPath(paths.data, "services-cleanup.lock")
 const CLEANUP_STATE_PATH = fm.joinPath(paths.data, "services-cleanup-state.json")
 
@@ -86,6 +88,14 @@ async function performMaintenance(currentDate, options) {
     60 * 1000
   )
 
+  const residueGraceMs = resolveNonNegativeDelay(
+    options.residueGraceMs,
+    pdf.residueGraceMs,
+    60 * 60 * 1000
+  )
+
+  const previousState = await loadCleanupState()
+
   const archived = []
   const deleted = []
   const cacheCleared = []
@@ -140,6 +150,20 @@ async function performMaintenance(currentDate, options) {
     })
   }
 
+  let residue = null
+
+  if (options.sweepResidue !== false && shouldSweepResidue(previousState, currentDate)) {
+    residue = await sweepResidue(currentDate, residueGraceMs)
+
+    const replaced = sweepReplacedArchives(currentDate, archiveRetentionMs)
+
+    for (const fileName of replaced.removed) {
+      residue.removed.push({ fileName, kind: "replaced-archive" })
+    }
+
+    residue.errors.push(...replaced.errors)
+  }
+
   const result = {
     success: errors.length === 0,
     status: archived.length || deleted.length || cacheCleared.length ? "processed" : "idle",
@@ -147,14 +171,32 @@ async function performMaintenance(currentDate, options) {
     cacheGraceMs,
     archiveGraceMs,
     archiveRetentionMs,
+    residueGraceMs,
     archived,
     deleted,
     cacheCleared,
+    residue,
     skipped,
     errors
   }
 
-  await saveCleanupState(result)
+  if (residue || indexChanged || errors.length || stateWriteIsStale(previousState, currentDate)) {
+    await saveCleanupState(result, previousState)
+  }
+
+  if (residue && (residue.removed.length || residue.errors.length)) {
+    try {
+      await STORAGE.appendLog(
+        residue.errors.length ? "cleanup-warning" : "cleanup",
+        "Nettoyage des restes d’écriture",
+        {
+          removed: residue.removed.map(item => item.fileName),
+          preserved: residue.preserved.length,
+          errors: residue.errors
+        }
+      )
+    } catch (_) {}
+  }
 
   if (archived.length || deleted.length || cacheCleared.length || errors.length) {
     try {
@@ -468,10 +510,241 @@ function resolveServiceEndDate(source) {
   )
 }
 
-async function saveCleanupState(result) {
+/*
+ * Balayage des restes d'écriture.
+ *
+ * Une écriture atomique passe par un fichier temporaire puis par une
+ * copie de sécurité, tous deux effacés une fois l'écriture validée. iOS
+ * peut interrompre un widget entre deux de ces déplacements : le reste
+ * survit alors au tour suivant. Comme le jeton du nom est unique, il ne
+ * sera jamais réutilisé ni réécrit — il faut donc venir le chercher.
+ *
+ * La règle décisive est celle de la copie de sécurité. Entre le moment
+ * où le fichier d'origine est déplacé vers « .rollback » et celui où le
+ * temporaire prend sa place, la copie de sécurité est le SEUL
+ * exemplaire des données. Une copie de sécurité dont le fichier
+ * d'origine est absent n'est donc jamais supprimée : elle est comptée
+ * et signalée, pas effacée. Le temporaire, lui, ne peut jamais être cet
+ * exemplaire unique — soit l'original tient toujours sa place, soit la
+ * copie de sécurité le protège, soit le fichier n'avait encore jamais
+ * existé et personne n'en connaissait le contenu.
+ */
+const RESIDUE_RULES = Object.freeze([
+  { kind: "diagnostic", match: /^\.cts-diagnostic-\d+\.tmp$/ },
+  { kind: "temp", match: /^(.+)\.tmp-\d+-[a-z0-9]+$/ },
+  { kind: "temp", match: /^(.+)\.tmp$/ },
+  { kind: "rollback", match: /^(.+)\.rollback-\d+-[a-z0-9]+$/ },
+  { kind: "rollback", match: /^(.+)\.rollback$/ },
+  { kind: "download", match: /^(.+)\.download$/ }
+])
+
+function classifyResidue(fileName) {
+  for (const rule of RESIDUE_RULES) {
+    const found = rule.match.exec(fileName)
+
+    if (found) return { kind: rule.kind, baseName: found[1] || "" }
+  }
+
+  return null
+}
+
+async function sweepResidue(currentDate, graceMs) {
+  const removed = []
+  const preserved = []
+  const errors = []
+  const directories = Array.isArray(CONFIG.residueDirectories)
+    ? CONFIG.residueDirectories
+    : []
+
+  for (const directory of directories) {
+    if (!fm.fileExists(directory)) continue
+
+    let fileNames
+
+    try {
+      fileNames = fm.listContents(directory)
+    } catch (error) {
+      errors.push({
+        directory,
+        telemetryCode: "RESIDUE_DIRECTORY_READ_FAILED",
+        telemetryStage: "residue",
+        error: UTILS.errorMessage(error)
+      })
+      continue
+    }
+
+    for (const fileName of Array.isArray(fileNames) ? fileNames : []) {
+      const residue = classifyResidue(String(fileName || ""))
+
+      if (!residue) continue
+
+      const path = fm.joinPath(directory, fileName)
+
+      try {
+        if (fm.isDirectory(path)) continue
+      } catch (_) {
+        preserved.push({ fileName, reason: "metadata-unreadable" })
+        continue
+      }
+
+      /*
+       * Sans date de modification lisible, l'âge du reste est inconnu :
+       * il pourrait appartenir à une écriture en cours. On conserve.
+       */
+      const modifiedAt = STORAGE.safeModificationDate(path)
+
+      if (!modifiedAt) {
+        preserved.push({ fileName, reason: "age-unknown" })
+        continue
+      }
+
+      if (currentDate.getTime() - modifiedAt.getTime() < graceMs) {
+        preserved.push({ fileName, reason: "too-recent" })
+        continue
+      }
+
+      /*
+       * Une copie de sécurité ou un téléchargement partiel dont la
+       * destination manque peut être le dernier état lisible du
+       * fichier. On ne l'efface pas.
+       */
+      if (residue.kind !== "temp" && residue.kind !== "diagnostic") {
+        if (!fm.fileExists(fm.joinPath(directory, residue.baseName))) {
+          preserved.push({ fileName, reason: "original-missing" })
+          continue
+        }
+      }
+
+      try {
+        fm.remove(path)
+        removed.push({ fileName, kind: residue.kind })
+      } catch (error) {
+        errors.push({
+          fileName,
+          telemetryCode: "RESIDUE_DELETE_FAILED",
+          telemetryStage: "residue",
+          error: UTILS.errorMessage(error)
+        })
+      }
+    }
+  }
+
+  return { removed, preserved, errors }
+}
+
+/*
+ * Les PDF « Remplace_… » sont les exemplaires supplantés d'un service
+ * réimporté. Aucun code ne les relit ; ils vivent dans le dossier
+ * Archive, dont la règle est déjà une rétention de sept jours. On leur
+ * applique exactement cette règle, ni plus courte ni plus longue.
+ */
+function sweepReplacedArchives(currentDate, retentionMs) {
+  const removed = []
+  const errors = []
+
+  if (!fm.fileExists(paths.servicesArchive)) return { removed, errors }
+
+  let fileNames
+
+  try {
+    fileNames = fm.listContents(paths.servicesArchive)
+  } catch (error) {
+    errors.push({
+      directory: paths.servicesArchive,
+      telemetryCode: "RESIDUE_DIRECTORY_READ_FAILED",
+      telemetryStage: "residue",
+      error: UTILS.errorMessage(error)
+    })
+
+    return { removed, errors }
+  }
+
+  for (const fileName of Array.isArray(fileNames) ? fileNames : []) {
+    const name = String(fileName || "")
+
+    if (!name.startsWith(REPLACED_PDF_PREFIX) || !/\.pdf$/i.test(name)) continue
+
+    const path = fm.joinPath(paths.servicesArchive, name)
+    const modifiedAt = STORAGE.safeModificationDate(path)
+
+    if (!modifiedAt) continue
+    if (currentDate.getTime() - modifiedAt.getTime() < retentionMs) continue
+
+    try {
+      fm.remove(path)
+      removed.push(name)
+    } catch (error) {
+      errors.push({
+        fileName: name,
+        telemetryCode: "REPLACED_ARCHIVE_DELETE_FAILED",
+        telemetryStage: "residue",
+        error: UTILS.errorMessage(error)
+      })
+    }
+  }
+
+  return { removed, errors }
+}
+
+function shouldSweepResidue(previousState, currentDate) {
+  if (UTILS.runsInApplication()) return true
+
+  const lastSweep = Date.parse(String(previousState?.lastResidueSweepAt || ""))
+
+  if (!Number.isFinite(lastSweep)) return true
+
+  const interval = resolveNonNegativeDelay(
+    undefined,
+    pdf.residueSweepIntervalMs,
+    6 * 60 * 60 * 1000
+  )
+
+  return currentDate.getTime() - lastSweep >= interval
+}
+
+/*
+ * L'état d'entretien ne porte, une fois tout rangé, que sa propre date.
+ * Le réécrire à chaque réveil du widget ferait travailler iCloud pour
+ * rien. On ne le réécrit donc que s'il s'est passé quelque chose, ou si
+ * la dernière trace remonte à plus d'une heure — assez pour qu'un
+ * diagnostic sache que l'entretien tourne encore.
+ */
+function stateWriteIsStale(previousState, currentDate) {
+  const writtenAt = Date.parse(String(previousState?.updatedAt || ""))
+
+  return !Number.isFinite(writtenAt) || currentDate.getTime() - writtenAt >= CLEANUP_STATE_HEARTBEAT_MS
+}
+
+async function loadCleanupState() {
+  try {
+    const value = await STORAGE.readJson(CLEANUP_STATE_PATH, null)
+
+    return value && typeof value === "object" && !Array.isArray(value) ? value : null
+  } catch (_) {
+    return null
+  }
+}
+
+async function saveCleanupState(result, previousState) {
   const state = {
     version: CLEANUP_VERSION,
-    updatedAt: new Date().toISOString(),
+    updatedAt: result.checkedAt,
+    lastResidueSweepAt: String(
+      result.residue ? result.checkedAt : previousState?.lastResidueSweepAt || ""
+    ),
+    lastResidue: result.residue
+      ? {
+          checkedAt: result.checkedAt,
+          removed: result.residue.removed.length,
+          /*
+           * Un reste écarté parce qu'il vient d'être écrit n'a rien
+           * d'anormal : il partira au balayage suivant. Seuls comptent
+           * ici ceux qu'on ne sait pas trancher.
+           */
+          preserved: result.residue.preserved.filter(item => item.reason !== "too-recent").length,
+          errors: result.residue.errors.length
+        }
+      : previousState?.lastResidue || null,
     lastResult: {
       success: result.success,
       status: result.status,
@@ -649,5 +922,6 @@ function failureResult(
 
 module.exports = {
   maintainServices,
-  resolveServiceEndDate
+  resolveServiceEndDate,
+  classifyResidue
 }

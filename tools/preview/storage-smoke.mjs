@@ -313,6 +313,40 @@ for (const confirmsDownloads of [true, false]) {
 }
 
 /*
+ * Restes des anciennes écritures, avant que les noms ne portent un
+ * jeton. Chaque écriture les balaie au passage — mais une copie de
+ * sécurité dont le fichier d'origine manque peut être le dernier
+ * exemplaire des données. Elle doit survivre à ce balayage.
+ */
+{
+  const fm = createFileManager({ confirmsDownloads: true })
+  const STORAGE = loadStorage(fm)
+  const target = "/documents/CTS Dashboard/Data/services-index.json"
+
+  fm.disk.set(target, "{}")
+  fm.disk.set(`${target}.tmp`, "reste")
+  fm.disk.set(`${target}.rollback`, "reste")
+
+  await STORAGE.writeJsonSafely(target, INDEX)
+
+  if (fm.disk.has(`${target}.tmp`) || fm.disk.has(`${target}.rollback`)) {
+    failures.push("anciens restes : ils survivent à une écriture réussie")
+  }
+
+  const orphan = "/documents/CTS Dashboard/Data/import-log.json"
+
+  fm.disk.set(`${orphan}.rollback`, '["contenu unique"]')
+
+  await STORAGE.writeJsonSafely(orphan, [])
+
+  if (!fm.disk.has(`${orphan}.rollback`)) {
+    failures.push(
+      "anciens restes : la copie de sécurité a été effacée alors que le fichier d’origine manquait"
+    )
+  }
+}
+
+/*
  * Préférences d'affichage.
  *
  * Le widget les lit à chaque réveil et ne les écrit jamais. Un fichier

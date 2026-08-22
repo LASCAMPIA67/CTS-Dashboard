@@ -79,3 +79,8 @@ jobs:
       # heure : seul un enchaînement rejoué le vérifie.
       - name: Run services cleanup test
         run: node tools/preview/cleanup-smoke.mjs
+
+      # Une copie de sécurité orpheline peut être le dernier exemplaire
+      # d'un fichier : le balayage doit la conserver, pas la ranger.
+      - name: Run write residue test
+        run: node tools/preview/residue-smoke.mjs

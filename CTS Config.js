@@ -67,8 +67,18 @@ const pdf = Object.freeze({
   maximumFilesPerRun: 2,
   cacheGraceMs: HOUR_MS,
   archiveGraceMs: HOUR_MS,
-  archiveRetentionMs: 7 * DAY_MS
+  archiveRetentionMs: 7 * DAY_MS,
+  residueGraceMs: HOUR_MS,
+  residueSweepIntervalMs: 6 * HOUR_MS
 })
+
+const residueDirectories = Object.freeze([
+  resolvedPaths.data,
+  resolvedPaths.database,
+  resolvedPaths.servicesCache,
+  resolvedPaths.servicesTextCache,
+  resolvedPaths.pdfEngine
+])
 
 const requiredDirectories = Object.freeze([
   resolvedPaths.root,
@@ -97,6 +107,7 @@ module.exports = {
   files,
   refresh,
   pdf,
+  residueDirectories,
   dashboardVersion: DASHBOARD_VERSION,
   servicesIndexVersion: SERVICES_INDEX_VERSION,
   ensureDirectories

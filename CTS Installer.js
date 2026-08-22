@@ -1022,6 +1022,10 @@ async function runDiagnostic(manifest, state) {
 
   addDiagnosticCheck(diagnostic, "Index des services", indexCheck.status, indexCheck.detail)
 
+  const residueCheck = inspectDiagnosticResidue()
+
+  addDiagnosticCheck(diagnostic, "Restes d’écriture", residueCheck.status, residueCheck.detail)
+
   const logCheck = await inspectDiagnosticLog()
 
   diagnostic.lastImport = logCheck.lastImport
@@ -1102,6 +1106,59 @@ async function diagnosticWriteTest() {
       status: "error",
       detail: sanitizeDiagnosticText(messageOf(error))
     }
+  }
+}
+
+/*
+ * L'entretien du widget balaie les restes d'écriture et consigne son
+ * passage. On relit sa trace plutôt que de reparcourir les dossiers :
+ * ce qui compte ici est de savoir qu'il tourne, et si des fichiers ont
+ * été conservés faute de pouvoir prouver qu'ils étaient inutiles.
+ */
+function inspectDiagnosticResidue() {
+  const statePath = join(paths.data, "services-cleanup-state.json")
+
+  if (!fm.fileExists(statePath)) {
+    return { status: "warning", detail: "Aucun entretien enregistré pour le moment" }
+  }
+
+  let state
+
+  try {
+    state = JSON.parse(fm.readString(statePath))
+  } catch (error) {
+    return { status: "warning", detail: sanitizeDiagnosticText(messageOf(error)) }
+  }
+
+  const residue = isRecord(state?.lastResidue) ? state.lastResidue : null
+
+  if (!residue) {
+    return { status: "success", detail: "Aucun balayage nécessaire jusqu’ici" }
+  }
+
+  const preserved = Number(residue.preserved) || 0
+  const removed = Number(residue.removed) || 0
+  const errors = Number(residue.errors) || 0
+
+  if (errors) {
+    return {
+      status: "error",
+      detail: `${plural(errors, "reste non supprimé", "restes non supprimés")}`
+    }
+  }
+
+  if (preserved) {
+    return {
+      status: "warning",
+      detail: `${plural(preserved, "fichier conservé", "fichiers conservés")} par précaution`
+    }
+  }
+
+  return {
+    status: "success",
+    detail: removed
+      ? `${plural(removed, "reste effacé", "restes effacés")}`
+      : "Aucun reste d’écriture"
   }
 }
 
@@ -1556,6 +1613,7 @@ function diagnosticShortTitle(title) {
     "Dossier Services": "SERVICES",
     "Index des services": "INDEX",
     "Journal d’import": "JOURNAL",
+    "Restes d’écriture": "RESTES",
     "Espace disque": "DISQUE"
   }[title]
 
