@@ -648,6 +648,19 @@ function namedFilesOf(entry) {
 }
 
 /*
+ * Ce qu'un retrait a le droit de supprimer : les fichiers de travail,
+ * jamais l'archive. Un PDF archivé a déjà sa rétention de sept jours,
+ * et c'est au projet de la mener à son terme.
+ */
+function removableFilesOf(entry) {
+  return [
+    [paths.services, entry?.pdfFile],
+    [paths.servicesCache, entry?.cacheFile],
+    [paths.servicesTextCache, entry?.textFile]
+  ]
+}
+
+/*
  * Suppression des fichiers d'un service. Un fichier déjà absent est un
  * succès, pas une erreur : c'est ce qui rend l'opération rejouable.
  */
@@ -655,7 +668,7 @@ function deleteServiceFiles(entry) {
   const removed = []
   const failed = []
 
-  for (const [directory, fileName] of namedFilesOf(entry)) {
+  for (const [directory, fileName] of removableFilesOf(entry)) {
     const name = String(fileName || "").trim()
 
     if (!name) continue
@@ -881,6 +894,11 @@ async function performServiceRemoval(id, currentDate) {
 
   const service = String(entry.service || "")
   const date = String(entry.date || "")
+  const archiveFileName = String(entry.archive?.fileName || "").trim()
+  const archivePreserved = Boolean(
+    archiveFileName && fm.fileExists(fm.joinPath(paths.servicesArchive, archiveFileName))
+  )
+
   const deletion = deleteServiceFiles(entry)
   const pdfFileName = String(entry.pdfFile || "").trim()
 
@@ -898,11 +916,29 @@ async function performServiceRemoval(id, currentDate) {
       date,
       removed: deletion.removed,
       failed: deletion.failed,
+      archivePreserved,
       indexUpdated: false
     }
   }
 
-  index.services = services.filter(item => item !== entry)
+  /*
+   * L'archive est épargnée, mais c'est l'entrée d'index qui porte sa
+   * rétention : la retirer laisserait le PDF archivé sur le disque pour
+   * toujours. On garde donc l'entrée, en la marquant vidée de ses
+   * caches. Le widget ne peut plus la retenir — la sélection exige un
+   * cache lisible — et l'entretien la mènera à son terme : suppression
+   * de l'archive à sept jours, puis oubli de l'entrée.
+   */
+  if (archivePreserved) {
+    entry.cache = {
+      clearedAt: currentDate.toISOString(),
+      serviceEndAt: String(entry.cache?.serviceEndAt || ""),
+      files: deletion.removed
+    }
+  } else {
+    index.services = services.filter(item => item !== entry)
+  }
+
   index.updatedAt = currentDate.toISOString()
 
   await STORAGE.writeJsonAtomically(files.servicesIndex, index, {
@@ -929,6 +965,7 @@ async function performServiceRemoval(id, currentDate) {
     date,
     removed: deletion.removed,
     failed: deletion.failed,
+    archivePreserved,
     indexUpdated: true
   }
 }
@@ -949,6 +986,7 @@ function removalFailure(status, id, message, telemetryCode) {
         error: String(message || "Erreur inconnue")
       }
     ],
+    archivePreserved: false,
     indexUpdated: false
   }
 }

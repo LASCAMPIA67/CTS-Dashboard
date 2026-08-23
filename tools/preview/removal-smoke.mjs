@@ -520,6 +520,50 @@ const B_ID = `${TOMORROW}_EB12`
   check(world.indexIds().join() === A_ID, "archivé · son entrée doit rester")
 }
 
+/* ------- l’archive est épargnée, et garde sa rétention de sept jours */
+
+{
+  const world = buildWorld([SERVICE_A])
+  const a = filesOf(SERVICE_A)
+  const archivePath = `${ARCHIVE}/${stemOf(SERVICE_A)}.pdf`
+  const archivedAt = new Date(NOW.getTime() - 2 * HOUR)
+
+  const index = JSON.parse(world.files.get(INDEX_PATH))
+  index.services[0].archive = {
+    fileName: `${stemOf(SERVICE_A)}.pdf`,
+    archivedAt: archivedAt.toISOString(),
+    deletedAt: ""
+  }
+  world.files.set(INDEX_PATH, JSON.stringify(index))
+  world.files.delete(a.pdf)
+  world.files.set(archivePath, "%PDF-1.7")
+
+  const result = await world.CLEANER.removeService(A_ID, NOW)
+
+  check(result.success, "archive · le retrait devrait réussir")
+  check(result.archivePreserved === true, "archive · le retrait devrait signaler l’archive conservée")
+  check(world.has(archivePath), "archive · le PDF archivé ne doit surtout pas être supprimé")
+  check(!world.has(a.cache), "archive · le cache devrait être supprimé")
+  check(!world.has(a.text), "archive · le cache texte devrait être supprimé")
+
+  /*
+   * L'entrée reste, sinon l'archive perdrait la rétention qu'elle
+   * porte. Le widget ne peut plus la retenir pour autant.
+   */
+  check(world.indexIds().join() === A_ID, "archive · l’entrée doit rester pour porter la rétention")
+
+  const after = await world.MANAGER.resolveServiceForDate(NOW)
+  check(after.found === false, "archive · le widget ne doit plus afficher le service retiré")
+
+  /* Sept jours plus tard, l'entretien mène la rétention à son terme. */
+  const expired = await world.CLEANER.maintainServices(
+    new Date(archivedAt.getTime() + 7 * DAY + MINUTE)
+  )
+
+  check(expired.deleted.length === 1, "archive · l’archive devrait être supprimée à l’échéance")
+  check(!world.has(archivePath), "archive · le PDF archivé devrait finir par partir")
+}
+
 /* ------------- le PDF ne peut pas être supprimé : le service est gardé */
 
 {

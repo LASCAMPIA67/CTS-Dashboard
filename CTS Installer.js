@@ -1009,7 +1009,7 @@ async function removeServiceFlow() {
       "Son PDF et ses données seront supprimés définitivement.",
       "Il disparaîtra du widget au prochain rafraîchissement.",
       "",
-      "Les autres services ne sont pas touchés."
+      "Les autres services et vos archives ne sont pas touchés."
     ].join("\n"),
     "Retirer",
     true
@@ -1178,7 +1178,10 @@ async function presentRemovalResult(result, label) {
       label,
       "",
       `${plural(removed, "fichier supprimé", "fichiers supprimés")}.`,
-      "Le widget cessera de l’afficher au prochain rafraîchissement."
+      "Le widget cessera de l’afficher au prochain rafraîchissement.",
+      ...(result?.archivePreserved
+        ? ["", "Son PDF archivé est conservé, et sera supprimé à l’échéance habituelle."]
+        : [])
     ].join("\n")
   )
 }
