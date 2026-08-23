@@ -109,6 +109,8 @@ async function main() {
       await runDiagnostic(manifest, state)
     } else if (action === "preferences") {
       await editPreferences()
+    } else if (action === "remove-service") {
+      await removeServiceFlow()
     } else if (action === "uninstall") {
       await uninstall(manifest)
     }
@@ -382,6 +384,13 @@ async function menu(manifest, state) {
     label: "Taille du texte",
     detail: preferencesLabel(),
     onSelect: select("preferences")
+  })
+
+  addActionRow(table, {
+    symbol: "calendar.badge.minus",
+    label: "Retirer un service",
+    detail: "Le retirer du widget et supprimer son PDF",
+    onSelect: select("remove-service")
   })
 
   addActionRow(table, {
@@ -948,6 +957,238 @@ function isInstallerSource(content) {
     content.includes(`const INSTALLER_FILE = "${INSTALLER_FILE}"`) &&
     content.includes("async function main()")
   )
+}
+
+/*
+ * Retrait d'un service.
+ *
+ * L'Installer ne supprime rien lui-même : il présente les services
+ * connus, demande confirmation, puis délègue à CTS Services Cleaner,
+ * qui détient l'unique chemin de suppression du projet. Écrire ici une
+ * seconde suppression donnerait deux codes capables de se tromper.
+ *
+ * Si le Dashboard est absent, ou trop ancien pour exposer la fonction,
+ * l'action le dit et s'arrête sans rien toucher.
+ */
+async function removeServiceFlow() {
+  const cleaner = loadDashboardFunction("CTS Services Cleaner", "removeService")
+
+  if (!cleaner.ready) {
+    await noticeAlert("Retirer un service", cleaner.reason)
+    return
+  }
+
+  let entries
+
+  try {
+    entries = await loadIndexedServices()
+  } catch (error) {
+    await errorAlert(error)
+    return
+  }
+
+  if (!entries.length) {
+    await noticeAlert(
+      "Retirer un service",
+      "Aucun service n’est enregistré. Il n’y a rien à retirer."
+    )
+    return
+  }
+
+  const displayedId = await resolveDisplayedServiceId()
+  const chosen = await pickServiceToRemove(entries, displayedId)
+
+  if (!chosen) return
+
+  const label = serviceLabel(chosen)
+  const confirmed = await confirm(
+    "Retirer ce service ?",
+    [
+      label,
+      "",
+      "Son PDF et ses données seront supprimés définitivement.",
+      "Il disparaîtra du widget au prochain rafraîchissement.",
+      "",
+      "Les autres services ne sont pas touchés."
+    ].join("\n"),
+    "Retirer",
+    true
+  )
+
+  if (!confirmed) return
+
+  let result
+
+  try {
+    result = await cleaner.value(chosen.id)
+  } catch (error) {
+    await errorAlert(error)
+    return
+  }
+
+  await presentRemovalResult(result, label)
+}
+
+function loadDashboardFunction(moduleName, functionName) {
+  let module
+
+  try {
+    module = importModule(moduleName)
+  } catch (_) {
+    return {
+      ready: false,
+      value: null,
+      reason: `${moduleName} est absent. Installez CTS Dashboard, puis réessayez.`
+    }
+  }
+
+  if (!module || typeof module[functionName] !== "function") {
+    return {
+      ready: false,
+      value: null,
+      reason: `${moduleName} ne fournit pas ${functionName}(). Mettez CTS Dashboard à jour, puis réessayez.`
+    }
+  }
+
+  return { ready: true, value: module[functionName].bind(module), reason: "" }
+}
+
+async function loadIndexedServices() {
+  const importer = loadDashboardFunction("CTS Importer", "readCurrentIndex")
+
+  if (!importer.ready) {
+    throw new Error(importer.reason)
+  }
+
+  const index = await importer.value()
+  const services = Array.isArray(index?.services) ? index.services : []
+
+  return services
+    .filter(entry => entry && typeof entry === "object" && String(entry.id || "").trim())
+    .map(entry => ({
+      id: String(entry.id).trim(),
+      date: String(entry.date || ""),
+      service: String(entry.service || ""),
+      archived: Boolean(entry.archive?.fileName || entry.archive?.deletedAt)
+    }))
+    .sort((first, second) => first.date.localeCompare(second.date) || first.service.localeCompare(second.service))
+}
+
+/*
+ * Le service affiché n'est qu'un repère : le signaler évite de retirer
+ * la mauvaise ligne. Son absence n'empêche jamais l'opération.
+ */
+async function resolveDisplayedServiceId() {
+  try {
+    const manager = loadDashboardFunction("CTS Services Manager", "resolveServiceForDate")
+
+    if (!manager.ready) return ""
+
+    const selection = await manager.value(new Date())
+
+    return selection?.found ? String(selection.entry?.id || "") : ""
+  } catch (_) {
+    return ""
+  }
+}
+
+async function pickServiceToRemove(entries, displayedId) {
+  const table = screenTable()
+  let chosen = null
+
+  addHeroRow(table, {
+    symbol: "calendar.badge.minus",
+    title: "Retirer un service",
+    subtitle: plural(entries.length, "service enregistré", "services enregistrés"),
+    tone: COLORS.blue
+  })
+
+  addSectionRow(table, "SERVICES")
+
+  for (const entry of entries) {
+    const displayed = displayedId && entry.id === displayedId
+
+    addActionRow(table, {
+      symbol: displayed ? "dot.radiowaves.left.and.right" : "doc.text",
+      label: serviceLabel(entry),
+      detail: displayed
+        ? "Affiché en ce moment dans le widget"
+        : entry.archived
+          ? "PDF déjà archivé"
+          : "Enregistré",
+      tone: displayed ? COLORS.blue : undefined,
+      onSelect: () => {
+        chosen = entry
+      }
+    })
+  }
+
+  addCreditRow(table)
+
+  await table.present(true)
+
+  return chosen
+}
+
+function serviceLabel(entry) {
+  const parts = String(entry?.date || "").split("-")
+  const date =
+    parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : String(entry?.date || "")
+  const service = String(entry?.service || "").trim()
+
+  return service ? `${date} · service ${service}` : date
+}
+
+async function presentRemovalResult(result, label) {
+  if (result?.status === "unknown") {
+    await noticeAlert("Déjà retiré", `${label}\n\nCe service n’était plus enregistré.`)
+    return
+  }
+
+  if (result?.status === "pdf-still-present") {
+    await noticeAlert(
+      "Retrait incomplet",
+      [
+        label,
+        "",
+        "Le PDF n’a pas pu être supprimé, et le service a donc été conservé pour éviter qu’il ne revienne à moitié.",
+        "Réessayez, ou supprimez le PDF depuis l’app Fichiers."
+      ].join("\n")
+    )
+    return
+  }
+
+  if (!result?.success) {
+    const detail = Array.isArray(result?.failed)
+      ? result.failed.map(item => String(item?.error || "").trim()).filter(Boolean).join("\n")
+      : ""
+
+    await noticeAlert(
+      "Retrait partiel",
+      [label, "", detail || "Certains fichiers n’ont pas pu être supprimés."].join("\n")
+    )
+    return
+  }
+
+  const removed = Array.isArray(result?.removed) ? result.removed.length : 0
+
+  await noticeAlert(
+    "Service retiré",
+    [
+      label,
+      "",
+      `${plural(removed, "fichier supprimé", "fichiers supprimés")}.`,
+      "Le widget cessera de l’afficher au prochain rafraîchissement."
+    ].join("\n")
+  )
+}
+
+async function noticeAlert(title, message) {
+  const alert = new Alert()
+  alert.title = String(title || "")
+  alert.message = String(message || "")
+  alert.addAction("Fermer")
+  await alert.present()
 }
 
 async function runDiagnostic(manifest, state) {

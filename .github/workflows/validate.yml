@@ -84,3 +84,8 @@ jobs:
       # d'un fichier : le balayage doit la conserver, pas la ranger.
       - name: Run write residue test
         run: node tools/preview/residue-smoke.mjs
+
+      # Retirer un service ne doit emporter que ses fichiers, et jamais
+      # conclure à une suppression quand iCloud a simplement du retard.
+      - name: Run service removal test
+        run: node tools/preview/removal-smoke.mjs

@@ -69,7 +69,9 @@ const pdf = Object.freeze({
   archiveGraceMs: HOUR_MS,
   archiveRetentionMs: 7 * DAY_MS,
   residueGraceMs: HOUR_MS,
-  residueSweepIntervalMs: 6 * HOUR_MS
+  residueSweepIntervalMs: 6 * HOUR_MS,
+  missingGraceMs: HOUR_MS,
+  missingObservationIntervalMs: 5 * MINUTE_MS
 })
 
 const residueDirectories = Object.freeze([
