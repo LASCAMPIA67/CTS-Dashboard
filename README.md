@@ -51,6 +51,16 @@ iCloud Drive
 
 Plusieurs cartes peuvent être déposées à l’avance. CTS Dashboard importe et sélectionne automatiquement le service correspondant à la date utile.
 
+## Retirer un service
+
+Quand un service change au dernier moment, l’ancien peut être retiré de deux façons.
+
+Supprimer la carte d’agent du dossier `Services` suffit : CTS Dashboard le constate, retire le service et efface les fichiers qu’il avait produits. Il patiente une heure avant de conclure, le temps de distinguer une suppression volontaire d’un fichier qu’iCloud n’a pas encore synchronisé.
+
+Pour un retrait immédiat, exécuter **CTS Installer** puis **Retirer un service** : la liste indique le service affiché en ce moment, et demande confirmation avant de supprimer.
+
+Dans les deux cas, seuls les fichiers du service retiré sont supprimés. Les autres services et les archives ne sont pas touchés.
+
 ## Mises à jour
 
 Relancer **CTS Installer** puis choisir **Mettre à jour** ou **Vérifier les fichiers**. L’Installer compare les 22 fichiers distribués au snapshot GitHub courant et conserve les PDF, les archives et les données protégées.
@@ -83,6 +93,7 @@ Le rapport est conçu pour exclure le nom du conducteur, le matricule, les horai
 - sélection automatique du service selon la date et les horaires après minuit ;
 - états Avant le service / En service / Pause / Coupure / Service terminé ;
 - affichage des tranches, directions, dépôts et mises en ligne ;
+- retrait d’un service, depuis le dossier `Services` ou depuis CTS Installer ;
 - archivage automatique et rétention des archives ;
 - récupération iCloud avec nouvelles tentatives ;
 - réparation et vérification automatiques des fichiers ;
@@ -129,16 +140,19 @@ statistiques répond 401, quel que soit le code exécuté.
 métadonnées Scriptable, la cohérence des versions, les libellés d'arrêts, le
 contraste de la palette et l'absence d'outil admin.
 
-Dix bancs d'essai complètent la CI, parce qu'une vérification statique ne voit
-pas ce qui casse à l'exécution. Chacun est né d'un défaut réel :
+Treize bancs d'essai complètent la CI, parce qu'une vérification statique ne
+voit pas ce qui casse à l'exécution. Chacun est né d'un défaut réel :
 
 | Banc | Ce qu'il empêche |
 |---|---|
 | `modules-smoke` | une fonction appelée d'un module à l'autre qui n'existe pas |
 | `dashboard-smoke` | un widget blanc, vide, ou rendu dans une taille non prévue |
 | `scan-smoke` | une carte agent détectée mais jamais importée |
+| `selection-smoke` | le mauvais service retenu à cheval sur minuit |
 | `storage-smoke` | un fichier lisible qu'iCloud refuse de confirmer, une écriture interrompue |
 | `cleanup-smoke` | un PDF jamais archivé, un cache effacé trop tôt |
+| `residue-smoke` | une copie de sécurité orpheline effacée alors qu'elle était le dernier exemplaire |
+| `removal-smoke` | un service retiré qui emporte les fichiers d'un autre, ou qu'iCloud fait disparaître à tort |
 | `database-smoke` | un arrêt affiché sous forme de code |
 | `layout-smoke` | une grille horaires qui déborde selon l'appareil |
 | `utils-smoke` | une attente sans borne, une date jugée valide par un seul module |
