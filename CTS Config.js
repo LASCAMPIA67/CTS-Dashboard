@@ -3,7 +3,7 @@
 // icon-color: gray; icon-glyph: gear;
 
 const fm = FileManager.iCloud()
-const DASHBOARD_VERSION = "1.1.4"
+const DASHBOARD_VERSION = "1.2.0"
 const SERVICES_INDEX_VERSION = 2
 const SECOND_MS = 1000
 const MINUTE_MS = 60 * SECOND_MS
@@ -69,7 +69,9 @@ const pdf = Object.freeze({
   archiveGraceMs: HOUR_MS,
   archiveRetentionMs: 7 * DAY_MS,
   residueGraceMs: HOUR_MS,
-  residueSweepIntervalMs: 6 * HOUR_MS
+  residueSweepIntervalMs: 6 * HOUR_MS,
+  missingGraceMs: HOUR_MS,
+  missingObservationIntervalMs: 5 * MINUTE_MS
 })
 
 const residueDirectories = Object.freeze([

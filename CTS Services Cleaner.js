@@ -13,6 +13,7 @@ const removeFileQuietly = STORAGE.removeFileQuietly
 const CLEANUP_WRITE_MESSAGE = "Le fichier temporaire d’entretien ne peut pas être écrit"
 const CLEANUP_COMMIT_MESSAGE = "Le fichier d’entretien n’a pas pu être validé"
 const CLEANUP_VERSION = 1
+const MISSING_CONFIRMATIONS = 2
 const CLEANUP_LOCK_TTL_MS = 2 * 60 * 1000
 const CLEANUP_STATE_HEARTBEAT_MS = 60 * 60 * 1000
 const CLEANUP_LOCK_PATH = fm.joinPath(paths.data, "services-cleanup.lock")
@@ -50,11 +51,9 @@ async function maintainServices(currentDate = new Date(), options = {}) {
   }
 }
 
-async function performMaintenance(currentDate, options) {
-  let index
-
+async function readIndexForCleanup(stage = "archive") {
   try {
-    index = await IMPORTER.readCurrentIndex()
+    return await IMPORTER.readCurrentIndex()
   } catch (error) {
     if (UTILS.hasTelemetryError(error)) {
       throw error
@@ -62,12 +61,15 @@ async function performMaintenance(currentDate, options) {
 
     throw UTILS.createTelemetryError(
       "CLEANUP_INDEX_READ_FAILED",
-      "archive",
+      stage,
       `L’index des services ne peut pas être lu : ${UTILS.errorMessage(error)}`,
       error
     )
   }
+}
 
+async function performMaintenance(currentDate, options) {
+  const index = await readIndexForCleanup()
   const services = Array.isArray(index?.services) ? index.services : []
 
   const archiveGraceMs = resolveNonNegativeDelay(
@@ -94,7 +96,20 @@ async function performMaintenance(currentDate, options) {
     60 * 60 * 1000
   )
 
+  const missingGraceMs = resolveNonNegativeDelay(
+    options.missingGraceMs,
+    pdf.missingGraceMs,
+    60 * 60 * 1000
+  )
+
+  const missingObservationIntervalMs = resolveNonNegativeDelay(
+    options.missingObservationIntervalMs,
+    pdf.missingObservationIntervalMs,
+    5 * 60 * 1000
+  )
+
   const previousState = await loadCleanupState()
+  const previousWatch = readMissingWatch(previousState)
 
   const archived = []
   const deleted = []
@@ -138,6 +153,17 @@ async function performMaintenance(currentDate, options) {
     }
   }
 
+  const reconciliation = reconcileMissingPdfs(
+    index,
+    previousWatch,
+    currentDate,
+    missingGraceMs,
+    missingObservationIntervalMs
+  )
+
+  if (reconciliation.removed.length) indexChanged = true
+  if (reconciliation.errors.length) errors.push(...reconciliation.errors)
+
   const sweeping =
     options.sweepResidue !== false && shouldSweepResidue(previousState, currentDate)
 
@@ -180,23 +206,50 @@ async function performMaintenance(currentDate, options) {
 
   const result = {
     success: errors.length === 0,
-    status: archived.length || deleted.length || cacheCleared.length ? "processed" : "idle",
+    status:
+      archived.length || deleted.length || cacheCleared.length || reconciliation.removed.length
+        ? "processed"
+        : "idle",
     checkedAt: currentDate.toISOString(),
     cacheGraceMs,
     archiveGraceMs,
     archiveRetentionMs,
     residueGraceMs,
+    missingGraceMs,
     archived,
     deleted,
     cacheCleared,
+    removedServices: reconciliation.removed,
+    missingWatch: reconciliation.watching,
     forgotten,
     residue,
     skipped,
     errors
   }
 
-  if (residue || indexChanged || errors.length || stateWriteIsStale(previousState, currentDate)) {
+  const watchChanged =
+    JSON.stringify(reconciliation.watching) !== JSON.stringify(previousWatch)
+
+  if (
+    residue ||
+    indexChanged ||
+    errors.length ||
+    watchChanged ||
+    stateWriteIsStale(previousState, currentDate)
+  ) {
     await saveCleanupState(result, previousState)
+  }
+
+  if (reconciliation.removed.length) {
+    try {
+      await STORAGE.appendLog("cleanup", "Services retirés après disparition de leur PDF", {
+        removed: reconciliation.removed.map(item => ({
+          id: item.id,
+          files: item.files,
+          firstSeenAt: item.firstSeenAt
+        }))
+      })
+    } catch (_) {}
   }
 
   if (residue && (residue.removed.length || residue.restored.length || residue.errors.length)) {
@@ -566,20 +619,376 @@ function isSpentEntry(entry, currentDate, archiveRetentionMs) {
   if (!serviceDate) return false
   if (currentDate.getTime() - serviceDate.getTime() < archiveRetentionMs) return false
 
-  const named = [
-    [paths.services, entry.pdfFile],
-    [paths.servicesArchive, entry.archive.fileName],
-    [paths.servicesCache, entry.cacheFile],
-    [paths.servicesTextCache, entry.textFile]
-  ]
-
-  for (const [directory, fileName] of named) {
+  for (const [directory, fileName] of namedFilesOf(entry)) {
     const name = String(fileName || "").trim()
 
     if (name && fm.fileExists(fm.joinPath(directory, name))) return false
   }
 
   return true
+}
+
+/*
+ * Les quatre fichiers qu'une entrée d'index désigne nommément, et les
+ * seuls qu'une suppression a le droit de toucher. Rien n'est déduit
+ * d'un motif de nom : un service voisin, même de même date, ne peut pas
+ * être atteint par erreur.
+ *
+ * Les exemplaires « Remplace_… » n'y figurent pas. Aucune entrée ne les
+ * nomme, et le balayage des archives leur applique déjà la rétention de
+ * sept jours.
+ */
+function namedFilesOf(entry) {
+  return [
+    [paths.services, entry?.pdfFile],
+    [paths.servicesArchive, entry?.archive?.fileName],
+    [paths.servicesCache, entry?.cacheFile],
+    [paths.servicesTextCache, entry?.textFile]
+  ]
+}
+
+/*
+ * Ce qu'un retrait a le droit de supprimer : les fichiers de travail,
+ * jamais l'archive. Un PDF archivé a déjà sa rétention de sept jours,
+ * et c'est au projet de la mener à son terme.
+ */
+function removableFilesOf(entry) {
+  return [
+    [paths.services, entry?.pdfFile],
+    [paths.servicesCache, entry?.cacheFile],
+    [paths.servicesTextCache, entry?.textFile]
+  ]
+}
+
+/*
+ * Suppression des fichiers d'un service. Un fichier déjà absent est un
+ * succès, pas une erreur : c'est ce qui rend l'opération rejouable.
+ */
+function deleteServiceFiles(entry) {
+  const removed = []
+  const failed = []
+
+  for (const [directory, fileName] of removableFilesOf(entry)) {
+    const name = String(fileName || "").trim()
+
+    if (!name) continue
+
+    const path = fm.joinPath(directory, name)
+
+    if (!fm.fileExists(path)) continue
+
+    try {
+      fm.remove(path)
+      removed.push(name)
+    } catch (error) {
+      failed.push({
+        id: String(entry?.id || ""),
+        fileName: name,
+        telemetryCode: "SERVICE_REMOVAL_DELETE_FAILED",
+        telemetryStage: "removal",
+        error: UTILS.errorMessage(error)
+      })
+    }
+  }
+
+  return { removed, failed }
+}
+
+/*
+ * Réconciliation des services dont le PDF a disparu.
+ *
+ * Retirer une carte agent du dossier Services ne suffisait pas à faire
+ * disparaître le service : la sélection ne lit que l'index et le cache.
+ * L'entrée doit donc être retirée, et ses caches avec elle.
+ *
+ * Le seul vrai risque est de confondre une suppression volontaire avec
+ * un fichier que cet iPhone n'a pas encore reçu. Un fichier présent
+ * mais non téléchargé répond déjà « oui » à fileExists, ce qui écarte
+ * le cas courant ; restent les synchronisations en retard. On ne
+ * conclut donc qu'après plusieurs constats espacés, et jamais si le
+ * dossier lui-même n'a pas pu être lu — un dossier illisible ne dit pas
+ * qu'un fichier manque, il ne dit rien du tout.
+ *
+ * Une entrée déjà archivée est hors sujet : c'est le projet qui a
+ * déplacé son PDF, et la rétention s'en occupe.
+ */
+function reconcileMissingPdfs(
+  index,
+  previousWatch,
+  currentDate,
+  graceMs,
+  observationIntervalMs
+) {
+  const removed = []
+  const watching = {}
+  const errors = []
+
+  try {
+    fm.listContents(paths.services)
+  } catch (error) {
+    errors.push({
+      telemetryCode: "SERVICES_DIRECTORY_READ_FAILED",
+      telemetryStage: "removal",
+      error: UTILS.errorMessage(error)
+    })
+
+    return { removed, watching: previousWatch, errors }
+  }
+
+  const services = Array.isArray(index?.services) ? index.services : []
+  const kept = []
+
+  for (const entry of services) {
+    if (!isMissingPdfCandidate(entry)) {
+      kept.push(entry)
+      continue
+    }
+
+    const id = String(entry.id || "").trim()
+    const record = observeMissingPdf(previousWatch[id], currentDate, observationIntervalMs)
+
+    if (!isMissingConfirmed(record, currentDate, graceMs)) {
+      watching[id] = record
+      kept.push(entry)
+      continue
+    }
+
+    const deletion = deleteServiceFiles(entry)
+
+    if (deletion.failed.length) {
+      errors.push(...deletion.failed)
+      watching[id] = record
+      kept.push(entry)
+      continue
+    }
+
+    removed.push({
+      id,
+      service: String(entry.service || ""),
+      date: String(entry.date || ""),
+      files: deletion.removed,
+      firstSeenAt: record.firstSeenAt,
+      removedAt: currentDate.toISOString()
+    })
+  }
+
+  if (removed.length) index.services = kept
+
+  return { removed, watching, errors }
+}
+
+function isMissingPdfCandidate(entry) {
+  if (!isUsableIndexEntry(entry)) return false
+  if (entry.archive?.fileName || entry.archive?.deletedAt) return false
+
+  const pdfFileName = String(entry.pdfFile || "").trim()
+
+  if (!pdfFileName) return false
+  if (fm.fileExists(fm.joinPath(paths.services, pdfFileName))) return false
+
+  return !fm.fileExists(fm.joinPath(paths.servicesArchive, pdfFileName))
+}
+
+/*
+ * Un constat par passage, mais pas plus d'un par intervalle : le widget
+ * se réveille bien plus souvent que nécessaire, et réécrire l'état à
+ * chaque réveil ferait travailler iCloud pour rien.
+ */
+function observeMissingPdf(previous, currentDate, observationIntervalMs) {
+  const now = currentDate.toISOString()
+  const count = Number(previous?.count) || 0
+
+  if (!count) {
+    return { firstSeenAt: now, lastSeenAt: now, count: 1 }
+  }
+
+  const firstSeenAt = String(previous?.firstSeenAt || "") || now
+  const lastSeenAt = String(previous?.lastSeenAt || "") || now
+  const lastSeenTime = Date.parse(lastSeenAt)
+
+  if (
+    Number.isFinite(lastSeenTime) &&
+    currentDate.getTime() - lastSeenTime < observationIntervalMs
+  ) {
+    return { firstSeenAt, lastSeenAt, count }
+  }
+
+  return { firstSeenAt, lastSeenAt: now, count: count + 1 }
+}
+
+function isMissingConfirmed(record, currentDate, graceMs) {
+  if ((Number(record?.count) || 0) < MISSING_CONFIRMATIONS) return false
+
+  const firstSeenTime = Date.parse(String(record?.firstSeenAt || ""))
+
+  if (!Number.isFinite(firstSeenTime)) return false
+
+  return currentDate.getTime() - firstSeenTime >= graceMs
+}
+
+function readMissingWatch(state) {
+  const value = state?.missingServices
+
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {}
+}
+
+/*
+ * Suppression demandée explicitement, depuis CTS Installer.
+ *
+ * Même chemin de suppression que la réconciliation — c'est tout
+ * l'intérêt : un seul code efface, donc un seul peut se tromper. Seul
+ * le déclencheur change, et l'intention étant ici explicite, aucun
+ * délai de confirmation ne s'applique.
+ */
+async function removeService(id, currentDate = new Date()) {
+  CONFIG.ensureDirectories()
+
+  const wanted = String(id || "").trim()
+
+  if (!wanted) {
+    return removalFailure(
+      "invalid-id",
+      wanted,
+      "Aucun service n’a été désigné.",
+      "SERVICE_REMOVAL_INVALID_ID"
+    )
+  }
+
+  const lock = await acquireCleanupLock()
+
+  if (!lock.acquired) {
+    return removalFailure(
+      "locked",
+      wanted,
+      "L’entretien des services est déjà en cours. Réessayez dans un instant.",
+      "SERVICE_REMOVAL_LOCKED"
+    )
+  }
+
+  try {
+    return await performServiceRemoval(wanted, currentDate)
+  } finally {
+    await releaseCleanupLock(lock)
+  }
+}
+
+async function performServiceRemoval(id, currentDate) {
+  const index = await readIndexForCleanup("removal")
+  const services = Array.isArray(index?.services) ? index.services : []
+  const entry = services.find(
+    item => isUsableIndexEntry(item) && String(item.id || "").trim() === id
+  )
+
+  if (!entry) {
+    return {
+      success: true,
+      status: "unknown",
+      id,
+      service: "",
+      date: "",
+      removed: [],
+      failed: [],
+      indexUpdated: false
+    }
+  }
+
+  const service = String(entry.service || "")
+  const date = String(entry.date || "")
+  const archiveFileName = String(entry.archive?.fileName || "").trim()
+  const archivePreserved = Boolean(
+    archiveFileName && fm.fileExists(fm.joinPath(paths.servicesArchive, archiveFileName))
+  )
+
+  const deletion = deleteServiceFiles(entry)
+  const pdfFileName = String(entry.pdfFile || "").trim()
+
+  /*
+   * Un PDF encore présent serait réimporté au balayage suivant : le
+   * service reviendrait, sans son entrée ni ses caches. On garde alors
+   * l'entrée, pour que l'état reste cohérent et l'opération rejouable.
+   */
+  if (pdfFileName && fm.fileExists(fm.joinPath(paths.services, pdfFileName))) {
+    return {
+      success: false,
+      status: "pdf-still-present",
+      id,
+      service,
+      date,
+      removed: deletion.removed,
+      failed: deletion.failed,
+      archivePreserved,
+      indexUpdated: false
+    }
+  }
+
+  /*
+   * L'archive est épargnée, mais c'est l'entrée d'index qui porte sa
+   * rétention : la retirer laisserait le PDF archivé sur le disque pour
+   * toujours. On garde donc l'entrée, en la marquant vidée de ses
+   * caches. Le widget ne peut plus la retenir — la sélection exige un
+   * cache lisible — et l'entretien la mènera à son terme : suppression
+   * de l'archive à sept jours, puis oubli de l'entrée.
+   */
+  if (archivePreserved) {
+    entry.cache = {
+      clearedAt: currentDate.toISOString(),
+      serviceEndAt: String(entry.cache?.serviceEndAt || ""),
+      files: deletion.removed
+    }
+  } else {
+    index.services = services.filter(item => item !== entry)
+  }
+
+  index.updatedAt = currentDate.toISOString()
+
+  await STORAGE.writeJsonAtomically(files.servicesIndex, index, {
+    writeCode: "SERVICE_REMOVAL_INDEX_TEMP_WRITE_FAILED",
+    commitCode: "SERVICE_REMOVAL_INDEX_COMMIT_FAILED",
+    stage: "removal",
+    writeMessage: CLEANUP_WRITE_MESSAGE,
+    commitMessage: CLEANUP_COMMIT_MESSAGE
+  })
+
+  try {
+    await STORAGE.appendLog(
+      deletion.failed.length ? "cleanup-warning" : "cleanup",
+      "Service retiré à la demande",
+      { id, removed: deletion.removed, failed: deletion.failed }
+    )
+  } catch (_) {}
+
+  return {
+    success: deletion.failed.length === 0,
+    status: "removed",
+    id,
+    service,
+    date,
+    removed: deletion.removed,
+    failed: deletion.failed,
+    archivePreserved,
+    indexUpdated: true
+  }
+}
+
+function removalFailure(status, id, message, telemetryCode) {
+  return {
+    success: false,
+    status,
+    id,
+    service: "",
+    date: "",
+    removed: [],
+    failed: [
+      {
+        id,
+        telemetryCode: UTILS.normalizeTelemetryCode(telemetryCode, "SERVICE_REMOVAL_FAILED"),
+        telemetryStage: "removal",
+        error: String(message || "Erreur inconnue")
+      }
+    ],
+    archivePreserved: false,
+    indexUpdated: false
+  }
 }
 
 /*
@@ -938,6 +1347,7 @@ async function saveCleanupState(result, previousState) {
   const state = {
     version: CLEANUP_VERSION,
     updatedAt: result.checkedAt,
+    missingServices: result.missingWatch || readMissingWatch(previousState),
     lastResidueSweepAt: String(
       result.residue ? result.checkedAt : previousState?.lastResidueSweepAt || ""
     ),
@@ -1132,6 +1542,7 @@ function failureResult(
 
 module.exports = {
   maintainServices,
+  removeService,
   resolveServiceEndDate,
   classifyResidue
 }
