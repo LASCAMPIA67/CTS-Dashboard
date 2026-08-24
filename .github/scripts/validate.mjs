@@ -288,11 +288,50 @@ if (!configVersion || configVersion[1] !== manifest.version) {
 for (const [label, value] of [
   ['version', manifest.version],
   ['installerVersion', manifest.installerVersion],
-  ['minimumInstaller', manifest.minimumInstaller]
+  ['minimumInstaller', manifest.minimumInstaller],
+  ['minimumDashboard', manifest.minimumDashboard]
 ]) {
   if (!/^\d+\.\d+\.\d+$/.test(String(value || ''))) {
     fail(`${label} n'est pas au format x.y.z : ${value}`)
   }
+}
+
+/*
+ * Un plancher au-dessus de la version publiée éteindrait le widget de
+ * tout le monde, y compris ceux qui viennent de mettre à jour. Le client
+ * refuse déjà une telle politique, mais elle n'a rien à faire dans le
+ * manifeste : autant qu'elle ne parte jamais.
+ */
+const floorOrder = compareVersionStrings(manifest.minimumDashboard, manifest.version)
+
+if (floorOrder === null) {
+  fail(`minimumDashboard ou version illisible : ${manifest.minimumDashboard} / ${manifest.version}`)
+} else if (floorOrder > 0) {
+  fail(
+    `minimumDashboard (${manifest.minimumDashboard}) dépasse la version publiée ` +
+    `(${manifest.version}). Ce plancher bloquerait aussi les installations à jour.`
+  )
+}
+
+function compareVersionStrings(first, second) {
+  const parse = value => {
+    const parts = String(value ?? '').trim().split('.')
+
+    if (parts.length !== 3 || !parts.every(part => /^\d+$/.test(part))) return null
+
+    return parts.map(Number)
+  }
+
+  const a = parse(first)
+  const b = parse(second)
+
+  if (!a || !b) return null
+
+  for (let index = 0; index < 3; index++) {
+    if (a[index] !== b[index]) return a[index] > b[index] ? 1 : -1
+  }
+
+  return 0
 }
 
 // ------------------------------------------------------- libellés de lieux

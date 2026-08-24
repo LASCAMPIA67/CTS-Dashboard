@@ -41,6 +41,7 @@ const files = Object.freeze({
   importLog: joinPath(resolvedPaths.data, "import-log.json"),
   servicesIndex: joinPath(resolvedPaths.data, "services-index.json"),
   servicesScanState: joinPath(resolvedPaths.data, "services-scan-state.json"),
+  versionPolicy: joinPath(resolvedPaths.data, "version-policy.json"),
   pdfJs: joinPath(resolvedPaths.pdfEngine, "pdf.min.mjs"),
   pdfWorker: joinPath(resolvedPaths.pdfEngine, "pdf.worker.min.mjs"),
   stops: joinPath(resolvedPaths.database, "stops.json"),

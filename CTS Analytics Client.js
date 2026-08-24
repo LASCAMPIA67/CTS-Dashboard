@@ -103,16 +103,47 @@ async function registerInstallation({ dashboardVersion }) {
     Keychain.set(KEYS.clientToken, token.trim())
   }
 
-  return result
+  return withVersionPolicy(result)
 }
 
 async function registerActivity({ dashboardVersion }) {
-  return sendRequest({
-    path: "/activity",
-    method: "POST",
-    apiKey: readRequiredSecret(KEYS.clientToken, "client_token_missing"),
-    body: devicePayload(dashboardVersion)
-  })
+  return withVersionPolicy(
+    await sendRequest({
+      path: "/activity",
+      method: "POST",
+      apiKey: readRequiredSecret(KEYS.clientToken, "client_token_missing"),
+      body: devicePayload(dashboardVersion)
+    })
+  )
+}
+
+/*
+ * La politique de version voyage dans les réponses que ce client reçoit
+ * déjà — aucun appel n'est ajouté pour elle.
+ *
+ * Ce module la rapporte, il ne l'applique pas et ne l'écrit nulle part :
+ * celui qui parle au réseau ne doit pas être celui qui décide d'éteindre
+ * le widget. Il n'importe d'ailleurs aucun autre module, et cela doit le
+ * rester.
+ */
+function withVersionPolicy(result) {
+  const policy = result?.data?.versionPolicy
+
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) {
+    return result
+  }
+
+  const minimumVersion = String(policy.minimumVersion || "").trim()
+
+  if (!minimumVersion) return result
+
+  return {
+    ...result,
+    versionPolicy: {
+      minimumVersion,
+      latestVersion: String(policy.latestVersion || "").trim()
+    }
+  }
 }
 
 async function registerDailyActivity({ dashboardVersion }) {

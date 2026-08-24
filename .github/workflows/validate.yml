@@ -89,3 +89,8 @@ jobs:
       # conclure à une suppression quand iCloud a simplement du retard.
       - name: Run service removal test
         run: node tools/preview/removal-smoke.mjs
+
+      # Un verrou se juge sur ses faux positifs : hors ligne, sans
+      # politique ou avec un plancher incohérent, le widget doit marcher.
+      - name: Run version gate test
+        run: node tools/preview/version-gate-smoke.mjs
