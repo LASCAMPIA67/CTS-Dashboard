@@ -193,6 +193,68 @@ async function savePreferences(value) {
   await writeJsonSafely(files.preferences, normalizePreferences(value))
 }
 
+/*
+ * Politique de version.
+ *
+ * Ce que le serveur a dit la dernière fois qu'on a pu le joindre : la
+ * dernière version publiée, et le plancher en dessous duquel le widget
+ * ne doit plus afficher de service.
+ *
+ * Une lecture ne lève jamais. Un fichier absent, illisible ou incohérent
+ * rend null, et null veut dire « aucune politique connue », donc aucun
+ * blocage : ce fichier ne peut pas mettre le widget en panne, seulement
+ * l'autoriser à s'arrêter.
+ */
+async function loadVersionPolicy() {
+  try {
+    if (!fm.fileExists(files.versionPolicy)) return null
+
+    const value = await readJson(files.versionPolicy, null)
+
+    if (!value || typeof value !== "object" || Array.isArray(value)) return null
+
+    const minimumVersion = String(value.minimumVersion || "").trim()
+    const latestVersion = String(value.latestVersion || "").trim()
+
+    if (!minimumVersion) return null
+
+    return {
+      minimumVersion,
+      latestVersion,
+      receivedAt: String(value.receivedAt || "")
+    }
+  } catch (_) {
+    return null
+  }
+}
+
+async function saveVersionPolicy(policy) {
+  if (!policy || typeof policy !== "object" || Array.isArray(policy)) return false
+
+  const minimumVersion = String(policy.minimumVersion || "").trim()
+
+  if (!minimumVersion) return false
+
+  await writeJsonAtomically(
+    files.versionPolicy,
+    {
+      version: 1,
+      receivedAt: new Date().toISOString(),
+      latestVersion: String(policy.latestVersion || "").trim(),
+      minimumVersion
+    },
+    {
+      writeCode: "VERSION_POLICY_TEMP_WRITE_FAILED",
+      commitCode: "VERSION_POLICY_COMMIT_FAILED",
+      stage: "version_policy",
+      writeMessage: "Le fichier temporaire de politique ne peut pas être écrit",
+      commitMessage: "La politique de version n’a pas pu être validée"
+    }
+  )
+
+  return true
+}
+
 function emptyServicesIndex() {
   return { version: SERVICES_INDEX_VERSION, updatedAt: "", services: [] }
 }
@@ -381,6 +443,8 @@ module.exports = {
   loadPreferences,
   textScales,
   savePreferences,
+  loadVersionPolicy,
+  saveVersionPolicy,
   normalizePreferences,
   loadServicesIndex,
   saveServicesIndex,

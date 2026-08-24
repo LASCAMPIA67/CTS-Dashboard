@@ -310,6 +310,42 @@ function buildFingerprint({ fileName, sizeKilobytes, modifiedAt }) {
   ].join("|")
 }
 
+/*
+ * Numéros de version.
+ *
+ * CTS Installer sait déjà les comparer, mais son code ne quitte jamais
+ * l'installateur. Le widget en a besoin à son tour, pour savoir s'il est
+ * encore autorisé à afficher un service : la comparaison vit donc ici,
+ * là où les deux mondes peuvent la lire, et le banc des primitives la
+ * couvre comme le reste.
+ *
+ * Une valeur qui n'est pas x.y.z est refusée plutôt que devinée. Un
+ * plancher illisible ne doit jamais valoir zéro — ce serait bloquer tout
+ * le monde sur une faute de frappe.
+ */
+function parseVersion(value) {
+  const parts = String(value ?? "").trim().split(".")
+
+  if (parts.length !== 3) return null
+
+  const numbers = parts.map(part => (/^\d+$/.test(part) ? Number(part) : null))
+
+  return numbers.every(number => Number.isInteger(number) && number >= 0) ? numbers : null
+}
+
+function compareVersions(first, second) {
+  const a = parseVersion(first)
+  const b = parseVersion(second)
+
+  if (!a || !b) return null
+
+  for (let index = 0; index < 3; index++) {
+    if (a[index] !== b[index]) return a[index] > b[index] ? 1 : -1
+  }
+
+  return 0
+}
+
 function safeError(error) {
   if (error instanceof Error) {
     return {
@@ -356,5 +392,7 @@ module.exports = {
   finishError,
   safeError,
   fileNameFromPath,
-  buildFingerprint
+  buildFingerprint,
+  parseVersion,
+  compareVersions
 }

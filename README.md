@@ -65,6 +65,14 @@ Dans les deux cas, seuls les fichiers du service retiré sont supprimés. Les au
 
 Relancer **CTS Installer** puis choisir **Mettre à jour** ou **Vérifier les fichiers**. L’Installer compare les 22 fichiers distribués au snapshot GitHub courant et conserve les PDF, les archives et les données protégées.
 
+Deux règles encadrent les versions, et elles ne sont volontairement pas les mêmes.
+
+**Dans CTS Installer, la mise à jour est obligatoire.** Si une version plus récente existe, l’installateur la propose avant tout le reste et le menu n’est pas accessible tant qu’elle n’est pas faite. Le **Diagnostic** reste joignable sans mettre à jour : c’est la procédure d’assistance du projet, et elle doit rester utilisable même quand c’est la mise à jour qui échoue.
+
+**Dans le widget, seul un plancher bloque.** `minimumDashboard` dans `version.json` fixe la version en dessous de laquelle le widget cesse d’afficher un service et demande une mise à jour. Une version simplement en retard continue de fonctionner : couper un conducteur en service parce qu’une correction vient de paraître n’aurait pas de sens.
+
+Le widget ne consulte jamais le réseau pour en décider. Il lit une politique déposée par l’appel d’activité quotidien, et **l’absence de réponse ne bloque jamais** : sans réseau, sans politique connue ou à la première installation, il fonctionne normalement.
+
 ## Réparer un installateur bloqué
 
 Si CTS Installer s’arrête sur **Opération impossible** avant d’avoir affiché sa liste de fichiers, c’est l’installateur lui-même qui est en cause et il ne peut pas se remplacer tout seul. Le script **CTS Repair** existe pour ce seul cas :
@@ -140,7 +148,7 @@ statistiques répond 401, quel que soit le code exécuté.
 métadonnées Scriptable, la cohérence des versions, les libellés d'arrêts, le
 contraste de la palette et l'absence d'outil admin.
 
-Treize bancs d'essai complètent la CI, parce qu'une vérification statique ne
+Quatorze bancs d'essai complètent la CI, parce qu'une vérification statique ne
 voit pas ce qui casse à l'exécution. Chacun est né d'un défaut réel :
 
 | Banc | Ce qu'il empêche |
@@ -153,6 +161,7 @@ voit pas ce qui casse à l'exécution. Chacun est né d'un défaut réel :
 | `cleanup-smoke` | un PDF jamais archivé, un cache effacé trop tôt |
 | `residue-smoke` | une copie de sécurité orpheline effacée alors qu'elle était le dernier exemplaire |
 | `removal-smoke` | un service retiré qui emporte les fichiers d'un autre, ou qu'iCloud fait disparaître à tort |
+| `version-gate-smoke` | un widget bloqué à tort parce qu'il est hors ligne, ou qu'un plancher a été publié de travers |
 | `database-smoke` | un arrêt affiché sous forme de code |
 | `layout-smoke` | une grille horaires qui déborde selon l'appareil |
 | `utils-smoke` | une attente sans borne, une date jugée valide par un seul module |

@@ -21,6 +21,10 @@ const MAX_TELEMETRY_ISSUES = 12
 async function loadContext(currentDate = new Date()) {
   CONFIG.ensureDirectories()
 
+  const blocked = await resolveVersionBlock(currentDate)
+
+  if (blocked) return blocked
+
   const resolution = await resolveServiceSource(currentDate)
   const cleanup = await runServicesCleanup(currentDate)
   const source = resolution.source
@@ -959,6 +963,62 @@ function servicesFolderIsEmpty(resolution) {
   if (scan.status === "locked") return false
 
   return Number(scan.detected) === 0
+}
+
+/*
+ * Verrou de version.
+ *
+ * Le seul chemin capable d'éteindre le widget, et il ne touche jamais au
+ * réseau : il lit un fichier local, écrit par l'appel d'activité
+ * quotidien qui existe déjà et dont l'échec n'a jamais eu de
+ * conséquence. Attendre une réponse ici ferait de ce contrôle le
+ * nouveau point de panne qu'il est censé éviter.
+ *
+ * Bloquer exige une affirmation, jamais un silence. Pas de politique en
+ * cache, pas de réseau depuis des semaines, première installation,
+ * serveur en panne : le widget fonctionne. Seul un plancher lisible,
+ * cohérent, et réellement au-dessus de la version installée l'arrête.
+ *
+ * Un plancher supérieur à la dernière version publiée est refusé : ce
+ * serait le signe d'une politique fautive, et une faute de frappe ne
+ * doit pas pouvoir éteindre tout le parc d'un coup.
+ */
+async function resolveVersionBlock(currentDate) {
+  let policy
+
+  try {
+    policy = await STORAGE.loadVersionPolicy()
+  } catch (_) {
+    return null
+  }
+
+  if (!policy) return null
+
+  const installed = CONFIG.dashboardVersion
+  const belowFloor = UTILS.compareVersions(installed, policy.minimumVersion)
+
+  if (belowFloor === null || belowFloor >= 0) return null
+
+  if (policy.latestVersion) {
+    const floorAboveLatest = UTILS.compareVersions(policy.minimumVersion, policy.latestVersion)
+
+    if (floorAboveLatest === null || floorAboveLatest > 0) return null
+  }
+
+  return {
+    ...failure(
+      "Mise à jour requise",
+      [
+        "Cette version de CTS Dashboard n’est plus prise en charge.",
+        "",
+        "Ouvrez Scriptable, puis lancez CTS Installer pour la mettre à jour."
+      ].join("\n"),
+      currentDate
+    ),
+    versionBlocked: true,
+    installedVersion: installed,
+    minimumVersion: policy.minimumVersion
+  }
 }
 
 function information(title, message, currentDate, telemetry) {

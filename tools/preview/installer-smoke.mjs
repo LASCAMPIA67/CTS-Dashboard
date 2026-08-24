@@ -45,6 +45,8 @@ async function runAction(
     forbidden = null,
     throttle = 0,
     expected = null,
+    absent = null,
+    installedVersion = null,
     silent = false,
     preferences = false,
     residue = false
@@ -76,7 +78,7 @@ async function runAction(
     fs.writeFileSync(
       path.join(root, "Data", "installation.json"),
       JSON.stringify({
-        dashboardVersion: manifest.version,
+        dashboardVersion: installedVersion || manifest.version,
         installerVersion: manifest.installerVersion,
         repositoryRevision: SNAPSHOT,
         files: { installed: [], updated: [], repaired: [], unchanged: [], failed: [] }
@@ -429,8 +431,14 @@ async function runAction(
     failures.push(`alerte superflue après l’opération : ${alerted.join(" · ")}`)
   }
 
-  if (expected && !shown.some(text => expected.test(text))) {
-    failures.push(`section attendue absente du rapport : ${expected}`)
+  for (const pattern of expected ? [].concat(expected) : []) {
+    if (!shown.some(text => pattern.test(text))) {
+      failures.push(`section attendue absente du rapport : ${pattern}`)
+    }
+  }
+
+  if (absent && shown.some(text => absent.test(text))) {
+    failures.push(`écran qui n’aurait pas dû être atteint : ${absent}`)
   }
 
   if (throttle && networkAttempts <= throttle) {
@@ -494,14 +502,56 @@ const scenarios = [
    * un ajout au menu déplace les suivants, et ce banc le voit.
    */
   { label: "taille du texte", choice: [2, 1], preferences: true, silent: true, expected: /Grandes polices/ },
-  { label: "désinstallation", choice: 3 },
+  /*
+   * Les lignes du menu se désignent par leur rang : tout ajout décale
+   * les suivantes. « Retirer un service » s'est inséré en quatrième
+   * position, et la désinstallation a glissé d'un cran — un scénario qui
+   * garde l'ancien rang teste silencieusement la mauvaise action. Les
+   * deux portent donc désormais un motif qui prouve ce qu'elles ont
+   * réellement exécuté.
+   */
+  /*
+   * Ici les modules du Dashboard sont absents du bac à sable, et c'est
+   * l'intérêt : le retrait doit le dire et s'arrêter, jamais planter. La
+   * suppression elle-même est éprouvée par removal-smoke, qui monte le
+   * vrai nettoyeur.
+   */
+  {
+    label: "retrait d’un service sans le Dashboard installé",
+    choice: 3,
+    expected: /CTS Services Cleaner est absent/
+  },
+  { label: "désinstallation", choice: 4, expected: /Désinstallation (terminée|partielle)/ },
   { label: "installation neuve", choice: 0, seed: false, silent: true },
   /*
    * Une seule réponse 429 suffisait à rendre CTS Installer inutilisable,
    * alors que GitHub répond souvent correctement à la tentative
    * suivante. L'outil de réparation ne doit jamais être la panne.
    */
-  { label: "reprise après un refus temporaire de GitHub", choice: 0, throttle: 1 }
+  { label: "reprise après un refus temporaire de GitHub", choice: 0, throttle: 1 },
+  /*
+   * Second verrou : une installation en retard ne doit pas pouvoir
+   * atteindre le menu. C'est le seul contrôle qui rattrape les versions
+   * trop anciennes pour se surveiller elles-mêmes, puisque ce n'est plus
+   * leur code qui décide.
+   *
+   * Le Diagnostic reste joignable sans mettre à jour : il est la
+   * procédure d'assistance du projet, et l'exiger après la mise à jour
+   * couperait la ligne de secours au moment où elle sert.
+   */
+  {
+    label: "mise à jour imposée sur une version en retard",
+    choice: 1,
+    installedVersion: "1.0.4",
+    expected: [/Version trop ancienne/, /DERNIÈRE EXÉCUTION DU DASHBOARD/],
+    absent: /Désinstaller/
+  },
+  {
+    label: "menu accessible sur une installation à jour",
+    choice: 1,
+    expected: /DERNIÈRE EXÉCUTION DU DASHBOARD/,
+    absent: /Version trop ancienne/
+  }
 ]
 
 let broken = false
@@ -512,6 +562,8 @@ for (const scenario of scenarios) {
     forbidden: scenario.forbidden || null,
     throttle: scenario.throttle || 0,
     expected: scenario.expected || null,
+    absent: scenario.absent || null,
+    installedVersion: scenario.installedVersion || null,
     silent: scenario.silent === true,
     preferences: scenario.preferences === true,
     residue: scenario.residue === true

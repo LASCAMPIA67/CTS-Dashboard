@@ -101,6 +101,11 @@ async function main() {
     }
 
     const state = await inspect(manifest)
+
+    if (await handleDashboardUpdate(manifest, state)) {
+      return
+    }
+
     const action = await menu(manifest, state)
 
     if (action === "install") {
@@ -3118,6 +3123,115 @@ async function handleInstallerUpdate(manifest) {
   }
 
   return !required && choice === "continue"
+}
+
+/*
+ * Mise à jour obligatoire du Dashboard.
+ *
+ * Le widget, lui, ne s'arrête que sous le plancher : couper un
+ * conducteur en service parce qu'une correction vient de paraître serait
+ * absurde. Ici c'est l'inverse — la personne a déjà l'outil ouvert et
+ * deux minutes devant elle, il n'y a aucune raison de la laisser
+ * repartir en retard. C'est le seul verrou qui atteigne aussi les
+ * versions trop anciennes pour se contrôler elles-mêmes, puisque ce
+ * n'est plus leur code qui décide.
+ *
+ * Le Diagnostic reste joignable sans mettre à jour. Le README en fait la
+ * procédure d'assistance, et c'est lui qui identifie une installation
+ * cassée : si la mise à jour devenait la seule porte et que c'est
+ * précisément elle qui échoue, la ligne de secours serait coupée au
+ * moment où elle sert.
+ *
+ * Renoncer ne piège personne : l'écran se referme et l'installateur
+ * s'arrête, exactement comme il le fait déjà pour son propre plancher.
+ */
+function dashboardUpdateRequired(manifest, state) {
+  return (
+    Boolean(state.installedVersion) &&
+    compareVersions(manifest.version, state.installedVersion) > 0
+  )
+}
+
+async function handleDashboardUpdate(manifest, state) {
+  if (!dashboardUpdateRequired(manifest, state)) {
+    return false
+  }
+
+  for (;;) {
+    const choice = await presentDashboardUpdateGate(manifest, state)
+
+    if (choice === "install") {
+      await installOrUpdate(manifest, state)
+      return true
+    }
+
+    if (choice === "diagnostic") {
+      await runDiagnostic(manifest, state)
+      continue
+    }
+
+    return true
+  }
+}
+
+async function presentDashboardUpdateGate(manifest, state) {
+  const table = screenTable()
+  let choice = null
+
+  addHeroRow(table, {
+    symbol: "exclamationmark.triangle.fill",
+    title: "Mise à jour requise",
+    subtitle: "CTS Dashboard",
+    tone: COLORS.orange
+  })
+
+  addVersionBand(table, [
+    { value: state.installedVersion, label: "Installée" },
+    { arrow: true },
+    { value: manifest.version, label: "Requise", strong: true, tone: COLORS.orange }
+  ])
+
+  addStatusRow(table, {
+    symbol: "exclamationmark.circle.fill",
+    title: "Version trop ancienne",
+    detail: "Cette mise à jour est nécessaire pour continuer.",
+    tone: COLORS.orange
+  })
+
+  addStatusRow(table, {
+    symbol: "lock.shield.fill",
+    title: "Données protégées",
+    detail: "Vos PDF, vos archives et vos réglages sont conservés.",
+    tone: COLORS.green
+  })
+
+  addSectionRow(table, "Actions")
+
+  addActionRow(table, {
+    symbol: "arrow.down.circle.fill",
+    label: `Mettre à jour vers ${manifest.version}`,
+    detail: `${manifestEntries(manifest).length} fichiers seront réinstallés`,
+    tone: COLORS.orange,
+    primary: true,
+    onSelect: () => {
+      choice = "install"
+    }
+  })
+
+  addActionRow(table, {
+    symbol: "stethoscope",
+    label: "Diagnostic",
+    detail: "Rapport complet, sans mettre à jour",
+    onSelect: () => {
+      choice = "diagnostic"
+    }
+  })
+
+  addCreditRow(table)
+
+  await table.present(true)
+
+  return choice
 }
 
 async function updateInstaller(version) {

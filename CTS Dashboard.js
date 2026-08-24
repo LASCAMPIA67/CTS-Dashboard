@@ -5,6 +5,7 @@
 const SCRIPT_STARTED_AT = Date.now()
 const CONFIG = importModule("CTS Config")
 const UTILS = importModule("CTS Utils")
+const STORAGE = importModule("CTS Storage")
 const WIDGET_ENGINE = importModule("CTS Widget Engine")
 const RENDERER = importModule("CTS Widget Renderer")
 const ERROR_TITLE = "Erreur du Dashboard"
@@ -206,6 +207,12 @@ function createTelemetryRunSafely(client) {
   }
 }
 
+/*
+ * Appelé sans await, volontairement : le réseau n'a jamais bloqué le
+ * rendu de ce widget et ne doit pas commencer. La politique de version
+ * rapportée par le serveur est simplement rangée pour le prochain
+ * réveil — le contrôle, lui, ne lit que le fichier.
+ */
 async function registerAnalytics(client) {
   if (!client || typeof client.registerDailyActivity !== "function") return
   try {
@@ -215,6 +222,16 @@ async function registerAnalytics(client) {
     if (!result?.ok) {
       console.warn("[Analytics]", result?.error || "Activité non enregistrée.")
     }
+    await storeVersionPolicySafely(result?.versionPolicy)
+  } catch (error) {
+    console.warn("[Analytics]", UTILS.errorMessage(error))
+  }
+}
+
+async function storeVersionPolicySafely(policy) {
+  if (!policy) return
+  try {
+    await STORAGE.saveVersionPolicy(policy)
   } catch (error) {
     console.warn("[Analytics]", UTILS.errorMessage(error))
   }
