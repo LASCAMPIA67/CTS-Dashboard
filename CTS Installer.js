@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.21"
+const INSTALLER_VERSION = "1.0.22"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -815,16 +815,28 @@ async function syncFile(entry, options = {}) {
 
   for (let attempt = 1; attempt <= RETRIES; attempt++) {
     try {
-      remote = await downloadText(
+      /*
+       * Le contenu reçu n'est retenu qu'une fois validé.
+       *
+       * L'affecter avant le contrôle laissait sortir de la boucle avec
+       * une page d'erreur GitHub en main : `remote` n'étant plus
+       * indéfini, la reprise ne levait pas, et l'écriture atomique
+       * remplaçait le bon fichier par la page avant que la relecture ne
+       * s'en aperçoive. La copie de secours étant déjà effacée à ce
+       * moment-là, le fichier d'origine était perdu.
+       */
+      const candidate = await downloadText(
         `${rawUrl(entry.name)}?t=${Date.now()}-${attempt}`,
         entry.name
       )
 
-      const validation = validateText(remote, entry.name)
+      const validation = validateText(candidate, entry.name)
 
       if (!validation.valid) {
         throw new Error(`Version GitHub invalide : ${validation.reason}`)
       }
+
+      remote = candidate
 
       break
     } catch (error) {

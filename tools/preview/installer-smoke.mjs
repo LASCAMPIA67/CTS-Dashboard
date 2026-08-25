@@ -49,7 +49,8 @@ async function runAction(
     installedVersion = null,
     silent = false,
     preferences = false,
-    residue = false
+    residue = false,
+    corrupt = null
   } = {}
 ) {
   /*
@@ -340,6 +341,16 @@ async function runAction(
         }
         const match = this.url.match(/\/([^/?]+)(?:\?|$)/)
         const name = match ? decodeURIComponent(match[1]) : ""
+        /*
+         * GitHub sert parfois une page d'erreur avec un code 200 : une
+         * panne de son côté, une redirection, un dépôt momentanément
+         * indisponible. C'est le cas qui compte, parce qu'il ne se
+         * signale par aucun code d'erreur.
+         */
+        if (corrupt && name === corrupt) {
+          return "<!doctype html><html><body>GitHub is having a bad day</body></html>"
+        }
+
         const content =
           name === "CTS Installer.js"
             ? fs.readFileSync(installerPath, "utf8")
@@ -477,6 +488,24 @@ async function runAction(
     }
   }
 
+  /*
+   * Le fichier en place valait mieux que ce que GitHub vient de servir :
+   * il doit être encore là, intact. Le refus doit par ailleurs être dit,
+   * sans quoi l'échec passerait pour une réussite.
+   */
+  if (corrupt) {
+    const target = path.join(docs, corrupt)
+    const onDisk = fs.existsSync(target) ? fs.readFileSync(target, "utf8") : null
+
+    if (onDisk !== repositoryFile(corrupt)) {
+      failures.push(`une page d’erreur GitHub a remplacé ${corrupt}`)
+    }
+
+    if (!shown.some(text => /1 erreur/i.test(text))) {
+      failures.push("le fichier refusé n’a pas été signalé comme une erreur")
+    }
+  }
+
   fs.rmSync(sandboxRoot, { recursive: true, force: true })
   return [...new Set(failures)]
 }
@@ -524,6 +553,18 @@ const scenarios = [
   { label: "désinstallation", choice: 4, expected: /Désinstallation (terminée|partielle)/ },
   { label: "installation neuve", choice: 0, seed: false, silent: true },
   /*
+   * Une page d'erreur servie en 200 ne doit jamais atteindre le disque.
+   * Le contenu reçu n'est retenu qu'une fois validé : l'affecter avant le
+   * contrôle faisait sortir la boucle de reprise avec la page en main, et
+   * le bon fichier était écrasé par elle.
+   */
+  {
+    label: "page d’erreur GitHub refusée avant écriture",
+    choice: 0,
+    corrupt: "CTS Utils.js",
+    expected: /Vérification terminée/
+  },
+  /*
    * Une seule réponse 429 suffisait à rendre CTS Installer inutilisable,
    * alors que GitHub répond souvent correctement à la tentative
    * suivante. L'outil de réparation ne doit jamais être la panne.
@@ -566,7 +607,8 @@ for (const scenario of scenarios) {
     installedVersion: scenario.installedVersion || null,
     silent: scenario.silent === true,
     preferences: scenario.preferences === true,
-    residue: scenario.residue === true
+    residue: scenario.residue === true,
+    corrupt: scenario.corrupt || null
   })
 
   if (failures.length) {
