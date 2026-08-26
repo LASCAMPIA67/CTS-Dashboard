@@ -148,7 +148,7 @@ statistiques répond 401, quel que soit le code exécuté.
 métadonnées Scriptable, la cohérence des versions, les libellés d'arrêts, le
 contraste de la palette et l'absence d'outil admin.
 
-Quinze bancs d'essai complètent la CI, parce qu'une vérification statique ne
+Seize bancs d'essai complètent la CI, parce qu'une vérification statique ne
 voit pas ce qui casse à l'exécution. Chacun est né d'un défaut réel :
 
 | Banc | Ce qu'il empêche |
@@ -168,6 +168,7 @@ voit pas ce qui casse à l'exécution. Chacun est né d'un défaut réel :
 | `installer-smoke` | une constante inaccessible à l'exécution |
 | `repair-smoke` | un dépannage qui laisse l'iPhone sans installateur |
 | `telemetry-smoke` | un jour de repos compté comme une panne dans le taux de succès de la flotte |
+| `pdf-engine-smoke` | un fichier que personne ne lit qui empêche toute lecture de carte agent |
 
 Trois outils du même dossier ne sont pas des bancs et ne tournent pas en CI :
 ils s'exécutent à la demande et **ne doivent pas être pris pour des fichiers

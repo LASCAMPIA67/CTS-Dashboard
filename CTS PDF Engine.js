@@ -66,11 +66,29 @@ const ICLOUD_READY_RETRY_MS = 150
 async function ensureReady() {
   CONFIG.ensureDirectories()
 
-  await ensureLibraryFile(files.pdfJs, PDFJS_URLS.library, "Bibliothèque PDF.js", "library")
+  const library = await ensureLibraryFile(
+    files.pdfJs,
+    PDFJS_URLS.library,
+    "Bibliothèque PDF.js",
+    "library"
+  )
 
-  await ensureLibraryFile(files.pdfWorker, PDFJS_URLS.worker, "Worker PDF.js", "worker")
+  const worker = await ensureLibraryFile(
+    files.pdfWorker,
+    PDFJS_URLS.worker,
+    "Worker PDF.js",
+    "worker"
+  )
 
-  await writeEngineMetadata()
+  /*
+   * Les métadonnées décrivent une installation : elles ne s'écrivent donc
+   * qu'au moment où le moteur en reçoit une. Les réécrire à chaque lecture
+   * revenait à écrire dans iCloud à chaque réveil du widget, pour un
+   * fichier dont le contenu ne bouge pas.
+   */
+  if (library.installed || worker.installed) {
+    await writeEngineMetadata()
+  }
 
   return {
     ready: true,
@@ -85,7 +103,7 @@ async function ensureReady() {
 
 async function ensureLibraryFile(destinationPath, remoteUrl, label, component) {
   if (await isValidLibraryFile(destinationPath, component)) {
-    return
+    return { installed: false }
   }
 
   await downloadLibraryFile(destinationPath, remoteUrl, label, component)
@@ -99,6 +117,8 @@ async function ensureLibraryFile(destinationPath, remoteUrl, label, component) {
       `${label} téléchargé, mais le fichier obtenu est invalide.`
     )
   }
+
+  return { installed: true }
 }
 
 async function isValidLibraryFile(path, component) {
@@ -227,20 +247,28 @@ async function writeEngineMetadata() {
     }
   }
 
+  /*
+   * Ce fichier n'est lu par personne : ni le widget, ni le Diagnostic, ni
+   * l'installateur. Il documente l'installation, rien de plus.
+   *
+   * Son écriture levait pourtant une erreur, et cet appel se trouvait sur
+   * le chemin de toute lecture de PDF. Un collègue dont ce seul fichier ne
+   * pouvait pas s'écrire n'a jamais pu lire une seule carte agent : 132
+   * tentatives, 132 échecs, pour un fichier que rien n'ouvre. Ce qui ne
+   * sert à personne ne doit pouvoir arrêter personne.
+   *
+   * Rien n'est perdu côté diagnostic : les deux fichiers dont dépend
+   * réellement le moteur sont contrôlés juste au-dessus, et signalent leur
+   * absence, leur téléchargement manqué ou leur taille anormale sous leur
+   * propre code.
+   */
   try {
     fm.writeString(
       ENGINE_METADATA_PATH,
 
       JSON.stringify(metadata, null, 2)
     )
-  } catch (error) {
-    throw createTelemetryError(
-      "PDF_ENGINE_METADATA_WRITE_FAILED",
-      "engine_install",
-      `Les métadonnées du moteur PDF ne peuvent pas être enregistrées : ${errorMessage(error)}`,
-      error
-    )
-  }
+  } catch (_) {}
 }
 
 async function extractText(pdfPath) {
