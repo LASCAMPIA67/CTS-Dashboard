@@ -68,6 +68,8 @@ async function runAction(
     relaunchUnavailable = false,
     reopens = false,
     closeDuringWrite = false,
+    scriptName = "CTS Installer",
+    runningWriteBroken = false,
     aborts = false
   } = {}
 ) {
@@ -81,6 +83,17 @@ async function runAction(
   const docs = path.join(sandboxRoot, "Documents")
   fs.mkdirSync(docs, { recursive: true })
   fs.writeFileSync(path.join(docs, "CTS Installer.js"), fs.readFileSync(installerPath))
+
+  /*
+   * Scriptable exécute le fichier qui porte le nom du script. Renommé, ce
+   * n'est plus celui du manifeste — et c'est pourtant lui qui repartira à
+   * la relance.
+   */
+  const runningInstaller = path.join(docs, `${scriptName}.js`)
+
+  if (runningInstaller !== path.join(docs, "CTS Installer.js")) {
+    fs.writeFileSync(runningInstaller, fs.readFileSync(installerPath))
+  }
 
   if (seed) {
     const root = path.join(docs, "CTS Dashboard")
@@ -281,6 +294,15 @@ async function runAction(
        * iCloud interrompu, écriture tronquée. Le contrôle de présence n'y
        * voit rien ; seule une relecture du contenu le voit.
        */
+      if (runningWriteBroken && to === runningInstaller) {
+        fs.writeFileSync(
+          to,
+          fs.readFileSync(from, "utf8").replace(/const INSTALLER_VERSION = "[^"]+"\n/, "")
+        )
+        fs.rmSync(from, { force: true })
+        return
+      }
+
       if (installerWriteBroken && to.endsWith("CTS Installer.js")) {
         fs.writeFileSync(
           to,
@@ -340,7 +362,7 @@ async function runAction(
     SFSymbol: ui.SFSymbol,
     UITable: RecordingTable,
     UITableRow: ui.UITableRow,
-    Script: { name: () => "CTS Installer", complete: () => {} },
+    Script: { name: () => scriptName, complete: () => {} },
     Device: { systemVersion: () => "26.6" },
     Pasteboard: { copyString: value => shown.push(String(value)) },
     /*
@@ -743,11 +765,31 @@ async function runAction(
     const onDisk = fs.readFileSync(path.join(docs, "CTS Installer.js"), "utf8")
     const replaced = onDisk.includes(`const INSTALLER_VERSION = "${installerAvailable}"`)
 
+    /*
+     * Le script renommé est celui que Scriptable exécute, donc celui qui
+     * repartira. Le laisser en arrière rouvrirait l'ancienne version en
+     * annonçant la nouvelle ; ne vérifier que celui du manifeste ne
+     * prouvait rien là où ça compte.
+     */
+    if (installerUpdated && runningInstaller !== path.join(docs, "CTS Installer.js")) {
+      const running = fs.readFileSync(runningInstaller, "utf8")
+
+      if (!running.includes(`const INSTALLER_VERSION = "${installerAvailable}"`)) {
+        failures.push("le fichier réellement exécuté est resté en arrière")
+      }
+    }
+
     if (installerUpdated && !replaced) {
       failures.push("l’installateur n’a pas été remplacé alors que la mise à jour a été acceptée")
     }
 
-    if (!installerUpdated && replaced) {
+    /*
+     * Une mise à jour refusée ne doit rien avoir écrit. Une mise à jour
+     * acceptée mais avortée, si : le fichier du manifeste part le premier,
+     * et c'est le second qui fait échouer la vérification. Ce qui compte
+     * alors n'est pas ce qui est sur le disque mais que rien ne parte.
+     */
+    if (!installerUpdated && !aborts && replaced) {
       failures.push("l’installateur a été remplacé sans que la mise à jour ait été demandée")
     }
   }
@@ -964,6 +1006,33 @@ const scenarios = [
     closeDuringWrite: true,
     absent: /Désinstaller|Continuer avec/
   },
+  /*
+   * Le script a été renommé dans Scriptable : le fichier exécuté n'est
+   * plus celui du manifeste. Les deux doivent être remplacés, sans quoi la
+   * relance rouvrirait l'ancienne version en annonçant la nouvelle.
+   */
+  {
+    label: "script renommé : le fichier exécuté est remplacé aussi",
+    choice: 0,
+    scriptName: "CTS Installeur",
+    installerAvailable: FUTURE,
+    installerUpdated: true,
+    installerOpened: true,
+    absent: /Désinstaller|Continuer avec/
+  },
+  /*
+   * Et s'il est posé incomplet, rien ne part : vérifier le fichier du
+   * manifeste puis lancer l'autre ne prouvait rien.
+   */
+  {
+    label: "script renommé : le fichier exécuté posé incomplet arrête tout",
+    choice: 0,
+    scriptName: "CTS Installeur",
+    installerAvailable: FUTURE,
+    runningWriteBroken: true,
+    aborts: true,
+    absent: /Désinstaller|Continuer avec/
+  },
   {
     label: "aucun contournement en fermant l’écran",
     choice: 9,
@@ -1033,6 +1102,8 @@ for (const scenario of scenarios) {
     relaunchUnavailable: scenario.relaunchUnavailable === true,
     reopens: scenario.reopens === true,
     closeDuringWrite: scenario.closeDuringWrite === true,
+    scriptName: scenario.scriptName || "CTS Installer",
+    runningWriteBroken: scenario.runningWriteBroken === true,
     aborts: scenario.aborts === true
   })
 
