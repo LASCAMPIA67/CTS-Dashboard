@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.23"
+const INSTALLER_VERSION = "1.0.24"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -100,24 +100,57 @@ async function main() {
       return
     }
 
-    const state = await inspect(manifest)
+    /*
+     * Navigation.
+     *
+     * Il n'y a pas de pile à tenir : Scriptable en a déjà une. Chaque
+     * écran est présenté par `present(true)`, dont la promesse se résout
+     * quand l'utilisateur le ferme, et une ligne qui ne se referme pas à
+     * la sélection peut en présenter un autre par-dessus. « Retour »
+     * existe donc déjà partout, sous le nom de « Close », posé par le
+     * système sur tous les écrans — y compris ceux d'un niveau profond,
+     * comme les détails du diagnostic.
+     *
+     * Ce qui manquait n'était pas le retour mais le retour AU MENU :
+     * l'action choisie était exécutée, puis l'installateur s'arrêtait.
+     * Cette boucle le rend, et rien d'autre n'a besoin de changer. Ajouter
+     * un bouton dessiné aurait doublé un geste que le système fournit, et
+     * une pile maison aurait doublé la sienne.
+     *
+     * Le manifeste est lu une fois pour toute la session ; seul l'état du
+     * disque est relu à chaque retour, parce qu'une action vient peut-être
+     * de le changer.
+     */
+    for (;;) {
+      const state = await inspect(manifest)
 
-    if (await handleDashboardUpdate(manifest, state)) {
-      return
-    }
+      /*
+       * Le verrou reste au-dessus de la boucle : fermer cette porte
+       * arrête l'installateur au lieu de rendre la main, sans quoi
+       * « Close » deviendrait le contournement qu'on vient de retirer.
+       */
+      if (await handleDashboardUpdate(manifest, state)) {
+        return
+      }
 
-    const action = await menu(manifest, state)
+      const action = await menu(manifest, state)
 
-    if (action === "install") {
-      await installOrUpdate(manifest, state)
-    } else if (action === "diagnostic") {
-      await runDiagnostic(manifest, state)
-    } else if (action === "preferences") {
-      await editPreferences()
-    } else if (action === "remove-service") {
-      await removeServiceFlow()
-    } else if (action === "uninstall") {
-      await uninstall(manifest)
+      /* Fermer le menu principal, c'est fermer l'installateur. */
+      if (!action) {
+        return
+      }
+
+      if (action === "install") {
+        await installOrUpdate(manifest, state)
+      } else if (action === "diagnostic") {
+        await runDiagnostic(manifest, state)
+      } else if (action === "preferences") {
+        await editPreferences()
+      } else if (action === "remove-service") {
+        await removeServiceFlow()
+      } else if (action === "uninstall") {
+        await uninstall(manifest)
+      }
     }
   } catch (error) {
     await errorAlert(error)
@@ -774,6 +807,14 @@ async function installOrUpdate(manifest, previous) {
       valid: null,
       total: entries.length
     })
+  } finally {
+    /*
+     * La page de résultat se lit. Rendre la main sans attendre sa
+     * fermeture ferait revenir le menu par-dessus, et le compte des
+     * fichiers modifiés ne serait jamais vu. Les trois sorties passent
+     * ici, y compris celle qui abandonne en cours de validation.
+     */
+    await progress.closed()
   }
 }
 
@@ -2251,6 +2292,8 @@ async function uninstall(manifest) {
     valid: null,
     total: entries.length
   })
+
+  await progress.closed()
 }
 
 function progressTable({ title, version, entries, operation }) {
@@ -2323,9 +2366,20 @@ function progressTable({ title, version, entries, operation }) {
     await sleep(10)
   }
 
+  /*
+   * La présentation est retenue, non plus jetée : c'est elle qui dit
+   * quand l'utilisateur a fermé la page de résultat. Sans cela, le menu
+   * reviendrait par-dessus avant qu'elle ait été lue.
+   */
+  let presentation = null
+
   return {
     present() {
-      table.present(true)
+      presentation = table.present(true)
+    },
+
+    async closed() {
+      await presentation
     },
 
     async system(key, status, detail) {
