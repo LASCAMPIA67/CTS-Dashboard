@@ -36,6 +36,22 @@ const TELEMETRY_RUN_STATUSES = new Set(["success", "warning", "error"])
 const TELEMETRY_SEVERITIES = new Set(["warning", "error", "fatal"])
 const TELEMETRY_CONTEXTS = new Set(["widget", "app"])
 
+/*
+ * Absence de travail n'est pas défaut de fonctionnement.
+ *
+ * Un jour de repos, ou l'intervalle entre deux cartes agent, produit une
+ * exécution où il n'y a simplement rien à afficher. Ces codes décrivent
+ * cette situation. Ils restent enregistrés dans les diagnostics — la
+ * console d'administration continue de les compter — mais ils ne pèsent
+ * plus sur le statut de l'exécution, sans quoi le taux de succès de la
+ * flotte mesure la présence d'un PDF et non la fiabilité du logiciel.
+ *
+ * Un PDF présent mais inexploitable relève d'un autre code
+ * (SERVICE_NOT_FOUND) et garde tout son poids : ce qui est ici, c'est le
+ * cas où le dossier Services est vide.
+ */
+const TELEMETRY_NO_WORK_CODES = new Set(["PDF_NOT_FOUND"])
+
 function createOpaqueId() {
   return (UUID.string() + UUID.string()).replace(/-/g, "")
 }
@@ -435,6 +451,10 @@ function deriveTelemetryRunStatus(run) {
   let result = TELEMETRY_RUN_STATUSES.has(run.status) ? run.status : "success"
 
   for (const issue of run.issues || []) {
+    if (TELEMETRY_NO_WORK_CODES.has(String(issue?.errorCode || "").trim())) {
+      continue
+    }
+
     result = strongestTelemetryStatus(result, severityToRunStatus(issue.severity))
   }
 
@@ -447,11 +467,17 @@ function deriveTelemetryRunStatus(run) {
     result = strongestTelemetryStatus(result, "error")
   }
 
-  if (
-    run.pdfStatus === "missing" ||
-    run.serviceStatus === "not_found" ||
-    run.archiveStatus === "error"
-  ) {
+  /*
+   * pdfStatus « missing » et serviceStatus « not_found » ne dégradent plus
+   * l'exécution à eux seuls : ils décrivent une absence, pas une panne.
+   *
+   * Tous les chemins du moteur qui posent ces deux valeurs à cause d'un
+   * vrai défaut ajoutent en même temps un incident — import refusé,
+   * validation HASTUS, PDF détecté mais inexploitable. C'est cet incident
+   * qui porte le poids, à la boucle ci-dessus. Retirer l'absence d'ici ne
+   * masque donc aucune panne : elle en est distinguée.
+   */
+  if (run.archiveStatus === "error") {
     result = strongestTelemetryStatus(result, "warning")
   }
 

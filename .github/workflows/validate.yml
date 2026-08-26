@@ -94,3 +94,8 @@ jobs:
       # politique ou avec un plancher incohérent, le widget doit marcher.
       - name: Run version gate test
         run: node tools/preview/version-gate-smoke.mjs
+
+      # Le taux de succès de la flotte se lit sur le statut des exécutions.
+      # Un jour de repos ne doit pas y compter comme une panne.
+      - name: Run telemetry status test
+        run: node tools/preview/telemetry-smoke.mjs
