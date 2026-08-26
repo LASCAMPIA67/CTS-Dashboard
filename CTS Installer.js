@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.26"
+const INSTALLER_VERSION = "1.0.27"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -3167,19 +3167,23 @@ async function handleInstallerUpdate(manifest) {
 /*
  * Écran de passage à la nouvelle version.
  *
- * L'ouverture n'est pas tentée d'elle-même, et c'est le résultat d'une
+ * L'ouverture ne suit pas le remplacement, et c'est le résultat d'une
  * mesure : l'écriture atomique fait disparaître le fichier du script
  * l'espace d'un instant, et Scriptable cesse alors de le trouver par son
  * nom. Ouvrir dans la foulée ne fait rien, et sans rien dire. Il lui faut
  * le temps de reprendre ses repères.
  *
  * Attendre en aveugle aurait figé l'écran sur une course qu'on peut
- * perdre. Le temps de lire cette page et d'y toucher suffit largement, et
- * l'ouverture part alors d'un appui frais.
+ * perdre. Cette page fournit le délai sans le faire attendre : le temps
+ * de la lire et de la refermer dépasse largement ce qu'il faut, et
+ * l'ouverture part de ce geste-là.
+ *
+ * Elle annonce donc ce qu'elle va faire. Si la course était malgré tout
+ * perdue, rien ne s'ouvrirait — et il faut alors que la personne sache
+ * quoi faire sans avoir à le deviner.
  */
 async function presentInstallerReady(version) {
   const table = screenTable()
-  let open = false
 
   addHeroRow(table, {
     symbol: "checkmark.seal.fill",
@@ -3196,29 +3200,21 @@ async function presentInstallerReady(version) {
 
   addStatusRow(table, {
     symbol: "arrow.clockwise",
-    title: "Une nouvelle exécution est nécessaire",
-    detail: "Le code en cours est encore l’ancien : il ne peut pas se recharger lui-même.",
-    tone: COLORS.primary
+    title: "Fermez cet écran pour continuer",
+    detail: `CTS Installer ${version} s’ouvrira à sa place.`,
+    tone: COLORS.blue
   })
 
-  addSectionRow(table, "Action")
-
-  addActionRow(table, {
-    symbol: "arrow.up.forward.app.fill",
-    label: `Ouvrir CTS Installer ${version}`,
-    detail: "Ouvre la version qui vient d’être installée",
-    tone: COLORS.green,
-    primary: true,
-    onSelect: () => {
-      open = true
-    }
+  addStatusRow(table, {
+    symbol: "hand.tap.fill",
+    title: "S’il ne s’ouvre pas",
+    detail: "Relancez CTS Installer depuis la liste des scripts.",
+    tone: COLORS.secondary
   })
 
   addCreditRow(table)
 
   await table.present(true)
-
-  if (!open) return
 
   if (!relaunch()) {
     await noticeAlert(
