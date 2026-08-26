@@ -58,6 +58,7 @@ async function runAction(
     silent = false,
     preferences = false,
     residue = false,
+    stale = null,
     corrupt = null,
     installerAvailable = null,
     installerUpdated = false,
@@ -65,6 +66,7 @@ async function runAction(
     installerMismatched = false,
     installerWriteBroken = false,
     relaunchUnavailable = false,
+    reopens = false,
     aborts = false
   } = {}
 ) {
@@ -133,6 +135,18 @@ async function runAction(
    * qui ne se relit pas.
    */
   const legitimate = repositoryFile("CTS Utils.js")
+
+  /*
+   * Un fichier en retard sur GitHub. Il donne à l'opération une écriture
+   * réelle, ce qu'une installation déjà saine ne fournit pas : sans elle,
+   * un rapport ne peut pas porter à la fois une écriture et une erreur.
+   */
+  if (stale) {
+    fs.writeFileSync(
+      path.join(docs, stale),
+      `${repositoryFile(stale)}\n// version en retard\n`
+    )
+  }
 
   if (residue) {
     fs.writeFileSync(path.join(docs, "CTS Utils.js.download"), "moitié téléchargé")
@@ -606,27 +620,54 @@ async function runAction(
    * mettre à jour : le menu ne doit être atteint par aucun chemin, et le
    * fichier sur le disque doit refléter exactement ce qui a été choisi.
    */
+  /*
+   * La relance se compte, partout et pour tous les scénarios. Un scénario
+   * qui ne l'attend pas doit en observer zéro : c'est la seule façon de
+   * voir une réouverture qui déborde sur une opération à laquelle elle
+   * n'appartient pas — une vérification sans écriture, une désinstallation.
+   */
+  const expectedRelaunches = (reopens || installerOpened) && !relaunchUnavailable ? 1 : 0
+
+  if (relaunched.length !== expectedRelaunches) {
+    failures.push(
+      `${expectedRelaunches} relance(s) attendue(s), ${relaunched.length} observée(s)`
+    )
+  }
+
+  /*
+   * Une réouverture qui n'a pas été annoncée surprend : l'installateur
+   * semblerait redémarrer tout seul. Les deux chemins l'annoncent, chacun
+   * avec sa raison — le remplacement de l'installateur lui-même, ou la
+   * mise à jour des fichiers du Dashboard.
+   */
+  if (reopens && !shown.some(text => /s’ouvrira à nouveau sur l’état mis à jour/.test(text))) {
+    failures.push("la réouverture après mise à jour n’a pas été annoncée avant d’être faite")
+  }
+
+  if (!reopens && shown.some(text => /s’ouvrira à nouveau sur l’état mis à jour/.test(text))) {
+    failures.push("une réouverture a été annoncée alors qu’elle n’aura pas lieu")
+  }
+
+  /*
+   * Refusée, la relance ne laisse personne coincé : le message dit ce
+   * qu'il reste à faire, exactement comme avant qu'elle existe.
+   */
+  if (
+    reopens &&
+    relaunchUnavailable &&
+    !shown.some(text => /Relancez CTS Installer depuis la liste des scripts/.test(text))
+  ) {
+    failures.push("relance impossible après mise à jour sans que l’utilisateur soit prévenu")
+  }
+
   if (installerAvailable) {
     if (installerUpdated && !shown.some(text => /Fermez cet écran pour continuer/.test(text))) {
       failures.push("la réouverture n’a pas été annoncée avant d’être faite")
     }
 
-    if (installerOpened && !relaunchUnavailable && relaunched.length !== 1) {
-      failures.push(
-        `relance attendue après le geste d'ouverture : ${relaunched.length} tentative(s)`
-      )
-    }
-
-    if ((!installerOpened || relaunchUnavailable) && relaunched.length) {
-      failures.push("une relance a eu lieu alors qu’elle n’aurait pas dû")
-    }
-
-    /*
-     * Refusée, la relance ne laisse personne coincé : le message dit ce
-     * qu'il reste à faire, exactement comme avant qu'elle existe.
-     */
     if (
       relaunchUnavailable &&
+      installerUpdated &&
       !shown.some(text => /Relancez-le depuis la liste des scripts/.test(text))
     ) {
       failures.push("relance impossible sans que l’utilisateur soit prévenu")
@@ -661,7 +702,18 @@ async function runAction(
  */
 const scenarios = [
   { label: "vérification", choice: 0, silent: true },
-  { label: "restes d’écriture à la racine", choice: 0, silent: true, residue: true },
+  /*
+   * Le balayage remet en place un script retrouvé sous son nom de
+   * secours : c'est une écriture réelle, portée au rapport comme une
+   * réparation. Elle rouvre donc, au même titre qu'une mise à jour.
+   */
+  {
+    label: "restes d’écriture à la racine",
+    choice: 0,
+    silent: true,
+    residue: true,
+    reopens: true
+  },
   {
     label: "diagnostic",
     choice: 1,
@@ -693,7 +745,57 @@ const scenarios = [
     expected: /CTS Services Cleaner est absent/
   },
   { label: "désinstallation", choice: 4, expected: /Désinstallation (terminée|partielle)/ },
-  { label: "installation neuve", choice: 0, seed: false, silent: true },
+  /*
+   * Une installation neuve écrit tout : elle rouvre donc. La réouverture
+   * ne suit plus le seul remplacement de l'installateur par lui-même —
+   * toute mise à jour qui a réellement écrit repart sur l'état obtenu.
+   */
+  { label: "installation neuve", choice: 0, seed: false, silent: true, reopens: true },
+  /*
+   * Rien n'a été écrit : rien à rouvrir. Sans cette borne, ouvrir
+   * l'installateur pour vérifier ses fichiers le relancerait à chaque
+   * passage, sans qu'aucune raison ne le justifie.
+   */
+  { label: "aucune réouverture sans écriture", choice: 0, silent: true, reopens: false },
+  /*
+   * Un fichier en erreur interdit la réouverture. Repartir comme si de
+   * rien n'était ferait passer une installation incomplète pour une
+   * réussite : l'ouverture est la façon dont l'outil dit « c'est fait ».
+   */
+  {
+    label: "aucune réouverture si un fichier a échoué",
+    choice: 0,
+    stale: "CTS Parser.js",
+    corrupt: "CTS Utils.js",
+    reopens: false,
+    expected: /1 erreur/
+  },
+  /*
+   * Le système refuse d'ouvrir l'URL. L'écran a promis une réouverture :
+   * la consigne doit prendre le relais, sans quoi la promesse reste en
+   * l'air.
+   */
+  {
+    label: "réouverture impossible : la consigne prend le relais",
+    choice: 0,
+    seed: false,
+    reopens: true,
+    relaunchUnavailable: true
+  },
+  /*
+   * La nouvelle exécution reprend tout : l'ancienne doit s'arrêter là.
+   * Sans cela, deux instances vivraient en même temps et le menu de
+   * l'ancienne reviendrait par-dessus la nouvelle — ici, la seconde
+   * sélection ne doit jamais être atteinte.
+   */
+  {
+    label: "l’ancienne exécution s’arrête après la réouverture",
+    choice: [0, 4],
+    seed: false,
+    silent: true,
+    reopens: true,
+    absent: /Désinstallation/
+  },
   /*
    * Une page d'erreur servie en 200 ne doit jamais atteindre le disque.
    * Le contenu reçu n'est retenu qu'une fois validé : l'affecter avant le
@@ -844,6 +946,7 @@ for (const scenario of scenarios) {
     silent: scenario.silent === true,
     preferences: scenario.preferences === true,
     residue: scenario.residue === true,
+    stale: scenario.stale || null,
     corrupt: scenario.corrupt || null,
     installerAvailable: scenario.installerAvailable || null,
     installerUpdated: scenario.installerUpdated === true,
@@ -851,6 +954,7 @@ for (const scenario of scenarios) {
     installerMismatched: scenario.installerMismatched === true,
     installerWriteBroken: scenario.installerWriteBroken === true,
     relaunchUnavailable: scenario.relaunchUnavailable === true,
+    reopens: scenario.reopens === true,
     aborts: scenario.aborts === true
   })
 

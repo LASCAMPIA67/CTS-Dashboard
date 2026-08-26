@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.27"
+const INSTALLER_VERSION = "1.0.28"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -140,8 +140,16 @@ async function main() {
         return
       }
 
+      /*
+       * Une mise à jour qui a écrit rouvre l'installateur. La nouvelle
+       * exécution reprend tout depuis le début : celle-ci doit donc
+       * s'arrêter, sans quoi deux instances vivraient en même temps et le
+       * menu de l'ancienne reviendrait par-dessus la nouvelle.
+       */
       if (action === "install") {
-        await installOrUpdate(manifest, state)
+        if (await installOrUpdate(manifest, state)) {
+          return
+        }
       } else if (action === "diagnostic") {
         await runDiagnostic(manifest, state)
       } else if (action === "preferences") {
@@ -577,6 +585,10 @@ async function inspect(manifest) {
   }
 }
 
+/*
+ * Rend `true` quand une nouvelle exécution a été lancée : l'appelant doit
+ * alors s'arrêter.
+ */
 async function installOrUpdate(manifest, previous) {
   const fresh = !previous.present
 
@@ -612,6 +624,12 @@ async function installOrUpdate(manifest, previous) {
     unchanged: [],
     failed: []
   }
+
+  /*
+   * Le résultat est retenu, non plus seulement affiché : c'est lui qui dit
+   * si l'opération mérite une relance. Les trois sorties le renseignent.
+   */
+  let outcome = null
 
   const failures = []
   const startedAt = Date.now()
@@ -758,7 +776,7 @@ async function installOrUpdate(manifest, previous) {
         `${verification.valid}/${verification.total} fichiers valides`
       )
 
-      await progress.finish({
+      outcome = {
         success: false,
         title: "Installation non validée",
         message: [
@@ -769,9 +787,11 @@ async function installOrUpdate(manifest, previous) {
         duration: Date.now() - startedAt,
         valid: verification.valid,
         total: verification.total
-      })
+      }
 
-      return
+      await progress.finish(outcome)
+
+      return false
     }
 
     await writeMetadata(manifest, summary)
@@ -786,7 +806,7 @@ async function installOrUpdate(manifest, previous) {
       `${verification.valid}/${verification.total} fichiers valides`
     )
 
-    await progress.finish({
+    outcome = {
       success: true,
       title: operationResultTitle(operation),
       message: `CTS Dashboard ${manifest.version} est prêt.`,
@@ -794,11 +814,13 @@ async function installOrUpdate(manifest, previous) {
       duration: Date.now() - startedAt,
       valid: verification.valid,
       total: verification.total
-    })
+    }
+
+    await progress.finish(outcome)
   } catch (error) {
     await progress.system("verification", "error", "Opération interrompue")
 
-    await progress.finish({
+    outcome = {
       success: false,
       title: "Opération interrompue",
       message: messageOf(error),
@@ -806,7 +828,9 @@ async function installOrUpdate(manifest, previous) {
       duration: Date.now() - startedAt,
       valid: null,
       total: entries.length
-    })
+    }
+
+    await progress.finish(outcome)
   } finally {
     /*
      * La page de résultat se lit. Rendre la main sans attendre sa
@@ -816,6 +840,65 @@ async function installOrUpdate(manifest, previous) {
      */
     await progress.closed()
   }
+
+  /*
+   * La relance part du geste qui referme la page de résultat, jamais de
+   * l'écriture elle-même : partir plus tôt ferait passer la nouvelle
+   * exécution sous un écran encore ouvert, et le compte des fichiers
+   * modifiés ne serait jamais lu.
+   *
+   * Si le système refuse d'ouvrir l'URL, la ligne « Fermez cet écran pour
+   * continuer » a promis quelque chose qui n'arrivera pas : le message
+   * prend alors le relais plutôt que de laisser un écran muet.
+   */
+  if (!shouldReopen(outcome)) {
+    return false
+  }
+
+  if (relaunch()) {
+    return true
+  }
+
+  await noticeAlert(
+    "Ouverture impossible",
+    `CTS Dashboard ${manifest.version} est bien en place.\n\n` +
+      "Relancez CTS Installer depuis la liste des scripts."
+  )
+
+  return false
+}
+
+/*
+ * Décider de la relance.
+ *
+ * Elle ne suit pas l'opération mais son résultat. Une vérification qui
+ * n'a rien écrit n'a rien à rouvrir, et une opération qui laisse un
+ * fichier en erreur ne doit surtout pas repartir comme si de rien
+ * n'était : l'ouverture est la façon dont l'outil dit « c'est fait »,
+ * elle ne doit donc le dire que quand ça l'est.
+ *
+ * L'écran de résultat pose exactement la même question avant d'annoncer
+ * la réouverture. Une seule fonction pour les deux : annoncer ce qu'on ne
+ * fera pas serait pire que ne rien annoncer.
+ */
+function shouldReopen(result) {
+  if (!result || result.success !== true) {
+    return false
+  }
+
+  const summary = result.summary || {}
+
+  if ((summary.failed || []).length) {
+    return false
+  }
+
+  const written = [
+    ...(summary.installed || []),
+    ...(summary.updated || []),
+    ...(summary.repaired || [])
+  ]
+
+  return written.length > 0
 }
 
 async function canSkipPinnedLibrary(entry) {
@@ -2455,9 +2538,47 @@ function renderFinalPage(table, state, uninstalling) {
 
   addChangesRow(table, result, uninstalling)
 
+  addReopenRow(table, result, uninstalling)
+
   addProtectionRow(table, uninstalling)
 
   addCreditRow(table)
+}
+
+/*
+ * Ce qui va se passer est dit avant de se passer.
+ *
+ * La réouverture part du geste qui referme cet écran. Sans cette ligne,
+ * l'installateur semblerait redémarrer tout seul — et si l'ouverture
+ * échouait, personne ne saurait qu'il manque quelque chose.
+ */
+function addReopenRow(table, result, uninstalling) {
+  if (uninstalling || !shouldReopen(result)) {
+    return
+  }
+
+  const row = new UITableRow()
+  row.height = 55
+  row.dismissOnSelect = false
+
+  const symbol = SFSymbol.named("arrow.clockwise.circle.fill")
+  symbol.applyFont(Font.systemFont(17))
+
+  const image = row.addImage(symbol.image)
+  image.widthWeight = 11
+
+  const text = row.addText(
+    "Fermez cet écran pour continuer",
+    "CTS Installer s’ouvrira à nouveau sur l’état mis à jour."
+  )
+
+  text.widthWeight = 89
+  text.titleFont = Font.semiboldSystemFont(13)
+  text.subtitleFont = Font.systemFont(9)
+  text.titleColor = COLORS.blue
+  text.subtitleColor = COLORS.secondary
+
+  table.addRow(row)
 }
 
 function addCompactHeader(table, title, version, operation) {
