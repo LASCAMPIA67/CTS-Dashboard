@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.29"
+const INSTALLER_VERSION = "1.0.30"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -3682,10 +3682,18 @@ async function updateInstaller(version) {
     )
   }
 
-  await writeText(canonicalInstaller, content)
+  /*
+   * Deux fichiers peuvent porter cet installateur : celui du manifeste, et
+   * celui que Scriptable exécute quand le script a été renommé. Ce second
+   * est celui qui repartira à la relance.
+   */
+  const targets =
+    currentInstaller === canonicalInstaller
+      ? [canonicalInstaller]
+      : [canonicalInstaller, currentInstaller]
 
-  if (currentInstaller !== canonicalInstaller) {
-    await writeText(currentInstaller, content)
+  for (const target of targets) {
+    await writeText(target, content)
   }
 
   /*
@@ -3693,13 +3701,18 @@ async function updateInstaller(version) {
    * autorise la relance : démarrer une exécution sur un fichier
    * incomplet ferait ouvrir une version qui n'existe pas. L'écriture
    * vérifie déjà la présence du fichier ; ici on vérifie son contenu.
+   *
+   * Chaque fichier écrit est relu, pas seulement celui du manifeste :
+   * vérifier l'un et lancer l'autre ne prouvait rien là où ça compte.
    */
-  const written = await readText(canonicalInstaller)
+  for (const target of targets) {
+    const written = await readText(target)
 
-  if (!isInstallerSource(written) || installerVersion(written) !== version) {
-    throw new Error(
-      `CTS Installer ${version} n’a pas été correctement mis en place. Rien n’a été lancé.`
-    )
+    if (!isInstallerSource(written) || installerVersion(written) !== version) {
+      throw new Error(
+        `CTS Installer ${version} n’a pas été correctement mis en place. Rien n’a été lancé.`
+      )
+    }
   }
 }
 
