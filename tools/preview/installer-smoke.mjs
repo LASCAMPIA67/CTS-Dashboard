@@ -61,6 +61,7 @@ async function runAction(
     corrupt = null,
     installerAvailable = null,
     installerUpdated = false,
+    installerOpened = false,
     installerMismatched = false,
     installerWriteBroken = false,
     relaunchUnavailable = false,
@@ -606,13 +607,17 @@ async function runAction(
    * fichier sur le disque doit refléter exactement ce qui a été choisi.
    */
   if (installerAvailable) {
-    if (installerUpdated && !relaunchUnavailable && relaunched.length !== 1) {
+    if (installerUpdated && !shown.some(text => /Mise à jour installée/.test(text))) {
+      failures.push("l’écran de passage à la nouvelle version n’a pas été présenté")
+    }
+
+    if (installerOpened && !relaunchUnavailable && relaunched.length !== 1) {
       failures.push(
-        `relance attendue après le remplacement : ${relaunched.length} tentative(s)`
+        `relance attendue après le geste d'ouverture : ${relaunched.length} tentative(s)`
       )
     }
 
-    if ((!installerUpdated || relaunchUnavailable) && relaunched.length) {
+    if ((!installerOpened || relaunchUnavailable) && relaunched.length) {
       failures.push("une relance a eu lieu alors qu’elle n’aurait pas dû")
     }
 
@@ -620,7 +625,10 @@ async function runAction(
      * Refusée, la relance ne laisse personne coincé : le message dit ce
      * qu'il reste à faire, exactement comme avant qu'elle existe.
      */
-    if (relaunchUnavailable && !shown.some(text => /Relancez-le pour l’utiliser/.test(text))) {
+    if (
+      relaunchUnavailable &&
+      !shown.some(text => /Relancez-le depuis la liste des scripts/.test(text))
+    ) {
       failures.push("relance impossible sans que l’utilisateur soit prévenu")
     }
 
@@ -730,9 +738,10 @@ const scenarios = [
    */
   {
     label: "mise à jour de l’installateur acceptée",
-    choice: 0,
+    choice: [0, 0],
     installerAvailable: FUTURE,
     installerUpdated: true,
+    installerOpened: true,
     expected: [/Mise à jour requise/, /Installer 1\.9\.9/],
     absent: /Désinstaller|Continuer avec/
   },
@@ -769,10 +778,24 @@ const scenarios = [
    */
   {
     label: "relance impossible : la consigne prend le relais",
+    choice: [0, 0],
+    installerAvailable: FUTURE,
+    installerUpdated: true,
+    installerOpened: true,
+    relaunchUnavailable: true,
+    absent: /Désinstaller|Continuer avec/
+  },
+  /*
+   * L'écran de passage se referme sans que la ligne soit touchée : le
+   * remplacement a bien eu lieu, mais rien ne doit s'ouvrir. Ouvrir sans
+   * qu'on l'ait demandé serait aussi fautif que ne pas ouvrir quand on
+   * l'a demandé.
+   */
+  {
+    label: "écran de passage fermé sans ouvrir",
     choice: 0,
     installerAvailable: FUTURE,
     installerUpdated: true,
-    relaunchUnavailable: true,
     absent: /Désinstaller|Continuer avec/
   },
   {
@@ -837,6 +860,7 @@ for (const scenario of scenarios) {
     corrupt: scenario.corrupt || null,
     installerAvailable: scenario.installerAvailable || null,
     installerUpdated: scenario.installerUpdated === true,
+    installerOpened: scenario.installerOpened === true,
     installerMismatched: scenario.installerMismatched === true,
     installerWriteBroken: scenario.installerWriteBroken === true,
     relaunchUnavailable: scenario.relaunchUnavailable === true,

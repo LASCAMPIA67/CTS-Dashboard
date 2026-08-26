@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.25"
+const INSTALLER_VERSION = "1.0.26"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -3150,13 +3150,7 @@ async function handleInstallerUpdate(manifest) {
 
     if (choice === "install") {
       await updateInstaller(available)
-
-      if (!relaunch()) {
-        await noticeAlert(
-          "Mise à jour installée",
-          `CTS Installer ${available} est en place.\n\nRelancez-le pour l’utiliser.`
-        )
-      }
+      await presentInstallerReady(available)
 
       return false
     }
@@ -3171,7 +3165,71 @@ async function handleInstallerUpdate(manifest) {
 }
 
 /*
- * Relance après remplacement.
+ * Écran de passage à la nouvelle version.
+ *
+ * L'ouverture n'est pas tentée d'elle-même, et c'est le résultat d'une
+ * mesure : l'écriture atomique fait disparaître le fichier du script
+ * l'espace d'un instant, et Scriptable cesse alors de le trouver par son
+ * nom. Ouvrir dans la foulée ne fait rien, et sans rien dire. Il lui faut
+ * le temps de reprendre ses repères.
+ *
+ * Attendre en aveugle aurait figé l'écran sur une course qu'on peut
+ * perdre. Le temps de lire cette page et d'y toucher suffit largement, et
+ * l'ouverture part alors d'un appui frais.
+ */
+async function presentInstallerReady(version) {
+  const table = screenTable()
+  let open = false
+
+  addHeroRow(table, {
+    symbol: "checkmark.seal.fill",
+    title: "Mise à jour installée",
+    subtitle: `CTS Installer ${version}`,
+    tone: COLORS.green
+  })
+
+  addVersionBand(table, [
+    { value: INSTALLER_VERSION, label: "Remplacée" },
+    { arrow: true },
+    { value: version, label: "En place", strong: true, tone: COLORS.green }
+  ])
+
+  addStatusRow(table, {
+    symbol: "arrow.clockwise",
+    title: "Une nouvelle exécution est nécessaire",
+    detail: "Le code en cours est encore l’ancien : il ne peut pas se recharger lui-même.",
+    tone: COLORS.primary
+  })
+
+  addSectionRow(table, "Action")
+
+  addActionRow(table, {
+    symbol: "arrow.up.forward.app.fill",
+    label: `Ouvrir CTS Installer ${version}`,
+    detail: "Ouvre la version qui vient d’être installée",
+    tone: COLORS.green,
+    primary: true,
+    onSelect: () => {
+      open = true
+    }
+  })
+
+  addCreditRow(table)
+
+  await table.present(true)
+
+  if (!open) return
+
+  if (!relaunch()) {
+    await noticeAlert(
+      "Ouverture impossible",
+      `CTS Installer ${version} est bien en place.\n\nRelancez-le depuis la liste des scripts.`
+    )
+  }
+}
+
+/*
+ * Relance.
  *
  * Un script ne peut pas recharger son propre code en cours d'exécution :
  * Scriptable a lu le fichier au lancement, et le remplacer ne change rien
@@ -3186,8 +3244,7 @@ async function handleInstallerUpdate(manifest) {
  * dans l'ancienne exécution — deux instances vivantes, dont l'une périmée.
  *
  * Un refus n'est jamais une panne : l'appelant retombe sur le message qui
- * demande de relancer à la main, exactement comme avant. Le widget est
- * écarté d'office, il n'a rien à ouvrir.
+ * demande de relancer à la main, exactement comme avant.
  */
 function relaunch() {
   try {
