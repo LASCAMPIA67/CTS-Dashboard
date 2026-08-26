@@ -85,4 +85,15 @@ La dernière ligne n'est là que tant que le refus temporaire de GitHub
 peut se produire. Elle disparaîtra quand plus personne ne sera concerné.
 
 Quand CTS Installer change lui aussi de version, ajouter une étape 3 :
-`S'il propose « Installer la version 1.0.X », acceptez, puis relancez`.
+`S'il propose « Installer 1.0.X », acceptez, puis fermez l'écran : il se
+rouvre seul`.
+
+Cette étape disait « puis relancez » jusqu'à la 1.0.30. Ce n'est plus
+vrai : l'installateur se rouvre de lui-même après toute mise à jour, et
+c'est la fermeture de l'écran qui déclenche l'ouverture. Une consigne
+périmée coûte plus cher qu'une consigne absente — elle fait douter le
+conducteur de ce qu'il voit à l'écran.
+
+Le libellé cité doit toujours être celui affiché, mot pour mot. Un
+collègue cherche le bouton par son texte ; « Installer la version 1.0.X »
+lui faisait chercher ce qui n'existait pas.
