@@ -198,9 +198,19 @@ async function runAction(
     present() {
       if (selections.length) {
         const actions = this.rows.filter(row => typeof row.onSelect === "function")
-        const target = actions[selections.shift()]
+        const target = actions[selections[0]]
 
-        if (target) target.onSelect()
+        /*
+         * Le geste n'est consommé que s'il trouve une ligne. Un écran
+         * intermédiaire — le diagnostic ouvert depuis le menu, par
+         * exemple — n'a pas à avaler celui destiné à l'écran suivant,
+         * sans quoi aucun scénario ne pourrait enchaîner deux actions et
+         * le retour au menu resterait invérifiable.
+         */
+        if (target) {
+          selections.shift()
+          target.onSelect()
+        }
       }
 
       return Promise.resolve()
@@ -672,6 +682,26 @@ const scenarios = [
     installerAvailable: FUTURE,
     expected: [/Mise à jour requise/, /DERNIÈRE EXÉCUTION DU DASHBOARD/],
     absent: /Désinstaller|Continuer avec/
+  },
+  /*
+   * Retour au menu. Deux actions différentes dans une seule exécution :
+   * la seconde n'est atteignable que si le menu est revenu après la
+   * première. Sans la boucle, seule la première s'exécuterait, et rien
+   * dans le rapport ne porterait la trace de la seconde.
+   */
+  {
+    label: "retour au menu après une action",
+    choice: [1, 3],
+    expected: [/DERNIÈRE EXÉCUTION DU DASHBOARD/, /CTS Services Cleaner est absent/]
+  },
+  /*
+   * Fermer le menu principal ferme l'installateur : la boucle doit
+   * s'arrêter là, sans quoi elle tournerait sans fin.
+   */
+  {
+    label: "fermer le menu arrête l’installateur",
+    choice: 9,
+    absent: /DERNIÈRE EXÉCUTION DU DASHBOARD|Désinstallation/
   },
   {
     label: "menu accessible sur une installation à jour",
