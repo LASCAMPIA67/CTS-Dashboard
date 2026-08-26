@@ -60,7 +60,11 @@ async function runAction(
     residue = false,
     corrupt = null,
     installerAvailable = null,
-    installerUpdated = false
+    installerUpdated = false,
+    installerMismatched = false,
+    installerWriteBroken = false,
+    relaunchUnavailable = false,
+    aborts = false
   } = {}
 ) {
   /*
@@ -139,6 +143,7 @@ async function runAction(
 
   const failures = []
   const shown = []
+  const relaunched = []
 
   /*
    * L'erreur ne remonte pas à la console : main() la rattrape et l'affiche.
@@ -225,12 +230,29 @@ async function runAction(
     readString: target => fs.readFileSync(target, "utf8"),
     writeString: (target, content) => {
       fs.mkdirSync(path.dirname(target), { recursive: true })
+
       fs.writeFileSync(target, content)
     },
     createDirectory: target => fs.mkdirSync(target, { recursive: true }),
     remove: target => fs.rmSync(target, { recursive: true, force: true }),
     move: (from, to) => {
       fs.mkdirSync(path.dirname(to), { recursive: true })
+
+      /*
+       * L'écriture est atomique : temporaire, puis bascule. C'est donc la
+       * bascule qu'il faut abîmer pour rejouer un fichier posé incomplet —
+       * iCloud interrompu, écriture tronquée. Le contrôle de présence n'y
+       * voit rien ; seule une relecture du contenu le voit.
+       */
+      if (installerWriteBroken && to.endsWith("CTS Installer.js")) {
+        fs.writeFileSync(
+          to,
+          fs.readFileSync(from, "utf8").replace(/const INSTALLER_VERSION = "[^"]+"\n/, "")
+        )
+        fs.rmSync(from, { force: true })
+        return
+      }
+
       fs.renameSync(from, to)
     },
     copy: (from, to) => fs.copyFileSync(from, to),
@@ -284,6 +306,17 @@ async function runAction(
     Script: { name: () => "CTS Installer", complete: () => {} },
     Device: { systemVersion: () => "26.6" },
     Pasteboard: { copyString: value => shown.push(String(value)) },
+    /*
+     * La relance ouvre une URL Scriptable. La doublure ne relance rien —
+     * elle enregistre l'intention, ce qui suffit à prouver qu'elle n'a
+     * lieu qu'après un remplacement réellement abouti.
+     */
+    config: { runsInWidget: false },
+    URLScheme: {
+      forRunningScript: () =>
+        relaunchUnavailable ? "about:blank" : "scriptable:///run/CTS%20Installer"
+    },
+    Safari: { open: url => relaunched.push(String(url)) },
     FileManager: { iCloud: () => fileManager, local: () => fileManager },
     /*
      * L'installateur importe CTS Storage à la demande, et uniquement
@@ -383,12 +416,19 @@ async function runAction(
         }
 
         if (installerAvailable && name === "CTS Installer.js") {
-          return fs
-            .readFileSync(installerPath, "utf8")
-            .replace(
-              /const INSTALLER_VERSION = "[^"]+"/,
-              `const INSTALLER_VERSION = "${installerAvailable}"`
-            )
+          const source = fs.readFileSync(installerPath, "utf8")
+
+          /*
+           * Le dépôt annonce une version que le fichier servi ne porte
+           * pas : une publication à moitié faite. Rien ne doit être posé,
+           * et surtout rien ne doit être lancé.
+           */
+          if (installerMismatched) return source
+
+          return source.replace(
+            /const INSTALLER_VERSION = "[^"]+"/,
+            `const INSTALLER_VERSION = "${installerAvailable}"`
+          )
         }
 
         const content =
@@ -422,12 +462,25 @@ async function runAction(
     failures.push(`exception non rattrapée : ${error.message}`)
   }
 
+  /*
+   * Un abandon est normalement un échec du banc. Un scénario peut
+   * déclarer qu'il en attend un — c'est alors son absence qui devient le
+   * défaut, sans quoi un garde-fou retiré passerait pour un succès.
+   */
+  let aborted = false
+
   for (const text of shown) {
     if (RUNTIME_ERROR.test(text)) failures.push(`erreur d'exécution affichée : ${text}`)
-    else if (ABORTED.test(text)) failures.push(`opération avortée : ${text}`)
-    else if (forbidden && forbidden.test(text)) {
+    else if (ABORTED.test(text)) {
+      aborted = true
+      if (!aborts) failures.push(`opération avortée : ${text}`)
+    } else if (forbidden && forbidden.test(text)) {
       failures.push(`verdict injustifié sur une installation saine : ${text}`)
     }
+  }
+
+  if (aborts && !aborted) {
+    failures.push("l’opération aurait dû être refusée, elle est allée au bout")
   }
 
   if (expected) {
@@ -553,6 +606,24 @@ async function runAction(
    * fichier sur le disque doit refléter exactement ce qui a été choisi.
    */
   if (installerAvailable) {
+    if (installerUpdated && !relaunchUnavailable && relaunched.length !== 1) {
+      failures.push(
+        `relance attendue après le remplacement : ${relaunched.length} tentative(s)`
+      )
+    }
+
+    if ((!installerUpdated || relaunchUnavailable) && relaunched.length) {
+      failures.push("une relance a eu lieu alors qu’elle n’aurait pas dû")
+    }
+
+    /*
+     * Refusée, la relance ne laisse personne coincé : le message dit ce
+     * qu'il reste à faire, exactement comme avant qu'elle existe.
+     */
+    if (relaunchUnavailable && !shown.some(text => /Relancez-le pour l’utiliser/.test(text))) {
+      failures.push("relance impossible sans que l’utilisateur soit prévenu")
+    }
+
     if (shown.some(text => /Continuer avec/.test(text))) {
       failures.push("le contournement « Continuer avec » est encore proposé")
     }
@@ -665,6 +736,45 @@ const scenarios = [
     expected: [/Mise à jour requise/, /Installer 1\.9\.9/],
     absent: /Désinstaller|Continuer avec/
   },
+  /*
+   * Publication à moitié faite : le manifeste annonce une version que le
+   * fichier servi ne porte pas. Le remplacement est refusé, et rien n'est
+   * lancé — ouvrir une version qui n'existe pas serait pire que ne rien
+   * faire.
+   */
+  {
+    label: "aucune relance si le remplacement échoue",
+    choice: 0,
+    installerAvailable: FUTURE,
+    installerMismatched: true,
+    aborts: true,
+    absent: /Désinstaller|Continuer avec/
+  },
+  /*
+   * Le fichier reçu était bon, celui posé ne l'est pas. L'écriture dit
+   * avoir réussi, la relecture dit le contraire : c'est elle qui décide,
+   * et rien n'est lancé.
+   */
+  {
+    label: "aucune relance si le fichier posé est incomplet",
+    choice: 0,
+    installerAvailable: FUTURE,
+    installerWriteBroken: true,
+    aborts: true,
+    absent: /Désinstaller|Continuer avec/
+  },
+  /*
+   * Le système refuse d'ouvrir l'URL. Le remplacement a bien eu lieu :
+   * l'utilisateur doit repartir avec la consigne, pas avec un écran muet.
+   */
+  {
+    label: "relance impossible : la consigne prend le relais",
+    choice: 0,
+    installerAvailable: FUTURE,
+    installerUpdated: true,
+    relaunchUnavailable: true,
+    absent: /Désinstaller|Continuer avec/
+  },
   {
     label: "aucun contournement en fermant l’écran",
     choice: 9,
@@ -726,7 +836,11 @@ for (const scenario of scenarios) {
     residue: scenario.residue === true,
     corrupt: scenario.corrupt || null,
     installerAvailable: scenario.installerAvailable || null,
-    installerUpdated: scenario.installerUpdated === true
+    installerUpdated: scenario.installerUpdated === true,
+    installerMismatched: scenario.installerMismatched === true,
+    installerWriteBroken: scenario.installerWriteBroken === true,
+    relaunchUnavailable: scenario.relaunchUnavailable === true,
+    aborts: scenario.aborts === true
   })
 
   if (failures.length) {

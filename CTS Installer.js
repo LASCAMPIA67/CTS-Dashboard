@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.24"
+const INSTALLER_VERSION = "1.0.25"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -3150,6 +3150,14 @@ async function handleInstallerUpdate(manifest) {
 
     if (choice === "install") {
       await updateInstaller(available)
+
+      if (!relaunch()) {
+        await noticeAlert(
+          "Mise à jour installée",
+          `CTS Installer ${available} est en place.\n\nRelancez-le pour l’utiliser.`
+        )
+      }
+
       return false
     }
 
@@ -3158,6 +3166,41 @@ async function handleInstallerUpdate(manifest) {
       continue
     }
 
+    return false
+  }
+}
+
+/*
+ * Relance après remplacement.
+ *
+ * Un script ne peut pas recharger son propre code en cours d'exécution :
+ * Scriptable a lu le fichier au lancement, et le remplacer ne change rien
+ * à ce qui tourne. La seule façon d'exécuter la nouvelle version est d'en
+ * démarrer une nouvelle exécution, qui relira le fichier sur le disque.
+ *
+ * C'est ce que fait l'URL rendue par URLScheme.forRunningScript(). Elle
+ * désigne le script, pas son contenu : ce qui repart est donc bien le
+ * fichier qui vient d'être écrit, et l'ancienne instance s'achève.
+ *
+ * Importer le fichier remplacé aurait exécuté le nouveau code imbriqué
+ * dans l'ancienne exécution — deux instances vivantes, dont l'une périmée.
+ *
+ * Un refus n'est jamais une panne : l'appelant retombe sur le message qui
+ * demande de relancer à la main, exactement comme avant. Le widget est
+ * écarté d'office, il n'a rien à ouvrir.
+ */
+function relaunch() {
+  try {
+    if (typeof Safari === "undefined" || typeof URLScheme === "undefined") return false
+
+    const url = String(URLScheme.forRunningScript() || "")
+
+    if (!/^scriptable:/i.test(url)) return false
+
+    Safari.open(url)
+
+    return true
+  } catch (_) {
     return false
   }
 }
@@ -3354,6 +3397,20 @@ async function updateInstaller(version) {
 
   if (currentInstaller !== canonicalInstaller) {
     await writeText(currentInstaller, content)
+  }
+
+  /*
+   * Relu sur le disque, non supposé écrit. C'est cette relecture qui
+   * autorise la relance : démarrer une exécution sur un fichier
+   * incomplet ferait ouvrir une version qui n'existe pas. L'écriture
+   * vérifie déjà la présence du fichier ; ici on vérifie son contenu.
+   */
+  const written = await readText(canonicalInstaller)
+
+  if (!isInstallerSource(written) || installerVersion(written) !== version) {
+    throw new Error(
+      `CTS Installer ${version} n’a pas été correctement mis en place. Rien n’a été lancé.`
+    )
   }
 }
 
