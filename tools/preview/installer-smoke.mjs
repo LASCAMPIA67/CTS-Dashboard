@@ -67,6 +67,7 @@ async function runAction(
     installerWriteBroken = false,
     relaunchUnavailable = false,
     reopens = false,
+    closeDuringWrite = false,
     aborts = false
   } = {}
 ) {
@@ -167,7 +168,7 @@ async function runAction(
    * erreur d'exécution ou d'une opération avortée.
    */
   const RUNTIME_ERROR = /before initialization|is not defined|is not a function|undefined is not|Cannot read|null is not/i
-  const ABORTED = /Opération impossible|Opération interrompue|Installation non validée/i
+  const ABORTED = /Opération impossible|Opération interrompue|Installation non validée|Mise à jour impossible/i
 
   /*
    * Le rapport technique n'est construit qu'au moment où le conducteur
@@ -215,7 +216,7 @@ async function runAction(
      * consommée par la première table présentée — le menu — de sorte que
      * les pages suivantes, progression et diagnostic, restent intactes.
      */
-    present() {
+    async present() {
       if (selections.length) {
         const actions = this.rows.filter(row => typeof row.onSelect === "function")
         const target = actions[selections[0]]
@@ -227,9 +228,30 @@ async function runAction(
          * sans quoi aucun scénario ne pourrait enchaîner deux actions et
          * le retour au menu resterait invérifiable.
          */
+        /*
+         * L'action est attendue avant que l'écran soit rendu fermé. Une
+         * ligne qui redessine sa propre table travaille pendant que la
+         * personne la regarde ; résoudre la présentation avant elle
+         * simulerait un écran refermé au milieu de l'écriture, ce qu'aucun
+         * geste réel ne fait ici.
+         */
+        /*
+         * Une ligne qui referme l'écran le referme vraiment : sa
+         * présentation se résout aussitôt, et ce que le gestionnaire
+         * dessine ensuite ne s'affiche plus. Sans cela, le banc ne
+         * distinguerait pas un écran redessiné sous les yeux de la
+         * personne d'un écran disparu au moment de parler.
+         *
+         * Une ligne qui le garde ouvert travaille pendant qu'on la
+         * regarde : la fermeture vient après, et c'est elle qu'on attend.
+         */
         if (target) {
           selections.shift()
-          target.onSelect()
+
+          const running = target.onSelect()
+          const keepsOpen = target.dismissOnSelect === false
+
+          if (keepsOpen && !closeDuringWrite) await running
         }
       }
 
@@ -665,6 +687,47 @@ async function runAction(
       failures.push("la réouverture n’a pas été annoncée avant d’être faite")
     }
 
+    /*
+     * Un seul écran pour toute la mise à jour. Il ne se referme pas pour
+     * laisser la place à une page de résultat : il se redessine. Deux
+     * tables présentées signifieraient le retour de l'écran surgi de
+     * nulle part.
+     */
+    if (installerUpdated) {
+      if (tables.length !== 1) {
+        failures.push(
+          `${tables.length} écrans pour une mise à jour de l’installateur, un seul attendu`
+        )
+      }
+
+      const first = tables[0]?.recorded || []
+
+      if (!first.some(text => /Mise à jour requise/.test(text))) {
+        failures.push("l’écran de mise à jour n’a jamais posé sa question")
+      }
+
+      if (!first.some(text => /Mise à jour installée/.test(text))) {
+        failures.push("le résultat s’affiche ailleurs que sur l’écran déjà ouvert")
+      }
+    }
+
+    /*
+     * L'écran refermé pendant l'écriture. Elle va au bout — la couper
+     * laisserait un fichier à moitié posé — mais le délai que la page
+     * fabrique n'a pas eu lieu : rien n'est lancé, et c'est dit.
+     */
+    if (closeDuringWrite) {
+      const onDisk = fs.readFileSync(path.join(docs, "CTS Installer.js"), "utf8")
+
+      if (!onDisk.includes(`const INSTALLER_VERSION = "${installerAvailable}"`)) {
+        failures.push("l’écriture a été coupée par la fermeture de l’écran")
+      }
+
+      if (!alerted.some(text => /Mise à jour installée/.test(text))) {
+        failures.push("le remplacement fait sans témoin n’a pas été signalé")
+      }
+    }
+
     if (
       relaunchUnavailable &&
       installerUpdated &&
@@ -887,6 +950,20 @@ const scenarios = [
     relaunchUnavailable: true,
     absent: /Désinstaller|Continuer avec/
   },
+  /*
+   * L'écran est refermé pendant que le fichier s'écrit. Le remplacement
+   * va au bout, mais rien n'est lancé : le délai que la page fabrique n'a
+   * pas eu lieu, et Scriptable ne retrouverait pas encore le script par
+   * son nom. Ouvrir alors ne ferait rien, et sans rien dire.
+   */
+  {
+    label: "écran refermé pendant l’écriture",
+    choice: 0,
+    installerAvailable: FUTURE,
+    installerUpdated: true,
+    closeDuringWrite: true,
+    absent: /Désinstaller|Continuer avec/
+  },
   {
     label: "aucun contournement en fermant l’écran",
     choice: 9,
@@ -955,6 +1032,7 @@ for (const scenario of scenarios) {
     installerWriteBroken: scenario.installerWriteBroken === true,
     relaunchUnavailable: scenario.relaunchUnavailable === true,
     reopens: scenario.reopens === true,
+    closeDuringWrite: scenario.closeDuringWrite === true,
     aborts: scenario.aborts === true
   })
 

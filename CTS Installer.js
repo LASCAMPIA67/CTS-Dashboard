@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.28"
+const INSTALLER_VERSION = "1.0.29"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -256,10 +256,18 @@ function addSectionRow(table, label) {
   table.addRow(row)
 }
 
-function addActionRow(table, { symbol, label, detail, tone, primary, onSelect }) {
+function addActionRow(table, { symbol, label, detail, tone, primary, keepOpen, onSelect }) {
   const row = new UITableRow()
   row.height = primary ? 62 : 50
   row.onSelect = onSelect
+
+  /*
+   * Une action qui redessine son propre écran ne doit pas le refermer :
+   * sans cela, la table disparaîtrait au moment où elle a le plus à dire.
+   */
+  if (keepOpen) {
+    row.dismissOnSelect = false
+  }
 
   const glyph = SFSymbol.named(symbol)
   glyph.applyFont(Font.systemFont(primary ? 19 : 15))
@@ -3269,9 +3277,36 @@ async function handleInstallerUpdate(manifest) {
   for (;;) {
     const choice = await presentInstallerUpdateGate(available)
 
-    if (choice === "install") {
-      await updateInstaller(available)
-      await presentInstallerReady(available)
+    /*
+     * Le remplacement a eu lieu sous les yeux de la personne, et l'écran
+     * a annoncé la réouverture avant de se refermer : la relance part de
+     * ce geste. Un refus du système ne laisse personne coincé.
+     */
+    if (choice === "installed") {
+      if (!relaunch()) {
+        await noticeAlert(
+          "Ouverture impossible",
+          `CTS Installer ${available} est bien en place.\n\n` +
+            "Relancez-le depuis la liste des scripts."
+        )
+      }
+
+      return false
+    }
+
+    /*
+     * L'écran a été refermé pendant l'écriture. Elle est allée au bout —
+     * la couper aurait laissé un fichier à moitié posé — mais le délai que
+     * cette page fabrique n'a pas eu lieu, et Scriptable ne retrouverait
+     * pas encore le script par son nom. Ouvrir maintenant ne ferait rien,
+     * et sans rien dire : mieux vaut le dire.
+     */
+    if (choice === "installed-unseen") {
+      await noticeAlert(
+        "Mise à jour installée",
+        `CTS Installer ${available} est bien en place.\n\n` +
+          "Relancez-le depuis la liste des scripts."
+      )
 
       return false
     }
@@ -3282,66 +3317,6 @@ async function handleInstallerUpdate(manifest) {
     }
 
     return false
-  }
-}
-
-/*
- * Écran de passage à la nouvelle version.
- *
- * L'ouverture ne suit pas le remplacement, et c'est le résultat d'une
- * mesure : l'écriture atomique fait disparaître le fichier du script
- * l'espace d'un instant, et Scriptable cesse alors de le trouver par son
- * nom. Ouvrir dans la foulée ne fait rien, et sans rien dire. Il lui faut
- * le temps de reprendre ses repères.
- *
- * Attendre en aveugle aurait figé l'écran sur une course qu'on peut
- * perdre. Cette page fournit le délai sans le faire attendre : le temps
- * de la lire et de la refermer dépasse largement ce qu'il faut, et
- * l'ouverture part de ce geste-là.
- *
- * Elle annonce donc ce qu'elle va faire. Si la course était malgré tout
- * perdue, rien ne s'ouvrirait — et il faut alors que la personne sache
- * quoi faire sans avoir à le deviner.
- */
-async function presentInstallerReady(version) {
-  const table = screenTable()
-
-  addHeroRow(table, {
-    symbol: "checkmark.seal.fill",
-    title: "Mise à jour installée",
-    subtitle: `CTS Installer ${version}`,
-    tone: COLORS.green
-  })
-
-  addVersionBand(table, [
-    { value: INSTALLER_VERSION, label: "Remplacée" },
-    { arrow: true },
-    { value: version, label: "En place", strong: true, tone: COLORS.green }
-  ])
-
-  addStatusRow(table, {
-    symbol: "arrow.clockwise",
-    title: "Fermez cet écran pour continuer",
-    detail: `CTS Installer ${version} s’ouvrira à sa place.`,
-    tone: COLORS.blue
-  })
-
-  addStatusRow(table, {
-    symbol: "hand.tap.fill",
-    title: "S’il ne s’ouvre pas",
-    detail: "Relancez CTS Installer depuis la liste des scripts.",
-    tone: COLORS.secondary
-  })
-
-  addCreditRow(table)
-
-  await table.present(true)
-
-  if (!relaunch()) {
-    await noticeAlert(
-      "Ouverture impossible",
-      `CTS Installer ${version} est bien en place.\n\nRelancez-le depuis la liste des scripts.`
-    )
   }
 }
 
@@ -3379,71 +3354,211 @@ function relaunch() {
   }
 }
 
+/*
+ * Un seul écran pour toute la mise à jour de l'installateur.
+ *
+ * Il ne se referme pas pour laisser la place à une page de résultat : il
+ * se redessine. Deux écrans successifs disaient la même chose en deux
+ * temps, et le second paraissait surgir de nulle part.
+ *
+ * Ce que la page fabrique reste indispensable, et ce n'est pas de
+ * l'affichage : l'écriture atomique fait disparaître le fichier du script
+ * l'espace d'un instant, et Scriptable cesse alors de le trouver par son
+ * nom. Ouvrir dans la foulée ne fait rien, et sans rien dire. Le temps de
+ * lire cette page et de la refermer dépasse largement ce qu'il faut, et
+ * l'ouverture part de ce geste-là — un délai posé en aveugle aurait figé
+ * l'écran sur une course qu'on peut perdre.
+ *
+ * L'écriture est attendue même si la page est refermée pendant qu'elle se
+ * fait : la laisser en plan couperait le remplacement en deux. Mais la
+ * relance, elle, n'a lieu que si la page était encore ouverte à la fin —
+ * sinon le délai qu'elle fabrique n'a pas eu lieu, et l'ouverture partirait
+ * dans le vide.
+ */
 async function presentInstallerUpdateGate(available) {
   const table = screenTable()
+
   let choice = null
+  let announced = false
+  let closed = false
+  let pending = null
 
-  addHeroRow(table, {
-    symbol: "exclamationmark.triangle.fill",
-    title: "Mise à jour requise",
-    subtitle: "CTS Installer",
-    tone: COLORS.orange
-  })
+  const redraw = draw => {
+    table.removeAllRows()
+    draw()
+    table.reload()
+  }
 
-  addVersionBand(table, [
-    { value: INSTALLER_VERSION, label: "Installée" },
-    { arrow: true },
-    { value: available, label: "Requise", strong: true, tone: COLORS.orange }
-  ])
+  const drawWorking = () => {
+    addHeroRow(table, {
+      symbol: "arrow.down.circle.fill",
+      title: "Mise à jour en cours",
+      subtitle: "CTS Installer",
+      tone: COLORS.blue
+    })
 
-  addStatusRow(table, {
-    symbol: "exclamationmark.circle.fill",
-    title: "Version obligatoire",
-    detail: "CTS Installer ne peut pas continuer sans cette mise à jour.",
-    tone: COLORS.orange
-  })
+    addVersionBand(table, [
+      { value: INSTALLER_VERSION, label: "Installée" },
+      { arrow: true },
+      { value: available, label: "En cours", strong: true, tone: COLORS.blue }
+    ])
 
-  addStatusRow(table, {
-    symbol: "arrow.clockwise",
-    title: "Relance nécessaire",
-    detail: "Après l’installation, relancez CTS Installer.",
-    tone: COLORS.primary
-  })
+    addStatusRow(table, {
+      symbol: "arrow.down.doc.fill",
+      title: "Remplacement de CTS Installer",
+      detail: "Ne fermez pas cet écran.",
+      tone: COLORS.blue
+    })
 
-  addStatusRow(table, {
-    symbol: "lock.shield.fill",
-    title: "Données protégées",
-    detail: "Vos PDF, vos archives et vos réglages sont conservés.",
-    tone: COLORS.green
-  })
+    addProtectionRow(table, false)
 
-  addSectionRow(table, "Actions")
+    addCreditRow(table)
+  }
 
-  addActionRow(table, {
-    symbol: "arrow.down.circle.fill",
-    label: `Installer ${available}`,
-    detail: "Remplace CTS Installer sur cet iPhone",
-    tone: COLORS.orange,
-    primary: true,
-    onSelect: () => {
-      choice = "install"
+  const drawReady = () => {
+    addHeroRow(table, {
+      symbol: "checkmark.seal.fill",
+      title: "Mise à jour installée",
+      subtitle: `CTS Installer ${available}`,
+      tone: COLORS.green
+    })
+
+    addVersionBand(table, [
+      { value: INSTALLER_VERSION, label: "Remplacée" },
+      { arrow: true },
+      { value: available, label: "En place", strong: true, tone: COLORS.green }
+    ])
+
+    addStatusRow(table, {
+      symbol: "arrow.clockwise",
+      title: "Fermez cet écran pour continuer",
+      detail: `CTS Installer ${available} s’ouvrira à sa place.`,
+      tone: COLORS.blue
+    })
+
+    addStatusRow(table, {
+      symbol: "hand.tap.fill",
+      title: "S’il ne s’ouvre pas",
+      detail: "Relancez CTS Installer depuis la liste des scripts.",
+      tone: COLORS.secondary
+    })
+
+    addCreditRow(table)
+  }
+
+  const drawFailed = reason => {
+    addHeroRow(table, {
+      symbol: "xmark.octagon.fill",
+      title: "Mise à jour impossible",
+      subtitle: "CTS Installer",
+      tone: COLORS.red
+    })
+
+    addStatusRow(table, {
+      symbol: "exclamationmark.triangle.fill",
+      title: "Rien n’a été lancé",
+      detail: reason,
+      tone: COLORS.red
+    })
+
+    addStatusRow(table, {
+      symbol: "lock.shield.fill",
+      title: "Version en place conservée",
+      detail: `CTS Installer ${INSTALLER_VERSION} n’a pas été remplacé.`,
+      tone: COLORS.green
+    })
+
+    addCreditRow(table)
+  }
+
+  /*
+   * L'écriture n'est pas attendue dans le gestionnaire de la ligne : la
+   * table doit pouvoir se redessiner pendant qu'elle se fait. Elle est
+   * retenue et attendue plus bas, à la fermeture de l'écran.
+   */
+  const perform = async () => {
+    redraw(drawWorking)
+
+    try {
+      await updateInstaller(available)
+
+      choice = "installed"
+      announced = !closed
+
+      redraw(drawReady)
+    } catch (error) {
+      choice = "failed"
+
+      redraw(() => drawFailed(messageOf(error)))
     }
-  })
+  }
 
-  addActionRow(table, {
-    symbol: "stethoscope",
-    label: "Diagnostic",
-    detail: "Rapport complet, sans mettre à jour",
-    onSelect: () => {
-      choice = "diagnostic"
-    }
-  })
+  const drawGate = () => {
+    addHeroRow(table, {
+      symbol: "exclamationmark.triangle.fill",
+      title: "Mise à jour requise",
+      subtitle: "CTS Installer",
+      tone: COLORS.orange
+    })
 
-  addCreditRow(table)
+    addVersionBand(table, [
+      { value: INSTALLER_VERSION, label: "Installée" },
+      { arrow: true },
+      { value: available, label: "Requise", strong: true, tone: COLORS.orange }
+    ])
+
+    addStatusRow(table, {
+      symbol: "exclamationmark.circle.fill",
+      title: "Version obligatoire",
+      detail: "CTS Installer ne peut pas continuer sans cette mise à jour.",
+      tone: COLORS.orange
+    })
+
+    addStatusRow(table, {
+      symbol: "lock.shield.fill",
+      title: "Données protégées",
+      detail: "Vos PDF, vos archives et vos réglages sont conservés.",
+      tone: COLORS.green
+    })
+
+    addSectionRow(table, "Actions")
+
+    addActionRow(table, {
+      symbol: "arrow.down.circle.fill",
+      label: `Installer ${available}`,
+      detail: "Remplace CTS Installer sur cet iPhone",
+      tone: COLORS.orange,
+      primary: true,
+      keepOpen: true,
+      /*
+       * La promesse est rendue autant que retenue : si l'hôte attend le
+       * gestionnaire avant de rendre l'écran fermable, il attend alors la
+       * bonne chose plutôt que rien.
+       */
+      onSelect: () => (pending = perform())
+    })
+
+    addActionRow(table, {
+      symbol: "stethoscope",
+      label: "Diagnostic",
+      detail: "Rapport complet, sans mettre à jour",
+      onSelect: () => {
+        choice = "diagnostic"
+      }
+    })
+
+    addCreditRow(table)
+  }
+
+  drawGate()
 
   await table.present(true)
 
-  return choice
+  closed = true
+
+  await pending
+
+  return choice === "installed" && !announced ? "installed-unseen" : choice
 }
 
 /*
