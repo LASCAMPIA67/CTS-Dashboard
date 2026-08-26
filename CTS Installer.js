@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.22"
+const INSTALLER_VERSION = "1.0.23"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -3054,36 +3054,83 @@ function validateManifest(manifest) {
   }
 }
 
+/*
+ * Mise à jour obligatoire de l'installateur.
+ *
+ * Toute version publiée plus récente est imposée, et non plus proposée.
+ * L'ancien écran offrait « Continuer avec X » : c'était le seul chemin
+ * qui rendait la main sans mettre à jour, et il suffisait d'un geste pour
+ * rester indéfiniment en arrière — la mise à jour revenait à chaque
+ * lancement et se refusait aussi facilement.
+ *
+ * Le contournement n'est pas retiré de l'écran, il est retiré du code :
+ * cette fonction ne rend `true` — le seul retour qui laisse atteindre le
+ * menu — que si aucune mise à jour n'est disponible. Tous les autres
+ * chemins, y compris fermer l'écran, arrêtent l'installateur. Cacher le
+ * bouton en laissant le retour permissif aurait laissé le contournement
+ * en place derrière un écran.
+ *
+ * Le plancher `minimumInstaller` reste lu : une version publiée en retard
+ * ne doit pas désarmer un plancher relevé volontairement. Il ne distingue
+ * plus deux comportements, puisqu'il n'y en a plus qu'un.
+ *
+ * Le Diagnostic reste joignable sans mettre à jour, comme sur la porte du
+ * Dashboard. Il n'ouvre aucune fonction — ni installation, ni réparation,
+ * ni désinstallation — et n'existe que pour signaler une panne. Si la
+ * mise à jour devenait la seule porte et que c'est précisément elle qui
+ * échoue, la ligne de secours serait coupée au moment où elle sert.
+ */
 async function handleInstallerUpdate(manifest) {
   const available = String(manifest.installerVersion || INSTALLER_VERSION)
   const minimum = String(manifest.minimumInstaller || "0.0.0")
-  const update = compareVersions(available, INSTALLER_VERSION) > 0
-  const required = compareVersions(minimum, INSTALLER_VERSION) > 0
 
-  if (!update && !required) {
+  if (
+    compareVersions(available, INSTALLER_VERSION) <= 0 &&
+    compareVersions(minimum, INSTALLER_VERSION) <= 0
+  ) {
     return true
   }
 
+  for (;;) {
+    const choice = await presentInstallerUpdateGate(available)
+
+    if (choice === "install") {
+      await updateInstaller(available)
+      return false
+    }
+
+    if (choice === "diagnostic") {
+      await runDiagnostic(manifest, await inspect(manifest))
+      continue
+    }
+
+    return false
+  }
+}
+
+async function presentInstallerUpdateGate(available) {
   const table = screenTable()
   let choice = null
 
   addHeroRow(table, {
-    symbol: required ? "exclamationmark.triangle.fill" : "arrow.down.circle.fill",
-    title: required ? "Mise à jour requise" : "Nouvel installateur",
+    symbol: "exclamationmark.triangle.fill",
+    title: "Mise à jour requise",
     subtitle: "CTS Installer",
-    tone: required ? COLORS.orange : COLORS.blue
+    tone: COLORS.orange
   })
 
   addVersionBand(table, [
     { value: INSTALLER_VERSION, label: "Installée" },
     { arrow: true },
-    {
-      value: available,
-      label: "Disponible",
-      strong: true,
-      tone: required ? COLORS.orange : COLORS.blue
-    }
+    { value: available, label: "Requise", strong: true, tone: COLORS.orange }
   ])
+
+  addStatusRow(table, {
+    symbol: "exclamationmark.circle.fill",
+    title: "Version obligatoire",
+    detail: "CTS Installer ne peut pas continuer sans cette mise à jour.",
+    tone: COLORS.orange
+  })
 
   addStatusRow(table, {
     symbol: "arrow.clockwise",
@@ -3092,49 +3139,40 @@ async function handleInstallerUpdate(manifest) {
     tone: COLORS.primary
   })
 
-  if (required) {
-    addStatusRow(table, {
-      symbol: "exclamationmark.circle.fill",
-      title: "Version trop ancienne",
-      detail: "Cette mise à jour est nécessaire pour continuer.",
-      tone: COLORS.orange
-    })
-  }
+  addStatusRow(table, {
+    symbol: "lock.shield.fill",
+    title: "Données protégées",
+    detail: "Vos PDF, vos archives et vos réglages sont conservés.",
+    tone: COLORS.green
+  })
 
-  addSectionRow(table, required ? "Action" : "Actions")
+  addSectionRow(table, "Actions")
 
   addActionRow(table, {
     symbol: "arrow.down.circle.fill",
     label: `Installer ${available}`,
     detail: "Remplace CTS Installer sur cet iPhone",
-    tone: required ? COLORS.orange : COLORS.blue,
+    tone: COLORS.orange,
     primary: true,
     onSelect: () => {
       choice = "install"
     }
   })
 
-  if (!required) {
-    addActionRow(table, {
-      symbol: "arrow.right.circle",
-      label: `Continuer avec ${INSTALLER_VERSION}`,
-      detail: "La mise à jour restera proposée",
-      onSelect: () => {
-        choice = "continue"
-      }
-    })
-  }
+  addActionRow(table, {
+    symbol: "stethoscope",
+    label: "Diagnostic",
+    detail: "Rapport complet, sans mettre à jour",
+    onSelect: () => {
+      choice = "diagnostic"
+    }
+  })
 
   addCreditRow(table)
 
   await table.present(true)
 
-  if (choice === "install") {
-    await updateInstaller(available)
-    return false
-  }
-
-  return !required && choice === "continue"
+  return choice
 }
 
 /*

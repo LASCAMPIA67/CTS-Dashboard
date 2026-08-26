@@ -26,6 +26,14 @@ const repository = path.resolve(here, "..", "..")
 const installerPath = process.argv[2] || path.join(repository, "CTS Installer.js")
 
 const SNAPSHOT = "6a3937ee112251d6093f6678710b6d80187f1085"
+
+/*
+ * Version d'installateur volontairement hors d'atteinte : les scénarios
+ * de mise à jour imposée doivent rester valides quand la version réelle
+ * avance, sans quoi ils cesseraient silencieusement de rien éprouver le
+ * jour où elle les rattrape.
+ */
+const FUTURE = "1.9.9"
 const manifest = JSON.parse(fs.readFileSync(path.join(repository, "version.json"), "utf8"))
 
 function repositoryFile(name) {
@@ -50,7 +58,9 @@ async function runAction(
     silent = false,
     preferences = false,
     residue = false,
-    corrupt = null
+    corrupt = null,
+    installerAvailable = null,
+    installerUpdated = false
   } = {}
 ) {
   /*
@@ -351,6 +361,26 @@ async function runAction(
           return "<!doctype html><html><body>GitHub is having a bad day</body></html>"
         }
 
+        /*
+         * Le dépôt publie un installateur plus récent que celui posé sur
+         * l'appareil. Les deux doivent concorder : updateInstaller
+         * refuse un fichier dont la constante ne correspond pas au
+         * manifeste, et c'est ce refus qui empêche une version bancale
+         * de remplacer celle qui tourne.
+         */
+        if (installerAvailable && name === "version.json") {
+          return JSON.stringify({ ...manifest, installerVersion: installerAvailable })
+        }
+
+        if (installerAvailable && name === "CTS Installer.js") {
+          return fs
+            .readFileSync(installerPath, "utf8")
+            .replace(
+              /const INSTALLER_VERSION = "[^"]+"/,
+              `const INSTALLER_VERSION = "${installerAvailable}"`
+            )
+        }
+
         const content =
           name === "CTS Installer.js"
             ? fs.readFileSync(installerPath, "utf8")
@@ -506,6 +536,29 @@ async function runAction(
     }
   }
 
+  /*
+   * La mise à jour de l'installateur est imposée. Ce qui compte n'est pas
+   * l'absence du bouton mais l'impossibilité de rendre la main sans
+   * mettre à jour : le menu ne doit être atteint par aucun chemin, et le
+   * fichier sur le disque doit refléter exactement ce qui a été choisi.
+   */
+  if (installerAvailable) {
+    if (shown.some(text => /Continuer avec/.test(text))) {
+      failures.push("le contournement « Continuer avec » est encore proposé")
+    }
+
+    const onDisk = fs.readFileSync(path.join(docs, "CTS Installer.js"), "utf8")
+    const replaced = onDisk.includes(`const INSTALLER_VERSION = "${installerAvailable}"`)
+
+    if (installerUpdated && !replaced) {
+      failures.push("l’installateur n’a pas été remplacé alors que la mise à jour a été acceptée")
+    }
+
+    if (!installerUpdated && replaced) {
+      failures.push("l’installateur a été remplacé sans que la mise à jour ait été demandée")
+    }
+  }
+
   fs.rmSync(sandboxRoot, { recursive: true, force: true })
   return [...new Set(failures)]
 }
@@ -587,6 +640,39 @@ const scenarios = [
     expected: [/Version trop ancienne/, /DERNIÈRE EXÉCUTION DU DASHBOARD/],
     absent: /Désinstaller/
   },
+  /*
+   * Premier verrou, et le seul qui protège les versions trop anciennes
+   * pour se surveiller elles-mêmes : une fois l'installateur dépassé,
+   * aucun chemin ne rend la main. « Désinstaller » n'appartient qu'au
+   * menu ; l'y voir signifierait que le fonctionnement normal a été
+   * atteint sans mettre à jour.
+   */
+  {
+    label: "mise à jour de l’installateur acceptée",
+    choice: 0,
+    installerAvailable: FUTURE,
+    installerUpdated: true,
+    expected: [/Mise à jour requise/, /Installer 1\.9\.9/],
+    absent: /Désinstaller|Continuer avec/
+  },
+  {
+    label: "aucun contournement en fermant l’écran",
+    choice: 9,
+    installerAvailable: FUTURE,
+    absent: /Désinstaller|Continuer avec/
+  },
+  /*
+   * Le Diagnostic n'ouvre aucune fonction et ramène à la porte : c'est la
+   * seule façon de signaler une panne quand c'est la mise à jour
+   * elle-même qui échoue.
+   */
+  {
+    label: "diagnostic joignable sans mettre à jour",
+    choice: [1, 9, 9],
+    installerAvailable: FUTURE,
+    expected: [/Mise à jour requise/, /DERNIÈRE EXÉCUTION DU DASHBOARD/],
+    absent: /Désinstaller|Continuer avec/
+  },
   {
     label: "menu accessible sur une installation à jour",
     choice: 1,
@@ -608,7 +694,9 @@ for (const scenario of scenarios) {
     silent: scenario.silent === true,
     preferences: scenario.preferences === true,
     residue: scenario.residue === true,
-    corrupt: scenario.corrupt || null
+    corrupt: scenario.corrupt || null,
+    installerAvailable: scenario.installerAvailable || null,
+    installerUpdated: scenario.installerUpdated === true
   })
 
   if (failures.length) {

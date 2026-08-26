@@ -313,6 +313,30 @@ if (floorOrder === null) {
   )
 }
 
+/*
+ * Même règle pour l'installateur, et elle pèse plus lourd depuis que la
+ * mise à jour est imposée : un plancher au-dessus de la version publiée
+ * afficherait à chacun une porte proposant d'installer la version qu'il
+ * a déjà, sans aucune issue. Le manifeste est le seul endroit où ce
+ * couple peut encore être vérifié avant d'atteindre les téléphones.
+ */
+const installerFloorOrder = compareVersionStrings(
+  manifest.minimumInstaller,
+  manifest.installerVersion
+)
+
+if (installerFloorOrder === null) {
+  fail(
+    `minimumInstaller ou installerVersion illisible : ` +
+    `${manifest.minimumInstaller} / ${manifest.installerVersion}`
+  )
+} else if (installerFloorOrder > 0) {
+  fail(
+    `minimumInstaller (${manifest.minimumInstaller}) dépasse l'installateur publié ` +
+    `(${manifest.installerVersion}). La mise à jour imposée n'aurait alors aucune issue.`
+  )
+}
+
 function compareVersionStrings(first, second) {
   const parse = value => {
     const parts = String(value ?? '').trim().split('.')
