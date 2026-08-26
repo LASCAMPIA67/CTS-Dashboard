@@ -99,3 +99,8 @@ jobs:
       # Un jour de repos ne doit pas y compter comme une panne.
       - name: Run telemetry status test
         run: node tools/preview/telemetry-smoke.mjs
+
+      # ensureReady précède toute lecture de carte agent. Un fichier que
+      # personne ne lit n'a pas à pouvoir empêcher un PDF d'être lu.
+      - name: Run PDF engine test
+        run: node tools/preview/pdf-engine-smoke.mjs
