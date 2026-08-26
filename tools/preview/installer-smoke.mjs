@@ -607,8 +607,8 @@ async function runAction(
    * fichier sur le disque doit refléter exactement ce qui a été choisi.
    */
   if (installerAvailable) {
-    if (installerUpdated && !shown.some(text => /Mise à jour installée/.test(text))) {
-      failures.push("l’écran de passage à la nouvelle version n’a pas été présenté")
+    if (installerUpdated && !shown.some(text => /Fermez cet écran pour continuer/.test(text))) {
+      failures.push("la réouverture n’a pas été annoncée avant d’être faite")
     }
 
     if (installerOpened && !relaunchUnavailable && relaunched.length !== 1) {
@@ -738,7 +738,7 @@ const scenarios = [
    */
   {
     label: "mise à jour de l’installateur acceptée",
-    choice: [0, 0],
+    choice: 0,
     installerAvailable: FUTURE,
     installerUpdated: true,
     installerOpened: true,
@@ -778,24 +778,11 @@ const scenarios = [
    */
   {
     label: "relance impossible : la consigne prend le relais",
-    choice: [0, 0],
+    choice: 0,
     installerAvailable: FUTURE,
     installerUpdated: true,
     installerOpened: true,
     relaunchUnavailable: true,
-    absent: /Désinstaller|Continuer avec/
-  },
-  /*
-   * L'écran de passage se referme sans que la ligne soit touchée : le
-   * remplacement a bien eu lieu, mais rien ne doit s'ouvrir. Ouvrir sans
-   * qu'on l'ait demandé serait aussi fautif que ne pas ouvrir quand on
-   * l'a demandé.
-   */
-  {
-    label: "écran de passage fermé sans ouvrir",
-    choice: 0,
-    installerAvailable: FUTURE,
-    installerUpdated: true,
     absent: /Désinstaller|Continuer avec/
   },
   {
