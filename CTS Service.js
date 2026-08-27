@@ -47,17 +47,27 @@ function normalizeService(source) {
 
   slices.sort((first, second) => UTILS.toMinutes(first.start) - UTILS.toMinutes(second.start))
 
+  const service = {
+    number: String(source.service || "CTS"),
+    date: source.date,
+    dateObject,
+    driver: normalizeDriver(source.driver),
+    slices,
+    breaks: normalizeBreaks(source.breaks)
+  }
+
+  /*
+   * Attachées ici plutôt que calculées à l'affichage : tout ce qui lit un
+   * service passe par cette fonction — le widget, l'application, le
+   * simulateur du mainteneur — et hérite donc de la même liste, sans que
+   * chacun ait à refaire le calcul ni à connaître la règle.
+   */
+  service.interruptions = getInterruptions(service)
+
   return {
     valid: true,
     error: "",
-    service: {
-      number: String(source.service || "CTS"),
-      date: source.date,
-      dateObject,
-      driver: normalizeDriver(source.driver),
-      slices,
-      breaks: normalizeBreaks(source.breaks)
-    }
+    service
   }
 }
 
@@ -359,6 +369,52 @@ function computeStats(service) {
   }
 }
 
+/*
+ * Les intervalles entre deux tranches, nommés et mesurés.
+ *
+ * computeState sait déjà reconnaître cet intervalle : quand l'heure
+ * courante y tombe, il produit l'état PAUSE ou COUPURE et sa pastille.
+ * Mais cette connaissance n'existait qu'à l'instant où le conducteur s'y
+ * trouve. Un service se lit aussi le matin, ou la veille, et la question
+ * « combien de temps de battement entre mes deux tranches » n'avait alors
+ * aucune réponse.
+ *
+ * La règle est donc reprise telle quelle, isCutBetween compris : une
+ * seule définition de ce qu'est une coupure, sans quoi la pastille et le
+ * programme finiraient par se contredire sur le même service.
+ */
+function getInterruptions(service) {
+  if (!hasSlices(service)) return []
+
+  const slices = service.slices
+  const interruptions = []
+
+  for (let index = 0; index < slices.length - 1; index++) {
+    const current = slices[index]
+    const next = slices[index + 1]
+
+    const duration =
+      UTILS.toMinutes(next.start) - UTILS.toMinutes(current.end)
+
+    if (!Number.isFinite(duration) || duration <= 0) continue
+
+    const cut = isCutBetween(service.breaks, current, next)
+    const state = cut ? STATE.CUT : STATE.PAUSE
+
+    interruptions.push({
+      afterIndex: index,
+      nextIndex: next.index,
+      type: state.type,
+      label: state.label,
+      start: current.end,
+      end: next.start,
+      duration
+    })
+  }
+
+  return interruptions
+}
+
 function isCutBetween(breaks, currentSlice, nextSlice) {
   if (!Array.isArray(breaks)) return false
 
@@ -453,5 +509,6 @@ module.exports = {
   computeState,
   computeStats,
   getDisplaySlice,
+  getInterruptions,
   isCutBetween
 }

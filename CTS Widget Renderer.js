@@ -522,10 +522,86 @@ function addProgram(parent, service, state, density) {
   )
   card.addSpacer(density.programHeaderGap)
 
+  /*
+   * Calculées par CTS Service au moment de la normalisation. Le renderer
+   * ne dessine que ce qu'on lui donne : lui faire appeler le moteur de
+   * service l'attacherait à CTS Config, donc au système de fichiers, pour
+   * une ligne de texte.
+   */
+  const interruptions = Array.isArray(service.interruptions)
+    ? service.interruptions
+    : []
+
   service.slices.forEach((slice, index) => {
     addSliceRow(card, slice, state, density)
-    if (index < service.slices.length - 1) card.addSpacer(density.rowGap)
+
+    if (index >= service.slices.length - 1) return
+
+    const interruption = interruptions.find(item => item.afterIndex === index)
+
+    if (interruption && !isAnnouncedByPill(interruption, state)) {
+      addInterruption(card, interruption, density)
+    } else {
+      card.addSpacer(density.rowGap)
+    }
   })
+}
+
+/*
+ * L'intervalle entre deux tranches, écrit là où il se produit.
+ *
+ * Ce n'est pas une ligne ajoutée au bas du bloc : c'est l'espace qui
+ * séparait déjà les deux tranches, qui porte maintenant son nom. Le
+ * conducteur lit son programme de haut en bas dans l'ordre de sa
+ * journée, et l'attente se trouve exactement là où elle tombe.
+ *
+ * Sans fond ni bordure, volontairement : une pause n'est pas une
+ * tranche, et lui donner la même carte la ferait compter pour telle.
+ */
+function addInterruption(parent, interruption, density) {
+  parent.addSpacer(density.interruptionGap)
+
+  const row = parent.addStack()
+  row.centerAlignContent()
+  row.addSpacer()
+
+  const value = `${interruption.label} · ${UTILS.formatDuration(interruption.duration)}`
+
+  addText(
+    row,
+    value,
+    Font.mediumSystemFont(density.interruptionSize),
+    secondary(),
+    1,
+    0.7
+  )
+
+  row.addSpacer()
+  parent.addSpacer(density.interruptionGap)
+}
+
+/*
+ * Pendant la pause, la pastille de l'en-tête annonce déjà « Pause 1 h ».
+ * La répéter dans le programme ne dirait rien de neuf et prendrait une
+ * ligne, alors que c'est justement le moment où le widget en a le moins.
+ *
+ * La condition dit précisément cela, et pas « l'intervalle est en
+ * cours » : la pastille n'affiche la durée que si elle la connaît. Si
+ * elle se contentait un jour du mot « Pause », le programme reprendrait
+ * la parole plutôt que de laisser disparaître le seul chiffre.
+ *
+ * L'état ne suffit pas à désigner l'intervalle : un service peut en
+ * compter plusieurs, et seul celui qui précède la tranche à venir est
+ * celui qu'on vit.
+ */
+function isAnnouncedByPill(interruption, state) {
+  return Boolean(
+    state &&
+    state.type === interruption.type &&
+    state.next &&
+    state.next.index === interruption.nextIndex &&
+    Number(state.breakDuration) > 0
+  )
 }
 
 function addSliceRow(parent, slice, state, density) {
@@ -866,6 +942,7 @@ const TEXT_KEYS = Object.freeze([
   "detailValueSize",
   "directionSize",
   "durationSize",
+  "interruptionSize",
   "numberFont",
   "placeMinimumSize",
   "placeSize",
@@ -1005,6 +1082,8 @@ function densityComfortable() {
     sectionHeaderSize: 8,
     programHeaderGap: 6,
     rowGap: 6,
+    interruptionGap: 2,
+    interruptionSize: 8,
     rowPaddingVertical: 5,
     rowPaddingHorizontal: 6,
     rowRadius: 11,
@@ -1076,6 +1155,8 @@ function densityStandard() {
     sectionHeaderSize: 8,
     programHeaderGap: 5,
     rowGap: 4,
+    interruptionGap: 1,
+    interruptionSize: 7.2,
     rowPaddingVertical: 4,
     rowPaddingHorizontal: 5,
     rowRadius: 10,
@@ -1142,6 +1223,8 @@ function densityCompact() {
     sectionHeaderSize: 7,
     programHeaderGap: 4,
     rowGap: 3,
+    interruptionGap: 0.5,
+    interruptionSize: 6.6,
     rowPaddingVertical: 3,
     rowPaddingHorizontal: 4,
     railHeight: 17,

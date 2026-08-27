@@ -158,7 +158,19 @@ function slice(overrides) {
 }
 
 /*
- * Matrice complète : chaque état du widget croisé avec 1, 2 et 3 tranches.
+ * Matrice complète : chaque état du widget croisé avec 1 à 4 tranches.
+ *
+ * Les services de la CTS en comptent une, deux ou trois — jamais quatre.
+ * La quatrième vignette ne décrit donc aucun service réel, et c'est
+ * exactement pourquoi elle est là : getDensity prévoit une densité
+ * compacte au-delà de trois tranches, et une densité que personne ne
+ * dessine jamais est une densité qui casse en silence le jour où un PDF
+ * inhabituel, ou un parseur qui se trompe, la fait apparaître. Le widget
+ * doit alors se serrer, pas déborder.
+ *
+ * Elle ouvre au passage un intervalle court entre les tranches 3 et 4, là
+ * où les autres sont longs — de quoi juger « 42 min » à côté de
+ * « 3 h 28 ».
  * Les horaires sont construits pour que l'heure d'observation tombe
  * exactement dans l'état voulu, et les coupures sont déclarées comme le
  * ferait le parseur, sans quoi computeState les traiterait en pause.
@@ -166,13 +178,15 @@ function slice(overrides) {
 const LINES = [
   { line: "C4", vehicle: "3", from: "Elmerforst", to: "Elmerforst", direction: "Illkirch Fort Uhrich" },
   { line: "L1", vehicle: "204", from: "UPE", to: "UPE", direction: "Espace Eur. Entr." },
-  { line: "17", vehicle: "5", from: "UPC", to: "UPC", direction: "Neuhof R. Reuss" }
+  { line: "17", vehicle: "5", from: "UPC", to: "UPC", direction: "Neuhof R. Reuss" },
+  { line: "D", vehicle: "42", from: "Elmerforst", to: "Elmerforst", direction: "Poteries" }
 ]
 
 const SLICE_TIMES = [
   { dutyStart: "05:30", start: "05:48", end: "09:03", dutyEnd: "09:20", exit: "05:40", back: "09:14" },
   { dutyStart: "12:31", start: "12:31", end: "16:55", dutyEnd: "17:10", exit: "", back: "17:06" },
-  { dutyStart: "18:07", start: "18:07", end: "20:58", dutyEnd: "21:12", exit: "", back: "21:08" }
+  { dutyStart: "18:07", start: "18:07", end: "20:58", dutyEnd: "21:12", exit: "", back: "21:08" },
+  { dutyStart: "21:40", start: "21:40", end: "22:58", dutyEnd: "23:12", exit: "", back: "23:08" }
 ]
 
 function buildSlices(count) {
@@ -217,7 +231,7 @@ const STATES = [
 
 const SCENARIOS = {}
 
-for (const count of [1, 2, 3]) {
+for (const count of [1, 2, 3, 4]) {
   for (const state of STATES) {
     if (state.needs && count < state.needs) continue
     SCENARIOS[`${state.key} · ${count} tranche${count > 1 ? "s" : ""}`] = {
