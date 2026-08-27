@@ -52,6 +52,12 @@ jobs:
       - name: Run layout geometry test
         run: node tools/preview/layout-smoke.mjs
 
+      # Le programme nomme l'intervalle entre deux tranches. La regle qui
+      # distingue pause et coupure sert aussi a la pastille : les deux
+      # doivent dire la meme chose du meme service.
+      - name: Run interruption test
+        run: node tools/preview/interruption-smoke.mjs
+
       # withTimeout borne tout ce que le projet ne peut pas annuler.
       - name: Run shared primitives test
         run: node tools/preview/utils-smoke.mjs
