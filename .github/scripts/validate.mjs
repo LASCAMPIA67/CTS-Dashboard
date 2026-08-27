@@ -22,6 +22,7 @@ const UNMANIFESTED_SCRIPTS = new Set([INSTALLER_FILE, 'CTS Repair.js'])
 const ADMIN_ONLY_SCRIPTS = [
   'CTS Analytics Admin.js',
   'CTS Analytics Test.js',
+  'CTS Automation Tester.js',
   'CTS Database Editor.js',
   'CTS PDF Tester.js',
   'CTS Simulator.js'
