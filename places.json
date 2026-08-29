@@ -82,5 +82,9 @@
   "KIBI": {
     "name": "Kibitzenau",
     "type": "relief"
+  },
+  "WICH": {
+    "name": "Winston Churchill",
+    "type": "relief"
   }
 }

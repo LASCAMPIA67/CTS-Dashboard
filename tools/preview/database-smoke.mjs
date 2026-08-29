@@ -106,6 +106,16 @@ const places = [
   ["ESPL_2", "Esplanade"],
   ["MOVE_C", "Montagne Verte"],
   ["RORE_A", "Neuhof R. Reuss"],
+  /*
+   * Troisième occurrence du même défaut, après « Code WILSON » et
+   * « Code ELSA_C » : le service KL110 finit sa première tranche à
+   * WICH_A, et la racine WICH manquait. Le code se lit comme les autres
+   * points de relève — deux lettres par mot, WInston CHurchill — mais
+   * rien ne permet de le deviner depuis la base, puisque c'est le nom de
+   * l'arrêt qui y figure, pas son abréviation.
+   */
+  ["WICH_A", "Winston Churchill"],
+  ["WICH", "Winston Churchill"],
   ["WILSON", "Wilson"],
   ["KIBI_A", "Kibitzenau"],
   ["KIBI_1", "Kibitzenau"],
