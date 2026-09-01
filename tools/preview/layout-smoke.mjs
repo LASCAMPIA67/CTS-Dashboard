@@ -146,22 +146,26 @@ for (const screen of SCREENS) {
       const demanded = 2 * density.statColumnWidth + RENDERER.statSeparatorWidth()
       const slack = card - demanded
 
-      if (slack < 0) {
+      /*
+       * Le jeu exigé est celui du bandeau, et pour la même raison.
+       *
+       * Ce contrôle demandait d'abord l'inverse : il refusait plus de
+       * quatre points de jeu, au motif que des colonnes trop étroites
+       * laisseraient le contenu se tasser vers le séparateur. Il n'a donc
+       * pas laissé passer le défaut suivant, il l'a imposé — la carte du
+       * bas est partie en production plus large que celles du dessus, sur
+       * un iPhone dont la table des largeurs surestime.
+       *
+       * Une colonne au cadre rigide ne se comprime pas : si les deux
+       * réclament plus que la carte, c'est la carte qui cède. Le jeu est
+       * donc ce qui absorbe l'erreur de la table, exactement comme pour la
+       * grille du bandeau.
+       */
+      if (slack < MINIMUM_SLACK) {
         failures.push(
           `${screen.label} · ${slices} tranche(s) · texte ×${textScale} : les deux ` +
-          `colonnes demandent ${demanded} pt pour ${card} pt de carte — le bloc déborde`
-        )
-      }
-
-      /*
-       * Un jeu trop grand serait le symptôme inverse : les colonnes ne
-       * rempliraient plus leurs moitiés et le contenu se tasserait vers le
-       * séparateur, ce qui était précisément le défaut d'origine.
-       */
-      if (slack > 4) {
-        failures.push(
-          `${screen.label} · ${slices} tranche(s) · texte ×${textScale} : ${slack} pt ` +
-          `de jeu, les colonnes ne remplissent plus leurs moitiés`
+          `colonnes demandent ${demanded} pt pour ${card} pt de carte, soit ${slack} pt ` +
+          `de jeu au lieu de ${MINIMUM_SLACK} — la carte s'élargirait au-delà des autres`
         )
       }
     }
