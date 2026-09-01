@@ -33,6 +33,27 @@ C'est vérifié : sur la capture réelle d'un service à trois tranches, le
 widget tient ; le banc annonce 15 pt de marge sur Pro Max mais un
 débordement sur les écrans plus petits, ce qu'aucun collègue n'a signalé.
 
+**Le centrage dans une colonne ne se fait que par des ressorts.** Le banc a
+déjà laissé passer une régression en production sur ce point, et elle
+mérite d'être racontée : le bloc Travail / Amplitude de la 1.3.5 centrait
+ses deux lignes avec `centerAlignContent()` sur une pile verticale de
+largeur imposée, plus `centerAlignText()`. Le banc l'annonçait centré au
+dixième de point près. Sur l'iPhone, les deux lignes étaient collées à
+gauche de leur colonne.
+
+Deux traductions du shim se combinaient pour produire cette fiction :
+`centerAlignContent()` devenait `align-items:center`, dont l'axe est
+horizontal quand la pile est verticale ; et `centerAlignText()` étirait le
+texte à la largeur du parent avant de centrer les glyphes dedans. Les deux
+sont désormais neutralisées dans une pile verticale, et le banc reproduit
+le défaut — 120 pt d'asymétrie là où il annonçait 0.
+
+La seule construction éprouvée sur appareil pour centrer dans une colonne
+est donc `addCenteredLine`, qui enveloppe chaque ligne dans une pile
+horizontale entre deux ressorts souples. C'est ce qu'emploient le bandeau
+horaires et la colonne des horaires du programme, tous deux visiblement
+centrés sur les captures.
+
 ## Comment s'en servir malgré tout
 
 **En différentiel, jamais en absolu.** On mesure avant la modification, on

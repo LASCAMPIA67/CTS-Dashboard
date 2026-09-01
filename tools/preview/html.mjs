@@ -67,7 +67,23 @@ function boxStyle(node, parentVertical) {
   const style = []
   style.push(`display:flex`)
   style.push(`flex-direction:${node.vertical ? "column" : "row"}`)
-  style.push(`align-items:${node.centered ? "center" : "flex-start"}`)
+  /*
+   * centerAlignContent() ne centre que dans une pile horizontale.
+   *
+   * En flexbox, align-items agit sur l'axe transversal : dans une pile
+   * verticale, c'est l'axe horizontal. Le banc centrait donc horizontalement
+   * ce que l'iPhone laisse collé à gauche — une capture d'écran l'a montré
+   * sur le bloc Travail / Amplitude, que le banc annonçait pourtant centré
+   * au dixième de point près.
+   *
+   * Une pile verticale n'est donc plus centrée ici. Le sens de l'erreur
+   * redevient le bon : le banc montrera un défaut là où il n'y en a
+   * peut-être pas, plutôt que d'en cacher un. Pour centrer réellement dans
+   * une colonne, le renderer dispose d'addCenteredLine, dont les ressorts
+   * souples se comportent pareil des deux côtés.
+   */
+  const centered = node.centered && !node.vertical
+  style.push(`align-items:${centered ? "center" : "flex-start"}`)
   style.push(`justify-content:flex-start`)
   style.push(`box-sizing:border-box`)
 
@@ -123,7 +139,24 @@ function renderNode(node, parentVertical) {
       `line-height:${LINE_HEIGHT}`
     ].join(";")
     const attrs = `data-fit="1" data-size="${font.size}" data-min="${node.minimumScaleFactor}"`
-    const width = node.align === "left" ? "" : "align-self:stretch;"
+    /*
+     * centerAlignText() centre les glyphes dans le cadre du texte, pas le
+     * texte dans sa colonne.
+     *
+     * Le banc étirait le texte à la largeur du parent — align-self:stretch —
+     * puis le centrait dedans : dans une pile verticale de largeur imposée,
+     * il annonçait donc un centrage que l'iPhone ne fait pas. Le bloc
+     * Travail / Amplitude de la 1.3.5 est parti en production ainsi, mesuré
+     * centré au dixième de point près, et il s'affichait collé à gauche.
+     *
+     * L'étirement ne subsiste que dans une pile horizontale, où il porte sur
+     * l'axe vertical et ne déplace donc rien horizontalement. Centrer dans
+     * une colonne se fait par addCenteredLine, dont les ressorts souples
+     * sont, eux, fidèlement reproduits — c'est ce qu'emploient le bandeau
+     * horaires et la colonne des horaires du programme, tous deux centrés
+     * sur appareil.
+     */
+    const width = node.align === "left" || parentVertical ? "" : "align-self:stretch;"
     return `<span ${attrs} style="${width}${style}">${escapeHtml(node.value)}</span>`
   }
 
