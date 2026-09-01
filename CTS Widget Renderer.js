@@ -1050,19 +1050,23 @@ const COLUMN_SAFETY_MARGIN = 18
  * depuis le bord visible de la carte. Elle ne servait qu'à écarter le texte
  * des angles arrondis, ce dont deux colonnes centrées n'ont pas besoin.
  *
- * La marge de sécurité du bandeau horaires ne s'applique pas non plus, pour
- * la même raison : elle rognerait les deux colonnes vers l'intérieur. Deux
- * points suffisent à absorber les arrondis, et l'erreur de la table des
- * écrans va de toute façon dans le bon sens — un écran inconnu retombe sur
- * la ligne inférieure, donc sous-estime.
+ * La marge de sécurité est celle du bandeau horaires, et pas une valeur
+ * propre à ce bloc. Elle a d'abord été fixée à deux points, en pariant que
+ * la table des écrans ne se trompe que par défaut. Le pari était faux : sur
+ * un iPhone dont la table surestime la largeur, les deux colonnes — dont le
+ * cadre est rigide — réclamaient plus que la carte ne pouvait donner, et
+ * la carte s'élargissait au-delà de celles du dessus.
+ *
+ * Le prix de la marge est connu : elle rentre les deux colonnes de neuf
+ * points vers l'intérieur. C'est exactement ce que fait déjà le bandeau
+ * horaires, dont les colonnes gardent le même jeu. Les deux blocs se
+ * comportent donc pareil, ce qui est le but.
  */
-const STAT_SAFETY_MARGIN = 2
-
 function statColumnWidth(density, screen) {
   const card =
     estimateWidgetWidth(screen) -
     2 * density.paddingHorizontal -
-    STAT_SAFETY_MARGIN
+    COLUMN_SAFETY_MARGIN
 
   return Math.max(0, Math.floor((card - STAT_SEPARATOR_WIDTH) / 2))
 }
