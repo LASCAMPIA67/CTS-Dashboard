@@ -745,34 +745,43 @@ function addStats(parent, stats, density) {
   card.addSpacer()
 }
 
+/*
+ * Une colonne de largeur imposée, dont chaque ligne se centre par des
+ * ressorts souples.
+ *
+ * C'est exactement la construction de la colonne des horaires dans le
+ * programme — largeur fixe, puis addCenteredLine — et ce n'est pas un
+ * détail de style : centerAlignContent() sur une pile verticale ne centre
+ * pas horizontalement sur l'iPhone. Les deux lignes s'y collent à gauche
+ * de la colonne, ce qu'une capture d'écran a montré. Le banc, lui,
+ * l'annonçait centré : son shim traduit centerAlignContent par
+ * align-items:center, dont l'axe transversal est horizontal en flexbox
+ * quand la pile est verticale. Il mesurait donc son propre modèle.
+ *
+ * Un ressort souple, lui, se comporte pareil des deux côtés — c'est la
+ * base de toute la mise en page du widget, et la colonne des horaires le
+ * prouve sur appareil.
+ */
 function addStatBlock(parent, value, label, density) {
   const block = parent.addStack()
   block.layoutVertically()
-  block.centerAlignContent()
-
-  /*
-   * Hauteur libre, largeur imposée : c'est la largeur qui fait le
-   * centrage, la valeur et le libellé se centrant ensuite dans la colonne.
-   */
   block.size = new Size(density.statColumnWidth, 0)
 
-  addText(
+  addCenteredLine(
     block,
     value,
     Font.boldSystemFont(density.statValueSize),
     THEME.getPrimaryTextColor(),
-    1,
     0.75
-  ).centerAlignText()
+  )
   block.addSpacer(1)
-  addText(
+  addCenteredLine(
     block,
     label,
     Font.mediumSystemFont(density.statLabelSize),
     secondary(),
-    1,
     0.75
-  ).centerAlignText()
+  )
 }
 
 /*
