@@ -711,29 +711,51 @@ function addSliceNumber(parent, slice, active, state, density) {
 
 function addStats(parent, stats, density) {
   const card = addSurface(parent, {
-    padding: [
-      density.statPaddingVertical,
-      density.statPaddingHorizontal,
-      density.statPaddingVertical,
-      density.statPaddingHorizontal
-    ],
+    /*
+     * Aucune marge horizontale : les deux colonnes valent chacune la
+     * moitié de la carte, et une marge les décalerait vers le centre.
+     */
+    padding: [density.statPaddingVertical, 0, density.statPaddingVertical, 0],
     radius: density.statRadius,
     backgroundAlpha: 0.05,
     borderAlpha: 0.07
   })
   card.centerAlignContent()
 
+  /*
+   * Deux colonnes de largeur fixe et égale, et deux ressorts seulement —
+   * à l'extérieur.
+   *
+   * Le bloc portait auparavant quatre ressorts souples, un de chaque côté
+   * de chaque colonne. Ils se partageaient l'espace restant, donc leur
+   * taille dépendait de la largeur des deux durées : « Amplitude » étant
+   * plus large que « Travail », le séparateur se retrouvait décalé de la
+   * moitié de cet écart, et le décalage changeait avec les valeurs du
+   * jour. Une barre censée marquer le milieu ne peut pas se déplacer selon
+   * le service affiché.
+   *
+   * Les deux ressorts restants sont symétriques par construction : le
+   * groupe est centré dans la carte, et comme les colonnes sont égales, le
+   * séparateur tombe exactement au centre, quelles que soient les durées.
+   */
+  card.addSpacer()
   addStatBlock(card, UTILS.formatDuration(stats.work), "Travail", density)
   addStatSeparator(card, density)
   addStatBlock(card, UTILS.formatDuration(stats.amplitude), "Amplitude", density)
+  card.addSpacer()
 }
 
 function addStatBlock(parent, value, label, density) {
-  parent.addSpacer()
-
   const block = parent.addStack()
   block.layoutVertically()
   block.centerAlignContent()
+
+  /*
+   * Hauteur libre, largeur imposée : c'est la largeur qui fait le
+   * centrage, la valeur et le libellé se centrant ensuite dans la colonne.
+   */
+  block.size = new Size(density.statColumnWidth, 0)
+
   addText(
     block,
     value,
@@ -751,13 +773,17 @@ function addStatBlock(parent, value, label, density) {
     1,
     0.75
   ).centerAlignText()
-
-  parent.addSpacer()
 }
+
+/*
+ * La largeur du séparateur entre dans le calcul des colonnes : la nommer
+ * évite que les deux endroits divergent d'un point sans qu'on le voie.
+ */
+const STAT_SEPARATOR_WIDTH = 1
 
 function addStatSeparator(parent, density) {
   const rule = parent.addStack()
-  rule.size = new Size(1, density.statSeparatorHeight)
+  rule.size = new Size(STAT_SEPARATOR_WIDTH, density.statSeparatorHeight)
   rule.backgroundColor = THEME.translucentWhite(0.09)
 }
 
@@ -1006,6 +1032,32 @@ function estimateWidgetWidth(screen) {
 
 const COLUMN_SAFETY_MARGIN = 18
 
+/*
+ * Une colonne du bloc du bas vaut exactement la moitié de la carte.
+ *
+ * La carte n'a plus de marge horizontale, et c'est ce qui rend le centrage
+ * juste. Une marge décale forcément le contenu vers le séparateur : la
+ * colonne commencerait après elle, alors que l'œil, lui, mesure l'écart
+ * depuis le bord visible de la carte. Elle ne servait qu'à écarter le texte
+ * des angles arrondis, ce dont deux colonnes centrées n'ont pas besoin.
+ *
+ * La marge de sécurité du bandeau horaires ne s'applique pas non plus, pour
+ * la même raison : elle rognerait les deux colonnes vers l'intérieur. Deux
+ * points suffisent à absorber les arrondis, et l'erreur de la table des
+ * écrans va de toute façon dans le bon sens — un écran inconnu retombe sur
+ * la ligne inférieure, donc sous-estime.
+ */
+const STAT_SAFETY_MARGIN = 2
+
+function statColumnWidth(density, screen) {
+  const card =
+    estimateWidgetWidth(screen) -
+    2 * density.paddingHorizontal -
+    STAT_SAFETY_MARGIN
+
+  return Math.max(0, Math.floor((card - STAT_SEPARATOR_WIDTH) / 2))
+}
+
 function withColumnWidth(density, screen) {
   const inner =
     estimateWidgetWidth(screen) -
@@ -1015,7 +1067,8 @@ function withColumnWidth(density, screen) {
   const available = inner - gridGutter(density)
   return {
     ...density,
-    columnWidth: Math.max(density.columnWidth, Math.floor(available / 2))
+    columnWidth: Math.max(density.columnWidth, Math.floor(available / 2)),
+    statColumnWidth: statColumnWidth(density, screen)
   }
 }
 
@@ -1036,7 +1089,6 @@ function adaptDensity(base, width) {
     railGap: Math.max(3, base.railGap - 1),
     sliceMetricsWidth: Math.max(76, base.sliceMetricsWidth - 8),
     metricsGap: Math.max(4, base.metricsGap - 1),
-    statPaddingHorizontal: Math.max(16, base.statPaddingHorizontal - 3)
   }
 }
 
@@ -1104,7 +1156,6 @@ function densityComfortable() {
     sliceMetricsWidth: 96,
     metricsGap: 6,
     sliceDetailGap: 3,
-    statPaddingHorizontal: 24,
     statPaddingVertical: 5,
     pendingSymbolSize: 11,
     pendingSymbolGap: 5,
@@ -1176,7 +1227,6 @@ function densityStandard() {
     sliceMetricsWidth: 86,
     metricsGap: 5,
     sliceDetailGap: 2,
-    statPaddingHorizontal: 19,
     statPaddingVertical: 4,
     pendingSymbolSize: 10,
     pendingSymbolGap: 4,
@@ -1243,7 +1293,6 @@ function densityCompact() {
     sliceMetricsWidth: 78,
     metricsGap: 4,
     sliceDetailGap: 1,
-    statPaddingHorizontal: 17,
     statValueSize: 12.5,
     statLabelSize: 6.8,
     statSeparatorHeight: 21
@@ -1330,6 +1379,7 @@ module.exports = {
   getDensity,
   estimateWidgetWidth,
   gridGutter,
+  statSeparatorWidth: () => STAT_SEPARATOR_WIDTH,
   createWidget,
   createLargeWidget,
   createErrorWidget,

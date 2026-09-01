@@ -121,6 +121,53 @@ for (const screen of SCREENS) {
   }
 }
 
+/*
+ * Les deux colonnes du bloc Travail / Amplitude.
+ *
+ * Elles portaient auparavant quatre ressorts souples qui se partageaient
+ * l'espace restant : leur taille dépendait donc de la largeur des durées
+ * du jour, et le séparateur — censé marquer le milieu — se décalait de la
+ * moitié de l'écart entre « Travail » et « Amplitude ». Il bougeait selon
+ * le service affiché.
+ *
+ * Chaque colonne vaut désormais exactement la moitié de la carte. Ce qui
+ * doit être tenu ici est donc que les deux moitiés plus le séparateur
+ * entrent bien dans cette carte : une colonne trop large ferait déborder
+ * le bloc, et surtout écraserait le ressort qui garantit la symétrie.
+ */
+for (const screen of SCREENS) {
+  SCREEN = screen
+
+  for (const slices of [1, 2, 3, 4]) {
+    for (const textScale of [1, 1.25]) {
+      const density = RENDERER.getDensity(slices, textScale)
+
+      const card = RENDERER.estimateWidgetWidth(screen) - 2 * density.paddingHorizontal
+      const demanded = 2 * density.statColumnWidth + RENDERER.statSeparatorWidth()
+      const slack = card - demanded
+
+      if (slack < 0) {
+        failures.push(
+          `${screen.label} · ${slices} tranche(s) · texte ×${textScale} : les deux ` +
+          `colonnes demandent ${demanded} pt pour ${card} pt de carte — le bloc déborde`
+        )
+      }
+
+      /*
+       * Un jeu trop grand serait le symptôme inverse : les colonnes ne
+       * rempliraient plus leurs moitiés et le contenu se tasserait vers le
+       * séparateur, ce qui était précisément le défaut d'origine.
+       */
+      if (slack > 4) {
+        failures.push(
+          `${screen.label} · ${slices} tranche(s) · texte ×${textScale} : ${slack} pt ` +
+          `de jeu, les colonnes ne remplissent plus leurs moitiés`
+        )
+      }
+    }
+  }
+}
+
 /* La largeur estimée ne doit jamais dépasser l'écran : garde-fou de la table. */
 for (const screen of SCREENS) {
   SCREEN = screen
@@ -138,5 +185,6 @@ if (failures.length) {
 }
 
 console.log(
-  `ok     géométrie de la grille (${SCREENS.length} écrans × 4 densités, jeu ≥ ${MINIMUM_SLACK} pt)`
+  `ok     géométrie de la grille et des colonnes du bas ` +
+    `(${SCREENS.length} écrans × 4 densités, jeu ≥ ${MINIMUM_SLACK} pt)`
 )
