@@ -1,6 +1,13 @@
 # Sorties des bancs d'essai locaux.
 out/
 
+# Réglages Claude Code propres à une machine.
+#
+# .claude/settings.json est partagé et versionné ; le fichier « local »
+# à côté de lui ne l'est jamais : Claude Code y écrit des choix qui ne
+# valent que pour l'appareil courant.
+.claude/settings.local.json
+
 # Outils réservés au mainteneur, jamais distribués aux collègues.
 #
 # Ils vivent uniquement sur l'iPhone du mainteneur. Ce dépôt est public :
