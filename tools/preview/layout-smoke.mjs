@@ -190,5 +190,5 @@ if (failures.length) {
 
 console.log(
   `ok     géométrie de la grille et des colonnes du bas ` +
-    `(${SCREENS.length} écrans × 4 densités, jeu ≥ ${MINIMUM_SLACK} pt)`
+    `(${SCREENS.length} écrans × 4 découpages, jeu ≥ ${MINIMUM_SLACK} pt)`
 )

@@ -1012,8 +1012,16 @@ function withTextScale(density, scaleValue) {
 
 function getDensity(sliceCountValue, textScale = 1) {
   const count = Math.max(1, Number(sliceCountValue) || 1)
-  const base =
-    count >= 4 ? densityCompact() : count >= 3 ? densityStandard() : densityComfortable()
+  /*
+   * Deux paliers, et non trois. Un troisième existait au-delà de trois
+   * tranches, qui resserrait tout ; aucun service de la CTS n'en compte
+   * quatre, et il n'a donc jamais été dessiné sur un téléphone.
+   *
+   * Un quatrième cas reste possible par erreur de lecture, et le banc
+   * continue de l'éprouver : il est simplement rendu à la densité
+   * standard, qui doit l'encaisser.
+   */
+  const base = count >= 3 ? densityStandard() : densityComfortable()
   const screen = getDeviceSize()
   return withColumnWidth(withTextScale(adaptDensity(base, screen.width), textScale), screen)
 }
@@ -1250,67 +1258,6 @@ function densityStandard() {
   }
 }
 
-function densityCompact() {
-  return {
-    ...densityStandard(),
-    paddingTop: 13,
-    paddingBottom: 11,
-    paddingHorizontal: 15,
-    sectionGap: 4,
-    iconSize: 31,
-    iconSymbolSize: 14,
-    iconGap: 8,
-    serviceSize: 17,
-    dateSize: 8.5,
-    badgeSize: 8.5,
-    surfaceRadius: 15,
-    timingPaddingVertical: 5,
-    cardPaddingHorizontal: 10,
-    timingLabelSize: 6.8,
-    timeSize: 21,
-    arrowSize: 22,
-    timingArrowGap: 6,
-    columnWidth: 78,
-    placeSize: 8.5,
-    placeMinimumSize: 7,
-    detailsSectionGap: 3,
-    detailLabelSize: 6.5,
-    detailValueSize: 7.5,
-    directionSize: 8,
-    detailTimeSize: 8.5,
-    detailSoftLimit: 22,
-    directionSoftLimit: 28,
-    detailMinimumSize: 6.5,
-    programPaddingVertical: 6,
-    programRadius: 14,
-    sectionHeaderSize: 7,
-    programHeaderGap: 4,
-    rowGap: 3,
-    interruptionGap: 0.5,
-    interruptionSize: 6.6,
-    rowPaddingVertical: 3,
-    rowPaddingHorizontal: 4,
-    railHeight: 17,
-    railGap: 3,
-    itemGap: 5,
-    numberSize: 18,
-    numberFont: 8,
-    sliceTitleSize: 9,
-    sliceDetailSize: 7.2,
-    titleSoftLimit: 26,
-    titleMinimumSize: 7.5,
-    routeSoftLimit: 34,
-    routeMinimumSize: 6.5,
-    rangeSize: 8,
-    durationSize: 7,
-    sliceMetricsWidth: 78,
-    metricsGap: 4,
-    sliceDetailGap: 1,
-    statValueSize: 12.5,
-    statLabelSize: 6.8,
-    statSeparatorHeight: 21
-  }
-}
 
 function validateContext(context) {
   if (!context || typeof context !== "object") {
