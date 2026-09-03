@@ -266,6 +266,48 @@ function expect(label, run, expected) {
   expect("exécution nominale", run, "success")
 }
 
+/*
+ * L'identité du conducteur voyage à côté du run, jamais dedans.
+ *
+ * Le serveur valide la forme du run et refuserait un champ qu'il ne
+ * connaît pas. Le nom se pose donc sur l'objet run côté client — pour
+ * qu'il suive l'exécution qui l'a lu — mais n'entre jamais dans ce qui
+ * est envoyé sous la clé « run ».
+ */
+{
+  const run = ANALYTICS.createTelemetryRun({ executionContext: "widget" })
+
+  ANALYTICS.setTelemetryDriver(run, { name: "DUPONT MARIE", id: "123456" })
+
+  if (run.driver?.name !== "DUPONT MARIE" || run.driver?.id !== "123456") {
+    failures.push(
+      `le conducteur n'est pas retenu sur l'exécution : ${JSON.stringify(run.driver)}`
+    )
+  }
+
+  /* Un matricule qui n'est pas un matricule est écarté, le nom reste. */
+  const autre = ANALYTICS.createTelemetryRun({ executionContext: "widget" })
+
+  ANALYTICS.setTelemetryDriver(autre, { name: "MARTIN JEAN", id: "EM76" })
+
+  if (autre.driver?.id !== "") {
+    failures.push(`un matricule non numérique est conservé : « ${autre.driver?.id} »`)
+  }
+
+  if (autre.driver?.name !== "MARTIN JEAN") {
+    failures.push("un matricule invalide a emporté le nom avec lui")
+  }
+
+  /* Une carte sans conducteur lisible ne pose rien du tout. */
+  const vide = ANALYTICS.createTelemetryRun({ executionContext: "widget" })
+
+  ANALYTICS.setTelemetryDriver(vide, { name: "", id: "" })
+
+  if (vide.driver !== null) {
+    failures.push(`une identité vide est retenue : ${JSON.stringify(vide.driver)}`)
+  }
+}
+
 if (failures.length) {
   console.log("ÉCHEC  statut des exécutions télémétriques")
   for (const failure of failures) console.log(`         ${failure}`)
@@ -274,5 +316,5 @@ if (failures.length) {
 
 console.log(
   "ok     statut des exécutions télémétriques (absence de travail, pannes réelles, " +
-  "incidents conservés)"
+  "incidents conservés, identité du conducteur)"
 )

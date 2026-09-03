@@ -255,6 +255,56 @@ function createTelemetryRun({ executionContext = "widget" } = {}) {
   }
 }
 
+/*
+ * L'identité du conducteur, telle que sa carte agent la porte.
+ *
+ * CTS Parser l'extrait depuis toujours — « DUPONT MARIE (123456) » — et
+ * CTS Service la conserve dans le service enregistré. Elle n'avait
+ * jamais quitté l'iPhone ; elle accompagne désormais la télémétrie, pour
+ * que la console d'administration nomme les collègues au lieu de les
+ * désigner par un code. Rien n'est demandé à personne, aucun écran n'est
+ * ajouté : la valeur est déjà là quand le widget s'exécute.
+ *
+ * Elle se pose sur le run, à la manière d'une étape, et non dans un état
+ * partagé du module : deux exécutions concurrentes ne peuvent pas se
+ * voler leur conducteur.
+ */
+function setTelemetryDriver(run, driver) {
+  ensureTelemetryRun(run)
+
+  run.driver = normalizeTelemetryDriver(driver)
+
+  return run
+}
+
+function normalizeTelemetryDriver(driver) {
+  const name = String(driver?.name || "").trim().slice(0, 80)
+  const id = String(driver?.id || "").trim()
+
+  if (!name && !id) return null
+
+  /* Le matricule tel que la carte le porte : quatre à dix chiffres. */
+  return { name, id: /^\d{4,10}$/.test(id) ? id : "" }
+}
+
+/*
+ * Le conducteur voyage au même niveau que l'appareil, jamais dans le
+ * run : normalizeTelemetryRunForSend n'en retient que les champs du
+ * contrat, et le serveur refuserait un run porteur d'un champ inconnu.
+ */
+function telemetryDriverPayload(run) {
+  const driver = run?.driver
+
+  if (!driver) return {}
+
+  const payload = {}
+
+  if (driver.name) payload.driverName = driver.name
+  if (driver.id) payload.driverId = driver.id
+
+  return payload
+}
+
 function setTelemetryRunStatus(run, status) {
   ensureTelemetryRun(run)
 
@@ -353,6 +403,7 @@ async function registerTelemetry({ dashboardVersion, run }) {
     apiKey: readRequiredSecret(KEYS.clientToken, "client_token_missing"),
     body: {
       ...devicePayload(version),
+      ...telemetryDriverPayload(run),
       run: telemetryRun
     },
     timeoutSeconds: TELEMETRY_TIMEOUT_SECONDS
@@ -716,6 +767,7 @@ module.exports = {
   createTelemetryRun,
   setTelemetryRunStatus,
   setTelemetryStage,
+  setTelemetryDriver,
   addTelemetryIssue,
   finishTelemetryRun,
   registerTelemetry,

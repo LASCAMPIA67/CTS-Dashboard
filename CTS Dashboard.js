@@ -32,6 +32,7 @@ async function main() {
 
     context = await WIDGET_ENGINE.loadContext(new Date())
     applyContextTelemetrySafely(analytics, telemetryRun, context?.telemetry)
+    applyDriverTelemetrySafely(analytics, telemetryRun, context?.service?.driver)
   } catch (error) {
     console.warn("[Dashboard]", UTILS.errorMessage(error))
     registerTelemetryIssueSafely(analytics, telemetryRun, {
@@ -258,6 +259,26 @@ function applyContextTelemetrySafely(client, run, telemetry) {
       module: issue?.module,
       stage: issue?.stage
     })
+  }
+}
+
+/*
+ * Le nom et le matricule du conducteur, lus sur sa carte agent par le
+ * parseur et conservés dans le service. Ils accompagnent la télémétrie
+ * pour que la console d'administration nomme les collègues.
+ *
+ * Comme tout ce qui touche à la télémétrie ici, l'échec est silencieux :
+ * une étiquette manquante ne doit jamais empêcher le widget de
+ * s'afficher.
+ */
+function applyDriverTelemetrySafely(client, run, driver) {
+  if (!client || !run || !driver) return
+  if (typeof client.setTelemetryDriver !== "function") return
+
+  try {
+    client.setTelemetryDriver(run, driver)
+  } catch (error) {
+    console.warn("[Analytics]", UTILS.errorMessage(error))
   }
 }
 
