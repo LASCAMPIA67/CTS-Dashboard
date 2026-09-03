@@ -162,11 +162,29 @@ function slice(overrides) {
  *
  * Les services de la CTS en comptent une, deux ou trois — jamais quatre.
  * La quatrième vignette ne décrit donc aucun service réel, et c'est
- * exactement pourquoi elle est là : getDensity prévoit une densité
- * compacte au-delà de trois tranches, et une densité que personne ne
- * dessine jamais est une densité qui casse en silence le jour où un PDF
- * inhabituel, ou un parseur qui se trompe, la fait apparaître. Le widget
- * doit alors se serrer, pas déborder.
+ * exactement pourquoi elle est là : un PDF inhabituel, ou un parseur qui
+ * se trompe, peut la faire apparaître un jour.
+ *
+ * Elle éprouvait auparavant un troisième palier de densité, plus serré,
+ * réservé au-delà de trois tranches. Ce palier a été retiré, et la
+ * mesure prise avant de le retirer explique pourquoi : il ne tenait pas
+ * la promesse écrite ici.
+ *
+ * Les vingt-quatre vignettes à quatre tranches ont été rendues dans un
+ * navigateur, puis leur contenu comparé à la hauteur du cadre.
+ *
+ *   avec le palier serré   14 vignettes sur 24 débordent, jusqu'à 43 pt
+ *   sans le palier         22 vignettes sur 24 débordent, jusqu'à 87 pt
+ *
+ * Le resserrement gagnait donc une quarantaine de points, loin des
+ * quatre-vingts qui manquaient. Il ne protégeait de rien : il rendait
+ * seulement le débordement moins spectaculaire, et le dissimulait
+ * derrière une densité que personne n'avait jamais regardée.
+ *
+ * La vignette reste, et son débordement avec elle. Le jour où un service
+ * à quatre tranches apparaîtra, il faudra une réponse — replier une
+ * tranche, ou monter d'une taille de widget — pas un demi-point de
+ * marge en moins.
  *
  * Elle ouvre au passage un intervalle court entre les tranches 3 et 4, là
  * où les autres sont longs — de quoi juger « 42 min » à côté de
