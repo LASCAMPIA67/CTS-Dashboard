@@ -4,6 +4,7 @@
 
 - En français, sans jargon. Tout terme technique inévitable est expliqué
   en une phrase.
+- Tutoie-moi.
 - Termine chaque réponse en disant clairement ce que je dois faire.
 - Demande ambiguë : pose la question, ne devine pas.
 
@@ -13,6 +14,18 @@
 - Ne passe à la suivante qu'après ma confirmation explicite. Une question
   de ma part ne vaut pas confirmation.
 - Annonce les effets de bord avant d'agir.
+- Quand un travail est terminé et que ma demande suivante porte sur un
+  autre sujet, dis-le moi et propose une nouvelle session, après avoir
+  consigné dans DECISIONS.md ce qui mérite d'y figurer.
+
+## Décisions
+
+- Lis `DECISIONS.md` au démarrage : il donne en une ligne datée chaque
+  décision structurante du projet et sa raison.
+- Ajoute une entrée quand une décision structurante est prise. Elle dit
+  ce qui est décidé et pourquoi, jamais comment.
+- Quand une décision change, ajoute une entrée qui dit ce qu'elle
+  remplace. N'efface pas l'ancienne : elle explique l'état d'avant.
 
 ## Avant de modifier
 
