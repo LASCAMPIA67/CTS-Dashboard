@@ -73,6 +73,86 @@ Deux règles encadrent les versions, et elles ne sont volontairement pas les mê
 
 Le widget ne consulte jamais le réseau pour en décider. Il lit une politique déposée par l’appel d’activité quotidien, et **l’absence de réponse ne bloque jamais** : sans réseau, sans politique connue ou à la première installation, il fonctionne normalement.
 
+## Numéros de version
+
+Deux numéros vivent dans `version.json`, et ils n'ont pas le même métier.
+Augmenter l'un d'eux, c'est publier : CTS Installer compare le numéro du
+manifeste à celui qui est installé, et n'agit que s'il a monté. Un fichier
+modifié sans numéro nouveau reste dans le dépôt et n'atteint aucun iPhone.
+
+Un numéro publié désigne un seul état des fichiers, définitivement. Une
+correction qui arrive après coup prend un numéro neuf, même si elle tient
+en une ligne : la 1.1.2 a été publiée deux fois avec deux comportements
+différents, et un numéro qui en désigne deux ne vaut rien dans un rapport
+de diagnostic.
+
+### `version` — le Dashboard
+
+C'est le numéro qui parle : il s'affiche dans le Diagnostic, voyage avec
+la télémétrie, et le Worker le sert comme dernière version publiée.
+
+**Le correctif est le cas normal.** Une correction, un plantage, une
+lenteur, une mise en page reprise, un libellé faux, une information de
+plus à lire : tout monte d'un cran par défaut.
+
+**Le mineur monte dans quatre cas**, et seulement ceux-là :
+
+| Cas | Précédent |
+|---|---|
+| le conducteur peut faire ce qu'il ne pouvait pas | 1.2.0, retirer un service |
+| il doit apprendre un geste, ou en perd un | 1.1.0, toucher le widget après avoir déposé une carte |
+| ce qui sort du téléphone change de nature | 1.4.0, le nom et le matricule partent avec la télémétrie |
+| un verrou écrit auparavant atteint les téléphones | 1.3.0, un contrôle n'existe que dans la version qui le porte |
+
+**Le majeur n'a jamais bougé.** C'est la version dont la publication
+éteint des installations en service : celle qu'accompagne un
+`minimumDashboard` relevé au-dessus de ce que des collègues utilisent
+encore.
+
+La taille du changement ne décide de rien. Trois publications d'affilée
+ont repris le bloc du bas du widget sans quitter le correctif. Nommer
+l'intervalle entre deux tranches en est resté un aussi : le conducteur y
+gagne à lire, pas à faire. Et revenir à l'habitude d'avant reste un
+correctif — la 1.1.1 a annulé le geste que la 1.1.0 demandait.
+
+### `installerVersion` — CTS Installer
+
+C'est un numéro qui livre. Son seul rôle est de déclencher le
+remplacement de l'installateur par lui-même : il monte d'un cran chaque
+fois que `CTS Installer.js` change, sans mineur ni majeur. Seize
+publications l'ont fait ainsi, dont la reconstruction complète des trois
+écrans d'accueil et la suppression du bouton qui permettait de refuser
+une mise à jour.
+
+Quand un changement doit être annoncé, c'est `version` qui l'annonce : la
+1.3.0 a annoncé la mise à jour obligatoire pendant que la 1.0.21 se
+contentait de la livrer. Un changement qui touche les deux fait monter
+les deux dans le même commit.
+
+### Les planchers
+
+`minimumDashboard` et `minimumInstaller` ne suivent pas le rythme des
+versions, et ne bougent jamais dans le commit qui en publie une.
+
+Le premier ne monte que pour éteindre, donc avec une majeure. Le second
+monte quand une version d'installateur devient incapable de faire son
+travail — une seule fois jusqu'ici, à 1.0.23, le jour où la mise à jour
+est devenue obligatoire.
+
+### Qui décide, et quand le numéro s'écrit
+
+Le mainteneur décide de chaque numéro. Le numéro s'écrit au moment de
+publier, jamais au moment de coder, et toujours à deux endroits dans le
+même commit — `version.json` et `CTS Config.js`, ou `version.json` et
+`CTS Installer.js`. La validation refuse qu'ils divergent.
+
+Un changement qui se juge sur le dépôt porte son numéro dans la même pull
+request. Un changement qui se juge sur l'appareil — un rendu, une mise en
+page, un écran — en demande deux : la première change le code sans
+toucher à aucun numéro, la seconde n'écrit que le numéro, une fois le
+rendu vérifié sur un iPhone. Entre les deux, `main` contient du code non
+publié, et c'est l'état normal d'un travail en attente de vérification.
+
 ## Réparer un installateur bloqué
 
 Si CTS Installer s’arrête sur **Opération impossible** avant d’avoir affiché sa liste de fichiers, c’est l’installateur lui-même qui est en cause et il ne peut pas se remplacer tout seul. Le script **CTS Repair** existe pour ce seul cas :
