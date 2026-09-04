@@ -59,3 +59,16 @@ décision lui est antérieure.
 - 2026-09-04 — `CLAUDE.md` porte les consignes de travail et
   `DECISIONS.md` le journal des décisions : ce qui est décidé et expliqué
   dans une session disparaît avec elle.
+- 2026-09-04 — Un numéro de version est l'acte de publier et non une
+  étiquette : il ne monte que lorsqu'une modification doit atteindre les
+  iPhone, parce que l'installateur ne livre que ce dont le numéro a bougé.
+- 2026-09-04 — Un numéro publié désigne un seul état des fichiers, et une
+  correction ultérieure en prend un neuf : un numéro qui désigne deux
+  comportements ne vaut rien dans un rapport de diagnostic.
+- 2026-09-04 — `version` annonce et `installerVersion` livre : le premier
+  suit ce que le conducteur doit apprendre ou gagne à pouvoir faire, le
+  second n'a d'autre rôle que de déclencher le remplacement de
+  l'installateur et n'annonce rien.
+- 2026-09-04 — Une version majeure est celle dont la publication éteint
+  des installations en service ; il n'y en a jamais eu, et le plancher
+  restera armé sans mordre tant qu'aucune version ne le vaudra.
