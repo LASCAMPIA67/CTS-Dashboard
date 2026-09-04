@@ -52,6 +52,14 @@
 - Jamais de commit direct sur `main` : branche dédiée puis pull request.
 - Ne fusionne que si je le demande.
 
+## Publication
+
+- Tout changement de numéro de version — CTS Dashboard ou CTS Installer —
+  donne lieu à un message pour la communauté WhatsApp, sans attendre que
+  je le demande.
+- Écris-le d'après `MESSAGES.md` : il porte le gabarit, les dix règles
+  d'écriture, et dit quand un message est dû.
+
 ## Documentation Anthropic
 
 Pour toute question sur Claude Code, l'API Anthropic, MCP, les hooks,
