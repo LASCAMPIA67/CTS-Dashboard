@@ -72,3 +72,7 @@ décision lui est antérieure.
 - 2026-09-04 — Une version majeure est celle dont la publication éteint
   des installations en service ; il n'y en a jamais eu, et le plancher
   restera armé sans mordre tant qu'aucune version ne le vaudra.
+- 2026-09-06 — Un correctif dont rien n'est visible pour le conducteur
+  attend la prochaine version qui aura quelque chose à annoncer : publier
+  un numéro oblige à un message pour la communauté, et celui-là n'aurait
+  rien à dire.
