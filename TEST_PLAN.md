@@ -76,9 +76,11 @@ Vérifier également les règles d’archivage : +1 h après la fin du service p
 
 ## 6. Rendu du widget
 
-Tester des services comportant 1, 2 et 3 tranches. Trois tranches est le maximum d’un service CTS : 1 et 2 utilisent la densité confortable, 3 la densité standard. La densité compacte n’est atteinte qu’au-delà, en filet de sécurité contre un PDF mal formé, et n’a donc pas à être testée sur un service réel.
+Tester des services comportant 1, 2 et 3 tranches. Trois tranches est le maximum d’un service CTS : 1 et 2 utilisent la densité confortable, 3 la densité standard. Il n’y a que ces deux densités.
 
-La densité standard porte des libellés agrandis, financés par un resserrement des écarts entre blocs : à trois tranches, la hauteur totale reste inférieure à celle des versions antérieures. Les densités confortable et compacte sont inchangées, donc un service à 1 ou 2 tranches doit s’afficher exactement comme avant.
+Une quatrième tranche ne peut venir que d’une carte agent mal lue. Elle est alors rendue en densité standard et déborde du cadre — c’est mesuré, c’est connu, et le banc de géométrie continue de l’éprouver. Un troisième palier plus serré a existé pour ce cas ; il gagnait une quarantaine de points là où il en manquait quatre-vingts, et ne faisait donc que rendre le débordement moins spectaculaire. Le jour où un tel service apparaîtra, il faudra une vraie réponse — replier une tranche, ou monter d’une taille de widget.
+
+La densité standard porte des libellés agrandis, financés par un resserrement des écarts entre blocs : à trois tranches, la hauteur totale reste inférieure à celle des versions antérieures. La densité confortable est inchangée, donc un service à 1 ou 2 tranches doit s’afficher exactement comme avant.
 
 Contrôler sur chaque profil d’écran :
 
@@ -90,7 +92,7 @@ Contrôler sur chaque profil d’écran :
 - pendant une pause ou une coupure, l'étiquette d'état indique la durée
   totale de l'interruption, par exemple `Pause 55 min` ;
 - aucun nom de lieu réduit : `places.json` est plafonné à 18 caractères et
-  `stops.json` à 24, ce que la CI vérifie ;
+  `stops.json` à 21, ce que la CI vérifie ;
 - durée de chaque tranche centrée sous sa plage horaire ;
 - `Ligne … · Voiture …` lisible sur une ligne ;
 - trajets, directions et noms d’arrêts longs réduits proprement avant troncature ;
