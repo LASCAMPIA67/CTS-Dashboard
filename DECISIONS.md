@@ -76,3 +76,13 @@ décision lui est antérieure.
   attend la prochaine version qui aura quelque chose à annoncer : publier
   un numéro oblige à un message pour la communauté, et celui-là n'aurait
   rien à dire.
+- 2026-09-06 — Le README énonce champ par champ ce que le widget
+  transmet, le nom et le matricule compris : un collègue qui l'apprendrait
+  autrement le prendrait mal, et le dépôt qui distribue le code est le
+  seul endroit où cette information ne se perd pas.
+- 2026-09-06 — Le dépôt est publié sous licence MIT, d'abord pour ce
+  qu'elle dit du risque : un outil consulté avant une prise de service
+  doit énoncer qu'il est fourni sans garantie.
+- 2026-09-06 — Le README ne cite aucun numéro de version en dur, et lit
+  ceux qu'il affiche dans `version.json` : un chiffre recopié finit
+  toujours par diverger de ce qu'il décrit.
