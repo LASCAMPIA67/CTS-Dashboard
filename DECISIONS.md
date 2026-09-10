@@ -86,3 +86,27 @@ décision lui est antérieure.
 - 2026-09-06 — Le README ne cite aucun numéro de version en dur, et lit
   ceux qu'il affiche dans `version.json` : un chiffre recopié finit
   toujours par diverger de ce qu'il décrit.
+- 2026-09-10 — Le README suit les conventions que GitHub documente, comme
+  celui du dépôt admin depuis le même jour : aucun sommaire écrit à la main,
+  puisque GitHub en génère un dès deux titres, et deux encarts au plus —
+  ceux dont l'ignorance coûte quelque chose au conducteur. Tient la
+  charpente commune décidée le 6 septembre, que l'alignement du dépôt admin
+  avait laissée en défaut.
+- 2026-09-10 — Le trajet d'une carte d'agent, du dépôt jusqu'aux archives,
+  est montré par un diagramme : la règle de l'heure d'attente vaut à la fois
+  pour l'arrivée et pour le retrait, et s'expliquait jusqu'ici en quatre
+  endroits sans jamais se voir d'un coup.
+- 2026-09-10 — Le dépôt ne prend des standards de communauté de GitHub que
+  ceux qui servent à quelqu'un ici — politique de sécurité, guide de
+  contribution, gabarit de pull request, sujets de classement — et laisse
+  les autres. Un code de conduite suppose une communauté à arbitrer et des
+  gabarits d'issues un formulaire que personne n'ouvre : un fichier posé
+  pour compléter une liste ne se lit pas, et donne à croire qu'un chemin
+  existe là où il n'y en a pas.
+- 2026-09-10 — Une faille se signale par le signalement privé de GitHub, et
+  jamais par une issue ni par le groupe WhatsApp : le dépôt est public, et
+  une faille décrite avant d'être corrigée est une faille offerte.
+- 2026-09-10 — Une pull request de ce dépôt part d'un gabarit, parce que
+  fusionner un numéro qui a monté publie sur les vingt-quatre iPhone : le
+  seul geste irréversible du dépôt méritait sa liste devant les yeux, au
+  moment de l'ouvrir.

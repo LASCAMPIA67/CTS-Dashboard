@@ -13,20 +13,6 @@ leur service depuis l'écran d'accueil.
 > CTS Dashboard est un projet indépendant. Les documents de service
 > officiels restent la référence.
 
-## Sommaire
-
-- [Ce que fait CTS Dashboard](#ce-que-fait-cts-dashboard)
-- [Compatibilité](#compatibilité)
-- [Installation](#installation)
-- [Au quotidien](#au-quotidien)
-- [Mises à jour](#mises-à-jour)
-- [En cas de problème](#en-cas-de-problème)
-- [Données et confidentialité](#données-et-confidentialité)
-- [Numéros de version](#numéros-de-version)
-- [Contenu du dépôt](#contenu-du-dépôt)
-- [Vérifications automatiques](#vérifications-automatiques)
-- [Licence et auteur](#licence-et-auteur)
-
 ## Ce que fait CTS Dashboard
 
 Le conducteur dépose sa carte d'agent PDF dans un dossier iCloud. Tout le
@@ -89,10 +75,9 @@ puis **Partager → Scriptable → Add to My Scripts**.
 4. Choisir **Installer la version disponible** et attendre la validation
    complète — l'écran doit finir sur `22/22 fichiers valides`.
 
-> [!TIP]
-> Si CTS Installer annonce une version plus récente **de lui-même**, il la
-> propose avant tout le reste : acceptez, puis fermez l'écran. Il se rouvre
-> seul et poursuit l'installation du Dashboard.
+Si CTS Installer annonce une version plus récente **de lui-même**, il la
+propose avant tout le reste : acceptez, puis fermez l'écran. Il se rouvre
+seul et poursuit l'installation du Dashboard.
 
 ### 3. Ajouter le widget
 
@@ -107,6 +92,27 @@ les cas est **Modifier → Ajouter un widget**. Pour reconfigurer un widget
 déjà en place : **appui long sur le widget → Modifier le widget**.
 
 ## Au quotidien
+
+Une carte d'agent suit toujours le même chemin, du dossier `Services`
+jusqu'aux archives. Une seule chose est à faire — déposer le PDF ; tout le
+reste arrive tout seul.
+
+```mermaid
+flowchart TD
+    DEP["Carte d'agent déposée<br/>dans Services"] --> SYNC["Attente qu'iCloud<br/>rende le fichier lisible"]
+    SYNC --> LEC["Lecture du PDF,<br/>analyse, validation"]
+    LEC -->|carte non reconnue| REJ["Services / Rejected"]
+    LEC -->|carte reconnue| SEL["Le service de la date utile<br/>est retenu"]
+    SEL --> AFF["Le widget affiche le service<br/>sur l'écran d'accueil"]
+    AFF --> FIN["Une heure après<br/>la fin du service"]
+    FIN --> ARC["Services / Archive"]
+
+    AFF -.->|changement de dernière minute| SUP["Carte supprimée<br/>du dossier Services"]
+    SUP --> ATT["Une heure d'attente,<br/>le temps d'écarter<br/>un retard d'iCloud"]
+    ATT --> RET["Service retiré,<br/>ses fichiers effacés"]
+    AFF -.->|retrait immédiat| INS["Retirer un service,<br/>dans CTS Installer"]
+    INS --> RET
+```
 
 ### Déposer un service
 
@@ -175,10 +181,9 @@ GitHub courant et conserve les PDF, les archives et les données protégées.
 Deux mécanismes encadrent les versions, et ils ne suivent pas la même
 logique.
 
-> [!IMPORTANT]
-> **Dans CTS Installer, la mise à jour est obligatoire.** Si une version
-> plus récente existe, l'installateur la propose avant tout le reste et le
-> menu n'est pas accessible tant qu'elle n'est pas faite.
+**Dans CTS Installer, la mise à jour est obligatoire.** Si une version plus
+récente existe, l'installateur la propose avant tout le reste et le menu
+n'est pas accessible tant qu'elle n'est pas faite.
 
 Le **Diagnostic** reste joignable sans mettre à jour : c'est la procédure
 d'assistance du projet, et elle doit rester utilisable même quand c'est la
@@ -245,6 +250,9 @@ L'assistance passe par le groupe WhatsApp du projet, celui-là même où sont
 publiées les notes de chaque version. Un rapport de diagnostic y suffit
 presque toujours à identifier la panne.
 
+Une faille de sécurité ne s'écrit pas là, ni dans une issue publique :
+[`SECURITY.md`](SECURITY.md) dit par où la signaler.
+
 ## Données et confidentialité
 
 Le widget adresse trois appels à un serveur tenu par le mainteneur. Cette
@@ -264,10 +272,12 @@ section dit exactement ce qu'ils emportent, parce qu'un dépôt public destiné
 
 > [!IMPORTANT]
 > Le nom et le matricule ne sont **demandés à personne** : ils sont lus sur
-> la carte d'agent, que le widget lit déjà. Ils n'avaient jamais quitté
-> l'iPhone avant la 1.4.0 ; ils l'accompagnent désormais pour que la console
-> du mainteneur nomme un collègue au lieu de le désigner par un code. Un
-> poste qui n'importe plus de carte n'en transmet aucun.
+> la carte d'agent, que le widget lit déjà. Un poste qui n'importe plus de
+> carte n'en transmet aucun.
+
+Ils n'avaient jamais quitté l'iPhone avant la 1.4.0 ; ils l'accompagnent
+désormais pour que la console du mainteneur nomme un collègue au lieu de le
+désigner par un code.
 
 ### Ce qui n'en sort jamais
 
@@ -383,7 +393,7 @@ conducteurs.
 | **`CTS Installer.js`** | téléchargé depuis l'URL brute, se met à jour lui-même, hors manifeste |
 | **`CTS Repair.js`** | remplace un installateur bloqué, installé à la main en cas de besoin |
 | **`tools/preview/`** | bancs d'essai et outils de mesure, exécutés hors iPhone |
-| **`.github/`** | la validation et le workflow qui la lance |
+| **`.github/`** | la validation, le workflow qui la lance, et le gabarit de pull request |
 | **`LICENSE`** | la licence MIT du projet |
 
 <details>
@@ -420,6 +430,8 @@ conducteurs.
 
 | Fichier | Ce qu'il porte |
 |---|---|
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | ce que ce dépôt attend de qui veut y contribuer, et où va l'assistance |
+| [`SECURITY.md`](SECURITY.md) | par où signaler une faille sans l'écrire en public |
 | [`DECISIONS.md`](DECISIONS.md) | une ligne datée par décision structurante, et sa raison |
 | [`TEST_PLAN.md`](TEST_PLAN.md) | la validation minimale avant diffusion d'une version |
 | [`MESSAGES.md`](MESSAGES.md) | le gabarit des messages de publication, et quand ils sont dus |
@@ -445,6 +457,10 @@ statistiques répond 401, quel que soit le code exécuté.
 Tout est rejoué par
 [le workflow de validation](.github/workflows/validate.yml) à chaque poussée
 et à chaque pull request. Les mêmes commandes tournent en local.
+
+Une pull request ouverte ici part du
+[gabarit du dépôt](.github/pull_request_template.md), qui rappelle ce que
+fusionner déclenche.
 
 ### La validation statique
 
