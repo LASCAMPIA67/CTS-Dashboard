@@ -110,3 +110,7 @@ décision lui est antérieure.
   fusionner un numéro qui a monté publie sur les vingt-quatre iPhone : le
   seul geste irréversible du dépôt méritait sa liste devant les yeux, au
   moment de l'ouvrir.
+- 2026-09-12 — Une session de travail sait afficher un PDF dès son
+  ouverture, sans qu'on le demande : une capture d'écran est le seul moyen
+  de montrer ce que le mainteneur a sous les yeux sur son iPhone, et une
+  capture illisible fait répondre de mémoire.
