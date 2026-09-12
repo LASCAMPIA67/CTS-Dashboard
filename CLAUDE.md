@@ -60,6 +60,14 @@
 - Écris-le d'après `MESSAGES.md` : il porte le gabarit, les dix règles
   d'écriture, et dit quand un message est dû.
 
+## Captures d'écran
+
+- Elles arrivent en PDF, et rien ne les affiche sans `poppler-utils`. Le
+  dépôt l'installe seul à l'ouverture d'une session distante, par
+  `.claude/hooks/pdf-tools.sh`.
+- Si une capture reste illisible, installe le paquet avant de répondre et
+  dis-le. Ne décris jamais une capture que tu n'as pas vue.
+
 ## Documentation Anthropic
 
 Pour toute question sur Claude Code, l'API Anthropic, MCP, les hooks,
