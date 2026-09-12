@@ -114,3 +114,7 @@ décision lui est antérieure.
   ouverture, sans qu'on le demande : une capture d'écran est le seul moyen
   de montrer ce que le mainteneur a sous les yeux sur son iPhone, et une
   capture illisible fait répondre de mémoire.
+- 2026-09-12 — Un message qui demande quelque chose à la communauté n'est
+  pas une note de version : il garde le ton de `MESSAGES.md` et ses dix
+  interdits, jamais son gabarit, dont la règle « pas de question » le
+  rendrait muet. Le gabarit reste à ce qu'une publication doit annoncer.
