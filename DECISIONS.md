@@ -124,3 +124,13 @@ décision lui est antérieure.
   réglage de dépôt n'est lu, et le dépôt seul ne peut donc plus rien
   garantir. Complète la décision du 12 septembre, qui la tenait pour
   acquise.
+- 2026-09-14 — Une exécution n'enregistre qu'un incident par cause, et la
+  gravité retenue est la plus forte que cette cause ait values. Deux
+  sous-systèmes butent sur une même panne dans la même exécution — iCloud
+  injoignable arrête l'inspection de la carte agent et l'archivage du même
+  fichier, un index corrompu arrête la sélection du service et l'entretien
+  — et le dédoublonnage portait sur le module, qui diffère par
+  construction : la console recevait deux lignes pour un fait unique,
+  l'une rouge et l'autre orange. Ce que le collègue a perdu ne dépend pas
+  du sous-système qui l'a constaté. Applique à l'émission la règle de
+  gravité du 9 septembre, qui ne valait jusqu'ici qu'à la lecture.

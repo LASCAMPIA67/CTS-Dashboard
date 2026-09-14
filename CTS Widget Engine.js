@@ -18,6 +18,31 @@ const PENDING_SCAN_REFRESH_MS = 60 * 1000
 const FAILED_SCAN_REFRESH_MS = 5 * 60 * 1000
 const MAX_TELEMETRY_ISSUES = 12
 
+/*
+ * Les codes qui décrivent la même panne sous deux noms.
+ *
+ * iCloud injoignable arrête l'inspection de la carte agent et l'archivage
+ * du même fichier, dans la même exécution : deux sous-systèmes constatent
+ * une seule panne, chacun avec son code. La console affichait donc deux
+ * lignes pour un fait, et à deux gravités — l'entretien ne coûte jamais
+ * l'affichage, l'inspection si.
+ *
+ * Un code absent de cette table est sa propre cause : c'est le cas
+ * ordinaire, et il n'y a rien à déclarer pour lui.
+ */
+const TELEMETRY_CAUSES = {
+  ARCHIVE_ICLOUD_DOWNLOAD_FAILED: "ICLOUD_DOWNLOAD",
+  ICLOUD_DOWNLOAD_FAILED: "ICLOUD_DOWNLOAD",
+  PDF_CANONICAL_ICLOUD_FAILED: "ICLOUD_DOWNLOAD",
+  PDF_ICLOUD_DOWNLOAD_FAILED: "ICLOUD_DOWNLOAD"
+}
+
+const TELEMETRY_SEVERITY_WEIGHTS = {
+  warning: 0,
+  error: 1,
+  fatal: 2
+}
+
 async function loadContext(currentDate = new Date()) {
   CONFIG.ensureDirectories()
 
@@ -722,12 +747,23 @@ function applyImportFailureTelemetry(telemetry, item, hasSource) {
   })
 }
 
+/*
+ * Une cause, un incident, et la gravité la plus forte qu'elle ait values.
+ *
+ * Le dédoublonnage portait sur le module, qui diffère par construction
+ * quand deux sous-systèmes butent sur la même panne : un index corrompu
+ * arrête la sélection du service et l'entretien, iCloud injoignable
+ * arrête l'inspection et l'archivage. La console recevait donc deux
+ * lignes pour un fait unique, l'une rouge et l'autre orange.
+ *
+ * Ce que le collègue a perdu ne dépend pas du sous-système qui l'a
+ * constaté : la gravité retenue est la plus forte. Le code, le module et
+ * l'étape restent ceux du premier chemin — buildContextTelemetry ajoute
+ * l'affichage avant l'entretien, et c'est l'affichage qui nomme la panne
+ * en termes utiles.
+ */
 function addDiagnosticIssue(telemetry, issue) {
-  if (
-    !telemetry ||
-    !Array.isArray(telemetry.issues) ||
-    telemetry.issues.length >= MAX_TELEMETRY_ISSUES
-  ) {
+  if (!telemetry || !Array.isArray(telemetry.issues)) {
     return
   }
 
@@ -738,16 +774,38 @@ function addDiagnosticIssue(telemetry, issue) {
     stage: normalizeTelemetryStage(issue?.stage, "unknown")
   }
 
-  const duplicate = telemetry.issues.some(
-    current =>
-      current.errorCode === normalized.errorCode &&
-      current.module === normalized.module &&
-      current.stage === normalized.stage
-  )
+  const cause = telemetryCause(normalized.errorCode)
 
-  if (!duplicate) {
-    telemetry.issues.push(normalized)
+  const existing = telemetry.issues.filter(
+    current => telemetryCause(current.errorCode) === cause
+  )[0]
+
+  /*
+   * Le plafond se vérifie après la recherche, et non avant : une cause
+   * déjà enregistrée doit pouvoir s'aggraver même quand la liste est
+   * pleine, sinon la douzième panne décide de la gravité des onze autres.
+   */
+  if (existing) {
+    existing.severity = strongestIssueSeverity(existing.severity, normalized.severity)
+    return
   }
+
+  if (telemetry.issues.length >= MAX_TELEMETRY_ISSUES) {
+    return
+  }
+
+  telemetry.issues.push(normalized)
+}
+
+function telemetryCause(errorCode) {
+  return TELEMETRY_CAUSES[errorCode] || errorCode
+}
+
+function strongestIssueSeverity(first, second) {
+  const firstWeight = TELEMETRY_SEVERITY_WEIGHTS[first] ?? 0
+  const secondWeight = TELEMETRY_SEVERITY_WEIGHTS[second] ?? 0
+
+  return secondWeight > firstWeight ? second : first
 }
 
 function normalizeIssueSeverity(value) {
