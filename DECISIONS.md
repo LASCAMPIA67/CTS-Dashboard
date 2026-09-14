@@ -118,3 +118,9 @@ décision lui est antérieure.
   pas une note de version : il garde le ton de `MESSAGES.md` et ses dix
   interdits, jamais son gabarit, dont la règle « pas de question » le
   rendrait muet. Le gabarit reste à ce qu'une publication doit annoncer.
+- 2026-09-14 — La lecture des PDF tient au script de configuration de
+  l'environnement, et non plus au seul script du dépôt : une session
+  ouverte sur les deux dépôts démarre dans leur dossier parent, où aucun
+  réglage de dépôt n'est lu, et le dépôt seul ne peut donc plus rien
+  garantir. Complète la décision du 12 septembre, qui la tenait pour
+  acquise.

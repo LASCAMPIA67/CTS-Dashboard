@@ -63,8 +63,13 @@
 ## Captures d'écran
 
 - Elles arrivent en PDF, et rien ne les affiche sans `poppler-utils`. Le
-  dépôt l'installe seul à l'ouverture d'une session distante, par
-  `.claude/hooks/pdf-tools.sh`.
+  script de configuration de l'environnement l'installe avant que la
+  session démarre ; `.claude/hooks/pdf-tools.sh` ne prend le relais que
+  dans une session ouverte sur ce seul dépôt.
+- Ouverte sur les deux dépôts, une session démarre dans leur dossier
+  parent, où aucun réglage de dépôt n'est lu : le script du dépôt n'y
+  tourne pas. Vérifie `pdftoppm` et installe le paquet d'emblée s'il
+  manque.
 - Si une capture reste illisible, installe le paquet avant de répondre et
   dis-le. Ne décris jamais une capture que tu n'as pas vue.
 
