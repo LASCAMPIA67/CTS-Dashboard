@@ -108,6 +108,7 @@ Contrôler sur chaque profil d’écran :
 3. Couper Internet avec un service déjà importé : le widget doit continuer à afficher les données locales disponibles.
 4. Rétablir Internet puis lancer une vérification : aucune donnée ne doit être perdue.
 5. Simuler un échec Analytics : le rendu du widget ne doit pas être bloqué.
+6. Couper iCloud pendant qu’une carte agent attend son archivage : la console d’administration doit montrer **un seul incident** pour cette exécution, et non un à l’inspection plus un à l’archivage.
 
 ## 8. Diagnostic et confidentialité
 

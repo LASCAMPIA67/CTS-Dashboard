@@ -507,6 +507,7 @@ casse à l'exécution. **Chacun est né d'un défaut réel.**
 | `repair-smoke` | un dépannage qui laisse l'iPhone sans installateur |
 | `telemetry-smoke` | un jour de repos compté comme une panne dans le taux de succès de la flotte |
 | `pdf-engine-smoke` | un fichier que personne ne lit qui empêche toute lecture de carte agent |
+| `incident-smoke` | une même panne rapportée deux fois, sous deux codes et à deux gravités |
 
 </details>
 
