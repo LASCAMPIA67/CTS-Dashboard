@@ -8,7 +8,7 @@ CTS Installer lit `version.json` sur `main`. **Fusionner un numéro qui a
 monté publie sur les vingt-quatre iPhone**, sans autre geste, et un numéro
 publié ne se reprend pas.
 
-- [ ] Les dix-huit commandes de la section **Vérifications automatiques** du
+- [ ] Les dix-neuf commandes de la section **Vérifications automatiques** du
       README passent.
 - [ ] Aucun secret, et aucun outil de maintenance, n'entre dans le dépôt.
 - [ ] Si un numéro bouge, il bouge aux deux endroits dans le même commit —
