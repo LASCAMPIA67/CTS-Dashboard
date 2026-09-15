@@ -145,3 +145,14 @@ décision lui est antérieure.
   emprunte cette lecture pour afficher le service du jour, et un pipeline
   absent aurait alors éteint l'affichage d'un service déjà importé. Aucun banc
   n'éprouvait ce refus ; il en a un désormais.
+- 2026-09-15 — Les deux codes iCloud du moteur PDF — la bibliothèque et son
+  worker — ne rejoignent pas la table des causes du widget, bien que ce soit
+  le même iCloud qui refuse de rendre un fichier. La carte agent se télécharge
+  avant la bibliothèque : un iCloud muet arrête donc l'import sur la carte, et
+  ces deux codes-là ne sortent que lorsqu'elle est déjà locale. Là où ils se
+  rencontrent quand même — deux PDF d'une même exécution — ce sont deux gestes
+  différents, une carte à redéposer et une installation à refaire, et la
+  fusion garde le premier code vu : elle nommerait parfois la carte pour une
+  bibliothèque absente, et enverrait chercher dans le dossier Services un
+  fichier qui n'a rien. Complète la règle du 14 septembre, qui disait une
+  cause un incident sans dire où une cause s'arrête.

@@ -29,6 +29,18 @@ const MAX_TELEMETRY_ISSUES = 12
  *
  * Un code absent de cette table est sa propre cause : c'est le cas
  * ordinaire, et il n'y a rien à déclarer pour lui.
+ *
+ * PDF_ENGINE_LIBRARY_ICLOUD_FAILED et PDF_ENGINE_WORKER_ICLOUD_FAILED
+ * restent dehors, bien que ce soit le même iCloud qui refuse de rendre un
+ * fichier. Ils ne décrivent pas la même panne : la carte agent se
+ * télécharge avant la bibliothèque, si bien qu'un iCloud muet arrête
+ * l'import sur la carte et que ces deux codes-là ne sortent que lorsque
+ * la carte, elle, est déjà locale. Là où ils paraissent quand même côte à
+ * côte — deux PDF d'une même exécution — ce sont deux gestes différents :
+ * une carte à redéposer d'un côté, une installation à refaire de l'autre.
+ * Les fusionner ferait garder le premier code vu, donc parfois celui de
+ * la carte pour une bibliothèque absente, et enverrait chercher dans le
+ * dossier Services un fichier qui n'a rien.
  */
 const TELEMETRY_CAUSES = {
   ARCHIVE_ICLOUD_DOWNLOAD_FAILED: "ICLOUD_DOWNLOAD",

@@ -264,6 +264,37 @@ function withCode(issues, code) {
   )
 }
 
+/*
+ * La bibliothèque PDF.js et la carte agent ne fusionnent pas, bien que ce
+ * soit le même iCloud qui refuse de rendre un fichier.
+ *
+ * Elles ne peuvent de toute façon pas décrire la même panne : la carte se
+ * télécharge avant la bibliothèque, un iCloud muet arrête donc l'import
+ * sur la carte, et ces codes-là ne sortent que lorsqu'elle est déjà
+ * locale. Là où ils se rencontrent — deux PDF d'une même exécution — ce
+ * sont deux gestes différents, une carte à redéposer et une installation à
+ * refaire. Les fusionner ferait garder le premier code vu, et afficherait
+ * parfois celui de la carte pour une bibliothèque absente.
+ */
+for (const engineCode of [
+  "PDF_ENGINE_LIBRARY_ICLOUD_FAILED",
+  "PDF_ENGINE_WORKER_ICLOUD_FAILED"
+]) {
+  const issues = await issuesFor({
+    detectionErrors: [
+      { telemetryCode: "PDF_ICLOUD_DOWNLOAD_FAILED", telemetryStage: "inspection" },
+      { telemetryCode: engineCode, telemetryStage: "engine" }
+    ]
+  })
+
+  check(
+    withCode(issues, "PDF_ICLOUD_DOWNLOAD_FAILED").length === 1 &&
+      withCode(issues, engineCode).length === 1,
+    `${engineCode} a fusionné avec la carte agent : ` +
+      JSON.stringify(issues.map(issue => issue.errorCode))
+  )
+}
+
 /* --------------------------------------------------------- résultat */
 
 if (failures.length) {
@@ -276,5 +307,5 @@ if (failures.length) {
 console.log(
   "ok     Incidents d’une exécution (une cause un incident, gravité la plus forte " +
     "retenue, chemin de l’affichage nommé avant celui de l’entretien, pannes " +
-    "distinctes non fusionnées)"
+    "distinctes non fusionnées, bibliothèque PDF.js tenue à part de la carte agent)"
 )
