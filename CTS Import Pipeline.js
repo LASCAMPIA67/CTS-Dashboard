@@ -494,7 +494,7 @@ function getUniqueArchivePath(fileName) {
 }
 
 async function buildUpdatedIndex(plan, service, extraction, sourceInfo, pdfFileName) {
-  const current = await readCurrentIndex()
+  const current = await STORAGE.readCurrentIndex()
   const previousEntry = current.services.find(entry => entry.id === plan.id) || null
   const now = new Date().toISOString()
 
@@ -534,40 +534,6 @@ async function buildUpdatedIndex(plan, service, extraction, sourceInfo, pdfFileN
     version: INDEX_VERSION,
     updatedAt: now,
     services
-  }
-}
-
-async function readCurrentIndex() {
-  const exists = fm.fileExists(files.servicesIndex)
-  const value = await STORAGE.readJson(files.servicesIndex, null)
-
-  if (!exists) {
-    return {
-      version: INDEX_VERSION,
-      updatedAt: "",
-      services: []
-    }
-  }
-
-  if (
-    !value ||
-    typeof value !== "object" ||
-    Array.isArray(value) ||
-    !Array.isArray(value.services)
-  ) {
-    throw createTelemetryError(
-      "SERVICE_INDEX_INVALID",
-      "index",
-      "L’index des services est invalide. Il n’a pas été remplacé."
-    )
-  }
-
-  return {
-    version: Number(value.version) || INDEX_VERSION,
-    updatedAt: String(value.updatedAt || ""),
-    services: value.services.filter(
-      entry => entry && typeof entry === "object" && !Array.isArray(entry)
-    )
   }
 }
 

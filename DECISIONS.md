@@ -134,3 +134,14 @@ décision lui est antérieure.
   l'une rouge et l'autre orange. Ce que le collègue a perdu ne dépend pas
   du sous-système qui l'a constaté. Applique à l'émission la règle de
   gravité du 9 septembre, qui ne valait jusqu'ici qu'à la lecture.
+- 2026-09-15 — L'index des services ne se lit que par `CTS Storage`, et cette
+  lecture refuse un index illisible plutôt que d'en rendre un vide. Elle
+  existait en trois exemplaires : deux copies dans l'importeur et dans son
+  pipeline, et une troisième dans `CTS Storage` que rien n'appelait — celle-là
+  avalait un fichier corrompu en silence. Un index cassé lu comme une liste
+  vide devient « aucun service aujourd'hui » chez le collègue, quand c'est un
+  incident que l'administration doit voir. Elle ne passe pas par le pipeline
+  d'importation, bien que l'audit du 11 septembre l'ait proposé : le widget
+  emprunte cette lecture pour afficher le service du jour, et un pipeline
+  absent aurait alors éteint l'affichage d'un service déjà importé. Aucun banc
+  n'éprouvait ce refus ; il en a un désormais.
