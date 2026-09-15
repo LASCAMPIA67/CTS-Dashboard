@@ -394,6 +394,103 @@ for (const confirmsDownloads of [true, false]) {
   }
 }
 
+/*
+ * L'index des services, et la seule lecture qui en existe.
+ *
+ * Elle vivait en trois exemplaires : deux copies dans l'importeur et dans
+ * son pipeline, et un troisième couple ici que rien n'appelait — et qui,
+ * lui, rendait un index vide devant un fichier corrompu. Les trois n'en
+ * font plus qu'une, ce qui rend ce contrôle nécessaire : aucun banc du
+ * dépôt n'éprouvait le refus, et une lecture redevenue indulgente serait
+ * passée au vert sans que rien ne le dise.
+ *
+ * Ce que ce refus protège : un index cassé lu comme une liste vide
+ * devient « aucun service aujourd'hui » sur le widget du collègue, au lieu
+ * d'un incident que l'administration voit.
+ */
+{
+  const target = "/documents/CTS Dashboard/Data/services-index.json"
+
+  /* Un index absent n'est pas une panne : rien n'a encore été importé. */
+  {
+    const fm = createFileManager({ confirmsDownloads: true })
+    const STORAGE = loadStorage(fm)
+    const index = await STORAGE.readCurrentIndex()
+
+    if (!index || !Array.isArray(index.services) || index.services.length !== 0) {
+      failures.push(`index absent : ${JSON.stringify(index)} au lieu d'un index vide`)
+    }
+  }
+
+  /* Un index valide revient entier, débarrassé de ses entrées douteuses. */
+  {
+    const fm = createFileManager({ confirmsDownloads: true })
+    const STORAGE = loadStorage(fm)
+
+    fm.disk.set(target, JSON.stringify({
+      version: 2,
+      updatedAt: "2026-09-01T06:00:00.000Z",
+      services: [{ id: "2026-09-01_EA06" }, null, "texte", ["tableau"]]
+    }))
+
+    const index = await STORAGE.readCurrentIndex()
+
+    if (index.services.length !== 1 || index.services[0].id !== "2026-09-01_EA06") {
+      failures.push(
+        `index valide : ${JSON.stringify(index.services)} au lieu de la seule entrée exploitable`
+      )
+    }
+
+    if (index.updatedAt !== "2026-09-01T06:00:00.000Z") {
+      failures.push("index valide : la date de mise à jour est perdue")
+    }
+  }
+
+  /*
+   * Le contrôle qui mord. Chacun de ces contenus est un fichier présent et
+   * inexploitable : la lecture doit lever, jamais rendre une liste vide.
+   */
+  const corrupted = [
+    ["JSON illisible", "{ ceci n'est pas du JSON"],
+    ["tableau à la racine", "[]"],
+    ["texte", JSON.stringify("index")],
+    ["services absent", JSON.stringify({ version: 2 })],
+    ["services qui n'est pas un tableau", JSON.stringify({ version: 2, services: {} })]
+  ]
+
+  for (const [label, content] of corrupted) {
+    const fm = createFileManager({ confirmsDownloads: true })
+    const STORAGE = loadStorage(fm)
+
+    fm.disk.set(target, content)
+
+    let thrown = null
+
+    try {
+      const index = await STORAGE.readCurrentIndex()
+
+      failures.push(
+        `index corrompu · ${label} : rend ${JSON.stringify(index)} au lieu de lever`
+      )
+    } catch (error) {
+      thrown = error
+    }
+
+    if (thrown && thrown.telemetryCode !== "SERVICE_INDEX_INVALID") {
+      failures.push(
+        `index corrompu · ${label} : code « ${thrown.telemetryCode} » ` +
+        "au lieu de SERVICE_INDEX_INVALID"
+      )
+    }
+
+    if (thrown && thrown.telemetryStage !== "index") {
+      failures.push(
+        `index corrompu · ${label} : étape « ${thrown.telemetryStage} » au lieu de « index »`
+      )
+    }
+  }
+}
+
 if (failures.length) {
   console.log("ÉCHEC  lecture des fichiers iCloud")
   for (const failure of failures) console.log(`         ${failure}`)
@@ -403,5 +500,6 @@ if (failures.length) {
 console.log(
   "ok     lecture des fichiers iCloud " +
   "(iCloud muet, iCloud normal, absent, illisible, sans réponse, aucune attente inutile, " +
-  "écriture atomique, bascule interrompue, préférences)"
+  "écriture atomique, bascule interrompue, préférences, index des services dont le refus " +
+  "d'un index corrompu)"
 )

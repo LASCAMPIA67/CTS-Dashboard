@@ -259,27 +259,46 @@ function emptyServicesIndex() {
   return { version: SERVICES_INDEX_VERSION, updatedAt: "", services: [] }
 }
 
-async function loadServicesIndex() {
+/*
+ * L'index des services, par le seul chemin qui le lise.
+ *
+ * Un index absent n'est pas une erreur : c'est une installation qui n'a
+ * encore rien importé. Un index illisible en est une, et elle se lève
+ * plutôt que de rendre une liste vide — un service qu'on n'affiche pas
+ * parce que le fichier est cassé ne doit pas se lire comme un matin sans
+ * service.
+ *
+ * Elle vit ici, et non dans l'importeur, parce que le widget passe par
+ * cette lecture pour afficher le service du jour : la faire dépendre du
+ * pipeline d'importation ferait tomber l'affichage avec lui, alors qu'il
+ * n'a rien à importer pour montrer ce qui l'est déjà.
+ */
+async function readCurrentIndex() {
+  const exists = fm.fileExists(files.servicesIndex)
   const value = await readJson(files.servicesIndex, null)
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return emptyServicesIndex()
+
+  if (!exists) return emptyServicesIndex()
+
+  if (
+    !value ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    !Array.isArray(value.services)
+  ) {
+    throw UTILS.createTelemetryError(
+      "SERVICE_INDEX_INVALID",
+      "index",
+      "L’index des services est invalide. Il n’a pas été remplacé."
+    )
   }
+
   return {
     version: Number(value.version) || SERVICES_INDEX_VERSION,
     updatedAt: String(value.updatedAt || ""),
-    services: Array.isArray(value.services) ? value.services : []
+    services: value.services.filter(
+      entry => entry && typeof entry === "object" && !Array.isArray(entry)
+    )
   }
-}
-
-async function saveServicesIndex(index) {
-  const source =
-    index && typeof index === "object" && !Array.isArray(index) ? index : emptyServicesIndex()
-
-  await writeJsonSafely(files.servicesIndex, {
-    version: Number(source.version) || SERVICES_INDEX_VERSION,
-    updatedAt: String(source.updatedAt || new Date().toISOString()),
-    services: Array.isArray(source.services) ? source.services : []
-  })
 }
 
 async function appendLog(type, message, details = null) {
@@ -446,8 +465,7 @@ module.exports = {
   loadVersionPolicy,
   saveVersionPolicy,
   normalizePreferences,
-  loadServicesIndex,
-  saveServicesIndex,
+  readCurrentIndex,
   appendLog,
   clearLog,
   loadLog,
