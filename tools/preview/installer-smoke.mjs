@@ -60,6 +60,9 @@ async function runAction(
     residue = false,
     stale = null,
     corrupt = null,
+    unreachable = null,
+    truncated = null,
+    log = null,
     installerAvailable = null,
     installerUpdated = false,
     installerOpened = false,
@@ -162,6 +165,19 @@ async function runAction(
     )
   }
 
+  /*
+   * Bibliothèque PDF.js posée incomplète : un iCloud coupé en pleine copie
+   * laisse un fichier lisible mais amputé. Aucun contrôle de forme ne le
+   * voit — ni le vide, ni la page d'erreur, ni la longueur minimale d'un
+   * script. Seul le plancher de taille le voit.
+   */
+  if (truncated) {
+    const resource = manifest.resources.find(item => item.name === truncated)
+    const target = path.join(docs, "CTS Dashboard", resource.destination)
+
+    fs.writeFileSync(target, fs.readFileSync(target, "utf8").slice(0, 40 * 1024))
+  }
+
   if (residue) {
     fs.writeFileSync(path.join(docs, "CTS Utils.js.download"), "moitié téléchargé")
     fs.writeFileSync(path.join(docs, "CTS Parser.js.rollback"), "ancienne version")
@@ -169,6 +185,22 @@ async function runAction(
     fs.writeFileSync(path.join(docs, "CTS Cassé.js.rollback"), "x")
     fs.writeFileSync(path.join(docs, "Mes Notes.js.rollback"), "à moi")
   }
+
+  /*
+   * Journal d'import. Le Diagnostic le relit par CTS Storage, et c'est de
+   * lui que sort le bloc des durées : sans entrée, ce bloc n'est jamais
+   * construit et rien ne l'éprouve.
+   */
+  const logEntries = log
+    ? [
+        {
+          timestamp: "2026-09-15T19:00:45.746Z",
+          type: "exception",
+          message: "Erreur pendant l’importation locale d’un PDF",
+          details: log
+        }
+      ]
+    : null
 
   const failures = []
   const shown = []
@@ -385,13 +417,21 @@ async function runAction(
      * d'éprouver le chemin où il manque.
      */
     importModule: name => {
-      if (name === "CTS Storage" && preferencesStore) {
-        return {
-          loadPreferences: async () => ({ ...preferencesStore.value }),
-          savePreferences: async value => {
+      if (name === "CTS Storage" && (preferencesStore || logEntries)) {
+        const storage = {}
+
+        if (preferencesStore) {
+          storage.loadPreferences = async () => ({ ...preferencesStore.value })
+          storage.savePreferences = async value => {
             preferencesStore.value = { textScale: Number(value?.textScale) || 1 }
           }
         }
+
+        if (logEntries) {
+          storage.loadLog = async () => logEntries
+        }
+
+        return storage
       }
 
       throw new Error("module absent")
@@ -461,6 +501,16 @@ async function runAction(
          */
         if (corrupt && name === corrupt) {
           return "<!doctype html><html><body>GitHub is having a bad day</body></html>"
+        }
+
+        /*
+         * Le dépôt ne répond pas pour ce fichier. « Je n'ai pas pu
+         * vérifier » n'est pas « ce fichier diffère » : une panne de
+         * réseau ne doit pas envoyer réparer ce qui n'est pas cassé.
+         */
+        if (unreachable && name === unreachable) {
+          this.response = { statusCode: 500 }
+          return "500: Internal Server Error"
         }
 
         /*
@@ -823,7 +873,94 @@ const scenarios = [
     label: "diagnostic",
     choice: 1,
     forbidden: /illisible|invalide|inaccessible|non résolu/i,
-    expected: /DERNIÈRE EXÉCUTION DU DASHBOARD/
+    expected: [/DERNIÈRE EXÉCUTION DU DASHBOARD/, /17\/17 scripts conformes au dépôt/]
+  },
+  /*
+   * Un script resté en arrière passe tous les contrôles locaux : présent,
+   * non vide, pas une page d'erreur GitHub. C'est ainsi qu'une
+   * installation périmée a pu se déclarer « à jour » pendant des semaines
+   * pendant que le widget exécutait du code d'un autre mois. Le nom du
+   * fichier fautif est ce qui manquait pour savoir quoi réparer.
+   */
+  {
+    label: "script en retard nommé par le diagnostic",
+    choice: 1,
+    stale: "CTS Parser.js",
+    expected: [
+      /1 script ne correspond pas au dépôt/,
+      /CTS Parser\.js — diffère de la version publiée/
+    ]
+  },
+  /*
+   * Le dépôt injoignable pour un fichier rend la conformité inconnue, pas
+   * fausse. Confondre les deux ferait réinstaller sur une coupure réseau.
+   */
+  {
+    label: "dépôt injoignable : conformité inconnue, pas divergente",
+    choice: 1,
+    unreachable: "CTS Parser.js",
+    expected: [/conformité non vérifiée sur 1 script/, /CTS Parser\.js — non vérifié/],
+    absent: /ne correspond pas au dépôt/
+  },
+  /*
+   * Les deux bibliothèques PDF.js sont les seuls fichiers que la
+   * synchronisation ne recompare pas au dépôt : leur taille est tout ce
+   * qui les sépare d'un fichier tronqué. Le Diagnostic doit appliquer le
+   * même plancher, et dire qu'il ne juge que celui-là.
+   */
+  {
+    label: "bibliothèque PDF.js tronquée refusée par le diagnostic",
+    choice: 1,
+    truncated: "pdf.min.mjs",
+    expected: [/4\/5 ressources valides/, /pdf\.min\.mjs/]
+  },
+  /*
+   * Une étape qui n'a pas tourné n'a pas de durée. `Number(null)` valant
+   * zéro, les six étapes d'un import qui n'en avait commencé aucune se
+   * rapportaient « 0 ms » — six mesures instantanées là où il n'y en avait
+   * aucune.
+   */
+  {
+    label: "durée absente dite absente",
+    choice: 1,
+    log: {
+      error: "Le moteur PDF ne s’est pas initialisé.",
+      details: { name: "Error", message: "Le moteur PDF ne s’est pas initialisé.", stack: "" }
+    },
+    expected: [/Inspection PDF : non terminée/, /Total : non terminée/]
+  },
+  /*
+   * Et une étape qui a tourné garde sa mesure, dans le même rapport : ce
+   * qui s'était perdu n'est pas le zéro, c'est la distinction entre les
+   * deux.
+   */
+  {
+    label: "durée mesurée et durée absente distinguées",
+    choice: 1,
+    log: {
+      telemetryCode: "PDF_EXTRACTION_FAILED",
+      telemetryStage: "extraction",
+      error: "L’extraction du texte du PDF a échoué.",
+      details: {
+        name: "TypeError",
+        message: "L’extraction du texte du PDF a échoué.",
+        stack: "extract@blob"
+      },
+      timings: {
+        sourceInspectionMs: 12,
+        pdfExtractionMs: 2100,
+        databaseReloadMs: null,
+        parserMs: null,
+        registrationMs: null,
+        totalMs: 2140
+      }
+    },
+    expected: [
+      /Inspection PDF : 12 ms/,
+      /Extraction PDF : 2100 ms/,
+      /Base CTS : non terminée/,
+      /Total : 2140 ms/
+    ]
   },
   /*
    * L'écran de réglage vit entre le diagnostic et la désinstallation :
@@ -1094,6 +1231,9 @@ for (const scenario of scenarios) {
     residue: scenario.residue === true,
     stale: scenario.stale || null,
     corrupt: scenario.corrupt || null,
+    unreachable: scenario.unreachable || null,
+    truncated: scenario.truncated || null,
+    log: scenario.log || null,
     installerAvailable: scenario.installerAvailable || null,
     installerUpdated: scenario.installerUpdated === true,
     installerOpened: scenario.installerOpened === true,

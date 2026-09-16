@@ -156,3 +156,24 @@ décision lui est antérieure.
   bibliothèque absente, et enverrait chercher dans le dossier Services un
   fichier qui n'a rien. Complète la règle du 14 septembre, qui disait une
   cause un incident sans dire où une cause s'arrête.
+- 2026-09-16 — Le Diagnostic certifie une installation sur le contenu de ses
+  fichiers, comparé à ce que le dépôt publie, et jamais sur la note écrite par
+  l'installateur. Un collègue a gardé des semaines un Dashboard qui n'avait
+  jamais importé une seule carte agent, sous un rapport annonçant « snapshot à
+  jour » et « 22/22 fichiers locaux valides » : les deux étaient exacts et ne
+  disaient rien, l'un recopiant une note posée à la dernière installation,
+  l'autre vérifiant seulement qu'un fichier existe, n'est pas vide et n'est pas
+  une page d'erreur GitHub. Un script resté un mois en arrière coche ces trois
+  cases. Le rapport nomme désormais les fichiers qui diffèrent, et distingue
+  « je n'ai pas pu vérifier » de « ce fichier diffère » : une coupure réseau ne
+  doit envoyer réparer personne. Les deux bibliothèques PDF.js restent hors de
+  cette comparaison, trop lourdes à retélécharger pour un rapport, et le
+  contrôle des ressources dit qu'il ne les juge que sur leur taille — ce qu'on
+  ne vérifie pas doit s'annoncer, sinon c'est le silence qui trompe.
+- 2026-09-16 — Une mesure absente ne s'écrit jamais zéro. Number(null) vaut
+  zéro, et les six étapes d'un import qui n'en avait commencé aucune se
+  rapportaient « 0 ms » : six mesures instantanées là où il n'y en avait
+  aucune, sur le seul bloc du rapport qui dise où un import s'est arrêté.
+  C'est la règle que l'administration s'est donnée le 14 septembre — un nombre
+  faux vaut moins qu'un nombre absent — appliquée au rapport lui-même, qui se
+  lit toujours loin de la panne qu'il décrit.
