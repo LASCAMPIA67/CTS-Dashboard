@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.30"
+const INSTALLER_VERSION = "1.0.31"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -1352,6 +1352,7 @@ async function runDiagnostic(manifest, state) {
     snapshot: String(repositoryRevision || "").slice(0, 7),
     installedSnapshot: "",
     checks: [],
+    conformity: null,
     lastImport: null,
     lastFailure: null
   }
@@ -1361,11 +1362,15 @@ async function runDiagnostic(manifest, state) {
     diagnostic.installedSnapshot = String(metadata?.repositoryRevision || "").slice(0, 7)
   } catch (_) {}
 
+  const conformity = await inspectDiagnosticConformity(manifest)
+
+  diagnostic.conformity = conformity
+
   addDiagnosticCheck(
     diagnostic,
     "Installation",
-    state.complete ? "success" : "error",
-    `${state.valid}/${state.total} fichiers locaux valides`
+    installationStatus(state, conformity),
+    installationDetail(state, conformity)
   )
 
   const current =
@@ -1440,6 +1445,109 @@ function addDiagnosticCheck(diagnostic, title, status, detail) {
     status: diagnosticStatus(status),
     detail: sanitizeDiagnosticText(detail)
   })
+}
+
+/*
+ * Conformité des scripts installés.
+ *
+ * `validateText` ne dit que « ce fichier ressemble à un fichier » :
+ * présent, non vide, pas une page d'erreur GitHub. Un script resté des
+ * semaines en arrière coche ces trois cases, et l'installation se
+ * déclarait saine pendant que le widget exécutait du code périmé. Seule
+ * une comparaison avec ce que le dépôt publie le voit — c'est celle que
+ * la synchronisation fait déjà fichier par fichier, et que le Diagnostic
+ * ne faisait pas.
+ *
+ * Les deux bibliothèques PDF.js restent hors de cette comparaison : elles
+ * pèsent ensemble près de deux mégaoctets, et les retélécharger pour un
+ * rapport coûterait plus que ce qu'il en tirerait. Le contrôle
+ * « Ressources » dit à leur sujet ce qu'il peut, et dit aussi ce qu'il ne
+ * peut pas.
+ *
+ * Un dépôt injoignable n'est pas une divergence : la conformité devient
+ * alors inconnue, et se rapporte comme telle.
+ */
+async function inspectDiagnosticConformity(manifest) {
+  const entries = manifestEntries(manifest).filter(entry => entry.type === "Script")
+  const diverged = []
+  const unreachable = []
+  let compared = 0
+
+  for (let start = 0; start < entries.length; start += CONCURRENCY) {
+    const wave = entries.slice(start, start + CONCURRENCY)
+    const results = await Promise.all(wave.map(entry => compareInstalledScript(entry)))
+
+    for (const result of results) {
+      if (result.status === "diverged") {
+        diverged.push(result.name)
+      } else if (result.status === "unreachable") {
+        unreachable.push(result.name)
+      } else if (result.status === "matching") {
+        compared++
+      }
+    }
+  }
+
+  return { total: entries.length, compared, diverged, unreachable }
+}
+
+async function compareInstalledScript(entry) {
+  const local = await inspectLocal(entry.destination, entry.name)
+
+  /*
+   * Un fichier absent ou illisible est déjà compté par le contrôle local :
+   * le télécharger pour l'apprendre une seconde fois coûterait un
+   * aller-retour sans rien apprendre.
+   */
+  if (!local.valid) {
+    return { name: entry.name, status: "skipped" }
+  }
+
+  let published
+
+  try {
+    published = await downloadText(`${rawUrl(entry.name)}?t=${Date.now()}`, entry.name)
+  } catch (_) {
+    return { name: entry.name, status: "unreachable" }
+  }
+
+  if (!validateText(published, entry.name).valid) {
+    return { name: entry.name, status: "unreachable" }
+  }
+
+  return normalize(local.content, entry.name) === normalize(published, entry.name)
+    ? { name: entry.name, status: "matching" }
+    : { name: entry.name, status: "diverged" }
+}
+
+function installationStatus(state, conformity) {
+  if (!state.complete || conformity.diverged.length) {
+    return "error"
+  }
+
+  return conformity.unreachable.length ? "warning" : "success"
+}
+
+function installationDetail(state, conformity) {
+  const local = `${state.valid}/${state.total} fichiers locaux valides`
+
+  if (conformity.diverged.length) {
+    const count = plural(
+      conformity.diverged.length,
+      "script ne correspond pas au dépôt",
+      "scripts ne correspondent pas au dépôt"
+    )
+
+    return `${local} · ${count} : ${compactNames(conformity.diverged)}`
+  }
+
+  if (conformity.unreachable.length) {
+    return `${local} · conformité non vérifiée sur ${plural(conformity.unreachable.length, "script")}`
+  }
+
+  return conformity.compared
+    ? `${local} · ${conformity.compared}/${conformity.total} scripts conformes au dépôt`
+    : local
 }
 
 function inspectDiagnosticDirectories() {
@@ -1580,23 +1688,23 @@ function inspectDiagnosticResidue() {
 async function inspectDiagnosticResources() {
   const resources = [
     {
-      path: join(paths.database, "lines.json"),
+      destination: join(paths.database, "lines.json"),
       name: "lines.json"
     },
     {
-      path: join(paths.database, "stops.json"),
+      destination: join(paths.database, "stops.json"),
       name: "stops.json"
     },
     {
-      path: join(paths.database, "places.json"),
+      destination: join(paths.database, "places.json"),
       name: "places.json"
     },
     {
-      path: join(paths.pdf, "pdf.min.mjs"),
+      destination: join(paths.pdf, "pdf.min.mjs"),
       name: "pdf.min.mjs"
     },
     {
-      path: join(paths.pdf, "pdf.worker.min.mjs"),
+      destination: join(paths.pdf, "pdf.worker.min.mjs"),
       name: "pdf.worker.min.mjs"
     }
   ]
@@ -1605,13 +1713,27 @@ async function inspectDiagnosticResources() {
   const failures = []
 
   for (const resource of resources) {
-    const result = await validateLocal(resource.path, resource.name)
+    const result = await validateLocal(resource.destination, resource.name)
 
-    if (result.valid) {
-      valid++
-    } else {
+    if (!result.valid) {
       failures.push(resource.name)
+      continue
     }
+
+    /*
+     * Les deux bibliothèques PDF.js sont les seuls fichiers que la
+     * synchronisation ne recompare pas au dépôt tant que le snapshot n'a
+     * pas bougé : leur taille est tout ce qui les sépare d'un fichier
+     * tronqué. Le Diagnostic s'en remet donc à la règle qui décide de les
+     * garder, plutôt que d'en poser une seconde — deux contrôles en
+     * désaccord sur le même fichier ne valent pas mieux qu'aucun.
+     */
+    if (PINNED_LIBRARIES.has(resource.name) && !(await canSkipPinnedLibrary(resource))) {
+      failures.push(resource.name)
+      continue
+    }
+
+    valid++
   }
 
   return failures.length
@@ -1621,7 +1743,7 @@ async function inspectDiagnosticResources() {
       }
     : {
         status: "success",
-        detail: `${valid}/${resources.length} ressources techniques valides`
+        detail: `${valid}/${resources.length} ressources techniques valides · PDF.js contrôlé sur sa taille seule`
       }
 }
 
@@ -1829,8 +1951,7 @@ function normalizeDiagnosticTimings(value) {
   const result = {}
 
   for (const field of fields) {
-    const number = Number(timings[field])
-    result[field] = Number.isFinite(number) ? number : null
+    result[field] = finiteOrNull(timings[field])
   }
 
   return result
@@ -2178,6 +2299,25 @@ function buildDiagnosticReport(diagnostic) {
     lines.push(`[${diagnosticReportStatus(check.status)}] ${check.title} — ${check.detail}`)
   }
 
+  const conformity = diagnostic.conformity
+
+  /*
+   * La ligne de contrôle abrège la liste faute de place ; le rapport, lui,
+   * se lit sans écran. Le nom du fichier en retard est précisément ce
+   * qu'il faut pour savoir quoi réparer.
+   */
+  if (conformity && (conformity.diverged.length || conformity.unreachable.length)) {
+    lines.push("", "CONFORMITÉ AU DÉPÔT", "-------------------")
+
+    for (const name of conformity.diverged) {
+      lines.push(`${name} — diffère de la version publiée`)
+    }
+
+    for (const name of conformity.unreachable) {
+      lines.push(`${name} — non vérifié`)
+    }
+  }
+
   if (diagnostic.lastFailure) {
     const failure = diagnostic.lastFailure
 
@@ -2261,9 +2401,26 @@ function diagnosticReportStatus(status) {
 }
 
 function formatDiagnosticMs(value) {
+  const number = finiteOrNull(value)
+
+  return number === null ? "non terminée" : `${number} ms`
+}
+
+/*
+ * Une étape qui n'a pas tourné n'a pas de durée, et `Number(null)` vaut
+ * zéro : les six étapes d'un import qui n'en avait commencé aucune se
+ * rapportaient « 0 ms », ce qui se lit comme six mesures instantanées.
+ * L'absence se reconnaît donc avant toute conversion, et une seule fois
+ * pour les deux étages qui manipulent ces durées.
+ */
+function finiteOrNull(value) {
+  if (value === null || value === undefined || value === "") {
+    return null
+  }
+
   const number = Number(value)
 
-  return Number.isFinite(number) ? `${number} ms` : "non terminée"
+  return Number.isFinite(number) ? number : null
 }
 
 function sanitizeDiagnosticText(value) {
