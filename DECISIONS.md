@@ -177,3 +177,12 @@ décision lui est antérieure.
   C'est la règle que l'administration s'est donnée le 14 septembre — un nombre
   faux vaut moins qu'un nombre absent — appliquée au rapport lui-même, qui se
   lit toujours loin de la panne qu'il décrit.
+- 2026-09-16 — Le gabarit de message ne vaut que pour une publication du
+  Dashboard ; quand seul le numéro de l'installateur monte, le message porte
+  son titre et sa propre marche à suivre, écrite dans `MESSAGES.md`. Le
+  gabarit envoie chercher « Mettre à jour vers 1.0.X » puis « 22/22 fichiers
+  valides », deux écrans qui n'apparaissent pas tant que la version du
+  Dashboard n'a pas bougé, et un collègue qui cherche un bouton absent conclut
+  que la mise à jour a échoué. Complète la décision du 12 septembre, qui
+  réservait le gabarit à ce qu'une publication doit annoncer sans prévoir
+  qu'une publication puisse ne pas concerner le Dashboard.

@@ -97,3 +97,31 @@ conducteur de ce qu'il voit à l'écran.
 Le libellé cité doit toujours être celui affiché, mot pour mot. Un
 collègue cherche le bouton par son texte ; « Installer la version 1.0.X »
 lui faisait chercher ce qui n'existait pas.
+
+## Quand seul l'installateur bouge
+
+Le gabarit suppose que le Dashboard change de version. Quand c'est
+`installerVersion` seul qui monte, deux de ses lignes décrivent des écrans
+que personne ne verra : « Mettre à jour vers 1.0.X » n'apparaît que si la
+version du Dashboard a bougé, et « 22/22 fichiers valides » clôt une
+synchronisation qui n'aura pas lieu.
+
+Le titre porte alors *CTS INSTALLER*, et la marche à suivre tient en trois
+étapes :
+
+```
+*METTRE À JOUR*
+1. Ouvrez *Scriptable*
+2. Lancez *CTS Installer*
+3. _« Installer 1.0.X »_, puis fermez l'écran : il se rouvre seul
+```
+
+Rien à attendre ensuite : l'installateur se remplace, se rouvre de
+lui-même, et affiche « Tout est à jour ».
+
+L'étape ne dit pas « s'il propose », contrairement à celle d'une
+publication où le Dashboard bouge aussi : ici la mise à jour de
+l'installateur est le sujet du message, et elle est imposée.
+
+Le pied de version garde ses deux lignes. Celle du Dashboard ne bouge pas,
+et c'est justement ce qu'un collègue vérifie.
