@@ -11,7 +11,13 @@ en page et en fait une capture avec Chromium.
 occupée, comparée à la hauteur réelle du widget « large ».
 
 Variables d'environnement : `PREVIEW_SCENARIOS`, `PREVIEW_SCREENS`
-(séparateur `|`), `PREVIEW_LINE_HEIGHT`, `PREVIEW_TRACKING`.
+(séparateur `|`), `PREVIEW_LINE_HEIGHT`, `PREVIEW_TRACKING`,
+`PREVIEW_TRANSPORT`.
+
+`PREVIEW_TRANSPORT=tram` rend les mêmes scénarios avec un service de tram.
+Le widget décide du pictogramme et du libellé « DÉBUT EXPLOITATION » sur le
+code de la ligne, jamais sur son nom : sans cette variable, aucune vignette
+n'est un tram, y compris celle qui affiche « Ligne D ».
 
 ## Ce qu'il reproduit fidèlement
 

@@ -193,12 +193,37 @@ function slice(overrides) {
  * exactement dans l'état voulu, et les coupures sont déclarées comme le
  * ferait le parseur, sans quoi computeState les traiterait en pause.
  */
-const LINES = [
-  { line: "C4", vehicle: "3", from: "Elmerforst", to: "Elmerforst", direction: "Illkirch Fort Uhrich" },
-  { line: "L1", vehicle: "204", from: "UPE", to: "UPE", direction: "Espace Eur. Entr." },
-  { line: "17", vehicle: "5", from: "UPC", to: "UPC", direction: "Neuhof R. Reuss" },
-  { line: "D", vehicle: "42", from: "Elmerforst", to: "Elmerforst", direction: "Poteries" }
-]
+/*
+ * Deux parcs, choisis par PREVIEW_TRANSPORT — bus par défaut.
+ *
+ * Le widget ne montre un tram que si la tranche porte un code de ligne
+ * tram, 80 à 85, soit A à F : c'est ce code, et lui seul, qui décide du
+ * pictogramme et du libellé « DÉBUT EXPLOITATION ». Le nom affiché n'y
+ * suffit pas, et la quatrième ligne du parc bus le montre — elle
+ * s'appelle « D » et reste un bus pour le moteur.
+ */
+const TRANSPORTS = {
+  bus: {
+    lineUp: "Gare Marchandises",
+    lines: [
+      { lineCode: "10", line: "C4", vehicle: "3", from: "Elmerforst", to: "Elmerforst", direction: "Illkirch Fort Uhrich" },
+      { lineCode: "10", line: "L1", vehicle: "204", from: "UPE", to: "UPE", direction: "Espace Eur. Entr." },
+      { lineCode: "10", line: "17", vehicle: "5", from: "UPC", to: "UPC", direction: "Neuhof R. Reuss" },
+      { lineCode: "10", line: "D", vehicle: "42", from: "Elmerforst", to: "Elmerforst", direction: "Poteries" }
+    ]
+  },
+  tram: {
+    lineUp: "Rotonde",
+    lines: [
+      { lineCode: "83", line: "D", vehicle: "1042", from: "UPC", to: "UPC", direction: "Poteries" },
+      { lineCode: "81", line: "B", vehicle: "1021", from: "Elsau", to: "Elsau", direction: "Hœnheim Gare" },
+      { lineCode: "80", line: "A", vehicle: "1008", from: "Kibitzenau", to: "Kibitzenau", direction: "Illkirch Lixenbuhl" },
+      { lineCode: "84", line: "E", vehicle: "1036", from: "Elmerforst", to: "Elmerforst", direction: "Robertsau l'Escale" }
+    ]
+  }
+}
+
+const TRANSPORT = TRANSPORTS[process.env.PREVIEW_TRANSPORT] || TRANSPORTS.bus
 
 const SLICE_TIMES = [
   { dutyStart: "05:30", start: "05:48", end: "09:03", dutyEnd: "09:20", exit: "05:40", back: "09:14" },
@@ -209,11 +234,11 @@ const SLICE_TIMES = [
 
 function buildSlices(count) {
   return SLICE_TIMES.slice(0, count).map((times, index) => {
-    const identity = LINES[index]
+    const identity = TRANSPORT.lines[index]
     const depotStart = index === 0
     return {
       index: index + 1,
-      lineCode: "10",
+      lineCode: identity.lineCode,
       line: identity.line,
       vehicle: identity.vehicle,
       dutyStart: times.dutyStart,
@@ -226,7 +251,7 @@ function buildSlices(count) {
       endPlace: identity.to,
       depotExitAt: times.exit,
       depotReturnAt: times.back,
-      lineUpAt: depotStart ? "Gare Marchandises" : "",
+      lineUpAt: depotStart ? TRANSPORT.lineUp : "",
       direction: identity.direction
     }
   })
