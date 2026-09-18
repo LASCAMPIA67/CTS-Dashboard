@@ -63,7 +63,13 @@ system may at any time delete files stored in this directory ».
 > storage space may be full. The document stays on your Mac, and is
 > uploaded to iCloud Drive when space becomes available. »
 
-`support.apple.com/en-us/102563` · lu le 18/09/2026
+`support.apple.com/guide/mac-help/store-files-in-icloud-drive-mchle5a61431/mac`
+· lu le 18/09/2026
+
+Cette phrase ne figure pas à `support.apple.com/en-us/102563`, où elle
+était rangée jusqu'ici : cette page-là traite des sauvegardes. Et c'est
+une documentation Mac ; Apple ne dit nulle part la même chose pour iOS.
+Le raisonnement ci-dessous vaut donc par analogie, pas par citation.
 
 Ce que ça implique pour le widget : un fichier enregistré sur l'appareil
 y reste, donc `isFileDownloaded` faux signifie que le fichier n'est pas
