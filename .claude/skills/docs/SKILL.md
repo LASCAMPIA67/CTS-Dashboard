@@ -12,8 +12,10 @@ Toutes celles marquées ✓ ont été ouvertes le 18/09/2026, et leur titre
 relevé.
 
 Les contraintes déjà établies, citées et datées, sont dans les fichiers
-annexes : [`scriptable.md`](scriptable.md). Lis l'annexe avant d'aller en
-ligne, elle répond peut-être déjà.
+annexes : [`scriptable.md`](scriptable.md), [`pdfjs.md`](pdfjs.md) et
+[`node22.md`](node22.md). Lis l'annexe avant d'aller en ligne, elle
+répond peut-être déjà. `node22.md` sert aussi au dépôt admin, qui n'en
+tient pas de copie.
 
 ## Sur l'iPhone du collègue
 
@@ -50,9 +52,8 @@ moteur quand le fichier manque sur l'appareil.
 | `node:vm` — exécute les scripts sur des doublures | — | `tools/preview/*.mjs` | ✓ `nodejs.org/docs/latest-v22.x/api/vm.html` |
 | `node:fs`, `node:path`, `node:child_process`, `node:url`, `node:os` | — | bancs et `validate.mjs` | ✓ même adresse |
 
-`latest-v22.x` est un pointeur mouvant : il servait Node 22.23.2 au
-18/09/2026. Le dépôt ne fige que la branche majeure, dans les deux
-workflows.
+`latest-v22.x` est un pointeur mouvant, et la branche 22 a une date de
+fin : l'annexe [`node22.md`](node22.md) porte les deux.
 
 `tools/preview/installer-bench.mjs` est le seul banc que la CI ne joue
 pas : c'est une mesure, pas un contrôle.
