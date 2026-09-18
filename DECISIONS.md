@@ -186,3 +186,24 @@ décision lui est antérieure.
   que la mise à jour a échoué. Complète la décision du 12 septembre, qui
   réservait le gabarit à ce qu'une publication doit annoncer sans prévoir
   qu'une publication puisse ne pas concerner le Dashboard.
+- 2026-09-18 — Le Dashboard garde sa dépendance à iCloud, et ne cherchera pas
+  à s'en passer : c'est le geste du conducteur qui commande l'emplacement des
+  fichiers, et non l'inverse. Déposer une carte agent doit rester aussi simple
+  que glisser un PDF dans un dossier, donc le dossier `Services` doit rester
+  visible dans l'app Fichiers — et la documentation de Scriptable énonce que
+  le dossier local d'un script n'y paraît jamais : « Files stored in the local
+  documents directory will not appear in the Files app ». Un signet de dossier
+  ne rattrape rien, Scriptable réservant les siens à l'application, hors
+  d'atteinte d'un widget. Écarte le passage au stockage local, étudié le même
+  jour parce que des collègues dont le stockage iCloud est saturé voient leur
+  widget échouer ; ce qu'iCloud coûte à ceux-là se paiera donc ailleurs qu'en
+  changeant de rangement.
+- 2026-09-18 — L'attente que le widget accorde à iCloud — une tentative, une
+  seconde et demie — est tenue pour un défaut à corriger et non pour un
+  réglage, alors que l'application en accorde quatre sur douze secondes pour
+  le même fichier. Un téléphone dont la synchronisation iCloud est à l'arrêt
+  ne rend aucun fichier dans ce délai, et le widget rend alors une erreur là
+  où il n'y avait qu'un retard : un collègue du parc n'a vu aboutir aucune de
+  ses onze exécutions utiles d'une semaine. La correction reste due
+  indépendamment de la décision ci-dessus, qui ne change rien à ce que le
+  widget fait d'un fichier qui tarde.
