@@ -229,3 +229,14 @@ décision lui est antérieure.
   douteuse au lieu de la combler, et présenter comme tel ce qui vient du code
   plutôt que d'une documentation. Étend la décision du 1er septembre, dont le
   périmètre laissait hors règle tout ce que le projet emploie réellement.
+- 2026-09-19 — Une veille hebdomadaire annonce les nouvelles versions de
+  PDF.js et prépare la pull request, mais ne fusionne jamais. La seule
+  bibliothèque tierce qui atteigne les iPhone des collègues avait deux
+  versions mineures de retard sans que personne le sache : ce n'est pas la
+  mise à jour qui manquait — l'installateur remplace déjà ces fichiers à
+  chaque opération — c'était de savoir qu'elle existait. Fusionner reste un
+  geste pour deux raisons : le banc du moteur tourne dans Node et ne peut pas
+  ouvrir de WebView, donc une CI verte ne dit rien de la lecture d'une carte
+  agent sur un iPhone ; et fusionner distribue, l'installateur synchronisant
+  ses ressources dès que la révision du dépôt a bougé, vérification comprise,
+  sans qu'aucun numéro de version ait monté.
