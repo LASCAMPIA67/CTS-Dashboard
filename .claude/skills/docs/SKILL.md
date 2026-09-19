@@ -86,6 +86,24 @@ L'index complet des pages Claude Code se prend à
 `code.claude.com/docs/llms.txt`, et une page se lit en ajoutant `.md` à
 son adresse.
 
+**Un serveur déclaré dans `.mcp.json` ne se connecte pas tout seul dans
+une session distante.**
+
+> « A cloned repository can't approve its own servers:
+> `enableAllProjectMcpServers` or `enabledMcpjsonServers` committed to
+> the project's `.claude/settings.json` is ignored in an untrusted
+> folder, and the server stays at `⏸ Pending approval` instead of being
+> connected and health-checked. »
+
+`code.claude.com/docs/en/mcp.md`, section « Project server approvals and
+workspace trust » · lu le 19/09/2026
+
+L'approbation doit donc venir d'ailleurs — `~/.claude/settings.json`, que
+seul le script de configuration de l'environnement écrit avant le
+démarrage. Si l'outil `search_claude_code_docs` manque, c'est là qu'il
+faut regarder, pas dans le dépôt. Voir l'entrée du 19 septembre dans
+`DECISIONS.md`.
+
 ## Ce qui ne vit pas ici
 
 Le serveur, la base et la console web sont dans le dépôt admin, et leur

@@ -207,3 +207,16 @@ décision lui est antérieure.
   ses onze exécutions utiles d'une semaine. La correction reste due
   indépendamment de la décision ci-dessus, qui ne change rien à ce que le
   widget fait d'un fichier qui tarde.
+- 2026-09-19 — L'approbation des serveurs MCP de documentation appartient au
+  script de configuration de l'environnement, et jamais au dépôt : Claude Code
+  énonce qu'un dépôt cloné ne peut pas approuver ses propres serveurs, et
+  ignore `enabledMcpjsonServers` versionné tant que personne n'a accepté la
+  boîte de confiance — ce que nul ne fait dans une session distante, qui
+  n'a pas d'humain devant elle au démarrage. Le serveur `claude-code-docs`
+  restait donc en attente d'approbation à chaque session distante depuis le
+  2 septembre, sans que rien ne le signale, et les réponses sur Claude Code se
+  donnaient sans lui. Ce n'est pas un défaut à contourner : un dépôt qui
+  pourrait s'accorder l'accès à un service externe par un simple fichier
+  versionné serait un danger. Complète la décision du 2 septembre, qui voulait
+  cette documentation consultable sans réglage propre à un appareil : le
+  réglage existe bel et bien, il appartient à l'environnement.
