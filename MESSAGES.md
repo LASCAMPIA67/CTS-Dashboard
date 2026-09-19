@@ -54,6 +54,46 @@ qui ne se remplace que sur changement de son propre numéro. Publier en
 silence est donc à réserver aux corrections qui peuvent attendre la
 prochaine version annoncée.
 
+## Quand la demande remplace l'annonce
+
+Reste le cas où une telle correction ne peut pas attendre. Le message ne
+dit alors rien à annoncer : il demande le geste qui l'installe.
+
+Les dix règles s'appliquent toutes. Le gabarit, non — il annonce une
+version, et il n'y en a pas.
+
+```
+*VÉRIFICATION DES FICHIERS*
+
+Une phrase sur ce qui attend, et sur le fait que rien ne change à l'écran.
+
+*À FAIRE*
+1. Ouvrez *Scriptable*
+2. Lancez *CTS Installer*
+3. _« Vérifier les fichiers »_
+4. Attendez _« 22/22 fichiers valides »_
+
+Vos cartes agent et vos archives sont conservées.
+
+*Version actuelle : CTS Dashboard 1.X.Y*
+*CTS Installer : 1.0.Z*
+```
+
+Le pied de version ne bouge pas, et c'est tout l'intérêt : un collègue le
+relit et voit que sa version est bien la bonne. C'est ce qui distingue ce
+message d'une publication manquée.
+
+Deux pièges, et ce sont les seuls :
+
+**Inventer un point à puce.** La règle 2 en autorise trois, un par
+changement visible ; quand il n'y en a aucun, le message n'en porte
+aucun. Un point écrit pour remplir la place annonce un changement que le
+conducteur cherchera en vain.
+
+**Nommer le composant.** La règle 3 tient ici comme ailleurs : ce qui a
+été renouvelé se désigne par ce qu'il fait pour le conducteur, jamais par
+son nom technique.
+
 ## Gabarit
 
 ```

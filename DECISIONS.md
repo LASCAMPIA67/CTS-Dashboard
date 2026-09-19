@@ -229,6 +229,14 @@ décision lui est antérieure.
   douteuse au lieu de la combler, et présenter comme tel ce qui vient du code
   plutôt que d'une documentation. Étend la décision du 1er septembre, dont le
   périmètre laissait hors règle tout ce que le projet emploie réellement.
+- 2026-09-19 — Une mise à jour invisible pour le conducteur peut atteindre le
+  parc sans changement de numéro, par un message qui lui demande de vérifier
+  ses fichiers. Le numéro reste réservé à ce qui doit s'annoncer ; la demande
+  porte ce qui n'a rien à annoncer mais ne s'installe pas tout seul — la
+  bibliothèque de lecture des cartes agent en a été le premier cas. Complète
+  la décision du 4 septembre, qui liait toute modification atteignant les
+  iPhone à un numéro qui monte, sans prévoir qu'une modification puisse les
+  atteindre sans rien avoir à leur dire.
 - 2026-09-19 — Claude fusionne lui-même les pull requests dès que la CI est
   verte, et n'attend plus une demande pour chacune. Remplace la règle « ne
   fusionne que si je le demande », en place depuis l'origine : elle faisait du
