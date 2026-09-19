@@ -50,7 +50,15 @@
 ## Git
 
 - Jamais de commit direct sur `main` : branche dédiée puis pull request.
-- Ne fusionne que si je le demande.
+- Fusionne toi-même dès que la CI est verte, sans attendre que je le
+  demande.
+- Dis à chaque fois ce que la fusion a déclenché. Ici elle distribue :
+  l'installateur remplace les fichiers du manifeste — scripts, bases et
+  bibliothèques PDF.js — dès que la révision du dépôt a bougé, à sa
+  prochaine opération quelle qu'elle soit, vérification comprise.
+- Une fusion qui publie un numéro de version attend quand même mon
+  accord : elle impose la mise à jour au parc, et elle doit son message à
+  la communauté.
 
 ## Publication
 

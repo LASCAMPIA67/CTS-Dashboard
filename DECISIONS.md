@@ -229,6 +229,14 @@ décision lui est antérieure.
   douteuse au lieu de la combler, et présenter comme tel ce qui vient du code
   plutôt que d'une documentation. Étend la décision du 1er septembre, dont le
   périmètre laissait hors règle tout ce que le projet emploie réellement.
+- 2026-09-19 — Claude fusionne lui-même les pull requests dès que la CI est
+  verte, et n'attend plus une demande pour chacune. Remplace la règle « ne
+  fusionne que si je le demande », en place depuis l'origine : elle faisait du
+  mainteneur un passage obligé sur un geste que la validation garde déjà, et
+  la pratique s'en écartait déjà. Ce qui ne change pas : la branche dédiée et
+  la pull request restent obligatoires, une fusion qui publie un numéro attend
+  toujours son accord — elle impose la mise à jour au parc et doit son message
+  à la communauté —, et ce qu'une fusion distribue se dit à chaque fois.
 - 2026-09-19 — Une veille hebdomadaire annonce les nouvelles versions de
   PDF.js et prépare la pull request, mais ne fusionne jamais. La seule
   bibliothèque tierce qui atteigne les iPhone des collègues avait deux
