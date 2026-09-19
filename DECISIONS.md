@@ -220,3 +220,12 @@ décision lui est antérieure.
   versionné serait un danger. Complète la décision du 2 septembre, qui voulait
   cette documentation consultable sans réglage propre à un appareil : le
   réglage existe bel et bien, il appartient à l'environnement.
+- 2026-09-19 — L'interdiction de répondre de mémoire vaut pour toutes les
+  technologies du projet, et non plus pour les seules technologies
+  d'Anthropic : une réponse inventée sur Scriptable, sur PDF.js ou sur iCloud
+  coûte exactement ce que coûte une réponse inventée sur Claude Code, et
+  l'index des technologies la rend praticable depuis le 18 septembre. Trois
+  obligations l'accompagnent — dire quelle page a été lue, signaler une source
+  douteuse au lieu de la combler, et présenter comme tel ce qui vient du code
+  plutôt que d'une documentation. Étend la décision du 1er septembre, dont le
+  périmètre laissait hors règle tout ce que le projet emploie réellement.

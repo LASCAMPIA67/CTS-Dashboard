@@ -73,13 +73,24 @@
 - Si une capture reste illisible, installe le paquet avant de répondre et
   dis-le. Ne décris jamais une capture que tu n'as pas vue.
 
-## Documentation Anthropic
+## Documentation
 
-Pour toute question sur Claude Code, l'API Anthropic, MCP, les hooks,
-les subagents, les skills ou les commandes slash : ne réponds pas de
-mémoire. Si le serveur MCP `claude-code-docs` est disponible, utilise
-`search_claude_code_docs`. Sinon, consulte
-`https://code.claude.com/docs/llms.txt` et lis la page pertinente en
-ajoutant `.md` à son URL. Pour l'API :
-`https://docs.claude.com/en/docs_site_map.md`. Dis toujours quelle page
-tu as consultée.
+Vaut pour **toutes** les technologies du projet, pas seulement celles
+d'Anthropic : Scriptable, PDF.js, iOS, Node, GitHub, comme Claude Code.
+
+- Ne réponds jamais de mémoire. Ouvre la documentation d'abord,
+  réponds ensuite.
+- Commence par la skill `docs` : elle indexe chaque technologie et son
+  adresse, et ses annexes portent les contraintes déjà vérifiées,
+  citées et datées. L'annexe répond peut-être déjà.
+- Dis toujours quelle page tu as lue.
+- Une source douteuse se signale, elle ne se devine pas : adresse
+  injoignable, page déménagée, citation introuvable, documentation qui
+  décrit un autre système que le nôtre. Dis-le-moi et arrête-toi là.
+- Ce qui vient du code et non d'une documentation se présente comme
+  tel.
+
+Pour Claude Code, sers-toi du serveur MCP `claude-code-docs` s'il est
+disponible ; sinon `code.claude.com/docs/llms.txt` donne l'index, et
+une page se lit en ajoutant `.md` à son adresse. Pour l'API Anthropic :
+`docs.claude.com/en/docs_site_map.md`.
