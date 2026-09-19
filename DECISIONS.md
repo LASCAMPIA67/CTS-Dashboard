@@ -207,3 +207,36 @@ décision lui est antérieure.
   ses onze exécutions utiles d'une semaine. La correction reste due
   indépendamment de la décision ci-dessus, qui ne change rien à ce que le
   widget fait d'un fichier qui tarde.
+- 2026-09-19 — L'approbation des serveurs MCP de documentation appartient au
+  script de configuration de l'environnement, et jamais au dépôt : Claude Code
+  énonce qu'un dépôt cloné ne peut pas approuver ses propres serveurs, et
+  ignore `enabledMcpjsonServers` versionné tant que personne n'a accepté la
+  boîte de confiance — ce que nul ne fait dans une session distante, qui
+  n'a pas d'humain devant elle au démarrage. Le serveur `claude-code-docs`
+  restait donc en attente d'approbation à chaque session distante depuis le
+  2 septembre, sans que rien ne le signale, et les réponses sur Claude Code se
+  donnaient sans lui. Ce n'est pas un défaut à contourner : un dépôt qui
+  pourrait s'accorder l'accès à un service externe par un simple fichier
+  versionné serait un danger. Complète la décision du 2 septembre, qui voulait
+  cette documentation consultable sans réglage propre à un appareil : le
+  réglage existe bel et bien, il appartient à l'environnement.
+- 2026-09-19 — L'interdiction de répondre de mémoire vaut pour toutes les
+  technologies du projet, et non plus pour les seules technologies
+  d'Anthropic : une réponse inventée sur Scriptable, sur PDF.js ou sur iCloud
+  coûte exactement ce que coûte une réponse inventée sur Claude Code, et
+  l'index des technologies la rend praticable depuis le 18 septembre. Trois
+  obligations l'accompagnent — dire quelle page a été lue, signaler une source
+  douteuse au lieu de la combler, et présenter comme tel ce qui vient du code
+  plutôt que d'une documentation. Étend la décision du 1er septembre, dont le
+  périmètre laissait hors règle tout ce que le projet emploie réellement.
+- 2026-09-19 — Une veille hebdomadaire annonce les nouvelles versions de
+  PDF.js et prépare la pull request, mais ne fusionne jamais. La seule
+  bibliothèque tierce qui atteigne les iPhone des collègues avait deux
+  versions mineures de retard sans que personne le sache : ce n'est pas la
+  mise à jour qui manquait — l'installateur remplace déjà ces fichiers à
+  chaque opération — c'était de savoir qu'elle existait. Fusionner reste un
+  geste pour deux raisons : le banc du moteur tourne dans Node et ne peut pas
+  ouvrir de WebView, donc une CI verte ne dit rien de la lecture d'une carte
+  agent sur un iPhone ; et fusionner distribue, l'installateur synchronisant
+  ses ressources dès que la révision du dépôt a bougé, vérification comprise,
+  sans qu'aucun numéro de version ait monté.

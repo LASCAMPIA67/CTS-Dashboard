@@ -1,0 +1,125 @@
+name: Veille PDF.js
+
+# PDF.js est la seule bibliothèque tierce qui arrive sur les iPhone des
+# collègues, et sa version est figée dans le moteur. Rien ne disait
+# jusqu'ici qu'une version plus récente existait : le dépôt en a compté
+# deux de retard sans que personne le sache.
+#
+# Cette veille ne corrige pas ça toute seule. Elle prépare une pull
+# request et s'arrête là. Fusionner reste un geste, et il le reste pour
+# une raison précise, écrite dans le corps de la pull request qu'elle
+# ouvre : ce dépôt distribue par `main`.
+
+on:
+  # Lundi 6 h 17 UTC — soit 8 h 17 à Strasbourg en été, 7 h 17 en hiver.
+  # GitHub évalue les crons en UTC, comme Cloudflare. Un lundi matin pour
+  # que la pull request attende le mainteneur en début de semaine, et
+  # jamais un vendredi soir.
+  schedule:
+    - cron: '17 6 * * 1'
+
+  workflow_dispatch:
+
+# Elle écrit une branche et ouvre une pull request. Rien d'autre.
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Compare la version figée à celle que npm publie, et dépose les
+      # deux fichiers si npm est en avance. N'écrit rien sinon.
+      - name: Comparer à la version publiée
+        id: watch
+        run: node .github/scripts/pdfjs-watch.mjs
+
+      # Le validateur refuse une bibliothèque qui ne correspond pas à
+      # PDFJS_VERSION : c'est lui qui vérifie que le dépôt de fichiers
+      # s'est bien passé, et il le fait déjà pour les publications.
+      - name: Valider le dépôt
+        if: steps.watch.outputs.changed == 'true'
+        run: node .github/scripts/validate.mjs
+
+      # Le seul banc qui exécute réellement le moteur. Il ne peut pas
+      # ouvrir de WebView : ce qu'il prouve est écrit dans la pull request.
+      - name: Éprouver le moteur PDF
+        if: steps.watch.outputs.changed == 'true'
+        run: node tools/preview/pdf-engine-smoke.mjs
+
+      - name: Ouvrir la pull request
+        if: steps.watch.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PINNED: ${{ steps.watch.outputs.pinned }}
+          PUBLISHED: ${{ steps.watch.outputs.published }}
+          MAJOR: ${{ steps.watch.outputs.major }}
+        run: |
+          BRANCH="veille/pdfjs-${PUBLISHED}"
+
+          # Une veille hebdomadaire retomberait chaque lundi sur la même
+          # version tant que la pull request n'est pas traitée. La branche
+          # porte le numéro : si elle existe, il n'y a rien à rouvrir.
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "La branche $BRANCH existe déjà : pull request en attente."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH"
+          git add "CTS PDF Engine.js" pdf.min.mjs pdf.worker.min.mjs
+          git commit -m "Relever PDF.js de ${PINNED} à ${PUBLISHED}"
+          git push -u origin "$BRANCH"
+
+          if [ "$MAJOR" = "true" ]; then
+            WARNING="**Changement de version MAJEURE.** L'interface de PDF.js peut avoir changé : à lire avant tout le reste."
+          else
+            WARNING="Version mineure. L'interface de PDF.js ne devrait pas avoir changé."
+          fi
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "Relever PDF.js de ${PINNED} à ${PUBLISHED}" \
+            --body "$(cat <<EOF
+          Ouverte par la veille hebdomadaire. Personne n'a rien décidé.
+
+          $WARNING
+
+          ## Ce que la CI a prouvé
+
+          Le validateur accepte les deux fichiers et confirme qu'ils
+          portent bien \`${PUBLISHED}\`, et \`pdf-engine-smoke.mjs\` passe.
+
+          ## Ce qu'elle n'a pas prouvé
+
+          Ce banc tourne dans Node, sur des doublures, et **ne peut pas
+          ouvrir de WebView**. Rien ici ne dit que PDF.js \`${PUBLISHED}\`
+          lit une vraie carte agent sur un iPhone — encore moins sur les
+          appareils restés en iOS 18.
+
+          ## Avant de fusionner
+
+          1. Déposer une carte agent dans \`Services\` sur un iPhone, avec
+             cette version installée, et vérifier que le service apparaît.
+          2. Se rappeler que **fusionner distribue** : l'installateur
+             synchronise les ressources à chacune de ses opérations, y
+             compris une simple vérification, dès que la révision du dépôt
+             a bougé. Cette bibliothèque atteindra donc le premier collègue
+             qui ouvrira CTS Installer, sans qu'aucun numéro de version ait
+             monté et sans qu'aucun message soit parti.
+
+          Les contraintes vérifiées de PDF.js sont dans
+          \`.claude/skills/docs/pdfjs.md\`.
+          EOF
+          )"
