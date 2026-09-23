@@ -110,6 +110,7 @@ Contrôler sur chaque profil d’écran :
 4. Rétablir Internet puis lancer une vérification : aucune donnée ne doit être perdue.
 5. Simuler un échec Analytics : le rendu du widget ne doit pas être bloqué.
 6. Couper iCloud pendant qu’une carte agent attend son archivage : la console d’administration doit montrer **un seul incident** pour cette exécution, et non un à l’inspection plus un à l’archivage.
+7. Déposer une carte agent depuis un autre appareil, puis laisser le widget la découvrir sans ouvrir l’application : il accorde à iCloud deux essais de deux secondes et demie par fichier. Dans la semaine qui suit, la console d’administration doit montrer moins de `PDF_ICLOUD_DOWNLOAD_FAILED`, et une durée d’exécution maximale qui n’a pas bondi. Aucune documentation ne fixe le temps dont dispose un widget : c’est cette mesure qui dira si la durée est juste.
 
 ## 8. Diagnostic et confidentialité
 

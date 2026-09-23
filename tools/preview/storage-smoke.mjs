@@ -66,7 +66,11 @@ function createFileManager({ confirmsDownloads, stalls = false, unreadable = fal
   }
 }
 
-function loadStorage(fm) {
+/*
+ * Le Timer rend la main aussitôt, et note chaque attente demandée : leur
+ * somme est la patience que le code accorde, sans que le banc l'attende.
+ */
+function loadStorage(fm, { runsInWidget = true, waits = [] } = {}) {
   const loaded = {}
   const modules = ["CTS Config", "CTS Utils", "CTS Storage"]
 
@@ -80,9 +84,11 @@ function loadStorage(fm) {
       Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
       Promise, RegExp, Error, isNaN, parseInt, parseFloat,
       encodeURIComponent, decodeURIComponent,
+      config: { runsInWidget },
       /* Le Timer de Scriptable compte en millisecondes. */
       Timer: class {
         static schedule(milliseconds, repeats, callback) {
+          waits.push(Number(milliseconds) || 0)
           setTimeout(callback, 0)
           return new this()
         }
@@ -129,8 +135,8 @@ const INDEX = { version: 2, services: [{ pdfFile: "EA06.pdf", cacheFile: "EA06.j
   }
 
   /*
-   * Le fichier est là : le réveiller coûte 1,5 seconde de pauses, et un
-   * widget n'a pas ce temps. Un fichier présent ne doit rien coûter.
+   * Le fichier est là : le réveiller coûte plus de cinq secondes à un
+   * widget. Un fichier présent ne doit rien coûter.
    */
   if (fm.calls.downloads !== 0) {
     failures.push(
@@ -202,26 +208,85 @@ for (const confirmsDownloads of [true, false]) {
   fm.disk.set(target, JSON.stringify(INDEX))
 
   let guard
-  const startedAt = Date.now()
   const read = await Promise.race([
     STORAGE.readJson(target, "PAS-DE-REPONSE"),
     new Promise(resolve => { guard = setTimeout(() => resolve("BLOQUÉ"), 8000) })
   ])
   clearTimeout(guard)
-  const elapsed = Date.now() - startedAt
 
   if (read === "BLOQUÉ") {
     failures.push("iCloud muet : readJson ne rend jamais la main")
   } else if (read !== "PAS-DE-REPONSE") {
     failures.push(`iCloud muet : readJson rend ${JSON.stringify(read)} au lieu du repli`)
   }
+}
 
-  /*
-   * Un widget ne dispose que de quelques secondes en tout : la lecture
-   * doit renoncer bien avant, sinon il meurt sans rien afficher.
-   */
-  if (elapsed > 4000) {
-    failures.push(`iCloud muet : ${elapsed} ms avant de renoncer, trop pour un widget`)
+/*
+ * La patience accordée à iCloud, fichier par fichier.
+ *
+ * Une seconde et demie rendait une erreur là où il n'y avait qu'un retard :
+ * c'est le défaut que la décision du 18 septembre demandait de corriger.
+ * Mais le widget attend fichier après fichier, et la patience de
+ * l'application, sur la carte et les deux bibliothèques PDF.js, le
+ * retiendrait plus de deux minutes. Le widget se tient donc entre les deux.
+ */
+for (const [context, runsInWidget, floor, ceiling] of [
+  ["widget", true, 4000, 6000],
+  ["application", false, 40000, Infinity]
+]) {
+  const waits = []
+  const fm = createFileManager({ confirmsDownloads: false, stalls: true, unreadable: true })
+  const STORAGE = loadStorage(fm, { runsInWidget, waits })
+  const target = "/documents/CTS Dashboard/Services/EA06.pdf"
+
+  fm.disk.set(target, "%PDF")
+
+  let thrown = null
+
+  try {
+    await STORAGE.ensureDownloaded(target)
+  } catch (error) {
+    thrown = error
+  }
+
+  const patience = waits.reduce((total, value) => total + value, 0)
+
+  if (!thrown) {
+    failures.push(`patience · ${context} : un fichier qu'iCloud ne rend jamais passe pour disponible`)
+  }
+
+  if (patience < floor || patience > ceiling) {
+    failures.push(
+      `patience · ${context} : ${patience} ms accordés à iCloud, ` +
+      `hors de l'intervalle ${floor}–${ceiling} ms`
+    )
+  }
+}
+
+/*
+ * iCloud rend la main avant de déclarer le fichier disponible. Le moteur
+ * PDF relisait cet état pendant une seconde avant de conclure ; l'attente
+ * commune, qu'il emprunte désormais, le relit au second essai.
+ */
+{
+  const fm = createFileManager({ confirmsDownloads: false })
+  const STORAGE = loadStorage(fm, { runsInWidget: true })
+  const target = "/documents/CTS Dashboard/Services/EA06.pdf"
+  let checks = 0
+
+  fm.disk.set(target, "%PDF")
+  fm.isFileDownloaded = () => ++checks >= 3
+
+  let downloaded = false
+
+  try {
+    downloaded = await STORAGE.ensureDownloaded(target)
+  } catch (_) {}
+
+  if (downloaded !== true) {
+    failures.push(
+      "widget : un fichier déclaré disponible un instant après le téléchargement est abandonné"
+    )
   }
 }
 
@@ -500,6 +565,7 @@ if (failures.length) {
 console.log(
   "ok     lecture des fichiers iCloud " +
   "(iCloud muet, iCloud normal, absent, illisible, sans réponse, aucune attente inutile, " +
+  "patience du widget et de l'application, disponibilité déclarée en retard, " +
   "écriture atomique, bascule interrompue, préférences, index des services dont le refus " +
   "d'un index corrompu)"
 )

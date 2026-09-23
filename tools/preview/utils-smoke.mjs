@@ -155,7 +155,7 @@ const UTILS = loadUtils()
 
   const load = runsInWidget => {
     const loaded = {}
-    const modules = ["CTS Config", "CTS Utils", "CTS PDF Engine"]
+    const modules = ["CTS Config", "CTS Utils", "CTS Storage", "CTS PDF Engine"]
 
     for (const name of modules) {
       const source = fs.readFileSync(path.join(repository, `${name}.js`), "utf8")
