@@ -480,13 +480,13 @@ déclarée après l'appel de premier niveau : la syntaxe est valide, mais la
 constante reste inaccessible à l'exécution, et ce piège a déjà tué
 l'installateur 1.0.7 sur l'iPhone d'un collègue.
 
-### Les dix-neuf bancs d'essai
+### Les vingt bancs d'essai
 
 Ils complètent la CI parce qu'une vérification statique ne voit pas ce qui
 casse à l'exécution. **Chacun est né d'un défaut réel.**
 
 <details>
-<summary>Les dix-neuf bancs, et ce que chacun empêche</summary>
+<summary>Les vingt bancs, et ce que chacun empêche</summary>
 
 | Banc | Ce qu'il empêche |
 |---|---|
@@ -502,6 +502,7 @@ casse à l'exécution. **Chacun est né d'un défaut réel.**
 | `version-gate-smoke` | un widget bloqué à tort parce qu'il est hors ligne, ou qu'un plancher a été publié de travers |
 | `database-smoke` | un arrêt affiché sous forme de code |
 | `parser-smoke` | un pied de page affiché comme direction, ou l'arrêt de relève à la place du terminus |
+| `import-smoke` | une étape d'import qui n'a pas tourné rapportée « 0 ms » dans le Diagnostic |
 | `layout-smoke` | une grille horaires qui déborde selon l'appareil |
 | `utils-smoke` | une attente sans borne, une date jugée valide par un seul module |
 | `installer-smoke` | une constante inaccessible à l'exécution |
