@@ -101,4 +101,4 @@ d'Anthropic : Scriptable, PDF.js, iOS, Node, GitHub, comme Claude Code.
 Pour Claude Code, sers-toi du serveur MCP `claude-code-docs` s'il est
 disponible ; sinon `code.claude.com/docs/llms.txt` donne l'index, et
 une page se lit en ajoutant `.md` à son adresse. Pour l'API Anthropic :
-`docs.claude.com/en/docs_site_map.md`.
+`platform.claude.com/llms.txt`.
