@@ -36,7 +36,8 @@ export const silentConsole = { log: () => {}, warn: () => {}, error: () => {} }
 /*
  * Les constructeurs de l'hôte, et non ceux que vm crée pour chaque
  * contexte : sans eux, un tableau rendu par un script n'est pas un Array
- * aux yeux du banc, et une date n'est pas une Date.
+ * aux yeux du banc, et une date n'est pas une Date. Voir l'annexe
+ * `node22.md` de la skill docs.
  */
 export const LANGUAGE = {
   Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,

@@ -536,6 +536,11 @@ ne les référence parce que ce sont des points d'entrée.
 | `installer.mjs` | rend les pages de CTS Installer de la même façon |
 | `installer-bench.mjs` | mesure une installation complète : requêtes, octets, temps |
 
+Tous, bancs et outils, montent leur bac à sable par `sandbox.mjs` : le
+langage, une console muette, un `Timer` conforme à Scriptable, et les
+façons d'exécuter un script. Une doublure fausse s'y corrige une fois pour
+tous.
+
 ## Licence et auteur
 
 **Emilio IPPOLITO** — projet développé et maintenu indépendamment.
