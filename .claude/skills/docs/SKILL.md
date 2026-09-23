@@ -1,6 +1,6 @@
 ---
 name: docs
-description: Index des technologies du dépôt et de leur documentation officielle. À ouvrir avant toute modification touchant Scriptable, le widget, iCloud, PDF.js, les bancs d'essai Node ou la chaîne GitHub, et avant de répondre à une question portant sur l'une d'elles.
+description: Index des technologies du dépôt et de leur documentation officielle. À ouvrir avant toute modification touchant Scriptable, le widget, iCloud, PDF.js, les bancs d'essai Node, la chaîne GitHub ou Claude Code, et avant de répondre à une question portant sur l'une d'elles.
 ---
 
 # Documentation des technologies
@@ -8,13 +8,14 @@ description: Index des technologies du dépôt et de leur documentation officiel
 Ne réponds jamais de mémoire sur une technologie listée ici : ouvre sa
 page, puis dis laquelle tu as lue. Quand une adresse est marquée ●, elle
 n'a pas été vérifiée — dis-le au mainteneur plutôt que de t'y fier.
-Toutes celles marquées ✓ ont été ouvertes le 18/09/2026, et leur titre
-relevé.
+Toutes celles marquées ✓ ont été ouvertes le 18/09/2026, sauf quand une
+autre date suit la coche, et leur titre relevé.
 
 Les contraintes déjà établies, citées et datées, sont dans les fichiers
-annexes : [`scriptable.md`](scriptable.md), [`pdfjs.md`](pdfjs.md) et
-[`node22.md`](node22.md). Lis l'annexe avant d'aller en ligne, elle
-répond peut-être déjà. `node22.md` sert aussi au dépôt admin, qui n'en
+annexes : [`scriptable.md`](scriptable.md), [`pdfjs.md`](pdfjs.md),
+[`node22.md`](node22.md) et [`claude-code.md`](claude-code.md). Lis
+l'annexe avant d'aller en ligne, elle répond peut-être déjà.
+`node22.md` et `claude-code.md` servent aussi au dépôt admin, qui n'en
 tient pas de copie.
 
 ## Sur l'iPhone du collègue
@@ -82,10 +83,16 @@ Aucun cadriciel de test : les bancs sont des scripts Node nus.
 | Skills — dont celui-ci | `.claude/skills/` | ✓ `code.claude.com/docs/en/skills.md` |
 | Commandes slash | `.claude/commands/` | ✓ `code.claude.com/docs/en/commands.md` |
 | poppler-utils / `pdftoppm` — lecture des captures | script d'environnement | ✓ `poppler.freedesktop.org` |
+| Modèle et effort — Opus 5.5, ultracode | sélecteur de l'appli, à la création de la session | ✓ 23/09 `code.claude.com/docs/en/model-config.md` · `workflows.md` |
+| Réglages et variables d'environnement | script d'environnement | ✓ 23/09 `code.claude.com/docs/en/settings-reference.md` · `env-vars.md` |
+| Sessions cloud — ce qu'elles lisent, script d'environnement | environnement « CTS Dashboard » | ✓ 23/09 `code.claude.com/docs/en/cloud-environments.md` |
+| `CLAUDE.md` — taille et écriture des consignes | `CLAUDE.md` | ✓ 23/09 `code.claude.com/docs/en/memory.md` |
+| API Anthropic et modèles Claude | — | ✓ 23/09 `platform.claude.com/llms.txt` |
 
 L'index complet des pages Claude Code se prend à
 `code.claude.com/docs/llms.txt`, et une page se lit en ajoutant `.md` à
-son adresse.
+son adresse. Ce que ces pages disent du modèle, de l'effort et des
+sessions cloud est cité dans [`claude-code.md`](claude-code.md).
 
 **Un serveur déclaré dans `.mcp.json` ne se connecte pas tout seul dans
 une session distante.**
@@ -103,7 +110,8 @@ L'approbation doit donc venir d'ailleurs — `~/.claude/settings.json`, que
 seul le script de configuration de l'environnement écrit avant le
 démarrage. Si l'outil `search_claude_code_docs` manque, c'est là qu'il
 faut regarder, pas dans le dépôt. Voir l'entrée du 19 septembre dans
-`DECISIONS.md`.
+`DECISIONS.md`. Dans une session ouverte sur les deux dépôts, son
+absence est normale : `.mcp.json` n'y est pas lu, voir l'annexe.
 
 ## Ce qui ne vit pas ici
 

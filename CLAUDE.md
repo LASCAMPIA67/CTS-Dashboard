@@ -17,6 +17,9 @@
 - Quand un travail est terminé et que ma demande suivante porte sur un
   autre sujet, dis-le moi et propose une nouvelle session, après avoir
   consigné dans DECISIONS.md ce qui mérite d'y figurer.
+- Quand la conversation est résumée, le résumé garde l'étape en cours,
+  ce que j'ai confirmé ou non, les fichiers modifiés, les validateurs
+  lancés avec leur résultat et les pull requests ouvertes.
 
 ## Décisions
 
@@ -40,11 +43,16 @@
 - La lisibilité prime sur la brièveté.
 - Les commentaires expliquent une contrainte non évidente — le pourquoi,
   jamais le quoi. Aucun ne paraphrase le code.
+- Un défaut se corrige à sa cause : ne masque jamais une erreur et ne
+  contourne jamais un validateur pour passer au vert.
 
 ## Après modification
 
 - Lance les validateurs du dépôt, ceux de
   `.github/workflows/validate.yml`, et rapporte leur sortie.
+- Avant d'ouvrir une pull request, fais relire les modifications par un
+  sous-agent (`/code-review`). Ne retiens que ce qui touche la justesse
+  ou ma demande.
 - Corrige avant de me rendre la main.
 
 ## Git
@@ -101,4 +109,4 @@ d'Anthropic : Scriptable, PDF.js, iOS, Node, GitHub, comme Claude Code.
 Pour Claude Code, sers-toi du serveur MCP `claude-code-docs` s'il est
 disponible ; sinon `code.claude.com/docs/llms.txt` donne l'index, et
 une page se lit en ajoutant `.md` à son adresse. Pour l'API Anthropic :
-`docs.claude.com/en/docs_site_map.md`.
+`platform.claude.com/llms.txt`.
