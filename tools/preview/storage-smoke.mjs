@@ -37,6 +37,7 @@ function createFileManager({ confirmsDownloads, stalls = false, unreadable = fal
     calls,
     joinPath: (parent, child) => `${parent}/${child}`,
     documentsDirectory: () => "/documents",
+    libraryDirectory: () => "/library",
     fileExists: target => disk.has(target),
     createDirectory: () => {},
     isFileDownloaded: () => confirmsDownloads,
@@ -556,6 +557,80 @@ for (const [context, runsInWidget, floor, ceiling] of [
   }
 }
 
+/*
+ * Les verrous de l'appareil.
+ *
+ * Le balayage et l'entretien partagent désormais un seul verrou, rangé
+ * hors d'iCloud. Ce qui se joue ici décide si une carte agent est lue ou
+ * attend : un verrou actif bloque, un verrou périmé ou illisible ne
+ * bloque rien — sans quoi un widget tué fermerait la porte pour toujours
+ * — et personne ne libère le verrou d'un autre.
+ */
+{
+  const LOCK = "/library/CTS Dashboard/essai.lock"
+  const options = { ttlMs: 60000, writeCode: "TEST_LOCK_WRITE_FAILED", stage: "test", label: "Le verrou" }
+
+  const fm = createFileManager({ confirmsDownloads: true })
+  const STORAGE = loadStorage(fm, { runsInWidget: true })
+
+  const first = STORAGE.acquireDeviceLock("essai.lock", options)
+  const second = STORAGE.acquireDeviceLock("essai.lock", options)
+
+  if (!first.acquired || !fm.disk.has(LOCK)) {
+    failures.push("verrou : le premier appel ne le prend pas dans la bibliothèque locale")
+  }
+
+  if ([...fm.disk.keys()].some(key => key.startsWith("/documents/") && key.endsWith(".lock"))) {
+    failures.push("verrou : il est écrit dans iCloud")
+  }
+
+  if (second.acquired) failures.push("verrou : un verrou actif n'empêche pas un second passage")
+
+  STORAGE.releaseDeviceLock("essai.lock", { acquired: true, token: "celui-d-un-autre" })
+
+  if (!fm.disk.has(LOCK)) failures.push("verrou : libéré par qui ne le tenait pas")
+
+  STORAGE.releaseDeviceLock("essai.lock", first)
+
+  if (fm.disk.has(LOCK)) failures.push("verrou : il survit à sa libération")
+
+  for (const [label, content] of [
+    ["périmé", JSON.stringify({ token: "ancien", createdAt: "2020-01-01T00:00:00.000Z" })],
+    ["illisible", "{ pas du JSON"]
+  ]) {
+    fm.disk.set(LOCK, content)
+
+    if (!STORAGE.acquireDeviceLock("essai.lock", options).acquired) {
+      failures.push(`verrou ${label} : il bloque encore le passage`)
+    }
+
+    fm.disk.delete(LOCK)
+  }
+
+  /* Reprendre la main sur un widget n'est accordé qu'à qui le demande. */
+  for (const [applicationTakesOverWidget, expected] of [[false, false], [true, true]]) {
+    const application = loadStorage(fm, { runsInWidget: false })
+
+    fm.disk.set(LOCK, JSON.stringify({
+      token: "widget", createdAt: new Date().toISOString(), surface: "widget"
+    }))
+
+    const taken = application.acquireDeviceLock("essai.lock", {
+      ...options,
+      applicationTakesOverWidget
+    }).acquired
+
+    if (taken !== expected) {
+      failures.push(
+        `verrou d'un widget, reprise ${applicationTakesOverWidget ? "demandée" : "non demandée"} : ` +
+        `l'application ${taken ? "passe" : "attend"}`
+      )
+    }
+
+    fm.disk.delete(LOCK)
+  }
+}
+
 if (failures.length) {
   console.log("ÉCHEC  lecture des fichiers iCloud")
   for (const failure of failures) console.log(`         ${failure}`)
@@ -566,6 +641,7 @@ console.log(
   "ok     lecture des fichiers iCloud " +
   "(iCloud muet, iCloud normal, absent, illisible, sans réponse, aucune attente inutile, " +
   "patience du widget et de l'application, disponibilité déclarée en retard, " +
-  "écriture atomique, bascule interrompue, préférences, index des services dont le refus " +
+  "écriture atomique, bascule interrompue, préférences, verrous de l'appareil, " +
+  "index des services dont le refus " +
   "d'un index corrompu)"
 )

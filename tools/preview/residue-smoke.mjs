@@ -136,7 +136,9 @@ function loadCleaner(disk, { readableDates = true } = {}) {
     },
     ensureDownloaded: async () => true,
     appendLog: async () => {},
-    buildUniqueToken: () => "1-aaaa",
+    /* Le verrou réel est éprouvé par storage-smoke : ici, il est toujours libre. */
+    acquireDeviceLock: () => ({ acquired: true, token: "verrou" }),
+    releaseDeviceLock: () => {},
     safeModificationDate: target => {
       try {
         const value = fm.modificationDate(target)

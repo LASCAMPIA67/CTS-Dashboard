@@ -8,7 +8,6 @@ const STORAGE = importModule("CTS Storage")
 const UTILS = importModule("CTS Utils")
 const SERVICES_CLEANER = importModule("CTS Services Cleaner")
 const { fm, paths, files, pdf } = CONFIG
-const removeFileQuietly = STORAGE.removeFileQuietly
 const normalizeTimings = UTILS.normalizeImportTimings
 const isUsableDate = UTILS.isUsableDate
 const runsInApplication = UTILS.runsInApplication
@@ -23,7 +22,7 @@ const {
 } = UTILS
 
 const SCAN_STATE_VERSION = 1
-const SCAN_LOCK_PATH = fm.joinPath(paths.data, "services-scan.lock")
+const SCAN_LOCK_NAME = "services-scan.lock"
 const SCAN_LOCK_TTL_MS = 2 * 60 * 1000
 const SCAN_STATE_HEARTBEAT_MS = 60 * 60 * 1000
 const EXCEPTION_RETRY_DELAY_MS = 15 * 60 * 1000
@@ -39,7 +38,7 @@ const BUDGET_TIMEOUT_CODES = Object.freeze([
 async function scanServices(options = {}) {
   CONFIG.ensureDirectories()
 
-  const lock = await acquireScanLock()
+  const lock = acquireScanLock()
 
   if (!lock.acquired) {
     return {
@@ -60,7 +59,7 @@ async function scanServices(options = {}) {
   try {
     return await performScan(options)
   } finally {
-    await releaseScanLock(lock)
+    releaseScanLock(lock)
   }
 }
 
@@ -643,84 +642,18 @@ async function saveScanState(state) {
   }
 }
 
-async function acquireScanLock() {
-  const now = new Date()
-
-  if (fm.fileExists(SCAN_LOCK_PATH)) {
-    let existingLock
-
-    try {
-      existingLock = await STORAGE.readJson(SCAN_LOCK_PATH, null)
-    } catch (error) {
-      throw createTelemetryError(
-        "SERVICES_SCAN_LOCK_READ_FAILED",
-        "scan_lock",
-        `Le verrou d’analyse des services ne peut pas être lu : ${errorMessage(error)}`,
-        error
-      )
-    }
-
-    const lockTime = Date.parse(String(existingLock?.createdAt || ""))
-    const lockIsActive =
-      Number.isFinite(lockTime) && now.getTime() - lockTime < SCAN_LOCK_TTL_MS
-
-    const heldByWidget = String(existingLock?.surface || "") === "widget"
-    const canTakeOver = heldByWidget && runsInApplication()
-
-    if (lockIsActive && !canTakeOver) {
-      return {
-        acquired: false,
-        token: ""
-      }
-    }
-
-    removeFileQuietly(SCAN_LOCK_PATH)
-  }
-
-  const token = STORAGE.buildUniqueToken()
-
-  try {
-    fm.writeString(
-      SCAN_LOCK_PATH,
-      JSON.stringify(
-        {
-          token,
-          createdAt: now.toISOString(),
-          surface: runsInApplication() ? "application" : "widget"
-        },
-        null,
-        2
-      )
-    )
-  } catch (error) {
-    throw createTelemetryError(
-      "SERVICES_SCAN_LOCK_WRITE_FAILED",
-      "scan_lock",
-      `Le verrou d’analyse des services ne peut pas être créé : ${errorMessage(error)}`,
-      error
-    )
-  }
-
-  return {
-    acquired: true,
-    token
-  }
+function acquireScanLock() {
+  return STORAGE.acquireDeviceLock(SCAN_LOCK_NAME, {
+    ttlMs: SCAN_LOCK_TTL_MS,
+    applicationTakesOverWidget: true,
+    writeCode: "SERVICES_SCAN_LOCK_WRITE_FAILED",
+    stage: "scan_lock",
+    label: "Le verrou d’analyse des services"
+  })
 }
 
-async function releaseScanLock(lock) {
-  if (!lock?.acquired || !fm.fileExists(SCAN_LOCK_PATH)) {
-    return
-  }
-
-  try {
-    const currentLock = await STORAGE.readJson(SCAN_LOCK_PATH, null)
-
-    if (!currentLock || currentLock.token === lock.token) {
-      fm.remove(SCAN_LOCK_PATH)
-    }
-  } catch (_) {
-    removeFileQuietly(SCAN_LOCK_PATH)
-  }
+function releaseScanLock(lock) {
+  STORAGE.releaseDeviceLock(SCAN_LOCK_NAME, lock)
 }
 
 async function resolveServiceForDate(currentDate = new Date()) {

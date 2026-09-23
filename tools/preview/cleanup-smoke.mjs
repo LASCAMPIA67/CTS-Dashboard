@@ -185,7 +185,9 @@ function buildWorld({ lastEnd, serviceDate }) {
     },
     ensureDownloaded: async () => true,
     appendLog: async () => {},
-    buildUniqueToken: () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    /* Le verrou réel est éprouvé par storage-smoke : ici, il est toujours libre. */
+    acquireDeviceLock: () => ({ acquired: true, token: "verrou" }),
+    releaseDeviceLock: () => {},
     /*
      * L'écriture atomique réelle vit dans CTS Storage et c'est
      * storage-smoke qui l'éprouve, bascule interrompue comprise. Ici on

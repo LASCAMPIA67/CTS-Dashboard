@@ -9,14 +9,13 @@ const UTILS = importModule("CTS Utils")
 const { fm, paths, files, pdf } = CONFIG
 const REPLACED_PDF_PREFIX = "Remplace_"
 const isUsableDate = UTILS.isUsableDate
-const removeFileQuietly = STORAGE.removeFileQuietly
 const CLEANUP_WRITE_MESSAGE = "Le fichier temporaire d’entretien ne peut pas être écrit"
 const CLEANUP_COMMIT_MESSAGE = "Le fichier d’entretien n’a pas pu être validé"
 const CLEANUP_VERSION = 1
 const MISSING_CONFIRMATIONS = 2
 const CLEANUP_LOCK_TTL_MS = 2 * 60 * 1000
 const CLEANUP_STATE_HEARTBEAT_MS = 60 * 60 * 1000
-const CLEANUP_LOCK_PATH = fm.joinPath(paths.data, "services-cleanup.lock")
+const CLEANUP_LOCK_NAME = "services-cleanup.lock"
 const CLEANUP_STATE_PATH = fm.joinPath(paths.data, "services-cleanup-state.json")
 
 async function maintainServices(currentDate = new Date(), options = {}) {
@@ -31,7 +30,7 @@ async function maintainServices(currentDate = new Date(), options = {}) {
     )
   }
 
-  const lock = await acquireCleanupLock()
+  const lock = acquireCleanupLock()
 
   if (!lock.acquired) {
     return {
@@ -47,7 +46,7 @@ async function maintainServices(currentDate = new Date(), options = {}) {
   try {
     return await performMaintenance(currentDate, options)
   } finally {
-    await releaseCleanupLock(lock)
+    releaseCleanupLock(lock)
   }
 }
 
@@ -854,7 +853,7 @@ async function removeService(id, currentDate = new Date()) {
     )
   }
 
-  const lock = await acquireCleanupLock()
+  const lock = acquireCleanupLock()
 
   if (!lock.acquired) {
     return removalFailure(
@@ -868,7 +867,7 @@ async function removeService(id, currentDate = new Date()) {
   try {
     return await performServiceRemoval(wanted, currentDate)
   } finally {
-    await releaseCleanupLock(lock)
+    releaseCleanupLock(lock)
   }
 }
 
@@ -1385,79 +1384,17 @@ async function saveCleanupState(result, previousState) {
   })
 }
 
-async function acquireCleanupLock() {
-  const now = new Date()
-
-  if (fm.fileExists(CLEANUP_LOCK_PATH)) {
-    let existing
-
-    try {
-      existing = await STORAGE.readJson(CLEANUP_LOCK_PATH, null)
-    } catch (error) {
-      throw UTILS.createTelemetryError(
-        "CLEANUP_LOCK_READ_FAILED",
-        "archive_lock",
-        `Le verrou d’entretien ne peut pas être lu : ${UTILS.errorMessage(error)}`,
-        error
-      )
-    }
-
-    const createdAt = Date.parse(String(existing?.createdAt || ""))
-    const active = Number.isFinite(createdAt) && now.getTime() - createdAt < CLEANUP_LOCK_TTL_MS
-
-    if (active) {
-      return {
-        acquired: false,
-        token: ""
-      }
-    }
-
-    removeFileQuietly(CLEANUP_LOCK_PATH)
-  }
-
-  const token = STORAGE.buildUniqueToken()
-
-  try {
-    fm.writeString(
-      CLEANUP_LOCK_PATH,
-      JSON.stringify(
-        {
-          token,
-          createdAt: now.toISOString()
-        },
-        null,
-        2
-      )
-    )
-  } catch (error) {
-    throw UTILS.createTelemetryError(
-      "CLEANUP_LOCK_WRITE_FAILED",
-      "archive_lock",
-      `Le verrou d’entretien ne peut pas être créé : ${UTILS.errorMessage(error)}`,
-      error
-    )
-  }
-
-  return {
-    acquired: true,
-    token
-  }
+function acquireCleanupLock() {
+  return STORAGE.acquireDeviceLock(CLEANUP_LOCK_NAME, {
+    ttlMs: CLEANUP_LOCK_TTL_MS,
+    writeCode: "CLEANUP_LOCK_WRITE_FAILED",
+    stage: "archive_lock",
+    label: "Le verrou d’entretien"
+  })
 }
 
-async function releaseCleanupLock(lock) {
-  if (!lock?.acquired || !fm.fileExists(CLEANUP_LOCK_PATH)) {
-    return
-  }
-
-  try {
-    const current = await STORAGE.readJson(CLEANUP_LOCK_PATH, null)
-
-    if (!current || current.token === lock.token) {
-      fm.remove(CLEANUP_LOCK_PATH)
-    }
-  } catch (_) {
-    removeFileQuietly(CLEANUP_LOCK_PATH)
-  }
+function releaseCleanupLock(lock) {
+  STORAGE.releaseDeviceLock(CLEANUP_LOCK_NAME, lock)
 }
 
 function isUsableIndexEntry(entry) {

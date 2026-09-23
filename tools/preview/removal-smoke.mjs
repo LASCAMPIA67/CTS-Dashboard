@@ -209,7 +209,9 @@ function buildWorld(services) {
     },
     ensureDownloaded: async target => files.has(target),
     appendLog: async () => {},
-    buildUniqueToken: () => `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+    /* Le verrou réel est éprouvé par storage-smoke : ici, il est toujours libre. */
+    acquireDeviceLock: () => ({ acquired: true, token: "verrou" }),
+    releaseDeviceLock: () => {},
     writeJsonAtomically: async (target, value) => {
       files.set(target, JSON.stringify(value, null, 2))
     },

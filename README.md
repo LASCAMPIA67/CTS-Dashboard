@@ -492,9 +492,9 @@ casse à l'exécution. **Chacun est né d'un défaut réel.**
 |---|---|
 | `modules-smoke` | une fonction appelée d'un module à l'autre qui n'existe pas |
 | `dashboard-smoke` | un widget blanc, vide, ou rendu dans une taille non prévue |
-| `scan-smoke` | une carte agent détectée mais jamais importée |
+| `scan-smoke` | une carte agent détectée mais jamais importée, un verrou écrit dans iCloud |
 | `selection-smoke` | le mauvais service retenu à cheval sur minuit |
-| `storage-smoke` | un fichier lisible qu'iCloud refuse de confirmer, une écriture interrompue, une patience iCloud trop courte ou trop longue pour un widget |
+| `storage-smoke` | un fichier lisible qu'iCloud refuse de confirmer, une écriture interrompue, une patience iCloud trop courte ou trop longue pour un widget, un verrou périmé qui bloque encore |
 | `cleanup-smoke` | un PDF jamais archivé, un cache effacé trop tôt |
 | `residue-smoke` | une copie de sécurité orpheline effacée alors qu'elle était le dernier exemplaire |
 | `removal-smoke` | un service retiré qui emporte les fichiers d'un autre, ou qu'iCloud fait disparaître à tort |
