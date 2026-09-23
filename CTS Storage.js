@@ -10,12 +10,24 @@ const SERVICES_INDEX_VERSION = CONFIG.servicesIndexVersion
 const ICLOUD_DOWNLOAD_ATTEMPTS = 4
 const ICLOUD_DOWNLOAD_RETRY_MS = 250
 const ICLOUD_DOWNLOAD_TIMEOUT_MS = 12000
-const WIDGET_DOWNLOAD_TIMEOUT_MS = 1500
+const WIDGET_DOWNLOAD_ATTEMPTS = 2
+const WIDGET_DOWNLOAD_TIMEOUT_MS = 2500
 
+/*
+ * La seule attente iCloud du Dashboard : le moteur PDF l'emprunte aussi.
+ *
+ * Le widget accorde deux essais de deux secondes et demie par fichier. Une
+ * attente unique d'une seconde et demie rendait une erreur là où il n'y
+ * avait qu'un retard. La patience de l'application se compte elle aussi par
+ * fichier : sur la carte et les deux bibliothèques PDF.js, elle retiendrait
+ * le widget plus de deux minutes avant même la lecture. Le second essai
+ * relit l'état du fichier, qu'iCloud peut déclarer disponible un instant
+ * après avoir rendu la main.
+ */
 function iCloudPatience() {
   return UTILS.runsInApplication()
     ? { attempts: ICLOUD_DOWNLOAD_ATTEMPTS, timeoutMs: ICLOUD_DOWNLOAD_TIMEOUT_MS }
-    : { attempts: 1, timeoutMs: WIDGET_DOWNLOAD_TIMEOUT_MS }
+    : { attempts: WIDGET_DOWNLOAD_ATTEMPTS, timeoutMs: WIDGET_DOWNLOAD_TIMEOUT_MS }
 }
 
 async function ensureDownloaded(path) {

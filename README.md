@@ -494,7 +494,7 @@ casse à l'exécution. **Chacun est né d'un défaut réel.**
 | `dashboard-smoke` | un widget blanc, vide, ou rendu dans une taille non prévue |
 | `scan-smoke` | une carte agent détectée mais jamais importée |
 | `selection-smoke` | le mauvais service retenu à cheval sur minuit |
-| `storage-smoke` | un fichier lisible qu'iCloud refuse de confirmer, une écriture interrompue |
+| `storage-smoke` | un fichier lisible qu'iCloud refuse de confirmer, une écriture interrompue, une patience iCloud trop courte ou trop longue pour un widget |
 | `cleanup-smoke` | un PDF jamais archivé, un cache effacé trop tôt |
 | `residue-smoke` | une copie de sécurité orpheline effacée alors qu'elle était le dernier exemplaire |
 | `removal-smoke` | un service retiré qui emporte les fichiers d'un autre, ou qu'iCloud fait disparaître à tort |
@@ -508,7 +508,7 @@ casse à l'exécution. **Chacun est né d'un défaut réel.**
 | `installer-smoke` | une constante inaccessible à l'exécution |
 | `repair-smoke` | un dépannage qui laisse l'iPhone sans installateur |
 | `telemetry-smoke` | un jour de repos compté comme une panne dans le taux de succès de la flotte |
-| `pdf-engine-smoke` | un fichier que personne ne lit qui empêche toute lecture de carte agent |
+| `pdf-engine-smoke` | un fichier que personne ne lit qui empêche toute lecture de carte agent, un moteur qui attend iCloud plus longtemps que le reste du widget |
 | `incident-smoke` | une même panne rapportée deux fois, sous deux codes et à deux gravités |
 
 </details>

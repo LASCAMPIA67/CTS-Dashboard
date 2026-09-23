@@ -76,3 +76,40 @@ y reste, donc `isFileDownloaded` faux signifie que le fichier n'est pas
 là — et si la synchronisation est arrêtée faute de place, il n'arrivera
 pas. Attendre plus longtemps n'y change rien. Allonger la patience du
 widget aide un iCloud lent, jamais un iCloud arrêté.
+
+## Aucune durée d'exécution n'est publiée pour un widget
+
+`docs.scriptable.app/listwidget` ne fixe que la mémoire :
+
+> « Also note that there are memory limitations when running a script in
+> a widget. When using too much memory the widget will crash and not
+> render correctly. »
+
+`docs.scriptable.app/listwidget` · lu le 23/09/2026
+
+La page d'Apple sur le rafraîchissement des widgets parle de budget de
+réveils — « from 40 to 70 refreshes » par jour pour un widget souvent
+regardé — et jamais du temps qu'un réveil peut durer.
+
+`developer.apple.com/documentation/widgetkit/keeping-a-widget-up-to-date`
+· lu le 23/09/2026
+
+`docs.scriptable.app/filemanager` ne dit pas non plus combien de temps
+prend `downloadFileFromiCloud`, ni s'il abandonne un jour.
+
+Conséquence : toute durée que le widget s'accorde — patience iCloud,
+budget du moteur PDF — est un choix du projet, à juger sur la
+télémétrie, et jamais une limite documentée. Voir l'entrée du 23
+septembre dans `DECISIONS.md`.
+
+## `importModule` ne dit rien d'un cache
+
+> « The `importModule` function returns `module.exports` of the imported
+> module. »
+
+`docs.scriptable.app/importmodule` · lu le 23/09/2026
+
+La page ne dit pas si deux modules qui importent le même fichier
+partagent une seule instance. Un état tenu au niveau d'un module — un
+compteur, une échéance commune à tout un réveil — n'est donc pas garanti
+d'être vu par les autres.

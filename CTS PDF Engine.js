@@ -4,6 +4,7 @@
 
 const CONFIG = importModule("CTS Config")
 const UTILS = importModule("CTS Utils")
+const STORAGE = importModule("CTS Storage")
 const { fm, paths, files, pdf } = CONFIG
 const errorMessage = UTILS.errorMessage
 const PDFJS_VERSION = "6.3.289"
@@ -22,8 +23,6 @@ const ENGINE_START_TIMEOUT_MS = 20000
 const MINIMUM_LIBRARY_SIZE_KB = 40
 const FILE_READ_ATTEMPTS = 4
 const FILE_READ_RETRY_MS = 250
-const ICLOUD_READY_ATTEMPTS = 8
-const ICLOUD_DOWNLOAD_TIMEOUT_MS = 12000
 const WEBVIEW_LOAD_TIMEOUT_MS = 15000
 
 function widgetBudget(key, fallback) {
@@ -61,7 +60,6 @@ function extractionTimeout() {
   )
 }
 const WEBVIEW_CALL_MARGIN_MS = 5000
-const ICLOUD_READY_RETRY_MS = 150
 
 async function ensureReady() {
   CONFIG.ensureDirectories()
@@ -1412,42 +1410,24 @@ async function ensureDownloaded(
     stage = "file"
   } = {}
 ) {
-  if (!fm.fileExists(path)) {
+  let downloaded
+
+  try {
+    downloaded = await STORAGE.ensureDownloaded(path)
+  } catch (error) {
+    throw createTelemetryError(
+      downloadCode,
+      stage,
+
+      `Le fichier n’a pas pu être téléchargé depuis iCloud : ${errorMessage(error)}`,
+
+      error
+    )
+  }
+
+  if (!downloaded) {
     throw createTelemetryError(missingCode, stage, "Le fichier demandé est introuvable.")
   }
-
-  if (!fm.isFileDownloaded(path)) {
-    try {
-      await UTILS.withTimeout(fm.downloadFileFromiCloud(path), ICLOUD_DOWNLOAD_TIMEOUT_MS)
-    } catch (error) {
-      throw createTelemetryError(
-        downloadCode,
-        stage,
-
-        `Le fichier n’a pas pu être téléchargé depuis iCloud : ${errorMessage(error)}`,
-
-        error
-      )
-    }
-  }
-
-  for (let attempt = 1; attempt <= ICLOUD_READY_ATTEMPTS; attempt++) {
-    try {
-      if (fm.isFileDownloaded(path)) {
-        return
-      }
-    } catch (_) {}
-
-    if (attempt < ICLOUD_READY_ATTEMPTS) {
-      await sleep(ICLOUD_READY_RETRY_MS)
-    }
-  }
-
-  throw createTelemetryError(
-    downloadCode,
-    stage,
-    "Le fichier est présent dans iCloud mais n’est pas encore disponible localement."
-  )
 }
 
 async function sleep(milliseconds) {

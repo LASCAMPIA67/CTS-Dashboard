@@ -266,3 +266,16 @@ décision lui est antérieure.
   branches ou à trajets partiels n'en portent pas : la déduction y serait
   fausse, et le dernier arrêt desservi reste la meilleure réponse. Ces
   terminus s'entretiennent à la main quand le réseau change.
+- 2026-09-23 — Le Dashboard n'a plus qu'une attente iCloud, celle de
+  `CTS Storage`, que le moteur PDF emprunte : il en avait une à lui, de
+  douze secondes par fichier, et un même réveil abandonnait la carte agent
+  au bout d'une seconde et demie tout en accordant treize secondes à chaque
+  bibliothèque PDF.js. Le widget accorde désormais deux essais de deux
+  secondes et demie par fichier : c'est la correction que la décision du 18
+  septembre demandait, sans prendre la patience de l'application, qui sur
+  la carte et ses deux bibliothèques retiendrait le widget plus de deux
+  minutes. Ni Scriptable ni Apple ne publient le temps dont dispose un
+  widget : la durée n'est pas déduite d'une limite, elle se jugera sur la
+  télémétrie du parc. L'installateur garde la sienne : il lit et remplace
+  les fichiers du Dashboard, `CTS Storage` compris, et doit fonctionner sur
+  une installation vierge où ce module n'existe pas encore.
