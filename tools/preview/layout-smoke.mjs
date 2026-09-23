@@ -17,14 +17,8 @@
  * chaque nombre de tranches, avec du jeu.
  */
 
-import fs from "node:fs"
-import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
 import * as shim from "./scriptable-shim.mjs"
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
+import { moduleSpace } from "./sandbox.mjs"
 
 /* Écrans supportés, du plus petit au plus grand, plus un inconnu à venir. */
 const SCREENS = [
@@ -54,35 +48,14 @@ const SCREENS = [
 ]
 
 function loadRenderer() {
-  const modules = new Map()
-  const sandbox = {
-    console: { log: () => {}, warn: () => {}, error: () => {} },
-    Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-    Promise, RegExp, Error, isNaN, parseInt, parseFloat, Intl,
-    Device: { screenSize: () => new shim.Size(SCREEN.width, SCREEN.height) },
-    importModule: name => loadModule(name)
+  const globals = {
+    Intl,
+    Device: { screenSize: () => new shim.Size(SCREEN.width, SCREEN.height) }
   }
 
-  shim.installGlobals(sandbox)
-  vm.createContext(sandbox)
+  shim.installGlobals(globals)
 
-  function loadModule(name) {
-    if (modules.has(name)) return modules.get(name)
-    const file = path.join(repository, `${name}.js`)
-    const source = fs.readFileSync(file, "utf8")
-    const moduleObject = { exports: {} }
-    modules.set(name, moduleObject.exports)
-    const wrapper = vm.runInContext(
-      `(function (module, exports) {\n${source}\n})`,
-      sandbox,
-      { filename: file }
-    )
-    wrapper(moduleObject, moduleObject.exports)
-    modules.set(name, moduleObject.exports)
-    return moduleObject.exports
-  }
-
-  return loadModule("CTS Widget Renderer")
+  return moduleSpace(globals).load("CTS Widget Renderer")
 }
 
 let SCREEN = SCREENS[0]

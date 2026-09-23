@@ -15,14 +15,8 @@
  * deux contextes où il tourne : le widget et l'application.
  */
 
-import fs from "node:fs"
-import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
 import * as shim from "./scriptable-shim.mjs"
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
+import { moduleSpace, runScript, timerDouble } from "./sandbox.mjs"
 const failures = []
 
 function createFileManager(disk) {
@@ -155,19 +149,16 @@ function seedService(disk, today) {
 async function run(surface, { family = "large", label = surface, service = false } = {}) {
   const disk = new Map()
   const fileManager = createFileManager(disk)
-  const modules = new Map()
   const widgetsSet = []
   const presented = []
   const runsInWidget = surface === "widget"
 
   if (service) seedService(disk, FROZEN_NOW)
 
-  const sandbox = {
+  const globals = {
     FileManager: { iCloud: () => fileManager, local: () => fileManager },
-    console: { log: () => {}, warn: () => {}, error: () => {} },
-    Date: FrozenDate, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-    Promise, RegExp, Error, isNaN, parseInt, parseFloat, Intl,
-    encodeURIComponent, decodeURIComponent,
+    Date: FrozenDate,
+    Intl,
     config: { runsInWidget, widgetFamily: runsInWidget ? family : null },
     args: { plainTexts: [], shortcutParameter: null },
     Device: { screenSize: () => new shim.Size(430, 932), systemVersion: () => "27.0" },
@@ -183,23 +174,17 @@ async function run(surface, { family = "large", label = surface, service = false
       async loadJSON() { throw new Error("réseau indisponible") }
       async load() { throw new Error("réseau indisponible") }
     },
-    Timer: class {
-      static schedule(milliseconds, repeats, callback) {
-        setTimeout(callback, Math.min(Number(milliseconds) || 0, 5))
-        return new this()
-      }
-      invalidate() {}
-    },
+    Timer: timerDouble({ delay: milliseconds => Math.min(milliseconds, 5) }),
     Script: {
       name: () => "CTS Dashboard",
       setWidget: widget => widgetsSet.push(widget),
       complete: () => {}
-    },
-    importModule: name => loadModule(name)
+    }
   }
 
-  shim.installGlobals(sandbox)
-  vm.createContext(sandbox)
+  shim.installGlobals(globals)
+
+  const { sandbox } = moduleSpace(globals)
 
   /* Les présentations ne doivent pas ouvrir d'interface hors widget. */
   for (const family of ["presentSmall", "presentMedium", "presentLarge"]) {
@@ -209,35 +194,12 @@ async function run(surface, { family = "large", label = surface, service = false
     }
   }
 
-  function loadModule(name) {
-    if (modules.has(name)) return modules.get(name)
-    const file = path.join(repository, `${name}.js`)
-    const source = fs.readFileSync(file, "utf8")
-    const moduleObject = { exports: {} }
-    modules.set(name, moduleObject.exports)
-    const wrapper = vm.runInContext(
-      `(function (module, exports) {\n${source}\n})`,
-      sandbox,
-      { filename: file }
-    )
-    wrapper(moduleObject, moduleObject.exports)
-    modules.set(name, moduleObject.exports)
-    return moduleObject.exports
-  }
-
   /*
    * Le fichier est exécuté tel quel, `await main()` compris : c'est
    * précisément ce que ce banc doit éprouver.
    */
-  const entryPoint = path.join(repository, "CTS Dashboard.js")
-  const source = fs.readFileSync(entryPoint, "utf8")
-
   try {
-    await vm.runInContext(
-      `(async () => {\n${source}\n})()`,
-      sandbox,
-      { filename: entryPoint }
-    )
+    await runScript("CTS Dashboard", sandbox)
   } catch (error) {
     failures.push(`${surface} : exception non rattrapée — ${error.message}`)
     return

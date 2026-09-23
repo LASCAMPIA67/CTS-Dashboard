@@ -18,13 +18,7 @@
  * lui, d'arrêter tout.
  */
 
-import fs from "node:fs"
-import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
+import { importFrom, isolatedModule } from "./sandbox.mjs"
 
 const DOCS = "/documents"
 /* Les bibliothèques vivent sur l'appareil, hors d'iCloud. */
@@ -94,49 +88,30 @@ function buildWorld({
   const loaded = {}
 
   const load = name => {
-    const module = { exports: {} }
-
-    const sandbox = {
-      module,
-      console: { log: () => {}, warn: () => {}, error: () => {} },
-      Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-      Promise, RegExp, Error, isNaN, parseInt, parseFloat,
-      encodeURIComponent, decodeURIComponent,
-      config: { runsInWidget: true },
-      args: { plainTexts: [], shortcutParameter: null },
-      Timer: class {
-        static schedule(milliseconds, repeats, callback) {
-          setTimeout(callback, 0)
-          return new this()
-        }
-        invalidate() {}
-      },
-      /*
-       * Le téléchargement rend un objet dont seule la taille compte ici :
-       * c'est ce que le moteur mesure après l'avoir écrit.
-       */
-      Request: class {
-        constructor(url) {
-          this.url = url
-          this.response = { statusCode: 200 }
-        }
-        async load() {
-          downloads.push(this.url)
-          return { sizeKilobytes: downloadSizeKb }
-        }
-      },
-      FileManager: { iCloud: () => fm, local: () => fm },
-      importModule: dependency => loaded[dependency]
-    }
-
-    vm.createContext(sandbox)
-    vm.runInContext(fs.readFileSync(path.join(repository, `${name}.js`), "utf8"), sandbox, {
-      filename: name
+    loaded[name] = isolatedModule(name, {
+      importModule: importFrom(loaded),
+      globals: {
+        config: { runsInWidget: true },
+        args: { plainTexts: [], shortcutParameter: null },
+        /*
+         * Le téléchargement rend un objet dont seule la taille compte ici :
+         * c'est ce que le moteur mesure après l'avoir écrit.
+         */
+        Request: class {
+          constructor(url) {
+            this.url = url
+            this.response = { statusCode: 200 }
+          }
+          async load() {
+            downloads.push(this.url)
+            return { sizeKilobytes: downloadSizeKb }
+          }
+        },
+        FileManager: { iCloud: () => fm, local: () => fm }
+      }
     })
 
-    loaded[name] = module.exports
-
-    return module.exports
+    return loaded[name]
   }
 
   load("CTS Config")

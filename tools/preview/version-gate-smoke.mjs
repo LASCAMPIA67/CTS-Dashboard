@@ -18,13 +18,7 @@
  * décide de l'écran affiché.
  */
 
-import fs from "node:fs"
-import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
+import { importFrom, isolatedModule } from "./sandbox.mjs"
 
 const ROOT = "/docs/CTS Dashboard"
 const DATA = `${ROOT}/Data`
@@ -33,36 +27,16 @@ const POLICY_PATH = `${DATA}/version-policy.json`
 const NOW = new Date(2026, 7, 23, 10, 0, 0)
 
 function loadModule(name, loaded, sandboxExtra = {}) {
-  const source = fs.readFileSync(path.join(repository, `${name}.js`), "utf8")
-  const module = { exports: {} }
-
-  const sandbox = {
-    module,
-    console: { log: () => {}, warn: () => {}, error: () => {} },
-    Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-    Promise, RegExp, Error, isNaN, parseInt, parseFloat,
-    encodeURIComponent, decodeURIComponent, setTimeout,
-    Timer: class {
-      static schedule(ms, repeats, callback) {
-        setTimeout(callback, 0)
-        return new this()
-      }
-      invalidate() {}
-    },
-    config: { runsInWidget: true },
-    args: { plainTexts: [] },
-    UUID: { string: () => Math.random().toString(36).slice(2) },
-    importModule: requested => {
-      const key = String(requested).replace(/^.*\//, "")
-      if (!loaded[key]) throw new Error(`module inattendu : ${key}`)
-      return loaded[key]
-    },
-    ...sandboxExtra
-  }
-
-  vm.createContext(sandbox)
-  vm.runInContext(source, sandbox, { filename: name })
-  return module.exports
+  return isolatedModule(name, {
+    importModule: importFrom(loaded),
+    globals: {
+      setTimeout,
+      config: { runsInWidget: true },
+      args: { plainTexts: [] },
+      UUID: { string: () => Math.random().toString(36).slice(2) },
+      ...sandboxExtra
+    }
+  })
 }
 
 /*

@@ -14,39 +14,23 @@
  * la console d'administration.
  */
 
-import fs from "node:fs"
-import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
+import { isolatedModule } from "./sandbox.mjs"
 
 function loadAnalytics() {
-  const source = fs.readFileSync(path.join(repository, "CTS Analytics Client.js"), "utf8")
-  const module = { exports: {} }
-
   let counter = 0
 
-  const sandbox = {
-    module,
-    console: { log: () => {}, warn: () => {}, error: () => {} },
-    Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-    Promise, RegExp, Error, isNaN, parseInt, parseFloat,
-    UUID: { string: () => `00000000-0000-0000-0000-${String(++counter).padStart(12, "0")}` },
-    Device: { systemVersion: () => "18.0" },
-    Keychain: {
-      contains: () => false,
-      get: () => "",
-      set: () => {},
-      remove: () => {}
+  return isolatedModule("CTS Analytics Client", {
+    globals: {
+      UUID: { string: () => `00000000-0000-0000-0000-${String(++counter).padStart(12, "0")}` },
+      Device: { systemVersion: () => "18.0" },
+      Keychain: {
+        contains: () => false,
+        get: () => "",
+        set: () => {},
+        remove: () => {}
+      }
     }
-  }
-
-  vm.createContext(sandbox)
-  vm.runInContext(source, sandbox, { filename: "CTS Analytics Client.js" })
-
-  return module.exports
+  })
 }
 
 const ANALYTICS = loadAnalytics()

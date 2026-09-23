@@ -21,13 +21,7 @@
  * corrompu bloque l'entretien comme l'import.
  */
 
-import fs from "node:fs"
-import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
+import { importFrom, isolatedModule } from "./sandbox.mjs"
 
 const ROOT = "/docs/CTS Dashboard"
 const DATA = `${ROOT}/Data`
@@ -165,44 +159,15 @@ function loadCleaner(disk, { readableDates = true } = {}) {
     }
   }
 
-  const source = fs.readFileSync(path.join(repository, "CTS Services Cleaner.js"), "utf8")
-  const module = { exports: {} }
-
-  const sandbox = {
-    module,
-    console: { log: () => {}, warn: () => {}, error: () => {} },
-    Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-    Promise, RegExp, Error, isNaN, parseInt, parseFloat, setTimeout,
-    config: { runsInWidget: true },
-    args: { plainTexts: [] },
-    importModule: name => {
-      const key = String(name).replace(/^.*\//, "")
-      if (!loaded[key]) throw new Error(`module inattendu : ${key}`)
-      return loaded[key]
-    }
-  }
-
-  vm.createContext(sandbox)
-  vm.runInContext(source, sandbox, { filename: "CTS Services Cleaner" })
-
-  return module.exports
+  return isolatedModule("CTS Services Cleaner", {
+    importModule: importFrom(loaded),
+    globals: { setTimeout, config: { runsInWidget: true }, args: { plainTexts: [] } }
+  })
 }
 
-loaded["CTS Utils"] = (() => {
-  const source = fs.readFileSync(path.join(repository, "CTS Utils.js"), "utf8")
-  const module = { exports: {} }
-  const sandbox = {
-    module,
-    Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-    Promise, RegExp, Error, isNaN, parseInt, parseFloat, setTimeout,
-    config: { runsInWidget: true },
-    args: { plainTexts: [] },
-    console: { log: () => {} }
-  }
-  vm.createContext(sandbox)
-  vm.runInContext(source, sandbox, { filename: "CTS Utils" })
-  return module.exports
-})()
+loaded["CTS Utils"] = isolatedModule("CTS Utils", {
+  globals: { setTimeout, config: { runsInWidget: true }, args: { plainTexts: [] } }
+})
 
 /*
  * Test 1 — ce qui doit disparaître.

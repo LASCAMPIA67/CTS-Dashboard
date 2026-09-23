@@ -13,33 +13,10 @@
  * lit ce qu'il a consigné.
  */
 
-import fs from "node:fs"
-import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
+import { importFrom, isolatedModule } from "./sandbox.mjs"
 
 function loadModule(name, loaded) {
-  const source = fs.readFileSync(path.join(repository, `${name}.js`), "utf8")
-  const module = { exports: {} }
-
-  const sandbox = {
-    module,
-    console: { log: () => {}, warn: () => {}, error: () => {} },
-    Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-    Promise, RegExp, Error, isNaN, parseInt, parseFloat,
-    importModule: requested => {
-      const key = String(requested).replace(/^.*\//, "")
-      if (!loaded[key]) throw new Error(`module inattendu : ${key}`)
-      return loaded[key]
-    }
-  }
-
-  vm.createContext(sandbox)
-  vm.runInContext(source, sandbox, { filename: name })
-  return module.exports
+  return isolatedModule(name, { importModule: importFrom(loaded) })
 }
 
 const PDF_PATH = "/documents/CTS Dashboard/Services/carte.pdf"

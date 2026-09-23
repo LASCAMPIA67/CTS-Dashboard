@@ -16,24 +16,13 @@
  *   node tools/preview/interruption-smoke.mjs
  */
 
-import fs from "node:fs"
-import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
 import * as shim from "./scriptable-shim.mjs"
 import { widgetBody } from "./html.mjs"
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
+import { moduleSpace } from "./sandbox.mjs"
 
 function loadModules() {
-  const modules = new Map()
-
-  const sandbox = {
-    console: { log: () => {}, warn: () => {}, error: () => {} },
-    Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-    Promise, RegExp, Error, isNaN, parseInt, parseFloat, Intl,
-
+  const globals = {
+    Intl,
     Device: { screenSize: () => new shim.Size(428, 926) },
 
     /*
@@ -43,34 +32,16 @@ function loadModules() {
     FileManager: {
       iCloud: () => fileManagerDouble(),
       local: () => fileManagerDouble()
-    },
-
-    importModule: name => loadModule(name)
+    }
   }
 
-  shim.installGlobals(sandbox)
-  vm.createContext(sandbox)
+  shim.installGlobals(globals)
 
-  function loadModule(name) {
-    if (modules.has(name)) return modules.get(name)
-
-    const source = fs.readFileSync(path.join(repository, `${name}.js`), "utf8")
-    const module = { exports: {} }
-
-    modules.set(name, module.exports)
-    vm.runInContext(
-      `(function (module, exports) {\n${source}\n})`,
-      sandbox,
-      { filename: `${name}.js` }
-    )(module, module.exports)
-    modules.set(name, module.exports)
-
-    return module.exports
-  }
+  const { load } = moduleSpace(globals)
 
   return {
-    SERVICE: loadModule("CTS Service"),
-    RENDERER: loadModule("CTS Widget Renderer")
+    SERVICE: load("CTS Service"),
+    RENDERER: load("CTS Widget Renderer")
   }
 }
 

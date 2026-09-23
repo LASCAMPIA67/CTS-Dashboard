@@ -15,13 +15,7 @@
  * On rejoue donc ici un disque où iCloud ne confirme jamais rien.
  */
 
-import fs from "node:fs"
-import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
+import { importFrom, isolatedModule, timerDouble } from "./sandbox.mjs"
 
 /*
  * Disque en mémoire. `confirmsDownloads` reproduit le comportement
@@ -73,39 +67,16 @@ function createFileManager({ confirmsDownloads, stalls = false, unreadable = fal
  */
 function loadStorage(fm, { runsInWidget = true, waits = [] } = {}) {
   const loaded = {}
-  const modules = ["CTS Config", "CTS Utils", "CTS Storage"]
 
-  for (const name of modules) {
-    const source = fs.readFileSync(path.join(repository, `${name}.js`), "utf8")
-    const module = { exports: {} }
-
-    const sandbox = {
-      module,
-      console: { log: () => {}, warn: () => {}, error: () => {} },
-      Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-      Promise, RegExp, Error, isNaN, parseInt, parseFloat,
-      encodeURIComponent, decodeURIComponent,
-      config: { runsInWidget },
-      /* Le Timer de Scriptable compte en millisecondes. */
-      Timer: class {
-        static schedule(milliseconds, repeats, callback) {
-          waits.push(Number(milliseconds) || 0)
-          setTimeout(callback, 0)
-          return new this()
-        }
-        invalidate() {}
-      },
-      FileManager: { iCloud: () => fm, local: () => fm },
-      importModule: requested => {
-        const key = String(requested).replace(/^.*\//, "")
-        if (!loaded[key]) throw new Error(`module inattendu : ${key}`)
-        return loaded[key]
+  for (const name of ["CTS Config", "CTS Utils", "CTS Storage"]) {
+    loaded[name] = isolatedModule(name, {
+      importModule: importFrom(loaded),
+      globals: {
+        config: { runsInWidget },
+        Timer: timerDouble({ waits }),
+        FileManager: { iCloud: () => fm, local: () => fm }
       }
-    }
-
-    vm.createContext(sandbox)
-    vm.runInContext(source, sandbox, { filename: name })
-    loaded[name] = module.exports
+    })
   }
 
   return loaded["CTS Storage"]

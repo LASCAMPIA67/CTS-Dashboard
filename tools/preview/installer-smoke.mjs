@@ -17,12 +17,9 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
 import * as ui from "./uitable-shim.mjs"
+import { repository, runScript, scriptableGlobals, timerDouble } from "./sandbox.mjs"
 
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
 const installerPath = process.argv[2] || path.join(repository, "CTS Installer.js")
 
 const SNAPSHOT = "6a3937ee112251d6093f6678710b6d80187f1085"
@@ -366,42 +363,15 @@ async function runAction(
     listContents: target => (fs.existsSync(target) ? fs.readdirSync(target) : [])
   }
 
-  const sandbox = {
+  const sandbox = scriptableGlobals({
     console: {
       log: () => {},
       warn: () => {},
       error: message => failures.push(String(message))
     },
-    Date,
-    Math,
-    JSON,
-    Number,
-    String,
-    Boolean,
-    Array,
-    Object,
-    Set,
-    Map,
-    Promise,
-    RegExp,
-    Error,
-    isNaN,
-    parseInt,
-    parseFloat,
-    encodeURIComponent,
-    decodeURIComponent,
     setTimeout,
-    /*
-     * Scriptable planifie ses attentes avec Timer, pas avec setTimeout,
-     * et son intervalle est exprimé en millisecondes.
-     */
-    Timer: class {
-      static schedule(milliseconds, repeats, callback) {
-        setTimeout(callback, milliseconds)
-        return new this()
-      }
-      invalidate() {}
-    },
+    /* Les délais entre deux tentatives réseau sont réellement attendus. */
+    Timer: timerDouble({ delay: milliseconds => milliseconds }),
     Color: ui.Color,
     Font: ui.Font,
     SFSymbol: ui.SFSymbol,
@@ -564,22 +534,14 @@ async function runAction(
         return content
       }
     }
-  }
+  })
 
   /*
    * Le fichier est exécuté tel quel. `await main()` est conservé : c'est
    * précisément ce que ce test doit éprouver.
    */
-  const source = fs.readFileSync(installerPath, "utf8")
-
-  vm.createContext(sandbox)
-
   try {
-    await vm.runInContext(
-      `(async () => {\n${source.replace(/^await main\(\)$/m, "await main()")}\n})()`,
-      sandbox,
-      { filename: installerPath }
-    )
+    await runScript("CTS Installer", sandbox, { source: fs.readFileSync(installerPath, "utf8") })
   } catch (error) {
     failures.push(`exception non rattrapée : ${error.message}`)
   }
