@@ -233,8 +233,21 @@ for (const code of BUS_LETTER_CODES) {
   if (tramCodes.has(code)) {
     failures.push(
       `la ligne ${code} (${await DATABASE.formatLine(code)}) est classée parmi les trams ` +
-      `dans CTS Parser alors que c'est une ligne de bus`
+      `dans CTS Utils alors que c'est une ligne de bus`
     )
+  }
+}
+
+/*
+ * L'inverse : une ligne que la base nomme A à F est un tram. Oubliée dans
+ * la liste, elle annoncerait une « mise en ligne » au lieu d'un « début
+ * d'exploitation », et l'icône d'un bus.
+ */
+const TRAM_LETTERS = /^[A-F]$/
+
+for (const [code, line] of Object.entries(JSON.parse(RESOURCES["lines.json"]))) {
+  if (TRAM_LETTERS.test(String(line?.name || "")) && !tramCodes.has(code)) {
+    failures.push(`la ligne ${code} (${line.name}) n'est pas classée parmi les trams dans CTS Utils`)
   }
 }
 

@@ -173,6 +173,21 @@ const scenarios = [
     }
   },
   {
+    /*
+     * Coupé en route : l'en-tête et le numéro de version sont là, seule
+     * la longueur trahit le fichier. Posé, il laisserait l'iPhone avec un
+     * installateur qui ne démarre pas — le défaut que ce dépanneur répare.
+     */
+    label: "installateur reçu tronqué",
+    seed: ["CTS Installer.js"],
+    serve: () => installerSource.slice(0, 40000),
+    expect: {
+      written: [],
+      shows: ["Réparation impossible"],
+      hides: ["Réparation terminée"]
+    }
+  },
+  {
     label: "réseau indisponible",
     seed: ["CTS Installer.js"],
     serve: () => null,

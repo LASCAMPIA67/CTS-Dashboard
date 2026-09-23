@@ -391,6 +391,28 @@ for (const [context, runsInWidget, floor, ceiling] of [
 }
 
 /*
+ * Journal d'import. Le Diagnostic le lit pour dire ce qui s'est passé :
+ * borné, il ne grossit pas sans fin dans iCloud, mais il doit garder assez
+ * d'histoire pour qu'un import raté d'hier s'y lise encore.
+ */
+{
+  const fm = createFileManager({ confirmsDownloads: true })
+  const STORAGE = loadStorage(fm)
+
+  for (let index = 1; index <= 105; index++) {
+    await STORAGE.appendLog("import", `import ${index}`)
+  }
+
+  const logs = await STORAGE.loadLog()
+
+  if (logs.length !== 100) {
+    failures.push(`journal d'import : ${logs.length} entrée(s) gardée(s) au lieu des 100 dernières`)
+  } else if (logs[0].message !== "import 6" || logs[99].message !== "import 105") {
+    failures.push("journal d'import : ce ne sont pas les 100 dernières entrées qui sont gardées")
+  }
+}
+
+/*
  * Nom d'archive. L'import qui remplace une carte et le nettoyage qui
  * range un service passé archivent dans le même dossier : un nom déjà
  * pris doit en donner un nouveau, jamais écraser l'ancien PDF.
@@ -678,7 +700,7 @@ console.log(
   "ok     lecture des fichiers iCloud " +
   "(iCloud muet, iCloud normal, absent, illisible, sans réponse, aucune attente inutile, " +
   "patience du widget et de l'application, disponibilité déclarée en retard, " +
-  "écriture atomique relue, bascule interrompue, nom d'archive unique, préférences, verrous de l'appareil, " +
+  "écriture atomique relue, bascule interrompue, journal d'import borné, nom d'archive unique, préférences, verrous de l'appareil, " +
   "index des services dont le refus " +
   "d'un index corrompu)"
 )

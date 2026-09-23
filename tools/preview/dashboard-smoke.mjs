@@ -23,6 +23,8 @@ function createFileManager(disk) {
   return {
     joinPath: (parent, child) => `${parent}/${child}`,
     documentsDirectory: () => "/documents",
+    /* Les verrous de l'appareil y vivent : sans elle, chaque balayage échouait. */
+    libraryDirectory: () => "/library",
     fileExists: target => disk.has(target) || target.endsWith("/"),
     isFileDownloaded: () => true,
     downloadFileFromiCloud: async () => {},
@@ -32,7 +34,10 @@ function createFileManager(disk) {
     },
     writeString: (target, value) => disk.set(target, String(value)),
     remove: target => disk.delete(target),
-    move: () => {},
+    move: (from, to) => {
+      disk.set(to, disk.get(from))
+      disk.delete(from)
+    },
     createDirectory: () => {},
     listContents: () => [],
     isDirectory: () => false,
@@ -146,7 +151,10 @@ function seedService(disk, today) {
   }))
 }
 
-async function run(surface, { family = "large", label = surface, service = false } = {}) {
+async function run(
+  surface,
+  { family = "large", label = surface, service = false, engineFails = false } = {}
+) {
   const disk = new Map()
   const fileManager = createFileManager(disk)
   const widgetsSet = []
@@ -184,7 +192,13 @@ async function run(surface, { family = "large", label = surface, service = false
 
   shim.installGlobals(globals)
 
-  const { sandbox } = moduleSpace(globals)
+  const { sandbox, load } = moduleSpace(globals)
+
+  if (engineFails) {
+    load("CTS Widget Engine").loadContext = async () => {
+      throw new Error("panne simulée du moteur")
+    }
+  }
 
   /* Les présentations ne doivent pas ouvrir d'interface hors widget. */
   for (const family of ["presentSmall", "presentMedium", "presentLarge"]) {
@@ -315,6 +329,33 @@ async function run(surface, { family = "large", label = surface, service = false
         `sous le rattrapage de cinq minutes en service`
       )
     }
+
+    /* Plus tard, une entrée en pause resterait affichée comme du service. */
+    if (!engineFails && minutes > 5.1) {
+      failures.push(
+        `${label} : réveil demandé dans ${minutes.toFixed(1)} min — ` +
+        `au-delà du rattrapage de cinq minutes en service`
+      )
+    }
+  }
+
+  /*
+   * Un moteur en panne affiche la carte d'erreur, et doit se réessayer
+   * cinq minutes plus tard : plus tôt, il userait le budget de réveils
+   * qu'iOS accorde ; bien plus tard, une panne passagère resterait à
+   * l'écran pendant tout le service.
+   */
+  for (const widget of engineFails ? widgetsSet : []) {
+    const refreshAt = widget?.refreshAfterDate
+    const minutes =
+      refreshAt instanceof Date ? (refreshAt.getTime() - FROZEN_NOW.getTime()) / 60000 : NaN
+
+    if (!(minutes >= 4.9 && minutes <= 5.1)) {
+      failures.push(
+        `${label} : après une panne, réveil demandé dans ${minutes.toFixed(1)} min ` +
+          `au lieu de cinq`
+      )
+    }
   }
 
   /*
@@ -366,6 +407,7 @@ for (const family of ["accessoryRectangular", "accessoryCircular", "accessoryInl
 /* Fonctionnement nominal : un service réel doit produire la grande carte. */
 await run("widget", { label: "widget service", service: true })
 await run("application", { label: "application service", service: true })
+await run("widget", { label: "widget en panne", service: true, engineFails: true })
 
 if (failures.length) {
   console.log("ÉCHEC  exécution de CTS Dashboard")
@@ -375,5 +417,5 @@ if (failures.length) {
 
 console.log(
   "ok     exécution de CTS Dashboard " +
-  "(widget, application, 6 familles, rendu validé, jamais vide)"
+  "(widget, application, 6 familles, rendu validé, jamais vide, réveils bornés)"
 )
