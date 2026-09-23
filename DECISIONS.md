@@ -306,3 +306,9 @@ décision lui est antérieure.
   donnaient pas la même garantie, et rien ne disait laquelle choisir.
   L'index des services et l'état du balayage y gagnent la relecture, au
   prix d'une lecture de quelques kilo-octets.
+- 2026-09-23 — Tous les bancs montent leur bac à sable par un module
+  commun, `tools/preview/sandbox.mjs` : chacun recopiait le sien, les
+  doublures de Scriptable avaient dérivé d'un banc à l'autre, et une
+  doublure fausse rend un banc vert pour de mauvaises raisons. Ce que
+  chaque banc éprouve — iCloud, le réseau, le Keychain — reste décrit
+  dans le banc lui-même.
