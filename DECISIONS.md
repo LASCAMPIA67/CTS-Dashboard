@@ -318,3 +318,16 @@ décision lui est antérieure.
   les conducteurs sachent ce qu'une mise à jour change, même quand rien ne
   se voit à l'écran. Complète la règle des trois points visibles, sans la
   remplacer.
+- 2026-09-23 — Ultracode se choisit dans l'appli à la création de chaque
+  session, et aucun fichier ne le fixe. L'appli démarre Claude Code avec le
+  modèle et l'effort de son sélecteur, et ce choix l'emporte sur les
+  réglages écrits : un essai l'a montré le jour même, une session ayant
+  tourné en `medium` malgré `"ultracode": true` posé par le script de
+  configuration. La seule variable qui passerait devant ne sait pas dire
+  ultracode et interdirait de baisser l'effort : elle est écartée.
+- 2026-09-23 — Les consignes adoptent trois bonnes pratiques de Claude
+  Code, et pas davantage : ce que garde le résumé d'une conversation, une
+  relecture par un sous-agent avant chaque pull request, et la correction
+  d'un défaut à sa cause. Un `CLAUDE.md` qui grossit laisse se perdre ses
+  consignes ; ce qui se vérifie et se cite va donc dans les annexes de la
+  skill `docs`, pas dans `CLAUDE.md`.
