@@ -9,8 +9,8 @@ ou si le doute porte sur autre chose.
 > « For usage with older browsers/environments, without native support
 > for the latest JavaScript features, please see the `legacy/` folder. »
 
-`registry.npmjs.org/pdfjs-dist` — fichier `README` du paquet publié ·
-lu le 18/09/2026
+`registry.npmjs.org/pdfjs-dist` — fichier `README` du paquet publié en
+6.3.289 · lu le 23/09/2026
 
 C'est ce qui justifie `/legacy/build` dans `PDFJS_BASE_URL`. La carte
 agent se lit dans une WebView servie par iOS, et le dépôt vise encore
@@ -28,22 +28,25 @@ qu'elle est requise. C'est un constat du projet, pas une citation.
 > `pdf.worker.js` will be loaded by `pdf.js`. »
 
 `github.com/mozilla/pdf.js` — fichier `README.md` de la branche
-`master` · lu le 18/09/2026
+`master` et de l'étiquette `v6.3.289` · lu le 23/09/2026
 
 Le moteur installe donc bien les deux, mais c'est la bibliothèque qui
 réclame son worker. Les deux doivent venir du même paquet : rien ne
-promet qu'une bibliothèque 6.1 sache parler à un worker d'une autre
+promet qu'une bibliothèque sache parler à un worker d'une autre
 version, et la documentation ne l'aborde pas.
 
-## La version figée existe toujours, une plus récente aussi
+## La version figée est la plus récente
 
-`pdfjs-dist@6.1.200` est publié et téléchargeable. La version portant
-l'étiquette `latest` est **6.3.289**.
+`pdfjs-dist@6.3.289`, publié le 29/08/2026, porte l'étiquette `latest`.
+Le 18/09, le dépôt figeait encore 6.1.200 ; la veille PDF.js
+(`.github/workflows/pdfjs-watch.yml`) l'a relevé le 19/09, bibliothèque,
+worker et `PDFJS_VERSION` ensemble.
 
-`registry.npmjs.org/pdfjs-dist` · relevé le 18/09/2026
+`registry.npmjs.org/pdfjs-dist` · relevé le 23/09/2026 — le fichier
+`legacy/build/pdf.min.mjs` de cette version répond aussi chez jsDelivr.
 
-Mesure, pas citation : les deux nombres viennent du registre npm
-interrogé directement, pas d'une page de documentation.
+Mesure, pas citation : les nombres viennent du registre npm interrogé
+directement, pas d'une page de documentation.
 
 ## Le moteur ne revérifie jamais la version installée
 
@@ -52,10 +55,13 @@ Constat de lecture du dépôt, non documenté ailleurs :
 choses, l'existence du fichier et sa taille minimale de 40 Ko. Le
 numéro de version n'entre nulle part dans la décision.
 
-Conséquence : changer `PDFJS_VERSION` ne change rien sur un iPhone où
-la bibliothèque est déjà posée. Le fichier existe, il est assez gros,
-il est gardé. Seuls trois gestes y touchent aujourd'hui — une
-installation neuve, une réparation, ou un fichier perdu.
+Conséquence : changer `PDFJS_VERSION` seul ne change rien sur un iPhone
+où la bibliothèque est déjà posée — le moteur ne la retélécharge que si
+elle manque ou est trop petite. Ce qui la remplace, c'est CTS
+Installer : les deux fichiers versionnés à la racine sont au manifeste,
+et il les compare à ceux de l'appareil dès que la révision du dépôt a
+bougé. Constat de lecture de `CTS Installer.js` (`syncFile`,
+`canSkipPinnedLibrary`).
 
 `writeEngineMetadata` — `CTS PDF Engine.js:239` — écrit pourtant la
 version installée dans un fichier de métadonnées, mais son commentaire
