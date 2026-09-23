@@ -312,3 +312,9 @@ décision lui est antérieure.
   doublure fausse rend un banc vert pour de mauvaises raisons. Ce que
   chaque banc éprouve — iCloud, le réseau, le Keychain — reste décrit
   dans le banc lui-même.
+- 2026-09-23 — Les messages WhatsApp peuvent porter un dernier point qui
+  regroupe les changements invisibles, en mots simples — optimisations,
+  meilleures performances, corrections de bugs : le mainteneur veut que
+  les conducteurs sachent ce qu'une mise à jour change, même quand rien ne
+  se voit à l'écran. Complète la règle des trois points visibles, sans la
+  remplacer.

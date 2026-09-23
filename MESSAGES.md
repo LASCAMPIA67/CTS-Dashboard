@@ -16,7 +16,11 @@ la marche à suivre.** Rien d'autre.
    cause. Un coup d'œil doit suffire.
 2. **Trois points maximum**, un par changement visible. Chacun commence
    par deux ou trois mots en gras qui nomment la chose, puis une phrase.
-   Un changement invisible pour le conducteur ne mérite pas un point.
+   Un changement invisible pour le conducteur ne mérite pas son propre
+   point : les invisibles se regroupent en un dernier point, dit en mots
+   de tous les jours — « optimisations et meilleures performances »,
+   « corrections de bugs ». Un conducteur aime savoir que la mise à jour
+   travaille aussi là où il ne regarde pas.
 3. **Aucune explication technique.** Ni cause, ni mécanisme, ni nom de
    fichier, ni « GitHub », ni « iCloud » sauf si le conducteur doit agir
    dessus. Le pourquoi appartient au message de commit, pas à WhatsApp.
