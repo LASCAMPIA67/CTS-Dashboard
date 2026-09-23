@@ -4,7 +4,7 @@ Chaque entrée porte sa citation, son adresse et la date de lecture. Ce
 qui est ici a déjà été vérifié : n'y retourne que si la date est vieille
 ou si le doute porte sur autre chose.
 
-Cette annexe sert **aux deux dépôts** : le public y tient 19 bancs et son
+Cette annexe sert **aux deux dépôts** : le public y tient 20 bancs et son
 validateur, l'admin 5 bancs et le sien. Elle vit ici comme
 `scriptable.md`, pour n'exister qu'en un seul exemplaire.
 

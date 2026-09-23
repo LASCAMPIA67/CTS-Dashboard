@@ -81,6 +81,11 @@ jobs:
       - name: Run direction parsing test
         run: node tools/preview/parser-smoke.mjs
 
+      # Le Diagnostic lit les durées d'étape que l'import a écrites : une
+      # étape qui n'a pas tourné doit y arriver absente, jamais à zéro.
+      - name: Run import timings test
+        run: node tools/preview/import-smoke.mjs
+
       # iCloud peut refuser de déclarer disponible un fichier pourtant
       # lisible : le widget concluait alors « aucun service » en silence.
       - name: Run iCloud read test

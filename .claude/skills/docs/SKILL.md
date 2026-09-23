@@ -48,7 +48,7 @@ moteur quand le fichier manque sur l'appareil.
 
 | Technologie | Version | Où | Documentation |
 |---|---|---|---|
-| Node.js, modules ES | **22** | 19 bancs joués en CI, `validate.mjs` | ✓ `nodejs.org/docs/latest-v22.x/api` |
+| Node.js, modules ES | **22** | 20 bancs joués en CI, `validate.mjs` | ✓ `nodejs.org/docs/latest-v22.x/api` |
 | `node:vm` — exécute les scripts sur des doublures | — | `tools/preview/*.mjs` | ✓ `nodejs.org/docs/latest-v22.x/api/vm.html` |
 | `node:fs`, `node:path`, `node:child_process`, `node:url`, `node:os` | — | bancs et `validate.mjs` | ✓ même adresse |
 

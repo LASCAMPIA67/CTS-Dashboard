@@ -12,6 +12,7 @@ const { fm, paths, files } = CONFIG
 const errorMessage = UTILS.errorMessage
 const hasTelemetryError = UTILS.hasTelemetryError
 const telemetryFromError = UTILS.telemetryFromError
+const normalizeImportTimings = UTILS.normalizeImportTimings
 const INDEX_VERSION = CONFIG.servicesIndexVersion
 
 async function importPdf(pdfPath, options = {}) {
@@ -124,7 +125,7 @@ async function importPdf(pdfPath, options = {}) {
         pageCount: extraction.pageCount,
         characterCount: extraction.characterCount
       },
-      timings: cloneTimings(timings)
+      timings: normalizeImportTimings(timings)
     }
 
     await STORAGE.appendLog("success", "Service PDF importé", result)
@@ -146,7 +147,7 @@ async function importPdf(pdfPath, options = {}) {
       sourceFileName: sourceInfo?.fileName || "",
       error: safeError.message,
       details: safeError,
-      timings: cloneTimings(timings)
+      timings: normalizeImportTimings(timings)
     }
 
     await STORAGE.appendLog("exception", "Erreur pendant l’importation locale d’un PDF", result)
@@ -567,7 +568,7 @@ function buildValidationFailure(sourceInfo, extraction, service, timings) {
       pageCount: extraction.pageCount,
       characterCount: extraction.characterCount
     },
-    timings: cloneTimings(timings)
+    timings: normalizeImportTimings(timings)
   }
 }
 
@@ -631,22 +632,6 @@ function elapsedMs(startedAt) {
   const value = Date.now() - Number(startedAt)
 
   return Number.isFinite(value) ? Math.max(0, Math.round(value)) : null
-}
-
-function cloneTimings(timings) {
-  return {
-    sourceInspectionMs: finiteOrNull(timings?.sourceInspectionMs),
-    pdfExtractionMs: finiteOrNull(timings?.pdfExtractionMs),
-    databaseReloadMs: finiteOrNull(timings?.databaseReloadMs),
-    parserMs: finiteOrNull(timings?.parserMs),
-    registrationMs: finiteOrNull(timings?.registrationMs),
-    totalMs: finiteOrNull(timings?.totalMs)
-  }
-}
-
-function finiteOrNull(value) {
-  const number = Number(value)
-  return Number.isFinite(number) ? number : null
 }
 
 function timestampForFileName() {
