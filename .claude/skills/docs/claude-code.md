@@ -148,8 +148,8 @@ journal de l'environnement.
 `code.claude.com/docs/en/memory.md`, section « Write effective
 instructions » · lu le 23/09/2026
 
-Le 23/09/2026, le `CLAUDE.md` public fait 104 lignes et celui du dépôt
-admin 96. Ce qui se vérifie une fois et se cite vient ici, pas là-bas.
+Les deux `CLAUDE.md` en sont loin. Ce qui se vérifie une fois et se cite
+vient ici, pas là-bas.
 
 ## La documentation de l'API a déménagé
 
