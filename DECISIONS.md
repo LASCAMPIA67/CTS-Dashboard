@@ -279,3 +279,13 @@ décision lui est antérieure.
   télémétrie du parc. L'installateur garde la sienne : il lit et remplace
   les fichiers du Dashboard, `CTS Storage` compris, et doit fonctionner sur
   une installation vierge où ce module n'existe pas encore.
+- 2026-09-23 — Les deux verrous — balayage des services et entretien — vivent
+  dans la bibliothèque locale de Scriptable, et non plus dans iCloud : un
+  verrou dit qu'un processus de cet iPhone travaille, il n'a rien à
+  apprendre à un autre appareil, et chaque réveil le créait puis
+  l'effaçait deux fois dans un dossier synchronisé. Ce n'est possible que
+  parce que l'application et le widget partagent ce dossier, ce que la
+  documentation ne dit pas et qu'une mesure sur iPhone a établi le même
+  jour. Le fichier de suivi `last-run.json` reste dans iCloud : le
+  Diagnostic de CTS Installer le lit à cet endroit, et le déplacer
+  demanderait une publication de l'installateur qui n'est pas décidée.

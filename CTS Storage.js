@@ -450,6 +450,95 @@ async function writeJsonAtomically(path, value, options = {}) {
   removeFileQuietly(rollbackPath)
 }
 
+/*
+ * Verrous de l'appareil.
+ *
+ * Un verrou dit qu'un processus de cet iPhone travaille. Rangé dans
+ * iCloud, il coûtait quatre écritures synchronisées par réveil, et,
+ * recopié sur un iPad de la même personne, pouvait y bloquer un balayage
+ * deux minutes sans rien lui apprendre. Il vit donc dans la bibliothèque
+ * locale de Scriptable, que l'application et le widget partagent : la
+ * documentation ne le dit pas, une mesure sur iPhone l'a établi le
+ * 23 septembre.
+ *
+ * Un verrou illisible compte pour absent : le garder bloquerait le
+ * balayage ou l'entretien pour toujours.
+ */
+const DEVICE_LOCK_DIRECTORY = "CTS Dashboard"
+
+function deviceLockPath(local, name) {
+  const directory = local.joinPath(local.libraryDirectory(), DEVICE_LOCK_DIRECTORY)
+
+  if (!local.fileExists(directory)) local.createDirectory(directory, true)
+
+  return local.joinPath(directory, name)
+}
+
+function readDeviceLock(local, path) {
+  try {
+    if (!local.fileExists(path)) return null
+
+    const value = JSON.parse(local.readString(path))
+
+    return value && typeof value === "object" && !Array.isArray(value) ? value : null
+  } catch (_) {
+    return null
+  }
+}
+
+function acquireDeviceLock(
+  name,
+  { ttlMs, applicationTakesOverWidget = false, writeCode, stage, label }
+) {
+  const now = new Date()
+  const surface = UTILS.runsInApplication() ? "application" : "widget"
+  const token = buildUniqueToken()
+
+  try {
+    const local = FileManager.local()
+    const path = deviceLockPath(local, name)
+    const existing = readDeviceLock(local, path)
+
+    if (existing) {
+      const createdAt = Date.parse(String(existing.createdAt || ""))
+      const active = Number.isFinite(createdAt) && now.getTime() - createdAt < ttlMs
+      const takesOver =
+        applicationTakesOverWidget && existing.surface === "widget" && surface === "application"
+
+      if (active && !takesOver) return { acquired: false, token: "" }
+    }
+
+    local.writeString(
+      path,
+      JSON.stringify({ token, createdAt: now.toISOString(), surface }, null, 2)
+    )
+  } catch (error) {
+    throw UTILS.createTelemetryError(
+      writeCode,
+      stage,
+      `${label} ne peut pas être créé : ${UTILS.errorMessage(error)}`,
+      error
+    )
+  }
+
+  return { acquired: true, token }
+}
+
+function releaseDeviceLock(name, lock) {
+  if (!lock?.acquired) return
+
+  try {
+    const local = FileManager.local()
+    const path = deviceLockPath(local, name)
+
+    if (!local.fileExists(path)) return
+
+    const current = readDeviceLock(local, path)
+
+    if (!current || current.token === lock.token) local.remove(path)
+  } catch (_) {}
+}
+
 function sanitizeDetails(value) {
   if (value === undefined) return null
   if (value instanceof Error) return UTILS.safeError(value)
@@ -471,6 +560,8 @@ module.exports = {
   writeTextSafely,
   writeJsonSafely,
   writeJsonAtomically,
+  acquireDeviceLock,
+  releaseDeviceLock,
   loadPreferences,
   textScales,
   savePreferences,

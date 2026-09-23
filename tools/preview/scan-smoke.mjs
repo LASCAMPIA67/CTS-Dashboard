@@ -27,7 +27,8 @@ const failures = []
 
 const SERVICES = "/documents/CTS Dashboard/Services"
 const DATA = "/documents/CTS Dashboard/Data"
-const LOCK = `${DATA}/services-scan.lock`
+/* Le verrou ne concerne que l'appareil : il vit hors d'iCloud. */
+const LOCK = "/library/CTS Dashboard/services-scan.lock"
 const STATE = `${DATA}/services-scan-state.json`
 
 /*
@@ -41,6 +42,7 @@ function createFileManager(disk) {
   return {
     joinPath: (parent, child) => `${parent}/${child}`,
     documentsDirectory: () => "/documents",
+    libraryDirectory: () => "/library",
     fileExists: target => disk.has(target),
     isFileDownloaded: () => true,
     downloadFileFromiCloud: async () => {},
@@ -406,10 +408,15 @@ for (const { held, runsInWidget, expected, label } of CASES) {
   }
 }
 
-/* Le verrou pris porte la nature de l'exécution, sinon la reprise est aveugle. */
+/*
+ * Le verrou pris porte la nature de l'exécution, sinon la reprise est
+ * aveugle. Et il ne passe jamais par iCloud : il n'y coûtait que des
+ * écritures synchronisées, et pouvait bloquer un autre appareil.
+ */
 for (const runsInWidget of [true, false]) {
   const disk = newDisk()
   const { manager, fm } = loadManager(disk, { runsInWidget })
+  const iCloudLocks = []
   let seen = ""
 
   const original = fm.writeString
@@ -417,6 +424,7 @@ for (const runsInWidget of [true, false]) {
     if (target === LOCK) {
       try { seen = String(JSON.parse(value).surface || "") } catch (_) {}
     }
+    if (target.startsWith("/documents/") && target.endsWith(".lock")) iCloudLocks.push(target)
     return original(target, value)
   }
 
@@ -427,6 +435,14 @@ for (const runsInWidget of [true, false]) {
   if (seen !== expected) {
     failures.push(`verrou pris : nature « ${seen || "absente"} » au lieu de « ${expected} »`)
   }
+
+  if (iCloudLocks.length) {
+    failures.push(`verrou pris : écrit dans iCloud (${iCloudLocks.join(", ")})`)
+  }
+
+  if (disk.has(LOCK)) {
+    failures.push("verrou pris : il survit à la fin du balayage")
+  }
 }
 
 if (failures.length) {
@@ -435,6 +451,6 @@ if (failures.length) {
   process.exit(1)
 }
 
-console.log("ok     balayage des services (verrou : 4 combinaisons, nature ; détection ; " +
+console.log("ok     balayage des services (verrou : 4 combinaisons, nature, hors d'iCloud, rendu ; détection ; " +
   "enregistrement perdu ; refus de validation ; aucune écriture inutile ; " +
   "une carte par réveil ; budget dépassé)")
