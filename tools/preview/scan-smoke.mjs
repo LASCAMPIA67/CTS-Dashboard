@@ -16,13 +16,8 @@
  * l'inverse, et deux exécutions de même nature se respectent.
  */
 
-import fs from "node:fs"
-import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
+import { moduleSpace } from "./sandbox.mjs"
 
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
 const failures = []
 
 const SERVICES = "/documents/CTS Dashboard/Services"
@@ -74,57 +69,27 @@ function createFileManager(disk) {
  * qu'aucun banc hors iPhone ne peut faire.
  */
 function loadManager(disk, { runsInWidget, importOutcome = null }) {
-  const loaded = {}
   const imports = []
   const fm = createFileManager(disk)
 
-  const sandbox = {
-    console: { log: () => {}, warn: () => {}, error: () => {} },
-    Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-    Promise, RegExp, Error, isNaN, parseInt, parseFloat,
-    encodeURIComponent, decodeURIComponent,
-    config: { runsInWidget },
-    args: { plainTexts: [], shortcutParameter: null },
-    Timer: class {
-      static schedule(milliseconds, repeats, callback) {
-        setTimeout(callback, 0)
-        return new this()
-      }
-      invalidate() {}
-    },
-    FileManager: { iCloud: () => fm, local: () => fm },
-    importModule: name => load(name)
-  }
+  const importer = {
+    importPdf: async pdfPath => {
+      imports.push(pdfPath)
 
-  vm.createContext(sandbox)
+      if (importOutcome) return { ...importOutcome }
 
-  function load(name) {
-    if (name === "CTS Importer") {
-      return {
-        readCurrentIndex: async () => ({ version: 2, services: [] }),
-        importPdf: async pdfPath => {
-          imports.push(pdfPath)
-
-          if (importOutcome) return { ...importOutcome }
-
-          return { success: true, service: "EA05", date: "2026-08-20" }
-        }
-      }
+      return { success: true, service: "EA05", date: "2026-08-20" }
     }
-
-    if (loaded[name]) return loaded[name]
-
-    const source = fs.readFileSync(path.join(repository, `${name}.js`), "utf8")
-    const module = { exports: {} }
-    loaded[name] = module.exports
-    vm.runInContext(
-      `(function (module, exports) {\n${source}\n})`,
-      sandbox,
-      { filename: name }
-    )(module, module.exports)
-    loaded[name] = module.exports
-    return module.exports
   }
+
+  const { load } = moduleSpace(
+    {
+      config: { runsInWidget },
+      args: { plainTexts: [], shortcutParameter: null },
+      FileManager: { iCloud: () => fm, local: () => fm }
+    },
+    { doubles: { "CTS Importer": importer } }
+  )
 
   return { manager: load("CTS Services Manager"), imports, fm }
 }

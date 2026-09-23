@@ -7,39 +7,17 @@
  * fin — donc qui ne dessine rien et laisse l'écran d'accueil figé.
  */
 
-import fs from "node:fs"
-import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
+import { importFrom, isolatedModule, timerDouble } from "./sandbox.mjs"
 
 function loadUtils(runsInWidget = true) {
-  const source = fs.readFileSync(path.join(repository, "CTS Utils.js"), "utf8")
-  const module = { exports: {} }
-
-  const sandbox = {
-    module,
-    console: { log: () => {}, warn: () => {}, error: () => {} },
-    Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-    Promise, RegExp, Error, isNaN, parseInt, parseFloat,
-    config: { runsInWidget },
-    args: { plainTexts: [], shortcutParameter: null },
-    /* Le Timer de Scriptable compte en millisecondes. */
-    Timer: class {
-      static schedule(milliseconds, repeats, callback) {
-        setTimeout(callback, Number(milliseconds) || 0)
-        return new this()
-      }
-      invalidate() {}
+  return isolatedModule("CTS Utils", {
+    globals: {
+      config: { runsInWidget },
+      args: { plainTexts: [], shortcutParameter: null },
+      /* Ici l'attente est réelle : withTimeout doit rendre la main à l'heure dite. */
+      Timer: timerDouble({ delay: milliseconds => milliseconds })
     }
-  }
-
-  vm.createContext(sandbox)
-  vm.runInContext(source, sandbox, { filename: "CTS Utils.js" })
-
-  return module.exports
+  })
 }
 
 const failures = []
@@ -158,38 +136,21 @@ const UTILS = loadUtils()
     const modules = ["CTS Config", "CTS Utils", "CTS Storage", "CTS PDF Engine"]
 
     for (const name of modules) {
-      const source = fs.readFileSync(path.join(repository, `${name}.js`), "utf8")
-      const module = { exports: {} }
-
-      const sandbox = {
-        module,
-        console: { log: () => {}, warn: () => {}, error: () => {} },
-        Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-        Promise, RegExp, Error, isNaN, parseInt, parseFloat,
-        encodeURIComponent, decodeURIComponent,
-        config: { runsInWidget },
-        args: { plainTexts: [], shortcutParameter: null },
-        Timer: class {
-          static schedule(milliseconds, repeats, callback) {
-            setTimeout(callback, 0)
-            return new this()
+      loaded[name] = isolatedModule(name, {
+        importModule: importFrom(loaded),
+        globals: {
+          config: { runsInWidget },
+          args: { plainTexts: [], shortcutParameter: null },
+          FileManager: {
+            iCloud: () => ({
+              joinPath: (a, b) => `${a}/${b}`,
+              documentsDirectory: () => "/documents",
+              fileExists: () => false,
+              createDirectory: () => {}
+            })
           }
-          invalidate() {}
-        },
-        FileManager: {
-          iCloud: () => ({
-            joinPath: (a, b) => `${a}/${b}`,
-            documentsDirectory: () => "/documents",
-            fileExists: () => false,
-            createDirectory: () => {}
-          })
-        },
-        importModule: name => loaded[name]
-      }
-
-      vm.createContext(sandbox)
-      vm.runInContext(source, sandbox, { filename: name })
-      loaded[name] = module.exports
+        }
+      })
     }
 
     return loaded["CTS PDF Engine"].budgets()

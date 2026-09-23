@@ -14,38 +14,16 @@
  * CTS Dashboard : c'est elle qui part vers le serveur.
  */
 
-import fs from "node:fs"
-import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
+import { importFrom, isolatedModule } from "./sandbox.mjs"
 
 const ROOT = "/docs/CTS Dashboard"
 const NOW = new Date(2026, 8, 14, 10, 0, 0)
 
 function loadModule(name, loaded) {
-  const source = fs.readFileSync(path.join(repository, `${name}.js`), "utf8")
-  const module = { exports: {} }
-
-  const sandbox = {
-    module,
-    console: { log: () => {}, warn: () => {}, error: () => {} },
-    Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-    Promise, RegExp, Error, isNaN, parseInt, parseFloat,
-    encodeURIComponent, decodeURIComponent, setTimeout,
-    config: { runsInWidget: true },
-    importModule: requested => {
-      const key = String(requested).replace(/^.*\//, "")
-      if (!loaded[key]) throw new Error(`module inattendu : ${key}`)
-      return loaded[key]
-    }
-  }
-
-  vm.createContext(sandbox)
-  vm.runInContext(source, sandbox, { filename: name })
-  return module.exports
+  return isolatedModule(name, {
+    importModule: importFrom(loaded),
+    globals: { setTimeout, config: { runsInWidget: true } }
+  })
 }
 
 /*

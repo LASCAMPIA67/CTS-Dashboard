@@ -5,7 +5,7 @@
 const CONFIG = importModule("CTS Config")
 const UTILS = importModule("CTS Utils")
 const STORAGE = importModule("CTS Storage")
-const { fm, paths, files, pdf } = CONFIG
+const { fm, pdf } = CONFIG
 const errorMessage = UTILS.errorMessage
 const PDFJS_VERSION = "6.3.289"
 
@@ -17,7 +17,6 @@ const PDFJS_URLS = {
   worker: `${PDFJS_BASE_URL}/pdf.worker.min.mjs`
 }
 
-const ENGINE_METADATA_PATH = fm.joinPath(paths.pdfEngine, "engine.json")
 const DOWNLOAD_TIMEOUT_SECONDS = 30
 const ENGINE_START_TIMEOUT_MS = 20000
 const MINIMUM_LIBRARY_SIZE_KB = 40
@@ -61,18 +60,41 @@ function extractionTimeout() {
 }
 const WEBVIEW_CALL_MARGIN_MS = 5000
 
+/*
+ * Les bibliothèques vivent sur l'appareil, où CTS Installer les dépose :
+ * iOS ne peut pas les en retirer faute de place, comme il le faisait dans
+ * iCloud. Le moteur ne les attend donc plus d'iCloud ; s'il ne les trouve
+ * pas — un iPhone restauré, une installation interrompue — il les
+ * retélécharge au même endroit.
+ */
+function libraryFiles() {
+  return {
+    local: FileManager.local(),
+    directory: CONFIG.devicePath("Libraries", "PDF"),
+    library: CONFIG.devicePath("Libraries", "PDF", "pdf.min.mjs"),
+    worker: CONFIG.devicePath("Libraries", "PDF", "pdf.worker.min.mjs"),
+    metadata: CONFIG.devicePath("Libraries", "PDF", "engine.json")
+  }
+}
+
 async function ensureReady() {
-  CONFIG.ensureDirectories()
+  const libraries = libraryFiles()
+
+  if (!libraries.local.fileExists(libraries.directory)) {
+    libraries.local.createDirectory(libraries.directory, true)
+  }
 
   const library = await ensureLibraryFile(
-    files.pdfJs,
+    libraries.local,
+    libraries.library,
     PDFJS_URLS.library,
     "Bibliothèque PDF.js",
     "library"
   )
 
   const worker = await ensureLibraryFile(
-    files.pdfWorker,
+    libraries.local,
+    libraries.worker,
     PDFJS_URLS.worker,
     "Worker PDF.js",
     "worker"
@@ -81,11 +103,11 @@ async function ensureReady() {
   /*
    * Les métadonnées décrivent une installation : elles ne s'écrivent donc
    * qu'au moment où le moteur en reçoit une. Les réécrire à chaque lecture
-   * revenait à écrire dans iCloud à chaque réveil du widget, pour un
-   * fichier dont le contenu ne bouge pas.
+   * revenait à écrire à chaque réveil du widget, pour un fichier dont le
+   * contenu ne bouge pas.
    */
   if (library.installed || worker.installed) {
-    await writeEngineMetadata()
+    writeEngineMetadata(libraries.local, libraries.metadata)
   }
 
   return {
@@ -93,20 +115,20 @@ async function ensureReady() {
 
     version: PDFJS_VERSION,
 
-    libraryPath: files.pdfJs,
+    libraryPath: libraries.library,
 
-    workerPath: files.pdfWorker
+    workerPath: libraries.worker
   }
 }
 
-async function ensureLibraryFile(destinationPath, remoteUrl, label, component) {
-  if (await isValidLibraryFile(destinationPath, component)) {
+async function ensureLibraryFile(local, destinationPath, remoteUrl, label, component) {
+  if (isValidLibraryFile(local, destinationPath)) {
     return { installed: false }
   }
 
-  await downloadLibraryFile(destinationPath, remoteUrl, label, component)
+  await downloadLibraryFile(local, destinationPath, remoteUrl, label, component)
 
-  if (!(await isValidLibraryFile(destinationPath, component))) {
+  if (!isValidLibraryFile(local, destinationPath)) {
     throw createTelemetryError(
       component === "worker" ? "PDF_ENGINE_WORKER_INVALID" : "PDF_ENGINE_LIBRARY_INVALID",
 
@@ -119,36 +141,22 @@ async function ensureLibraryFile(destinationPath, remoteUrl, label, component) {
   return { installed: true }
 }
 
-async function isValidLibraryFile(path, component) {
-  if (!fm.fileExists(path)) {
-    return false
-  }
-
+function isValidLibraryFile(local, path) {
   try {
-    await ensureDownloaded(path, {
-      missingCode:
-        component === "worker" ? "PDF_ENGINE_WORKER_MISSING" : "PDF_ENGINE_LIBRARY_MISSING",
+    if (!local.fileExists(path)) return false
 
-      downloadCode:
-        component === "worker"
-          ? "PDF_ENGINE_WORKER_ICLOUD_FAILED"
-          : "PDF_ENGINE_LIBRARY_ICLOUD_FAILED",
+    const sizeKilobytes = local.fileSize(path)
 
-      stage: "engine_install"
-    })
-
-    const sizeKilobytes = fm.fileSize(path)
-
-    return Boolean(Number.isFinite(sizeKilobytes) && sizeKilobytes >= MINIMUM_LIBRARY_SIZE_KB)
+    return Number.isFinite(sizeKilobytes) && sizeKilobytes >= MINIMUM_LIBRARY_SIZE_KB
   } catch (_) {
     return false
   }
 }
 
-async function downloadLibraryFile(destinationPath, remoteUrl, label, component) {
+async function downloadLibraryFile(local, destinationPath, remoteUrl, label, component) {
   const temporaryPath = `${destinationPath}.download`
 
-  removeFileQuietly(temporaryPath)
+  removeFileQuietly(local, temporaryPath)
 
   const request = new Request(remoteUrl)
 
@@ -197,9 +205,9 @@ async function downloadLibraryFile(destinationPath, remoteUrl, label, component)
   }
 
   try {
-    fm.write(temporaryPath, data)
+    local.write(temporaryPath, data)
 
-    const downloadedSizeKilobytes = fm.fileSize(temporaryPath)
+    const downloadedSizeKilobytes = local.fileSize(temporaryPath)
 
     if (
       !Number.isFinite(downloadedSizeKilobytes) ||
@@ -208,11 +216,11 @@ async function downloadLibraryFile(destinationPath, remoteUrl, label, component)
       throw new Error("Le fichier téléchargé est anormalement petit.")
     }
 
-    removeFileQuietly(destinationPath)
+    removeFileQuietly(local, destinationPath)
 
-    fm.move(temporaryPath, destinationPath)
+    local.move(temporaryPath, destinationPath)
   } catch (error) {
-    removeFileQuietly(temporaryPath)
+    removeFileQuietly(local, temporaryPath)
 
     throw createTelemetryError(
       component === "worker"
@@ -228,7 +236,7 @@ async function downloadLibraryFile(destinationPath, remoteUrl, label, component)
   }
 }
 
-async function writeEngineMetadata() {
+function writeEngineMetadata(local, path) {
   const metadata = {
     engine: "PDF.js",
 
@@ -261,54 +269,26 @@ async function writeEngineMetadata() {
    * propre code.
    */
   try {
-    fm.writeString(
-      ENGINE_METADATA_PATH,
-
-      JSON.stringify(metadata, null, 2)
-    )
+    local.writeString(path, JSON.stringify(metadata, null, 2))
   } catch (_) {}
 }
 
 async function extractText(pdfPath) {
-  await ensureReady()
+  const engine = await ensureReady()
 
   await validatePdfPath(pdfPath)
 
-  const libraryBase64 = await readFileAsBase64(
-    files.pdfJs,
+  const libraryBase64 = readLibraryAsBase64(engine.libraryPath, "La bibliothèque PDF.js", {
+    missingCode: "PDF_ENGINE_LIBRARY_MISSING",
+    readCode: "PDF_ENGINE_LIBRARY_READ_FAILED",
+    base64Code: "PDF_ENGINE_LIBRARY_BASE64_FAILED"
+  })
 
-    "La bibliothèque PDF.js",
-
-    {
-      missingCode: "PDF_ENGINE_LIBRARY_MISSING",
-
-      downloadCode: "PDF_ENGINE_LIBRARY_ICLOUD_FAILED",
-
-      readCode: "PDF_ENGINE_LIBRARY_READ_FAILED",
-
-      base64Code: "PDF_ENGINE_LIBRARY_BASE64_FAILED",
-
-      stage: "engine"
-    }
-  )
-
-  const workerBase64 = await readFileAsBase64(
-    files.pdfWorker,
-
-    "Le worker PDF.js",
-
-    {
-      missingCode: "PDF_ENGINE_WORKER_MISSING",
-
-      downloadCode: "PDF_ENGINE_WORKER_ICLOUD_FAILED",
-
-      readCode: "PDF_ENGINE_WORKER_READ_FAILED",
-
-      base64Code: "PDF_ENGINE_WORKER_BASE64_FAILED",
-
-      stage: "engine"
-    }
-  )
+  const workerBase64 = readLibraryAsBase64(engine.workerPath, "Le worker PDF.js", {
+    missingCode: "PDF_ENGINE_WORKER_MISSING",
+    readCode: "PDF_ENGINE_WORKER_READ_FAILED",
+    base64Code: "PDF_ENGINE_WORKER_BASE64_FAILED"
+  })
 
   const pdfBase64 = await readFileAsBase64(
     pdfPath,
@@ -515,6 +495,41 @@ async function readFileAsBase64(path, label, codes) {
   return base64
 }
 
+function readLibraryAsBase64(path, label, { missingCode, readCode, base64Code }) {
+  const local = FileManager.local()
+
+  if (!local.fileExists(path)) {
+    throw createTelemetryError(missingCode, "engine", `${label} est introuvable.`)
+  }
+
+  let data
+
+  try {
+    data = local.read(path)
+  } catch (error) {
+    throw createTelemetryError(readCode, "engine", `${label} ne peut pas être lu.`, error)
+  }
+
+  let base64
+
+  try {
+    base64 = data ? data.toBase64String() : ""
+  } catch (error) {
+    throw createTelemetryError(
+      base64Code,
+      "engine",
+      `${label} ne peut pas être converti en Base64.`,
+      error
+    )
+  }
+
+  if (!base64) {
+    throw createTelemetryError(base64Code, "engine", `${label} ne peut pas être converti en Base64.`)
+  }
+
+  return base64
+}
+
 async function readFileDataWithRetry(path, label, codes) {
   let lastError = null
 
@@ -553,7 +568,7 @@ async function readFileDataWithRetry(path, label, codes) {
     }
 
     if (attempt < FILE_READ_ATTEMPTS) {
-      await sleep(FILE_READ_RETRY_MS * attempt)
+      await UTILS.sleep(FILE_READ_RETRY_MS * attempt)
     }
   }
 
@@ -586,7 +601,7 @@ async function readFileSizeWithRetry(path, { code, stage, label }) {
     }
 
     if (attempt < FILE_READ_ATTEMPTS) {
-      await sleep(FILE_READ_RETRY_MS * attempt)
+      await UTILS.sleep(FILE_READ_RETRY_MS * attempt)
     }
   }
 
@@ -618,56 +633,33 @@ async function waitForEngine(webView) {
       }
 
       const check = () => {
-        if (
-          window.__ctsPdfReady === true
-        ) {
-          finish({
-            ok: true,
-            code: "",
-            error: ""
-          })
+        if (window.__ctsPdfReady === true) {
+          finish({ ok: true, code: "", error: "" })
 
           return
         }
 
-        if (
-          window.__ctsPdfBootError
-        ) {
+        if (window.__ctsPdfBootError) {
           finish({
             ok: false,
-
-            code:
-              "PDF_ENGINE_BOOT_FAILED",
-
-            error: String(
-              window.__ctsPdfBootError
-            )
+            code: "PDF_ENGINE_BOOT_FAILED",
+            error: String(window.__ctsPdfBootError)
           })
 
           return
         }
 
-        if (
-          Date.now() - startedAt >
-          ${engineTimeout()}
-        ) {
+        if (Date.now() - startedAt > ${engineTimeout()}) {
           finish({
             ok: false,
-
-            code:
-              "PDF_ENGINE_INIT_TIMEOUT",
-
-            error:
-              "Délai dépassé pendant l’initialisation de PDF.js."
+            code: "PDF_ENGINE_INIT_TIMEOUT",
+            error: "Délai dépassé pendant l’initialisation de PDF.js."
           })
 
           return
         }
 
-        setTimeout(
-          check,
-          50
-        )
+        setTimeout(check, 50)
       }
 
       check()
@@ -711,29 +703,16 @@ async function evaluateExtraction(webView, pdfBase64) {
         completion(value)
       }
 
-      const timeout =
-        setTimeout(
-          () => {
-            finish({
-              ok: false,
-
-              code:
-                "PDF_EXTRACTION_TIMEOUT",
-
-              error:
-                "Délai dépassé pendant l’extraction du PDF."
-            })
-          },
-          ${timeoutMs}
-        )
+      const timeout = setTimeout(() => {
+        finish({
+          ok: false,
+          code: "PDF_EXTRACTION_TIMEOUT",
+          error: "Délai dépassé pendant l’extraction du PDF."
+        })
+      }, ${timeoutMs})
 
       Promise.resolve()
-        .then(
-          () =>
-            window.__ctsExtractPdfText(
-              ${encodedPdf}
-            )
-        )
+        .then(() => window.__ctsExtractPdfText(${encodedPdf}))
         .then(result => {
           clearTimeout(timeout)
           finish(result)
@@ -743,17 +722,8 @@ async function evaluateExtraction(webView, pdfBase64) {
 
           finish({
             ok: false,
-
-            code:
-              "PDF_EXTRACTION_FAILED",
-
-            error:
-              error &&
-              error.message
-                ? String(
-                    error.message
-                  )
-                : String(error)
+            code: "PDF_EXTRACTION_FAILED",
+            error: error && error.message ? String(error.message) : String(error)
           })
         })
     })()
@@ -858,12 +828,7 @@ function buildRuntimeHtml(libraryBase64, workerBase64) {
 <html lang="fr">
 <head>
   <meta charset="utf-8">
-
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1"
-  >
-
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CTS PDF Engine</title>
 </head>
 
@@ -887,109 +852,49 @@ function buildRuntimeHtml(libraryBase64, workerBase64) {
    */
   function failureDetails(error, extra) {
     const details = {
-      errorName:
-        (error && error.name) ||
-        "",
-
-      stack:
-        String(
-          (error && error.stack) ||
-          ""
-        )
-          .split("\n")
-          .slice(0, 4)
-          .join(" | "),
-
-      workerMode:
-        window.__ctsWorkerMode,
-
-      pdfVersion:
-        window.__ctsPdfVersion,
-
-      streamAsyncIteration:
-        window.__ctsStreamAsyncIteration ||
-        "unknown"
+      errorName: (error && error.name) || "",
+      stack: String((error && error.stack) || "").split("\n").slice(0, 4).join(" | "),
+      workerMode: window.__ctsWorkerMode,
+      pdfVersion: window.__ctsPdfVersion,
+      streamAsyncIteration: window.__ctsStreamAsyncIteration || "unknown"
     }
 
-    return Object.assign(
-      details,
-      extra || {}
-    )
+    return Object.assign(details, extra || {})
   }
 
   function errorText(error) {
-    if (
-      error &&
-      typeof error.message === "string" &&
-      error.message.trim()
-    ) {
+    if (error && typeof error.message === "string" && error.message.trim()) {
       return error.message.trim()
     }
 
-    return String(
-      error ||
-      "Erreur PDF.js inconnue"
-    )
+    return String(error || "Erreur PDF.js inconnue")
   }
 
   function bytesFromBase64(base64) {
     try {
-      const binary =
-        atob(base64)
+      const binary = atob(base64)
+      const bytes = new Uint8Array(binary.length)
 
-      const bytes =
-        new Uint8Array(
-          binary.length
-        )
-
-      for (
-        let index = 0;
-        index < binary.length;
-        index++
-      ) {
-        bytes[index] =
-          binary.charCodeAt(
-            index
-          )
+      for (let index = 0; index < binary.length; index++) {
+        bytes[index] = binary.charCodeAt(index)
       }
 
       return bytes
     } catch (error) {
-      const wrapped =
-        new Error(
-          errorText(error)
-        )
+      const wrapped = new Error(errorText(error))
 
-      wrapped.ctsCode =
-        "PDF_BASE64_DECODE_FAILED"
+      wrapped.ctsCode = "PDF_BASE64_DECODE_FAILED"
 
       throw wrapped
     }
   }
 
   function moduleUrlFromBase64(base64, prelude) {
-    const bytes =
-      bytesFromBase64(
-        base64
-      )
+    const bytes = bytesFromBase64(base64)
+    const parts = prelude ? [prelude, bytes] : [bytes]
+    const blob = new Blob(parts, { type: "text/javascript" })
 
-    const parts =
-      prelude
-        ? [prelude, bytes]
-        : [bytes]
-
-    const blob =
-      new Blob(
-        parts,
-        {
-          type:
-            "text/javascript"
-        }
-      )
-
-    return URL.createObjectURL(
-      blob
-    )
+    return URL.createObjectURL(blob)
   }
 
   function textFromContent(content) {
@@ -999,14 +904,7 @@ function buildRuntimeHtml(libraryBase64, workerBase64) {
     let previousY = null
 
     const flushLine = () => {
-      const line =
-        currentLine
-          .join(" ")
-          .replace(
-            /\s+/g,
-            " "
-          )
-          .trim()
+      const line = currentLine.join(" ").replace(/\s+/g, " ").trim()
 
       if (line) {
         lines.push(line)
@@ -1015,371 +913,187 @@ function buildRuntimeHtml(libraryBase64, workerBase64) {
       currentLine = []
     }
 
-    for (
-      const item
-      of content.items || []
-    ) {
-      if (
-        !item ||
-        typeof item.str !==
-          "string"
-      ) {
+    for (const item of content.items || []) {
+      if (!item || typeof item.str !== "string") {
         continue
       }
 
-      const currentY =
-        Array.isArray(
-          item.transform
-        )
-          ? Number(
-              item.transform[5]
-            )
-          : null
+      const currentY = Array.isArray(item.transform) ? Number(item.transform[5]) : null
 
       if (
         currentLine.length &&
-        Number.isFinite(
-          previousY
-        ) &&
-        Number.isFinite(
-          currentY
-        ) &&
-        Math.abs(
-          currentY -
-          previousY
-        ) > 2
+        Number.isFinite(previousY) &&
+        Number.isFinite(currentY) &&
+        Math.abs(currentY - previousY) > 2
       ) {
         flushLine()
       }
 
-      const value =
-        item.str
-          .replace(
-            /\s+/g,
-            " "
-          )
-          .trim()
+      const value = item.str.replace(/\s+/g, " ").trim()
 
       if (value) {
-        currentLine.push(
-          value
-        )
+        currentLine.push(value)
       }
 
       if (item.hasEOL) {
         flushLine()
       }
 
-      if (
-        Number.isFinite(
-          currentY
-        )
-      ) {
-        previousY =
-          currentY
+      if (Number.isFinite(currentY)) {
+        previousY = currentY
       }
     }
 
     flushLine()
 
-    return lines.join(
-      "\n"
-    )
+    return lines.join("\n")
   }
 
   function storeBootError(value) {
-    if (
-      window.__ctsPdfBootError
-    ) {
+    if (window.__ctsPdfBootError) {
       return
     }
 
-    window.__ctsPdfBootError =
-      errorText(value)
+    window.__ctsPdfBootError = errorText(value)
   }
 
-  window.addEventListener(
-    "error",
-    event => {
-      storeBootError(
-        event.error ||
-        event.message
-      )
-    }
-  )
+  window.addEventListener("error", event => {
+    storeBootError(event.error || event.message)
+  })
 
-  window.addEventListener(
-    "unhandledrejection",
-    event => {
-      storeBootError(
-        event.reason
-      )
-    }
-  )
+  window.addEventListener("unhandledrejection", event => {
+    storeBootError(event.reason)
+  })
 
   ;(async () => {
     try {
-      window.__ctsLibraryUrl =
-        moduleUrlFromBase64(
-          ${encodedLibrary}
-        )
+      window.__ctsLibraryUrl = moduleUrlFromBase64(${encodedLibrary})
+      window.__ctsWorkerUrl = moduleUrlFromBase64(${encodedWorker}, __ctsStreamPolyfillSource)
 
-      window.__ctsWorkerUrl =
-        moduleUrlFromBase64(
-          ${encodedWorker},
-          __ctsStreamPolyfillSource
-        )
+      const pdfjsLib = await import(window.__ctsLibraryUrl)
 
-      const pdfjsLib =
-        await import(
-          window.__ctsLibraryUrl
-        )
-
-      if (
-        !pdfjsLib ||
-        typeof pdfjsLib.getDocument !==
-          "function"
-      ) {
-        throw new Error(
-          "La bibliothèque PDF.js chargée est incomplète."
-        )
+      if (!pdfjsLib || typeof pdfjsLib.getDocument !== "function") {
+        throw new Error("La bibliothèque PDF.js chargée est incomplète.")
       }
 
-      if (
-        !pdfjsLib.GlobalWorkerOptions
-      ) {
-        throw new Error(
-          "La configuration du worker PDF.js est absente."
-        )
+      if (!pdfjsLib.GlobalWorkerOptions) {
+        throw new Error("La configuration du worker PDF.js est absente.")
       }
 
-      pdfjsLib
-        .GlobalWorkerOptions
-        .workerSrc =
-          window.__ctsWorkerUrl
+      pdfjsLib.GlobalWorkerOptions.workerSrc = window.__ctsWorkerUrl
 
-      window.__ctsPdfVersion =
-        String(
-          pdfjsLib.version ||
-          ""
-        )
+      window.__ctsPdfVersion = String(pdfjsLib.version || "")
 
       /*
-       * PDF.js construit son worker avec
-       * new Worker(url, { type: "module" }).
-       * Certaines WebView refusent un worker de
-       * module servi depuis une URL blob et PDF.js
-       * bascule alors silencieusement sur un worker
-       * de repli. Savoir lequel a servi est
-       * déterminant pour diagnostiquer un échec.
+       * PDF.js construit son worker avec new Worker(url, { type: "module" }).
+       * Certaines WebView refusent un worker de module servi depuis une URL
+       * blob et PDF.js bascule alors silencieusement sur un worker de repli.
+       * Savoir lequel a servi est déterminant pour diagnostiquer un échec.
        *
-       * Cette sonde ne doit jamais empêcher le
-       * démarrage du moteur.
+       * Cette sonde ne doit jamais empêcher le démarrage du moteur.
        */
       try {
-        const probe =
-          new Worker(
-            window.__ctsWorkerUrl,
-            {
-              type: "module"
-            }
-          )
+        const probe = new Worker(window.__ctsWorkerUrl, { type: "module" })
 
         probe.terminate()
 
-        window.__ctsWorkerMode =
-          "module-worker"
+        window.__ctsWorkerMode = "module-worker"
       } catch (error) {
-        window.__ctsWorkerMode =
-          "fallback:" +
-          errorText(error)
+        window.__ctsWorkerMode = "fallback:" + errorText(error)
       }
 
-      window.__ctsPdfLib =
-        pdfjsLib
+      window.__ctsPdfLib = pdfjsLib
 
-      window.__ctsExtractPdfText =
-        async pdfBase64 => {
-          let document = null
+      window.__ctsExtractPdfText = async pdfBase64 => {
+        let document = null
+
+        try {
+          let bytes
 
           try {
-            let bytes
-
-            try {
-              bytes =
-                bytesFromBase64(
-                  pdfBase64
-                )
-            } catch (error) {
-              return {
-                ok: false,
-                text: "",
-                pageCount: 0,
-
-                code:
-                  error?.ctsCode ||
-                  "PDF_BASE64_DECODE_FAILED",
-
-                error:
-                  errorText(error)
-              }
-            }
-
-            let loadingTask
-
-            try {
-              loadingTask =
-                pdfjsLib.getDocument({
-                  data: bytes,
-                  isEvalSupported: false
-                })
-
-              document =
-                await loadingTask.promise
-
-            } catch (error) {
-              return {
-                ok: false,
-                text: "",
-                pageCount: 0,
-
-                code:
-                  "PDF_DOCUMENT_OPEN_FAILED",
-
-                error:
-                  errorText(error)
-              }
-            }
-
-            const pages = []
-
-            for (
-              let pageNumber = 1;
-              pageNumber <=
-                document.numPages;
-              pageNumber++
-            ) {
-              try {
-                const page =
-                  await document.getPage(
-                    pageNumber
-                  )
-
-                const content =
-                  await page
-                    .getTextContent()
-
-                pages.push(
-                  textFromContent(
-                    content
-                  )
-                )
-
-                page.cleanup()
-
-              } catch (error) {
-                return {
-                  ok: false,
-                  text: "",
-                  pageCount:
-                    document.numPages,
-
-                  code:
-                    "PDF_PAGE_TEXT_EXTRACTION_FAILED",
-
-                  error:
-                    errorText(error),
-
-                  details:
-                    failureDetails(
-                      error,
-                      {
-                        pageNumber,
-
-                        totalPages:
-                          document.numPages
-                      }
-                    )
-                }
-              }
-            }
-
-            const text =
-              pages
-                .join("\n")
-                .replace(
-                  /[ \t]+/g,
-                  " "
-                )
-                .replace(
-                  / *\n */g,
-                  "\n"
-                )
-                .replace(
-                  /\n{3,}/g,
-                  "\n\n"
-                )
-                .trim()
-
-            return {
-              ok:
-                true,
-
-              text,
-
-              pageCount:
-                document.numPages,
-
-              code:
-                "",
-
-              error:
-                ""
-            }
-
+            bytes = bytesFromBase64(pdfBase64)
           } catch (error) {
             return {
-              ok:
-                false,
-
-              text:
-                "",
-
-              pageCount:
-                0,
-
-              code:
-                "PDF_EXTRACTION_FAILED",
-
-              error:
-                errorText(error),
-
-              details:
-                failureDetails(
-                  error
-                )
-            }
-
-          } finally {
-            if (
-              document &&
-              typeof document.destroy ===
-                "function"
-            ) {
-              try {
-                await document.destroy()
-              } catch (_) {}
+              ok: false,
+              text: "",
+              pageCount: 0,
+              code: error?.ctsCode || "PDF_BASE64_DECODE_FAILED",
+              error: errorText(error)
             }
           }
+
+          let loadingTask
+
+          try {
+            loadingTask = pdfjsLib.getDocument({ data: bytes, isEvalSupported: false })
+            document = await loadingTask.promise
+          } catch (error) {
+            return {
+              ok: false,
+              text: "",
+              pageCount: 0,
+              code: "PDF_DOCUMENT_OPEN_FAILED",
+              error: errorText(error)
+            }
+          }
+
+          const pages = []
+
+          for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
+            try {
+              const page = await document.getPage(pageNumber)
+              const content = await page.getTextContent()
+
+              pages.push(textFromContent(content))
+
+              page.cleanup()
+            } catch (error) {
+              return {
+                ok: false,
+                text: "",
+                pageCount: document.numPages,
+                code: "PDF_PAGE_TEXT_EXTRACTION_FAILED",
+                error: errorText(error),
+                details: failureDetails(error, { pageNumber, totalPages: document.numPages })
+              }
+            }
+          }
+
+          const text = pages
+            .join("\n")
+            .replace(/[ \t]+/g, " ")
+            .replace(/ *\n */g, "\n")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim()
+
+          return {
+            ok: true,
+            text,
+            pageCount: document.numPages,
+            code: "",
+            error: ""
+          }
+        } catch (error) {
+          return {
+            ok: false,
+            text: "",
+            pageCount: 0,
+            code: "PDF_EXTRACTION_FAILED",
+            error: errorText(error),
+            details: failureDetails(error)
+          }
+        } finally {
+          if (document && typeof document.destroy === "function") {
+            try {
+              await document.destroy()
+            } catch (_) {}
+          }
         }
+      }
 
-      window.__ctsPdfReady =
-        true
-
+      window.__ctsPdfReady = true
     } catch (error) {
-      storeBootError(
-        error
-      )
+      storeBootError(error)
     }
   })()
 </script>
@@ -1428,12 +1142,6 @@ async function ensureDownloaded(
   if (!downloaded) {
     throw createTelemetryError(missingCode, stage, "Le fichier demandé est introuvable.")
   }
-}
-
-async function sleep(milliseconds) {
-  await new Promise(resolve => {
-    Timer.schedule(Math.max(0, Number(milliseconds) || 0), false, resolve)
-  })
 }
 
 function describeExtractionFailure(result) {
@@ -1502,10 +1210,10 @@ function createTelemetryError(code, stage, message, cause = null) {
   )
 }
 
-function removeFileQuietly(path) {
+function removeFileQuietly(manager, path) {
   try {
-    if (fm.fileExists(path)) {
-      fm.remove(path)
+    if (manager.fileExists(path)) {
+      manager.remove(path)
     }
   } catch (_) {}
 }

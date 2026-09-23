@@ -16,13 +16,7 @@
  * rejoué à des instants choisis autour de la fin du service.
  */
 
-import fs from "node:fs"
-import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
+import { importFrom, isolatedModule, readScript } from "./sandbox.mjs"
 
 const ROOT = "/docs/CTS Dashboard"
 const SERVICES = `${ROOT}/Services`
@@ -36,35 +30,15 @@ const HOUR = 60 * MINUTE
 const DAY = 24 * HOUR
 
 function loadModule(name, sandboxExtra = {}) {
-  const source = fs.readFileSync(path.join(repository, `${name}.js`), "utf8")
-  const module = { exports: {} }
-
-  const sandbox = {
-    module,
-    console: { log: () => {}, warn: () => {}, error: () => {} },
-    Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-    Promise, RegExp, Error, isNaN, parseInt, parseFloat,
-    encodeURIComponent, decodeURIComponent, setTimeout,
-    Timer: class {
-      static schedule(ms, repeats, callback) {
-        setTimeout(callback, 0)
-        return new this()
-      }
-      invalidate() {}
-    },
-    args: { plainTexts: [] },
-    UUID: { string: () => Math.random().toString(36).slice(2) },
-    importModule: requested => {
-      const key = String(requested).replace(/^.*\//, "")
-      if (!loaded[key]) throw new Error(`module inattendu : ${key}`)
-      return loaded[key]
-    },
-    ...sandboxExtra
-  }
-
-  vm.createContext(sandbox)
-  vm.runInContext(source, sandbox, { filename: name })
-  return module.exports
+  return isolatedModule(name, {
+    importModule: importFrom(loaded),
+    globals: {
+      setTimeout,
+      args: { plainTexts: [] },
+      UUID: { string: () => Math.random().toString(36).slice(2) },
+      ...sandboxExtra
+    }
+  })
 }
 
 const loaded = {}
@@ -89,9 +63,9 @@ const CACHE_GRACE_MS = loadModule("CTS Config", {
   }
 }).pdf.cacheGraceMs
 
-const displayGrace = fs
-  .readFileSync(path.join(repository, "CTS Services Manager.js"), "utf8")
-  .match(/const SERVICE_DISPLAY_GRACE_MS = ([\d\s*]+)/)
+const displayGrace = readScript("CTS Services Manager").match(
+  /const SERVICE_DISPLAY_GRACE_MS = ([\d\s*]+)/
+)
 
 const DISPLAY_GRACE_MS = displayGrace
   ? displayGrace[1]
@@ -185,6 +159,10 @@ function buildWorld({ lastEnd, serviceDate }) {
     },
     ensureDownloaded: async () => true,
     appendLog: async () => {},
+    readCurrentIndex: async () =>
+      JSON.parse(files.get(`${DATA}/services-index.json`)),
+    /* Le nom unique réel est éprouvé par storage-smoke : ici, aucun doublon. */
+    uniqueArchiveFileName: name => name,
     /* Le verrou réel est éprouvé par storage-smoke : ici, il est toujours libre. */
     acquireDeviceLock: () => ({ acquired: true, token: "verrou" }),
     releaseDeviceLock: () => {},
@@ -196,11 +174,6 @@ function buildWorld({ lastEnd, serviceDate }) {
     writeJsonAtomically: async (target, value) => {
       files.set(target, JSON.stringify(value, null, 2))
     }
-  }
-
-  loaded["CTS Importer"] = {
-    readCurrentIndex: async () =>
-      JSON.parse(files.get(`${DATA}/services-index.json`))
   }
 
   const CLEANER = loadModule("CTS Services Cleaner")

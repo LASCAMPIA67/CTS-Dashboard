@@ -16,24 +16,13 @@
  *   node tools/preview/interruption-smoke.mjs
  */
 
-import fs from "node:fs"
-import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
 import * as shim from "./scriptable-shim.mjs"
 import { widgetBody } from "./html.mjs"
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
+import { moduleSpace } from "./sandbox.mjs"
 
 function loadModules() {
-  const modules = new Map()
-
-  const sandbox = {
-    console: { log: () => {}, warn: () => {}, error: () => {} },
-    Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-    Promise, RegExp, Error, isNaN, parseInt, parseFloat, Intl,
-
+  const globals = {
+    Intl,
     Device: { screenSize: () => new shim.Size(428, 926) },
 
     /*
@@ -43,34 +32,16 @@ function loadModules() {
     FileManager: {
       iCloud: () => fileManagerDouble(),
       local: () => fileManagerDouble()
-    },
-
-    importModule: name => loadModule(name)
+    }
   }
 
-  shim.installGlobals(sandbox)
-  vm.createContext(sandbox)
+  shim.installGlobals(globals)
 
-  function loadModule(name) {
-    if (modules.has(name)) return modules.get(name)
-
-    const source = fs.readFileSync(path.join(repository, `${name}.js`), "utf8")
-    const module = { exports: {} }
-
-    modules.set(name, module.exports)
-    vm.runInContext(
-      `(function (module, exports) {\n${source}\n})`,
-      sandbox,
-      { filename: `${name}.js` }
-    )(module, module.exports)
-    modules.set(name, module.exports)
-
-    return module.exports
-  }
+  const { load } = moduleSpace(globals)
 
   return {
-    SERVICE: loadModule("CTS Service"),
-    RENDERER: loadModule("CTS Widget Renderer")
+    SERVICE: load("CTS Service"),
+    RENDERER: load("CTS Widget Renderer")
   }
 }
 
@@ -468,6 +439,56 @@ function programText(service, at) {
   )
 }
 
+/*
+ * Après minuit, un service de la veille continue : 25:30 est 1 h 30 du
+ * matin suivant. À 0 h 45, il reste 45 minutes, pas une de plus — une
+ * journée comptée de travers décalerait tout ce que la pastille annonce.
+ */
+{
+  const service = build([slice(1, "21:00", "21:10", "25:30")])
+  const state = SERVICE.computeState(service, new Date(2026, 7, 28, 0, 45))
+
+  check(state.type === "WORK", `0 h 45 le lendemain devrait être en service, pas ${state.type}`)
+  check(state.remaining === 45, `0 h 45 le lendemain : ${state.remaining} min restantes au lieu de 45`)
+}
+
+/*
+ * Tram ou bus : l'icône et le libellé du départ en dépendent.
+ *
+ * Un tram « débute son exploitation », un bus « se met en ligne ». Un
+ * service de tram dessiné comme un bus dit au conducteur quelque chose de
+ * faux sur son propre métier.
+ */
+function symbolsOf(node, found = new Set()) {
+  if (node?.kind === "image") found.add(node.symbol)
+  for (const child of node?.children || []) symbolsOf(child, found)
+  return found
+}
+
+for (const [lineCode, line, symbol, other, label] of [
+  ["80", "A", "tram.fill", "bus.fill", "DÉBUT EXPLOITATION"],
+  ["04", "C4", "bus.fill", "tram.fill", "MISE EN LIGNE"]
+]) {
+  const service = build([
+    { ...slice(1, "05:00", "05:12", "09:30"), lineCode, line, lineUpAt: "05:10" }
+  ])
+  const state = SERVICE.computeState(service, new Date(2026, 7, 27, 4, 0))
+  const widget = RENDERER.createWidget("large", {
+    valid: true,
+    service,
+    state,
+    stats: SERVICE.computeStats(service),
+    displaySlice: SERVICE.getDisplaySlice(service, state),
+    pendingImports: 0,
+    preferences: { textScale: 1 }
+  })
+  const symbols = symbolsOf(widget)
+
+  check(symbols.has(symbol), `ligne ${line} : l'icône ${symbol} manque`)
+  check(!symbols.has(other), `ligne ${line} : l'icône ${other} s'affiche à tort`)
+  check(widgetBody(widget).includes(label), `ligne ${line} : le libellé « ${label} » manque`)
+}
+
 if (failures.length) {
   for (const failure of failures) console.error(`  ✗ ${failure}`)
   console.error(`\n${failures.length} contrôle(s) en échec.`)
@@ -476,5 +497,5 @@ if (failures.length) {
 
 console.log(
   "Intervalles entre tranches : pause et coupure nommées, accordées avec la " +
-    "pastille, et jamais répétées pendant qu'elle les annonce."
+    "pastille, et jamais répétées pendant qu'elle les annonce ; service après minuit ; tram et bus distingués."
 )

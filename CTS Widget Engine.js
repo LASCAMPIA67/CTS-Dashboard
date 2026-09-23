@@ -9,6 +9,8 @@ const SERVICE_ENGINE = importModule("CTS Service")
 const SERVICES_MANAGER = importModule("CTS Services Manager")
 const SERVICES_CLEANER = importModule("CTS Services Cleaner")
 const telemetryFromError = UTILS.telemetryFromError
+const normalizeTelemetryCode = UTILS.normalizeTelemetryCode
+const normalizeTelemetryStage = UTILS.normalizeTelemetryStage
 const normalizeImportTimings = UTILS.normalizeImportTimings
 const isValidDate = UTILS.isUsableDate
 const SERVICES_SCAN_REFRESH_MS = 15 * 60 * 1000
@@ -782,7 +784,7 @@ function addDiagnosticIssue(telemetry, issue) {
   const normalized = {
     severity: normalizeIssueSeverity(issue?.severity),
     errorCode: normalizeTelemetryCode(issue?.errorCode, "DASHBOARD_UNKNOWN_ERROR"),
-    module: normalizeTelemetryLabel(issue?.module, "WidgetEngine"),
+    module: normalizeTelemetryStage(issue?.module, "WidgetEngine"),
     stage: normalizeTelemetryStage(issue?.stage, "unknown")
   }
 
@@ -826,29 +828,6 @@ function normalizeIssueSeverity(value) {
     .toLowerCase()
 
   return ["warning", "error", "fatal"].includes(severity) ? severity : "error"
-}
-
-function normalizeTelemetryCode(value, fallback) {
-  const normalized = String(value || fallback || "DASHBOARD_UNKNOWN_ERROR")
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9_]/g, "_")
-    .slice(0, 64)
-
-  return normalized || "DASHBOARD_UNKNOWN_ERROR"
-}
-
-function normalizeTelemetryStage(value, fallback) {
-  const normalized = String(value || fallback || "unknown")
-    .trim()
-    .replace(/[^a-zA-Z0-9._-]/g, "_")
-    .slice(0, 50)
-
-  return normalized || "unknown"
-}
-
-function normalizeTelemetryLabel(value, fallback) {
-  return normalizeTelemetryStage(value, fallback)
 }
 
 function computeAutomaticRefreshDate(serviceRefreshAfterDate, resolution, currentDate, state) {

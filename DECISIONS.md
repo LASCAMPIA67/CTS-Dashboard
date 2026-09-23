@@ -289,3 +289,32 @@ décision lui est antérieure.
   jour. Le fichier de suivi `last-run.json` reste dans iCloud : le
   Diagnostic de CTS Installer le lit à cet endroit, et le déplacer
   demanderait une publication de l'installateur qui n'est pas décidée.
+- 2026-09-23 — Les deux bibliothèques PDF.js quittent iCloud pour la
+  bibliothèque locale de Scriptable, où CTS Installer les dépose et où le
+  moteur les retélécharge s'il ne les trouve pas. Rangées dans iCloud, iOS
+  pouvait les retirer de l'appareil faute de place, et ce sont les
+  premières candidates, puisqu'elles ne servent que les jours d'import : le
+  widget devait alors les attendre ou les retélécharger au moment précis de
+  lire une carte. Personne n'a à les ouvrir dans l'app Fichiers, si bien
+  que la raison qui garde le Dashboard dans iCloud — décision du 18
+  septembre — ne vaut pas pour elles. Choisi pour sa fiabilité, au prix
+  d'une publication de CTS Installer : c'est lui qui les pose désormais
+  hors d'iCloud, et qui efface les anciennes copies une fois les nouvelles
+  validées.
+- 2026-09-23 — Une seule écriture sûre dans tout le Dashboard, et elle
+  relit toujours ce qu'elle vient de poser : les deux qui coexistaient ne
+  donnaient pas la même garantie, et rien ne disait laquelle choisir.
+  L'index des services et l'état du balayage y gagnent la relecture, au
+  prix d'une lecture de quelques kilo-octets.
+- 2026-09-23 — Tous les bancs montent leur bac à sable par un module
+  commun, `tools/preview/sandbox.mjs` : chacun recopiait le sien, les
+  doublures de Scriptable avaient dérivé d'un banc à l'autre, et une
+  doublure fausse rend un banc vert pour de mauvaises raisons. Ce que
+  chaque banc éprouve — iCloud, le réseau, le Keychain — reste décrit
+  dans le banc lui-même.
+- 2026-09-23 — Les messages WhatsApp peuvent porter un dernier point qui
+  regroupe les changements invisibles, en mots simples — optimisations,
+  meilleures performances, corrections de bugs : le mainteneur veut que
+  les conducteurs sachent ce qu'une mise à jour change, même quand rien ne
+  se voit à l'écran. Complète la règle des trois points visibles, sans la
+  remplacer.

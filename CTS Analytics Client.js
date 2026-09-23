@@ -305,20 +305,6 @@ function telemetryDriverPayload(run) {
   return payload
 }
 
-function setTelemetryRunStatus(run, status) {
-  ensureTelemetryRun(run)
-
-  const value = String(status || "").trim()
-
-  if (!TELEMETRY_RUN_STATUSES.has(value)) {
-    throw new Error("invalid_telemetry_status")
-  }
-
-  run.status = value
-
-  return run
-}
-
 function setTelemetryStage(run, stage, status) {
   ensureTelemetryRun(run)
 
@@ -625,21 +611,6 @@ function normalizeTelemetryLabel(value, label) {
   return normalized
 }
 
-async function getStatistics() {
-  return sendRequest({
-    path: "/stats",
-    method: "GET",
-    apiKey: readRequiredSecret(KEYS.adminApiKey, "admin_api_key_missing")
-  })
-}
-
-async function checkHealth() {
-  return sendRequest({
-    path: "/health",
-    method: "GET"
-  })
-}
-
 function devicePayload(dashboardVersion) {
   return {
     installationId: getInstallationId(),
@@ -765,13 +736,10 @@ module.exports = {
   registerActivity,
   registerDailyActivity,
   createTelemetryRun,
-  setTelemetryRunStatus,
   setTelemetryStage,
   setTelemetryDriver,
   addTelemetryIssue,
   finishTelemetryRun,
   registerTelemetry,
-  registerTelemetrySafely,
-  getStatistics,
-  checkHealth
+  registerTelemetrySafely
 }

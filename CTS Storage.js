@@ -4,7 +4,7 @@
 
 const CONFIG = importModule("CTS Config")
 const UTILS = importModule("CTS Utils")
-const { fm, files, ensureDirectories } = CONFIG
+const { fm, files, paths, ensureDirectories } = CONFIG
 const MAX_LOG_ENTRIES = 100
 const SERVICES_INDEX_VERSION = CONFIG.servicesIndexVersion
 const ICLOUD_DOWNLOAD_ATTEMPTS = 4
@@ -96,15 +96,6 @@ async function readJson(path, fallback = null) {
   }
 }
 
-function writeText(path, value) {
-  ensureDirectories()
-  fm.writeString(path, String(value))
-}
-
-function writeJson(path, value, pretty = true) {
-  writeText(path, JSON.stringify(value, null, pretty ? 2 : 0))
-}
-
 async function writeTextSafely(path, value) {
   ensureDirectories()
 
@@ -120,6 +111,7 @@ async function writeTextSafely(path, value) {
 
   let previousMoved = false
   let preserveRollback = false
+  let phase = "temporary"
 
   try {
     if (originalExisted) await ensureDownloaded(path)
@@ -128,6 +120,8 @@ async function writeTextSafely(path, value) {
     if (!fm.fileExists(temporaryPath) || fm.readString(temporaryPath) !== content) {
       throw new Error("La vérification du fichier temporaire a échoué.")
     }
+
+    phase = "commit"
 
     if (originalExisted) {
       fm.move(path, rollbackPath)
@@ -154,11 +148,24 @@ async function writeTextSafely(path, value) {
       removeFileQuietly(path)
     }
 
-    throw error
+    throw withWritePhase(error, phase)
   } finally {
     removeFileQuietly(temporaryPath)
     if (!preserveRollback) removeFileQuietly(rollbackPath)
   }
+}
+
+/*
+ * La console distingue un temporaire qui ne s'écrit pas d'une bascule qui
+ * échoue : l'un dit que le dossier refuse l'écriture, l'autre qu'un
+ * fichier a pu rester à mi-chemin.
+ */
+function withWritePhase(error, phase) {
+  const failure = error instanceof Error ? error : new Error(String(error))
+
+  failure.writePhase = phase
+
+  return failure
 }
 
 async function writeJsonSafely(path, value, pretty = true) {
@@ -185,10 +192,6 @@ function normalizePreferences(value) {
   )
 
   return { textScale: nearest }
-}
-
-function textScales() {
-  return [...TEXT_SCALES]
 }
 
 async function loadPreferences() {
@@ -331,32 +334,9 @@ async function appendLog(type, message, details = null) {
   }
 }
 
-async function clearLog() {
-  try {
-    await writeJsonSafely(files.importLog, [])
-    return true
-  } catch (_) {
-    return false
-  }
-}
-
 async function loadLog() {
   const value = await readJson(files.importLog, [])
   return Array.isArray(value) ? value : []
-}
-
-function fileExists(path) {
-  return fm.fileExists(path)
-}
-
-function removeFile(path) {
-  try {
-    if (!fm.fileExists(path)) return false
-    fm.remove(path)
-    return true
-  } catch (_) {
-    return false
-  }
 }
 
 /*
@@ -389,10 +369,38 @@ function safeModificationDate(path) {
   }
 }
 
+/*
+ * Un PDF archivé ne doit jamais en écraser un autre : l'import qui
+ * remplace une carte et le nettoyage qui range un service passé écrivent
+ * dans le même dossier, parfois sous le même nom.
+ */
+function uniqueArchiveFileName(originalFileName) {
+  const cleanName = String(originalFileName || "Service.pdf")
+    .split(/[\\/]/)
+    .pop()
+
+  let candidate = cleanName
+  let suffix = 2
+
+  while (fm.fileExists(fm.joinPath(paths.servicesArchive, candidate))) {
+    const extensionIndex = cleanName.toLowerCase().lastIndexOf(".pdf")
+    const baseName = extensionIndex >= 0 ? cleanName.slice(0, extensionIndex) : cleanName
+
+    candidate = `${baseName}_${suffix}.pdf`
+    suffix++
+  }
+
+  return candidate
+}
+
 function buildUniqueToken() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
+/*
+ * La même écriture que writeTextSafely, relecture comprise, pour les
+ * fichiers dont l'échec doit remonter à la console sous un code précis.
+ */
 async function writeJsonAtomically(path, value, options = {}) {
   const {
     writeCode = "JSON_TEMP_WRITE_FAILED",
@@ -402,52 +410,18 @@ async function writeJsonAtomically(path, value, options = {}) {
     commitMessage = "Le fichier n’a pas pu être validé"
   } = options
 
-  const token = buildUniqueToken()
-  const temporaryPath = `${path}.tmp-${token}`
-  const rollbackPath = `${path}.rollback-${token}`
-
-  cleanupLegacyWriteFiles(path)
-  removeFileQuietly(temporaryPath)
-  removeFileQuietly(rollbackPath)
-
   try {
-    fm.writeString(temporaryPath, JSON.stringify(value, null, 2))
+    await writeTextSafely(path, JSON.stringify(value, null, 2))
   } catch (error) {
+    const temporary = error.writePhase === "temporary"
+
     throw UTILS.createTelemetryError(
-      writeCode,
+      temporary ? writeCode : commitCode,
       stage,
-      `${writeMessage} : ${UTILS.errorMessage(error)}`,
+      `${temporary ? writeMessage : commitMessage} : ${UTILS.errorMessage(error)}`,
       error
     )
   }
-
-  let previousMoved = false
-
-  try {
-    if (fm.fileExists(path)) {
-      fm.move(path, rollbackPath)
-      previousMoved = true
-    }
-
-    fm.move(temporaryPath, path)
-  } catch (error) {
-    removeFileQuietly(temporaryPath)
-
-    if (previousMoved && fm.fileExists(rollbackPath) && !fm.fileExists(path)) {
-      try {
-        fm.move(rollbackPath, path)
-      } catch (_) {}
-    }
-
-    throw UTILS.createTelemetryError(
-      commitCode,
-      stage,
-      `${commitMessage} : ${UTILS.errorMessage(error)}`,
-      error
-    )
-  }
-
-  removeFileQuietly(rollbackPath)
 }
 
 /*
@@ -464,10 +438,8 @@ async function writeJsonAtomically(path, value, options = {}) {
  * Un verrou illisible compte pour absent : le garder bloquerait le
  * balayage ou l'entretien pour toujours.
  */
-const DEVICE_LOCK_DIRECTORY = "CTS Dashboard"
-
 function deviceLockPath(local, name) {
-  const directory = local.joinPath(local.libraryDirectory(), DEVICE_LOCK_DIRECTORY)
+  const directory = CONFIG.devicePath()
 
   if (!local.fileExists(directory)) local.createDirectory(directory, true)
 
@@ -555,26 +527,21 @@ module.exports = {
   ensureReadable,
   readText,
   readJson,
-  writeText,
-  writeJson,
   writeTextSafely,
   writeJsonSafely,
   writeJsonAtomically,
   acquireDeviceLock,
   releaseDeviceLock,
   loadPreferences,
-  textScales,
   savePreferences,
   loadVersionPolicy,
   saveVersionPolicy,
   normalizePreferences,
   readCurrentIndex,
   appendLog,
-  clearLog,
   loadLog,
-  fileExists,
-  removeFile,
   removeFileQuietly,
   buildUniqueToken,
+  uniqueArchiveFileName,
   safeModificationDate
 }

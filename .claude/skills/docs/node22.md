@@ -48,6 +48,25 @@ d'ailleurs — une carte agent, une réponse de serveur, un fichier déposé
 par un collègue — en comptant sur `node:vm` pour contenir les dégâts. Il
 ne contient rien.
 
+## Chaque contexte `node:vm` a ses propres objets intégrés
+
+> « Inside such scripts, the global object will be wrapped by the
+> `contextObject`, retaining all of its existing properties but also
+> having the built-in objects and functions any standard global object
+> has. »
+
+> « be aware that the objects created by modules loaded from the main
+> context are still from the main context and not `instanceof`
+> built-in classes in the new context. »
+
+`nodejs.org/docs/latest-v22.x/api/vm.html`, sections `vm.createContext()`
+et `importModuleDynamically` · lu le 23/09/2026
+
+C'est pourquoi `tools/preview/sandbox.mjs` passe au contexte les
+constructeurs de l'hôte — `Array`, `Date`, `Object`… : un banc qui
+compare ce que rend un script à ses propres objets doit parler des
+mêmes classes.
+
 ## `node:sqlite` n'a plus besoin de son drapeau, et reste expérimental
 
 > « SQLite is no longer behind `--experimental-sqlite` but still

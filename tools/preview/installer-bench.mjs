@@ -16,12 +16,9 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
 import * as ui from "./uitable-shim.mjs"
+import { evaluateScript, repository, scriptableGlobals } from "./sandbox.mjs"
 
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
 const installerPath = process.argv[2] || path.join(repository, "CTS Installer.js")
 
 const SNAPSHOT = "a7b0d0da0dff222be4afcc9c006cd2e79417f98b"
@@ -61,6 +58,9 @@ function repositoryFile(name) {
 /* Système de fichiers temporaire, pré-rempli comme une installation saine. */
 const sandboxRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cts-bench-"))
 const docs = path.join(sandboxRoot, "Documents")
+/* La bibliothèque locale de Scriptable, où vivent les deux PDF.js. */
+const library = path.join(sandboxRoot, "Library")
+const PINNED = new Set(["pdf.min.mjs", "pdf.worker.min.mjs"])
 fs.mkdirSync(docs, { recursive: true })
 
 /*
@@ -78,7 +78,9 @@ function seedInstallation() {
   }
 
   for (const item of manifest.resources) {
-    const target = path.join(root, item.destination)
+    const target = PINNED.has(item.name)
+      ? path.join(library, "CTS Dashboard", item.destination)
+      : path.join(root, item.destination)
     fs.mkdirSync(path.dirname(target), { recursive: true })
     fs.writeFileSync(target, repositoryFile(item.name))
   }
@@ -108,6 +110,7 @@ if (SCENARIO === "fresh") {
 
 const fileManager = {
   documentsDirectory: () => docs,
+  libraryDirectory: () => library,
   joinPath: (a, b) => path.join(a, b),
   fileExists: target => fs.existsSync(target),
   isFileDownloaded: () => true,
@@ -212,26 +215,8 @@ const source = fs
     "var repositoryRevision = REPO.branch"
   )
 
-const sandbox = {
+const sandbox = scriptableGlobals({
   console,
-  Date,
-  Math,
-  JSON,
-  Number,
-  String,
-  Boolean,
-  Array,
-  Object,
-  Set,
-  Map,
-  Promise,
-  RegExp,
-  Error,
-  isNaN,
-  parseInt,
-  parseFloat,
-  encodeURIComponent,
-  decodeURIComponent,
   Color: ui.Color,
   Font: ui.Font,
   SFSymbol: ui.SFSymbol,
@@ -249,10 +234,9 @@ const sandbox = {
   __countSleep: ms => {
     metrics.sleptMs += Number(ms) || 0
   }
-}
+})
 
-vm.createContext(sandbox)
-vm.runInContext(source, sandbox, { filename: installerPath })
+evaluateScript("CTS Installer", sandbox, { source })
 
 const startedAt = Date.now()
 

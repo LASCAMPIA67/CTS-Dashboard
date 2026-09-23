@@ -64,7 +64,7 @@ async function scanServices(options = {}) {
 }
 
 async function performScan(options) {
-  const index = await IMPORTER.readCurrentIndex()
+  const index = await STORAGE.readCurrentIndex()
   const state = await loadScanState()
   const signatureBefore = scanStateSignature(state)
   const previousWriteAt = Date.parse(String(state.updatedAt || ""))
@@ -170,10 +170,6 @@ async function importCandidate(candidate) {
       details: safeError
     }
   }
-}
-
-async function listServicePdfs() {
-  return (await inspectServicesDirectory()).files
 }
 
 async function inspectServicesDirectory() {
@@ -661,7 +657,7 @@ async function resolveServiceForDate(currentDate = new Date()) {
     return emptyServiceSelection("invalid-date")
   }
 
-  const index = await IMPORTER.readCurrentIndex()
+  const index = await STORAGE.readCurrentIndex()
   const entries = Array.isArray(index?.services)
     ? index.services.filter(isUsableServiceEntry)
     : []
@@ -963,7 +959,5 @@ function isCanonicalPdfName(fileName) {
 
 module.exports = {
   scanServices,
-  listServicePdfs,
-  loadScanState,
   resolveServiceForDate
 }

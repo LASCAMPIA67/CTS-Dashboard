@@ -17,11 +17,7 @@
 
 import fs from "node:fs"
 import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
+import { isolatedModule, repository } from "./sandbox.mjs"
 
 const manifest = JSON.parse(
   fs.readFileSync(path.join(repository, "version.json"), "utf8")
@@ -99,10 +95,8 @@ function scriptableStubs() {
   }
 
   return {
-    console: { log: () => {}, warn: () => {}, error: () => {} },
-    Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-    Promise, RegExp, Error, isNaN, parseInt, parseFloat, Intl,
-    encodeURIComponent, decodeURIComponent, setTimeout,
+    Intl,
+    setTimeout,
     args: { plainTexts: [], fileURLs: [], urls: [] },
     config: { runsInWidget: false, runsInApp: true, widgetFamily: "large" },
     Script: { name: () => "test", complete: () => {}, setWidget: () => {} },
@@ -115,13 +109,6 @@ function scriptableStubs() {
     },
     UUID: { string: () => "0000" },
     Pasteboard: { copyString: () => {} },
-    Timer: class {
-      static schedule(ms, repeats, callback) {
-        setTimeout(callback, 0)
-        return new this()
-      }
-      invalidate() {}
-    },
     Request: class {
       constructor(url) {
         touched.push(`Request(${url})`)
@@ -186,32 +173,26 @@ function scriptableStubs() {
 const loaded = new Map()
 
 for (const name of loadOrder()) {
-  const module = { exports: {} }
-
-  const sandbox = {
-    ...scriptableStubs(),
-    module,
-    importModule: requested => {
-      const key = String(requested).replace(/^.*\//, "")
-      if (!loaded.has(key)) {
-        failures.push(`${name} importe ${key}, qui n'a pas pu être chargé`)
-        return {}
-      }
-      return loaded.get(key)
-    }
-  }
-
-  vm.createContext(sandbox)
+  let exported
 
   try {
-    vm.runInContext(sources.get(name), sandbox, { filename: `${name}.js` })
+    exported = isolatedModule(name, {
+      source: sources.get(name),
+      globals: scriptableStubs(),
+      importModule: requested => {
+        const key = String(requested).replace(/^.*\//, "")
+        if (!loaded.has(key)) {
+          failures.push(`${name} importe ${key}, qui n'a pas pu être chargé`)
+          return {}
+        }
+        return loaded.get(key)
+      }
+    })
   } catch (error) {
     failures.push(`${name} ne se charge pas : ${error.message}`)
     loaded.set(name, {})
     continue
   }
-
-  const exported = module.exports
 
   if (!exported || typeof exported !== "object" || !Object.keys(exported).length) {
     failures.push(`${name} n'exporte rien`)

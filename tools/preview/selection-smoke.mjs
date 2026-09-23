@@ -15,13 +15,8 @@
  * ce banc fixe, avec les cas de bord qui vont avec.
  */
 
-import fs from "node:fs"
-import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
+import { moduleSpace } from "./sandbox.mjs"
 
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
 const failures = []
 
 const ROOT = "/documents/CTS Dashboard"
@@ -55,51 +50,16 @@ function createFileManager(disk) {
 }
 
 function loadManager(disk) {
-  const loaded = {}
   const fm = createFileManager(disk)
 
-  const sandbox = {
-    console: { log: () => {}, warn: () => {}, error: () => {} },
-    Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-    Promise, RegExp, Error, isNaN, parseInt, parseFloat,
-    encodeURIComponent, decodeURIComponent,
-    config: { runsInWidget: true },
-    args: { plainTexts: [], shortcutParameter: null },
-    Timer: class {
-      static schedule(milliseconds, repeats, callback) {
-        setTimeout(callback, 0)
-        return new this()
-      }
-      invalidate() {}
+  const { load } = moduleSpace(
+    {
+      config: { runsInWidget: true },
+      args: { plainTexts: [], shortcutParameter: null },
+      FileManager: { iCloud: () => fm, local: () => fm }
     },
-    FileManager: { iCloud: () => fm, local: () => fm },
-    importModule: name => load(name)
-  }
-
-  vm.createContext(sandbox)
-
-  function load(name) {
-    if (name === "CTS Importer") {
-      return {
-        readCurrentIndex: async () =>
-          JSON.parse(disk.get(`${DATA}/services-index.json`) || '{"services":[]}'),
-        importPdf: async () => ({ success: false })
-      }
-    }
-
-    if (loaded[name]) return loaded[name]
-
-    const source = fs.readFileSync(path.join(repository, `${name}.js`), "utf8")
-    const module = { exports: {} }
-    loaded[name] = module.exports
-    vm.runInContext(
-      `(function (module, exports) {\n${source}\n})`,
-      sandbox,
-      { filename: name }
-    )(module, module.exports)
-    loaded[name] = module.exports
-    return module.exports
-  }
+    { doubles: { "CTS Importer": { importPdf: async () => ({ success: false }) } } }
+  )
 
   return load("CTS Services Manager")
 }

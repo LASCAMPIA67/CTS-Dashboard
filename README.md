@@ -164,11 +164,16 @@ CTS Dashboard
 ├── Cache
 ├── Data
 ├── Database
-├── Libraries
 └── Services
     ├── Archive
     └── Rejected
 ```
+
+Les deux fichiers de PDF.js, qui servent à lire la carte agent, ne sont pas
+dans iCloud : CTS Installer les pose dans le stockage propre à Scriptable sur
+l'iPhone, invisible dans l'app Fichiers. iOS ne peut pas les en retirer faute
+de place, comme il le faisait dans iCloud, et le widget n'a donc jamais à les
+attendre au moment de lire une carte.
 
 ## Mises à jour
 
@@ -302,9 +307,10 @@ réseau supplémentaire.
 
 Deux numéros vivent dans [`version.json`](version.json), et ils n'ont pas le
 même métier. Augmenter l'un d'eux, c'est publier : CTS Installer compare le
-numéro du manifeste à celui qui est installé, et n'agit que s'il a monté. Un
-fichier modifié sans numéro nouveau reste dans le dépôt et n'atteint aucun
-iPhone.
+numéro du manifeste à celui qui est installé pour proposer une mise à jour.
+Un fichier modifié sans numéro nouveau atteint tout de même les iPhone, mais
+sans rien annoncer : à la prochaine opération de CTS Installer, vérification
+comprise, dès que la révision du dépôt a bougé.
 
 Un numéro publié désigne un seul état des fichiers, définitivement. Une
 correction qui arrive après coup prend un numéro neuf, même si elle tient en
@@ -491,22 +497,22 @@ casse à l'exécution. **Chacun est né d'un défaut réel.**
 | Banc | Ce qu'il empêche |
 |---|---|
 | `modules-smoke` | une fonction appelée d'un module à l'autre qui n'existe pas |
-| `dashboard-smoke` | un widget blanc, vide, ou rendu dans une taille non prévue |
+| `dashboard-smoke` | un widget blanc, vide, ou rendu dans une taille non prévue, un réveil trop tardif en service ou après une panne |
 | `scan-smoke` | une carte agent détectée mais jamais importée, un verrou écrit dans iCloud |
 | `selection-smoke` | le mauvais service retenu à cheval sur minuit |
-| `storage-smoke` | un fichier lisible qu'iCloud refuse de confirmer, une écriture interrompue, une patience iCloud trop courte ou trop longue pour un widget, un verrou périmé qui bloque encore |
+| `storage-smoke` | un fichier lisible qu'iCloud refuse de confirmer, une écriture interrompue ou posée incomplète, un journal d'import qui perd son histoire, une patience iCloud trop courte ou trop longue pour un widget, un verrou périmé qui bloque encore |
 | `cleanup-smoke` | un PDF jamais archivé, un cache effacé trop tôt |
 | `residue-smoke` | une copie de sécurité orpheline effacée alors qu'elle était le dernier exemplaire |
 | `removal-smoke` | un service retiré qui emporte les fichiers d'un autre, ou qu'iCloud fait disparaître à tort |
-| `interruption-smoke` | une interruption nommée « pause » par le programme et « coupure » par la pastille d'état |
+| `interruption-smoke` | une interruption nommée « pause » par le programme et « coupure » par la pastille d'état, un service d'après minuit mal compté, un tram dessiné comme un bus |
 | `version-gate-smoke` | un widget bloqué à tort parce qu'il est hors ligne, ou qu'un plancher a été publié de travers |
-| `database-smoke` | un arrêt affiché sous forme de code |
+| `database-smoke` | un arrêt affiché sous forme de code, une ligne de tram oubliée |
 | `parser-smoke` | un pied de page affiché comme direction, ou l'arrêt de relève à la place du terminus |
 | `import-smoke` | une étape d'import qui n'a pas tourné rapportée « 0 ms » dans le Diagnostic |
 | `layout-smoke` | une grille horaires qui déborde selon l'appareil |
 | `utils-smoke` | une attente sans borne, une date jugée valide par un seul module |
 | `installer-smoke` | une constante inaccessible à l'exécution |
-| `repair-smoke` | un dépannage qui laisse l'iPhone sans installateur |
+| `repair-smoke` | un dépannage qui laisse l'iPhone sans installateur, ou avec un installateur tronqué |
 | `telemetry-smoke` | un jour de repos compté comme une panne dans le taux de succès de la flotte |
 | `pdf-engine-smoke` | un fichier que personne ne lit qui empêche toute lecture de carte agent, un moteur qui attend iCloud plus longtemps que le reste du widget |
 | `incident-smoke` | une même panne rapportée deux fois, sous deux codes et à deux gravités |
@@ -530,6 +536,11 @@ ne les référence parce que ce sont des points d'entrée.
 | `preview.mjs` | rend les états du widget en images, pour juger le rendu sans iPhone |
 | `installer.mjs` | rend les pages de CTS Installer de la même façon |
 | `installer-bench.mjs` | mesure une installation complète : requêtes, octets, temps |
+
+Tous, bancs et outils, montent leur bac à sable par `sandbox.mjs` : le
+langage, une console muette, un `Timer` conforme à Scriptable, et les
+façons d'exécuter un script. Une doublure fausse s'y corrige une fois pour
+tous.
 
 ## Licence et auteur
 

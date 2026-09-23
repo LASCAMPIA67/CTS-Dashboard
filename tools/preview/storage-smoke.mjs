@@ -15,13 +15,7 @@
  * On rejoue donc ici un disque où iCloud ne confirme jamais rien.
  */
 
-import fs from "node:fs"
-import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
+import { importFrom, isolatedModule, timerDouble } from "./sandbox.mjs"
 
 /*
  * Disque en mémoire. `confirmsDownloads` reproduit le comportement
@@ -73,39 +67,16 @@ function createFileManager({ confirmsDownloads, stalls = false, unreadable = fal
  */
 function loadStorage(fm, { runsInWidget = true, waits = [] } = {}) {
   const loaded = {}
-  const modules = ["CTS Config", "CTS Utils", "CTS Storage"]
 
-  for (const name of modules) {
-    const source = fs.readFileSync(path.join(repository, `${name}.js`), "utf8")
-    const module = { exports: {} }
-
-    const sandbox = {
-      module,
-      console: { log: () => {}, warn: () => {}, error: () => {} },
-      Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-      Promise, RegExp, Error, isNaN, parseInt, parseFloat,
-      encodeURIComponent, decodeURIComponent,
-      config: { runsInWidget },
-      /* Le Timer de Scriptable compte en millisecondes. */
-      Timer: class {
-        static schedule(milliseconds, repeats, callback) {
-          waits.push(Number(milliseconds) || 0)
-          setTimeout(callback, 0)
-          return new this()
-        }
-        invalidate() {}
-      },
-      FileManager: { iCloud: () => fm, local: () => fm },
-      importModule: requested => {
-        const key = String(requested).replace(/^.*\//, "")
-        if (!loaded[key]) throw new Error(`module inattendu : ${key}`)
-        return loaded[key]
+  for (const name of ["CTS Config", "CTS Utils", "CTS Storage"]) {
+    loaded[name] = isolatedModule(name, {
+      importModule: importFrom(loaded),
+      globals: {
+        config: { runsInWidget },
+        Timer: timerDouble({ waits }),
+        FileManager: { iCloud: () => fm, local: () => fm }
       }
-    }
-
-    vm.createContext(sandbox)
-    vm.runInContext(source, sandbox, { filename: name })
-    loaded[name] = module.exports
+    })
   }
 
   return loaded["CTS Storage"]
@@ -379,6 +350,94 @@ for (const [context, runsInWidget, floor, ceiling] of [
 }
 
 /*
+ * La bascule réussit mais pose un fichier incomplet. Sans relecture,
+ * l'index des services aurait été déclaré écrit alors qu'il ne se relit
+ * plus : seule la relecture le voit, et rend l'ancien contenu.
+ */
+{
+  const fm = createFileManager({ confirmsDownloads: true })
+  const STORAGE = loadStorage(fm)
+  const target = "/documents/CTS Dashboard/Data/services-index.json"
+  const original = JSON.stringify(INDEX)
+
+  fm.disk.set(target, original)
+
+  const move = fm.move
+  fm.move = (from, to) => {
+    move(from, to)
+    if (from.includes(".tmp-")) fm.disk.set(to, "{")
+  }
+
+  let thrown = null
+
+  try {
+    await STORAGE.writeJsonAtomically(target, { version: 99 }, {
+      commitCode: "TEST_COMMIT_FAILED",
+      stage: "test"
+    })
+  } catch (error) {
+    thrown = error
+  }
+
+  fm.move = move
+
+  if (thrown?.telemetryCode !== "TEST_COMMIT_FAILED") {
+    failures.push("fichier posé incomplet : l'écriture ne s'en aperçoit pas")
+  }
+
+  if (fm.disk.get(target) !== original) {
+    failures.push("fichier posé incomplet : l'ancien contenu n'est pas restauré")
+  }
+}
+
+/*
+ * Journal d'import. Le Diagnostic le lit pour dire ce qui s'est passé :
+ * borné, il ne grossit pas sans fin dans iCloud, mais il doit garder assez
+ * d'histoire pour qu'un import raté d'hier s'y lise encore.
+ */
+{
+  const fm = createFileManager({ confirmsDownloads: true })
+  const STORAGE = loadStorage(fm)
+
+  for (let index = 1; index <= 105; index++) {
+    await STORAGE.appendLog("import", `import ${index}`)
+  }
+
+  const logs = await STORAGE.loadLog()
+
+  if (logs.length !== 100) {
+    failures.push(`journal d'import : ${logs.length} entrée(s) gardée(s) au lieu des 100 dernières`)
+  } else if (logs[0].message !== "import 6" || logs[99].message !== "import 105") {
+    failures.push("journal d'import : ce ne sont pas les 100 dernières entrées qui sont gardées")
+  }
+}
+
+/*
+ * Nom d'archive. L'import qui remplace une carte et le nettoyage qui
+ * range un service passé archivent dans le même dossier : un nom déjà
+ * pris doit en donner un nouveau, jamais écraser l'ancien PDF.
+ */
+{
+  const fm = createFileManager({ confirmsDownloads: true })
+  const STORAGE = loadStorage(fm)
+  const archive = "/documents/CTS Dashboard/Services/Archive"
+
+  fm.disk.set(`${archive}/Service_EA05.pdf`, "%PDF")
+  fm.disk.set(`${archive}/Service_EA05_2.pdf`, "%PDF")
+
+  const taken = STORAGE.uniqueArchiveFileName("Service_EA05.pdf")
+  const free = STORAGE.uniqueArchiveFileName("Services/Service_EA06.pdf")
+
+  if (taken !== "Service_EA05_3.pdf") {
+    failures.push(`nom d'archive : « ${taken} » au lieu de Service_EA05_3.pdf`)
+  }
+
+  if (free !== "Service_EA06.pdf") {
+    failures.push(`nom d'archive : « ${free} » au lieu de Service_EA06.pdf`)
+  }
+}
+
+/*
  * Restes des anciennes écritures, avant que les noms ne portent un
  * jeton. Chaque écriture les balaie au passage — mais une copie de
  * sécurité dont le fichier d'origine manque peut être le dernier
@@ -641,7 +700,7 @@ console.log(
   "ok     lecture des fichiers iCloud " +
   "(iCloud muet, iCloud normal, absent, illisible, sans réponse, aucune attente inutile, " +
   "patience du widget et de l'application, disponibilité déclarée en retard, " +
-  "écriture atomique, bascule interrompue, préférences, verrous de l'appareil, " +
+  "écriture atomique relue, bascule interrompue, journal d'import borné, nom d'archive unique, préférences, verrous de l'appareil, " +
   "index des services dont le refus " +
   "d'un index corrompu)"
 )

@@ -7,6 +7,13 @@ const MAX_SERVICE_HOUR = 47
 const DAY_MS = 24 * MINUTES_PER_HOUR * 60 * 1000
 const UNKNOWN_DATE = "Date inconnue"
 
+/*
+ * Les trams sont codés 80 à 85 sur la carte agent. Le lecteur de carte et
+ * le widget en décident tous les deux : G et H portent une lettre comme
+ * les trams, mais ce sont des bus, et ne figurent donc pas ici.
+ */
+const TRAM_LINE_CODES = new Set(["80", "81", "82", "83", "84", "85"])
+
 function normalizeText(value) {
   return String(value || "")
     .replace(/\u00A0/g, " ")
@@ -119,6 +126,10 @@ function normalizeCode(value) {
   return String(value || "")
     .trim()
     .toUpperCase()
+}
+
+function isTramLineCode(value) {
+  return TRAM_LINE_CODES.has(normalizeCode(value))
 }
 
 function normalizeKey(value) {
@@ -375,6 +386,7 @@ module.exports = {
   formatDateFull,
   escapeRegex,
   normalizeCode,
+  isTramLineCode,
   normalizeKey,
   errorMessage,
   normalizeTelemetryCode,

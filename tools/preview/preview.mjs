@@ -15,14 +15,13 @@
 import fs from "node:fs"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
-import vm from "node:vm"
 import { fileURLToPath } from "node:url"
 import * as shim from "./scriptable-shim.mjs"
 import { renderSheet, widgetBody } from "./html.mjs"
 import { measureBodies, measureCardWidths } from "./measure.mjs"
+import { moduleSpace, repository } from "./sandbox.mjs"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
 const output = process.argv[2] || path.join(here, "out")
 fs.mkdirSync(output, { recursive: true })
 
@@ -77,48 +76,18 @@ function createFileManager() {
 }
 
 function createRuntime() {
-  const modules = new Map()
-
-  const sandbox = {
+  const globals = {
     FileManager: { iCloud: createFileManager, local: createFileManager },
     console,
-    Date,
-    Math,
-    JSON,
-    Number,
-    String,
-    Boolean,
-    Array,
-    Object,
-    Set,
-    Map,
-    isNaN,
-    parseInt,
-    parseFloat,
     Intl,
-    Device: { screenSize: () => new shim.Size(deviceScreen.width, deviceScreen.height) },
-    importModule: name => loadModule(name)
-  }
-  shim.installGlobals(sandbox)
-  vm.createContext(sandbox)
-
-  function loadModule(name) {
-    if (modules.has(name)) return modules.get(name)
-    const file = path.join(repository, `${name}.js`)
-    const source = fs.readFileSync(file, "utf8")
-    const moduleObject = { exports: {} }
-    modules.set(name, moduleObject.exports)
-    const wrapper = vm.runInContext(
-      `(function (module, exports) {\n${source}\n})`,
-      sandbox,
-      { filename: file }
-    )
-    wrapper(moduleObject, moduleObject.exports)
-    modules.set(name, moduleObject.exports)
-    return moduleObject.exports
+    Device: { screenSize: () => new shim.Size(deviceScreen.width, deviceScreen.height) }
   }
 
-  return { loadModule, reset: () => modules.clear() }
+  shim.installGlobals(globals)
+
+  const { load, reset } = moduleSpace(globals)
+
+  return { loadModule: load, reset }
 }
 
 const runtime = createRuntime()

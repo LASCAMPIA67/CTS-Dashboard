@@ -15,20 +15,16 @@
  * deux contextes où il tourne : le widget et l'application.
  */
 
-import fs from "node:fs"
-import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
 import * as shim from "./scriptable-shim.mjs"
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
+import { moduleSpace, runScript, timerDouble } from "./sandbox.mjs"
 const failures = []
 
 function createFileManager(disk) {
   return {
     joinPath: (parent, child) => `${parent}/${child}`,
     documentsDirectory: () => "/documents",
+    /* Les verrous de l'appareil y vivent : sans elle, chaque balayage échouait. */
+    libraryDirectory: () => "/library",
     fileExists: target => disk.has(target) || target.endsWith("/"),
     isFileDownloaded: () => true,
     downloadFileFromiCloud: async () => {},
@@ -38,7 +34,10 @@ function createFileManager(disk) {
     },
     writeString: (target, value) => disk.set(target, String(value)),
     remove: target => disk.delete(target),
-    move: () => {},
+    move: (from, to) => {
+      disk.set(to, disk.get(from))
+      disk.delete(from)
+    },
     createDirectory: () => {},
     listContents: () => [],
     isDirectory: () => false,
@@ -152,22 +151,22 @@ function seedService(disk, today) {
   }))
 }
 
-async function run(surface, { family = "large", label = surface, service = false } = {}) {
+async function run(
+  surface,
+  { family = "large", label = surface, service = false, engineFails = false } = {}
+) {
   const disk = new Map()
   const fileManager = createFileManager(disk)
-  const modules = new Map()
   const widgetsSet = []
   const presented = []
   const runsInWidget = surface === "widget"
 
   if (service) seedService(disk, FROZEN_NOW)
 
-  const sandbox = {
+  const globals = {
     FileManager: { iCloud: () => fileManager, local: () => fileManager },
-    console: { log: () => {}, warn: () => {}, error: () => {} },
-    Date: FrozenDate, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-    Promise, RegExp, Error, isNaN, parseInt, parseFloat, Intl,
-    encodeURIComponent, decodeURIComponent,
+    Date: FrozenDate,
+    Intl,
     config: { runsInWidget, widgetFamily: runsInWidget ? family : null },
     args: { plainTexts: [], shortcutParameter: null },
     Device: { screenSize: () => new shim.Size(430, 932), systemVersion: () => "27.0" },
@@ -183,23 +182,23 @@ async function run(surface, { family = "large", label = surface, service = false
       async loadJSON() { throw new Error("réseau indisponible") }
       async load() { throw new Error("réseau indisponible") }
     },
-    Timer: class {
-      static schedule(milliseconds, repeats, callback) {
-        setTimeout(callback, Math.min(Number(milliseconds) || 0, 5))
-        return new this()
-      }
-      invalidate() {}
-    },
+    Timer: timerDouble({ delay: milliseconds => Math.min(milliseconds, 5) }),
     Script: {
       name: () => "CTS Dashboard",
       setWidget: widget => widgetsSet.push(widget),
       complete: () => {}
-    },
-    importModule: name => loadModule(name)
+    }
   }
 
-  shim.installGlobals(sandbox)
-  vm.createContext(sandbox)
+  shim.installGlobals(globals)
+
+  const { sandbox, load } = moduleSpace(globals)
+
+  if (engineFails) {
+    load("CTS Widget Engine").loadContext = async () => {
+      throw new Error("panne simulée du moteur")
+    }
+  }
 
   /* Les présentations ne doivent pas ouvrir d'interface hors widget. */
   for (const family of ["presentSmall", "presentMedium", "presentLarge"]) {
@@ -209,35 +208,12 @@ async function run(surface, { family = "large", label = surface, service = false
     }
   }
 
-  function loadModule(name) {
-    if (modules.has(name)) return modules.get(name)
-    const file = path.join(repository, `${name}.js`)
-    const source = fs.readFileSync(file, "utf8")
-    const moduleObject = { exports: {} }
-    modules.set(name, moduleObject.exports)
-    const wrapper = vm.runInContext(
-      `(function (module, exports) {\n${source}\n})`,
-      sandbox,
-      { filename: file }
-    )
-    wrapper(moduleObject, moduleObject.exports)
-    modules.set(name, moduleObject.exports)
-    return moduleObject.exports
-  }
-
   /*
    * Le fichier est exécuté tel quel, `await main()` compris : c'est
    * précisément ce que ce banc doit éprouver.
    */
-  const entryPoint = path.join(repository, "CTS Dashboard.js")
-  const source = fs.readFileSync(entryPoint, "utf8")
-
   try {
-    await vm.runInContext(
-      `(async () => {\n${source}\n})()`,
-      sandbox,
-      { filename: entryPoint }
-    )
+    await runScript("CTS Dashboard", sandbox)
   } catch (error) {
     failures.push(`${surface} : exception non rattrapée — ${error.message}`)
     return
@@ -353,6 +329,33 @@ async function run(surface, { family = "large", label = surface, service = false
         `sous le rattrapage de cinq minutes en service`
       )
     }
+
+    /* Plus tard, une entrée en pause resterait affichée comme du service. */
+    if (!engineFails && minutes > 5.1) {
+      failures.push(
+        `${label} : réveil demandé dans ${minutes.toFixed(1)} min — ` +
+        `au-delà du rattrapage de cinq minutes en service`
+      )
+    }
+  }
+
+  /*
+   * Un moteur en panne affiche la carte d'erreur, et doit se réessayer
+   * cinq minutes plus tard : plus tôt, il userait le budget de réveils
+   * qu'iOS accorde ; bien plus tard, une panne passagère resterait à
+   * l'écran pendant tout le service.
+   */
+  for (const widget of engineFails ? widgetsSet : []) {
+    const refreshAt = widget?.refreshAfterDate
+    const minutes =
+      refreshAt instanceof Date ? (refreshAt.getTime() - FROZEN_NOW.getTime()) / 60000 : NaN
+
+    if (!(minutes >= 4.9 && minutes <= 5.1)) {
+      failures.push(
+        `${label} : après une panne, réveil demandé dans ${minutes.toFixed(1)} min ` +
+          `au lieu de cinq`
+      )
+    }
   }
 
   /*
@@ -404,6 +407,7 @@ for (const family of ["accessoryRectangular", "accessoryCircular", "accessoryInl
 /* Fonctionnement nominal : un service réel doit produire la grande carte. */
 await run("widget", { label: "widget service", service: true })
 await run("application", { label: "application service", service: true })
+await run("widget", { label: "widget en panne", service: true, engineFails: true })
 
 if (failures.length) {
   console.log("ÉCHEC  exécution de CTS Dashboard")
@@ -413,5 +417,5 @@ if (failures.length) {
 
 console.log(
   "ok     exécution de CTS Dashboard " +
-  "(widget, application, 6 familles, rendu validé, jamais vide)"
+  "(widget, application, 6 familles, rendu validé, jamais vide, réveils bornés)"
 )

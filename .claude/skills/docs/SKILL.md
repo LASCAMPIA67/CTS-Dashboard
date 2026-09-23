@@ -27,15 +27,16 @@ tient pas de copie.
 | Widget grand format (WidgetKit, via Scriptable) | — | `CTS Widget Engine.js`, `CTS Widget Renderer.js`, `CTS Widget Theme.js` | ✓ `developer.apple.com/documentation/widgetkit` |
 | iCloud Drive | — | `CTS Config.js:5` | ✓ `support.apple.com/en-us/108922` · guide Mac `mchle5a61431` (voir l'annexe) |
 | Trousseau iOS | — | `CTS Analytics Client.js` | ✓ `docs.scriptable.app/keychain` |
-| PDF.js — lecture de la carte agent | **6.1.200**, build `legacy` | `CTS PDF Engine.js:9` | ✓ `mozilla.github.io/pdf.js/api` |
-| HTML / CSS / DOM en WebView | — | `CTS PDF Engine.js:785-1390` | ✓ `developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model` |
-| Streams API — un correctif maison compense son absence | — | `CTS PDF Engine.js:789` | ✓ `developer.mozilla.org/en-US/docs/Web/API/Streams_API` |
+| PDF.js — lecture de la carte agent | **6.3.289**, build `legacy` | `CTS PDF Engine.js:10` | ✓ `mozilla.github.io/pdf.js/api` |
+| HTML / CSS / DOM en WebView | — | `CTS PDF Engine.js:753-1102` | ✓ `developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model` |
+| Streams API — un correctif maison compense son absence | — | `CTS PDF Engine.js:757` | ✓ `developer.mozilla.org/en-US/docs/Web/API/Streams_API` |
 | HASTUS (Giro) — le format de la carte agent | — | `CTS Parser.js` | format propriétaire, aucune doc publique |
 
 La bibliothèque PDF.js arrive par deux chemins : `pdf.min.mjs` et
 `pdf.worker.min.mjs` versionnés à la racine, que l'installateur pose
-d'après `version.json`, et la même version prise chez jsDelivr par le
-moteur quand le fichier manque sur l'appareil.
+d'après `version.json` dans la bibliothèque locale de Scriptable — hors
+d'iCloud depuis CTS Installer 1.0.32 —, et la même version prise chez
+jsDelivr par le moteur quand le fichier manque sur l'appareil.
 
 **API Scriptable réellement employée**, chacune a sa page :
 `Font`, `Color`, `UITable` / `UITableRow`, `SFSymbol`, `Size`, `Script`,

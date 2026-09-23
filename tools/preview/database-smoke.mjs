@@ -13,11 +13,7 @@
 
 import fs from "node:fs"
 import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
+import { importFrom, isolatedModule, readScript, repository } from "./sandbox.mjs"
 
 /* Les bases sont lues depuis le dépôt, jamais recopiées ici. */
 function resource(name) {
@@ -31,34 +27,10 @@ const RESOURCES = {
 }
 
 function loadModule(name, extra = {}) {
-  const source = fs.readFileSync(path.join(repository, `${name}.js`), "utf8")
-  const module = { exports: {} }
-
-  const sandbox = {
-    module,
-    console: { log: () => {}, warn: () => {}, error: () => {} },
-    Date, Math, JSON, Number, String, Boolean, Array, Object, Set, Map,
-    Promise, RegExp, Error, isNaN, parseInt, parseFloat,
-    encodeURIComponent, decodeURIComponent,
-    Timer: class {
-      static schedule(ms, repeats, callback) {
-        setTimeout(callback, 0)
-        return new this()
-      }
-      invalidate() {}
-    },
-    args: { plainTexts: [] },
-    importModule: requested => {
-      const key = String(requested).replace(/^.*\//, "")
-      if (!loaded[key]) throw new Error(`module inattendu : ${key}`)
-      return loaded[key]
-    },
-    ...extra
-  }
-
-  vm.createContext(sandbox)
-  vm.runInContext(source, sandbox, { filename: name })
-  return module.exports
+  return isolatedModule(name, {
+    importModule: importFrom(loaded),
+    globals: { args: { plainTexts: [] }, ...extra }
+  })
 }
 
 const loaded = {}
@@ -154,14 +126,13 @@ const lines = [
  * G et H portent une lettre comme les trams, mais ce sont des lignes de
  * bus à haut niveau de service. Les faire passer pour des trams ferait
  * annoncer un « début d'exploitation » à un conducteur de bus. Le
- * contrôle lit la liste directement dans CTS Parser plutôt que d'en
+ * contrôle lit la liste directement dans CTS Utils plutôt que d'en
  * garder une copie qui pourrait diverger.
  */
 const BUS_LETTER_CODES = ["90", "92"]
 
 const tramCodes = new Set(
-  (fs
-    .readFileSync(path.join(repository, "CTS Parser.js"), "utf8")
+  (readScript("CTS Utils")
     .match(/const TRAM_LINE_CODES = new Set\(\[([^\]]*)\]\)/)?.[1] || "")
     .split(",")
     .map(value => value.trim().replace(/"/g, ""))
@@ -255,15 +226,28 @@ for (const [code, expected] of lines) {
 }
 
 if (!tramCodes.size) {
-  failures.push("TRAM_LINE_CODES est introuvable dans CTS Parser.js")
+  failures.push("TRAM_LINE_CODES est introuvable dans CTS Utils.js")
 }
 
 for (const code of BUS_LETTER_CODES) {
   if (tramCodes.has(code)) {
     failures.push(
       `la ligne ${code} (${await DATABASE.formatLine(code)}) est classée parmi les trams ` +
-      `dans CTS Parser alors que c'est une ligne de bus`
+      `dans CTS Utils alors que c'est une ligne de bus`
     )
+  }
+}
+
+/*
+ * L'inverse : une ligne que la base nomme A à F est un tram. Oubliée dans
+ * la liste, elle annoncerait une « mise en ligne » au lieu d'un « début
+ * d'exploitation », et l'icône d'un bus.
+ */
+const TRAM_LETTERS = /^[A-F]$/
+
+for (const [code, line] of Object.entries(JSON.parse(RESOURCES["lines.json"]))) {
+  if (TRAM_LETTERS.test(String(line?.name || "")) && !tramCodes.has(code)) {
+    failures.push(`la ligne ${code} (${line.name}) n'est pas classée parmi les trams dans CTS Utils`)
   }
 }
 

@@ -11,14 +11,13 @@
 
 import fs from "node:fs"
 import path from "node:path"
-import vm from "node:vm"
 import { execFileSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
 import * as ui from "./uitable-shim.mjs"
 import { renderTable, renderSheet, USABLE_HEIGHT } from "./installer-html.mjs"
+import { evaluateScript, readScript, repository, scriptableGlobals } from "./sandbox.mjs"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
 const output = process.argv[2] || path.join(here, "out-installer")
 fs.mkdirSync(output, { recursive: true })
 
@@ -31,8 +30,7 @@ const CHROMIUM = [
 const tables = []
 
 function loadInstaller() {
-  const source = fs
-    .readFileSync(path.join(repository, "CTS Installer.js"), "utf8")
+  const source = readScript("CTS Installer")
     .replace(/^await main\(\)$/m, "/* main() neutralisé pour la prévisualisation */")
     .replace(/^Script\.complete\(\)$/m, "")
 
@@ -43,25 +41,22 @@ function loadInstaller() {
     }
   }
 
-  const sandbox = {
+  /* Un appareil neuf : rien n'est encore posé, ni dans iCloud ni sur l'iPhone. */
+  const fileManager = {
+    documentsDirectory: () => "/Documents",
+    libraryDirectory: () => "/Library",
+    joinPath: (a, b) => `${a}/${b}`,
+    fileExists: () => false,
+    isFileDownloaded: () => true,
+    readString: () => "",
+    createDirectory: () => {},
+    downloadFileFromiCloud: async () => {},
+    fileSize: () => 1,
+    modificationDate: () => new Date()
+  }
+
+  const sandbox = scriptableGlobals({
     console,
-    Date,
-    Math,
-    JSON,
-    Number,
-    String,
-    Boolean,
-    Array,
-    Object,
-    Set,
-    Map,
-    Promise,
-    RegExp,
-    Error,
-    isNaN,
-    parseInt,
-    parseFloat,
-    encodeURIComponent,
     Color: ui.Color,
     Font: ui.Font,
     SFSymbol: ui.SFSymbol,
@@ -91,28 +86,14 @@ function loadInstaller() {
         return Promise.resolve("")
       }
     },
-    FileManager: {
-      iCloud: () => ({
-        documentsDirectory: () => "/Documents",
-        joinPath: (a, b) => `${a}/${b}`,
-        fileExists: () => false,
-        isFileDownloaded: () => true,
-        readString: () => "",
-        createDirectory: () => {},
-        downloadFileFromiCloud: async () => {},
-        fileSize: () => 1,
-        modificationDate: () => new Date()
-      })
-    },
+    FileManager: { iCloud: () => fileManager, local: () => fileManager },
     importModule: () => ({
       loadPreferences: async () => ({ textScale: 1 }),
       savePreferences: async () => {}
     })
-  }
+  })
 
-  vm.createContext(sandbox)
-  vm.runInContext(source, sandbox, { filename: "CTS Installer.js" })
-  return sandbox
+  return evaluateScript("CTS Installer", sandbox, { source })
 }
 
 const installer = loadInstaller()
@@ -227,14 +208,13 @@ function diagnosticState() {
     checks: [
       { title: "Installation", status: "success", detail: "22/22 fichiers valides · Dashboard 1.0.12" },
       { title: "GitHub", status: "success", detail: "Snapshot a7b0d0d accessible" },
-      { title: "Dossiers iCloud", status: "success", detail: "11/11 dossiers présents" },
+      { title: "Dossiers iCloud", status: "success", detail: "9/9 dossiers présents" },
       { title: "Écriture iCloud", status: "success", detail: "Lecture et écriture confirmées" },
       { title: "Ressources", status: "success", detail: "5/5 ressources valides" },
       { title: "Dossier Services", status: "success", detail: "1 PDF · 3 archivés · 0 rejeté" },
       { title: "Index des services", status: "warning", detail: "Index vide — aucun service importé" },
       { title: "Journal d’import", status: "success", detail: "Dernier import réussi il y a 2 h" },
-      { title: "Analytics", status: "success", detail: "Jeton présent · dernier envoi ce jour" },
-      { title: "Espace disque", status: "success", detail: "Aucune anomalie détectée" }
+      { title: "Analytics", status: "success", detail: "Jeton présent · dernier envoi ce jour" }
     ],
     lastImport: null,
     lastFailure: null

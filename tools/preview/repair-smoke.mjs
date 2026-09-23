@@ -11,14 +11,10 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import vm from "node:vm"
-import { fileURLToPath } from "node:url"
 import * as ui from "./uitable-shim.mjs"
+import { readScript, runScript, scriptableGlobals, timerDouble } from "./sandbox.mjs"
 
-const here = path.dirname(fileURLToPath(import.meta.url))
-const repository = path.resolve(here, "..", "..")
-const repairPath = path.join(repository, "CTS Repair.js")
-const installerSource = fs.readFileSync(path.join(repository, "CTS Installer.js"), "utf8")
+const installerSource = readScript("CTS Installer")
 
 /* Le numéro attendu est celui du dépôt, jamais une valeur recopiée. */
 const installerVersion = installerSource.match(
@@ -64,18 +60,10 @@ async function run(label, { seed, serve, expect }) {
     }
   }
 
-  const sandbox = {
+  const sandbox = scriptableGlobals({
     console: { log: () => {}, warn: () => {}, error: m => failures.push(String(m)) },
-    Date, Math, JSON, Number, String, Boolean, Array, Object, Promise, RegExp, Error,
-    encodeURIComponent,
     setTimeout,
-    Timer: class {
-      static schedule(milliseconds, repeats, callback) {
-        setTimeout(callback, Math.min(milliseconds, 5))
-        return new this()
-      }
-      invalidate() {}
-    },
+    Timer: timerDouble({ delay: milliseconds => Math.min(milliseconds, 5) }),
     Font: ui.Font,
     UITable: RecordingTable,
     UITableRow: ui.UITableRow,
@@ -107,16 +95,10 @@ async function run(label, { seed, serve, expect }) {
         return served
       }
     }
-  }
-
-  vm.createContext(sandbox)
+  })
 
   try {
-    await vm.runInContext(
-      `(async () => {\n${fs.readFileSync(repairPath, "utf8")}\n})()`,
-      sandbox,
-      { filename: repairPath }
-    )
+    await runScript("CTS Repair", sandbox)
   } catch (error) {
     failures.push(`exception non rattrapée : ${error.message}`)
   }
@@ -187,6 +169,21 @@ const scenarios = [
     expect: {
       written: [],
       shows: ["Réparation impossible", "défaut d'initialisation"],
+      hides: ["Réparation terminée"]
+    }
+  },
+  {
+    /*
+     * Coupé en route : l'en-tête et le numéro de version sont là, seule
+     * la longueur trahit le fichier. Posé, il laisserait l'iPhone avec un
+     * installateur qui ne démarre pas — le défaut que ce dépanneur répare.
+     */
+    label: "installateur reçu tronqué",
+    seed: ["CTS Installer.js"],
+    serve: () => installerSource.slice(0, 40000),
+    expect: {
+      written: [],
+      shows: ["Réparation impossible"],
       hides: ["Réparation terminée"]
     }
   },
