@@ -464,10 +464,8 @@ async function writeJsonAtomically(path, value, options = {}) {
  * Un verrou illisible compte pour absent : le garder bloquerait le
  * balayage ou l'entretien pour toujours.
  */
-const DEVICE_LOCK_DIRECTORY = "CTS Dashboard"
-
 function deviceLockPath(local, name) {
-  const directory = local.joinPath(local.libraryDirectory(), DEVICE_LOCK_DIRECTORY)
+  const directory = CONFIG.devicePath()
 
   if (!local.fileExists(directory)) local.createDirectory(directory, true)
 

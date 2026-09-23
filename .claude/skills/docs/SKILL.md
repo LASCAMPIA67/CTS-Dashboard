@@ -34,8 +34,9 @@ tient pas de copie.
 
 La bibliothèque PDF.js arrive par deux chemins : `pdf.min.mjs` et
 `pdf.worker.min.mjs` versionnés à la racine, que l'installateur pose
-d'après `version.json`, et la même version prise chez jsDelivr par le
-moteur quand le fichier manque sur l'appareil.
+d'après `version.json` dans la bibliothèque locale de Scriptable — hors
+d'iCloud depuis CTS Installer 1.0.32 —, et la même version prise chez
+jsDelivr par le moteur quand le fichier manque sur l'appareil.
 
 **API Scriptable réellement employée**, chacune a sa page :
 `Font`, `Color`, `UITable` / `UITableRow`, `SFSymbol`, `Size`, `Script`,

@@ -73,7 +73,8 @@ async function runAction(
     closeDuringWrite = false,
     scriptName = "CTS Installer",
     runningWriteBroken = false,
-    aborts = false
+    aborts = false,
+    migration = false
   } = {}
 ) {
   /*
@@ -84,6 +85,11 @@ async function runAction(
   let networkAttempts = 0
   const sandboxRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cts-smoke-"))
   const docs = path.join(sandboxRoot, "Documents")
+  /* La bibliothèque locale de Scriptable, où vivent les deux PDF.js. */
+  const library = path.join(sandboxRoot, "Library")
+  const PINNED = new Set(["pdf.min.mjs", "pdf.worker.min.mjs"])
+  const pinnedTarget = item => path.join(library, "CTS Dashboard", item.destination)
+  const legacyLibraries = path.join(docs, "CTS Dashboard", "Libraries")
   fs.mkdirSync(docs, { recursive: true })
   fs.writeFileSync(path.join(docs, "CTS Installer.js"), fs.readFileSync(installerPath))
 
@@ -105,7 +111,13 @@ async function runAction(
       fs.writeFileSync(path.join(docs, name), repositoryFile(name))
     }
     for (const item of manifest.resources) {
-      const target = path.join(root, item.destination)
+      /*
+       * Une installation d'avant la 1.0.32 : les bibliothèques sont encore
+       * dans iCloud, et rien n'est encore posé sur l'appareil.
+       */
+      const target = PINNED.has(item.name) && !migration
+        ? pinnedTarget(item)
+        : path.join(root, item.destination)
       fs.mkdirSync(path.dirname(target), { recursive: true })
       fs.writeFileSync(target, repositoryFile(item.name))
     }
@@ -173,7 +185,7 @@ async function runAction(
    */
   if (truncated) {
     const resource = manifest.resources.find(item => item.name === truncated)
-    const target = path.join(docs, "CTS Dashboard", resource.destination)
+    const target = pinnedTarget(resource)
 
     fs.writeFileSync(target, fs.readFileSync(target, "utf8").slice(0, 40 * 1024))
   }
@@ -306,6 +318,7 @@ async function runAction(
 
   const fileManager = {
     documentsDirectory: () => docs,
+    libraryDirectory: () => library,
     joinPath: (a, b) => path.join(a, b),
     fileExists: target => fs.existsSync(target),
     isFileDownloaded: () => true,
@@ -844,6 +857,24 @@ async function runAction(
     }
   }
 
+  /*
+   * Les bibliothèques quittent iCloud pour l'appareil. Les nouvelles
+   * copies doivent être en place, et les anciennes parties : garder les
+   * deux, c'est payer deux fois 1,8 Mo et laisser croire qu'iCloud sert
+   * encore.
+   */
+  if (migration) {
+    for (const item of manifest.resources.filter(entry => PINNED.has(entry.name))) {
+      if (!fs.existsSync(pinnedTarget(item))) {
+        failures.push(`${item.name} n'a pas été posé sur l'appareil`)
+      }
+    }
+
+    if (fs.existsSync(legacyLibraries)) {
+      failures.push("les anciennes bibliothèques restent dans iCloud après la migration")
+    }
+  }
+
   fs.rmSync(sandboxRoot, { recursive: true, force: true })
   return [...new Set(failures)]
 }
@@ -993,6 +1024,18 @@ const scenarios = [
    * toute mise à jour qui a réellement écrit repart sur l'état obtenu.
    */
   { label: "installation neuve", choice: 0, seed: false, silent: true, reopens: true },
+  /*
+   * Une installation d'avant la 1.0.32 garde ses bibliothèques dans iCloud.
+   * La vérification suivante les pose sur l'appareil, puis retire les
+   * anciennes : c'est une écriture réelle, qui rouvre.
+   */
+  {
+    label: "bibliothèques PDF.js déplacées d'iCloud vers l'appareil",
+    choice: 0,
+    silent: true,
+    reopens: true,
+    migration: true
+  },
   /*
    * Rien n'a été écrit : rien à rouvrir. Sans cette borne, ouvrir
    * l'installateur pour vérifier ses fichiers le relancerait à chaque
@@ -1244,7 +1287,8 @@ for (const scenario of scenarios) {
     closeDuringWrite: scenario.closeDuringWrite === true,
     scriptName: scenario.scriptName || "CTS Installer",
     runningWriteBroken: scenario.runningWriteBroken === true,
-    aborts: scenario.aborts === true
+    aborts: scenario.aborts === true,
+    migration: scenario.migration === true
   })
 
   if (failures.length) {

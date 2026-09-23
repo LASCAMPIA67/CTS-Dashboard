@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.31"
+const INSTALLER_VERSION = "1.0.32"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -68,6 +68,27 @@ const currentInstaller = join(docs, `${Script.name()}.js`)
 const canonicalInstaller = join(docs, INSTALLER_FILE)
 const SCRIPT_RESIDUE = /^(CTS .+\.js)\.(download|rollback)$/
 
+/*
+ * Les deux bibliothèques PDF.js vivent sur l'appareil, dans la
+ * bibliothèque locale de Scriptable, sous le même nom de dossier que le
+ * reste : iOS pouvait les retirer d'iCloud faute de place, et le widget
+ * devait alors les attendre au moment de lire une carte. Le moteur PDF
+ * les cherche au même endroit. L'application et le widget partagent ce
+ * dossier — mesuré sur iPhone le 23 septembre, la documentation ne le dit
+ * pas.
+ */
+const localFm = FileManager.local()
+const deviceRoot = localFm.joinPath(localFm.libraryDirectory(), "CTS Dashboard")
+const legacyLibraries = join(root, "Libraries")
+
+function devicePath(relative) {
+  return relativeParts(relative).reduce((path, part) => localFm.joinPath(path, part), deviceRoot)
+}
+
+function managerOf(path) {
+  return String(path).startsWith(deviceRoot) ? localFm : fm
+}
+
 const paths = {
   root,
   data: join(root, "Data"),
@@ -78,8 +99,6 @@ const paths = {
   rejected: join(root, "Services/Rejected"),
   serviceCache: join(root, "Cache/Services"),
   textCache: join(root, "Cache/Services/Text"),
-  libraries: join(root, "Libraries"),
-  pdf: join(root, "Libraries/PDF"),
   metadata: join(root, `Data/${META_FILE}`)
 }
 
@@ -551,7 +570,7 @@ async function inspect(manifest) {
   let valid = 0
 
   for (const entry of entries) {
-    if (!fm.fileExists(entry.destination)) {
+    if (!managerOf(entry.destination).fileExists(entry.destination)) {
       missing.push(entry.name)
       reasons[entry.name] = "Absent"
       continue
@@ -804,6 +823,13 @@ async function installOrUpdate(manifest, previous) {
 
     await writeMetadata(manifest, summary)
 
+    /*
+     * Les anciennes copies d'iCloud ne partent qu'une fois les nouvelles
+     * validées sur l'appareil : jusque-là, elles restent le seul exemplaire
+     * qu'un moteur plus ancien sache lire.
+     */
+    removeQuietly(legacyLibraries)
+
     await preserveInstaller()
 
     await registerAnalyticsInstallation(manifest.version)
@@ -914,14 +940,16 @@ async function canSkipPinnedLibrary(entry) {
     return false
   }
 
-  if (!fm.fileExists(entry.destination)) {
+  const manager = managerOf(entry.destination)
+
+  if (!manager.fileExists(entry.destination)) {
     return false
   }
 
   let kilobytes = 0
 
   try {
-    kilobytes = Number(fm.fileSize(entry.destination)) || 0
+    kilobytes = Number(manager.fileSize(entry.destination)) || 0
   } catch (_) {
     return false
   }
@@ -984,7 +1012,7 @@ async function syncFile(entry, options = {}) {
     throw lastError || new Error(`${entry.name} impossible à télécharger.`)
   }
 
-  const existed = fm.fileExists(entry.destination)
+  const existed = managerOf(entry.destination).fileExists(entry.destination)
   let localValid = false
 
   if (existed) {
@@ -1560,9 +1588,7 @@ function inspectDiagnosticDirectories() {
     paths.archive,
     paths.rejected,
     paths.serviceCache,
-    paths.textCache,
-    paths.libraries,
-    paths.pdf
+    paths.textCache
   ]
 
   const missing = required.filter(path => !fm.fileExists(path))
@@ -1700,11 +1726,11 @@ async function inspectDiagnosticResources() {
       name: "places.json"
     },
     {
-      destination: join(paths.pdf, "pdf.min.mjs"),
+      destination: devicePath("Libraries/PDF/pdf.min.mjs"),
       name: "pdf.min.mjs"
     },
     {
-      destination: join(paths.pdf, "pdf.worker.min.mjs"),
+      destination: devicePath("Libraries/PDF/pdf.worker.min.mjs"),
       name: "pdf.worker.min.mjs"
     }
   ]
@@ -2484,7 +2510,11 @@ async function uninstall(manifest) {
         }))
     : []
 
-  const entries = [...scriptEntries, ...projectEntries]
+  const deviceEntries = localFm.fileExists(deviceRoot)
+    ? [{ name: "Fichiers de l’appareil", type: "Dossier", destination: deviceRoot }]
+    : []
+
+  const entries = [...scriptEntries, ...projectEntries, ...deviceEntries]
 
   const progress = progressTable({
     title: "Désinstaller CTS Dashboard",
@@ -2511,8 +2541,10 @@ async function uninstall(manifest) {
     await progress.entry(index, "running", `Suppression de ${item.name}`)
 
     try {
-      if (fm.fileExists(item.destination)) {
-        fm.remove(item.destination)
+      const manager = managerOf(item.destination)
+
+      if (manager.fileExists(item.destination)) {
+        manager.remove(item.destination)
       }
 
       summary.unchanged.push(item.name)
@@ -3350,7 +3382,9 @@ function manifestEntries(manifest) {
     ...manifest.resources.map(resource => ({
       name: resource.name,
       type: "Ressource",
-      destination: projectPath(resource.destination)
+      destination: PINNED_LIBRARIES.has(resource.name)
+        ? devicePath(resource.destination)
+        : projectPath(resource.destination)
     }))
   ]
 }
@@ -4067,7 +4101,7 @@ function validateText(content, name) {
 }
 
 async function inspectLocal(path, name) {
-  if (!fm.fileExists(path)) {
+  if (!managerOf(path).fileExists(path)) {
     return {
       valid: false,
       reason: "fichier absent",
@@ -4097,14 +4131,14 @@ async function validateLocal(path, name) {
 
 async function readText(path) {
   await ensureDownloaded(path)
-  return fm.readString(path)
+  return managerOf(path).readString(path)
 }
 
 async function waitForFile(path) {
   const deadline = Date.now() + FILE_WAIT_TIMEOUT
 
   while (true) {
-    if (fm.fileExists(path)) {
+    if (managerOf(path).fileExists(path)) {
       return true
     }
 
@@ -4117,6 +4151,8 @@ async function waitForFile(path) {
 }
 
 async function writeText(destination, content) {
+  const manager = managerOf(destination)
+
   ensureParent(destination)
 
   const temporary = `${destination}.download`
@@ -4128,19 +4164,19 @@ async function writeText(destination, content) {
   let movedAside = false
 
   try {
-    fm.writeString(temporary, content)
+    manager.writeString(temporary, content)
 
     if (!(await waitForFile(temporary))) {
       throw new Error("Le fichier temporaire n’a pas été créé.")
     }
 
-    if (fm.fileExists(destination)) {
-      fm.move(destination, rollback)
+    if (manager.fileExists(destination)) {
+      manager.move(destination, rollback)
 
       movedAside = true
     }
 
-    fm.move(temporary, destination)
+    manager.move(temporary, destination)
 
     if (!(await waitForFile(destination))) {
       throw new Error("Le fichier final n’a pas été créé.")
@@ -4151,13 +4187,13 @@ async function writeText(destination, content) {
   } catch (error) {
     removeQuietly(temporary)
 
-    if (movedAside && fm.fileExists(rollback) && !fm.fileExists(destination)) {
+    if (movedAside && manager.fileExists(rollback) && !manager.fileExists(destination)) {
       try {
-        fm.move(rollback, destination)
+        manager.move(rollback, destination)
       } catch (_) {}
     }
 
-    if (fm.fileExists(destination)) {
+    if (manager.fileExists(destination)) {
       removeQuietly(rollback)
     }
 
@@ -4215,7 +4251,7 @@ function ensureDirectories() {
   }
 }
 
-function projectPath(relative) {
+function relativeParts(relative) {
   const parts = String(relative || "")
     .replace(/\\/g, "/")
     .replace(/^\/+/, "")
@@ -4226,7 +4262,11 @@ function projectPath(relative) {
     throw new Error("Un chemin déclaré dans version.json est invalide.")
   }
 
-  return parts.reduce((path, part) => join(path, part), root)
+  return parts
+}
+
+function projectPath(relative) {
+  return relativeParts(relative).reduce((path, part) => join(path, part), root)
 }
 
 function ensureParent(path) {
@@ -4237,9 +4277,10 @@ function ensureParent(path) {
   }
 
   const parent = path.slice(0, index)
+  const manager = managerOf(path)
 
-  if (!fm.fileExists(parent)) {
-    fm.createDirectory(parent, true)
+  if (!manager.fileExists(parent)) {
+    manager.createDirectory(parent, true)
   }
 }
 
@@ -4363,6 +4404,8 @@ async function errorAlert(error) {
 }
 
 async function ensureDownloaded(path) {
+  if (managerOf(path) === localFm) return
+
   if (fm.fileExists(path) && !fm.isFileDownloaded(path)) {
     await Promise.race([fm.downloadFileFromiCloud(path), sleep(ICLOUD_DOWNLOAD_TIMEOUT)])
   }
@@ -4370,8 +4413,10 @@ async function ensureDownloaded(path) {
 
 function removeQuietly(path) {
   try {
-    if (fm.fileExists(path)) {
-      fm.remove(path)
+    const manager = managerOf(path)
+
+    if (manager.fileExists(path)) {
+      manager.remove(path)
     }
   } catch (_) {}
 }

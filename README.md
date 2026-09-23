@@ -164,11 +164,16 @@ CTS Dashboard
 ├── Cache
 ├── Data
 ├── Database
-├── Libraries
 └── Services
     ├── Archive
     └── Rejected
 ```
+
+Les deux fichiers de PDF.js, qui servent à lire la carte agent, ne sont pas
+dans iCloud : CTS Installer les pose dans le stockage propre à Scriptable sur
+l'iPhone, invisible dans l'app Fichiers. iOS ne peut pas les en retirer faute
+de place, comme il le faisait dans iCloud, et le widget n'a donc jamais à les
+attendre au moment de lire une carte.
 
 ## Mises à jour
 

@@ -121,8 +121,9 @@ Contrôler sur chaque profil d’écran :
 5. Sur une installation saine, le contrôle **Installation** doit annoncer `17/17 scripts conformes au dépôt`, et **Ressources** doit dire que PDF.js n’est contrôlé que sur sa taille.
 6. Modifier un script installé, puis relancer le `Diagnostic` : **Installation** doit passer en erreur, et le rapport doit nommer ce fichier sous **CONFORMITÉ AU DÉPÔT**. La ligne à l’écran abrège la liste — c’est le rapport copié qui la porte entière.
 7. Passer en mode Avion une fois le menu atteint, puis lancer le `Diagnostic` : la conformité doit être annoncée non vérifiée, et jamais divergente.
-8. Tronquer `Libraries/PDF/pdf.min.mjs` : **Ressources** doit le refuser, alors que le fichier reste lisible.
+8. Tronquer `pdf.min.mjs` dans la bibliothèque locale de Scriptable (`CTS Dashboard/Libraries/PDF`) : **Ressources** doit le refuser, alors que le fichier reste lisible.
 9. Après un import interrompu, les étapes qui n’ont pas eu lieu doivent s’écrire `non terminée` dans le rapport, et jamais `0 ms`.
+10. Sur un iPhone installé avant CTS Installer 1.0.32, lancer une vérification : le dossier `CTS Dashboard/Libraries` doit disparaître d’iCloud Drive, puis importer une carte agent — elle doit se lire normalement, le moteur trouvant PDF.js sur l’appareil.
 
 ## 9. Critères de diffusion
 

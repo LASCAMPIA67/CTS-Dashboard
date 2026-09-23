@@ -5,7 +5,7 @@
 const CONFIG = importModule("CTS Config")
 const UTILS = importModule("CTS Utils")
 const STORAGE = importModule("CTS Storage")
-const { fm, paths, files, pdf } = CONFIG
+const { fm, pdf } = CONFIG
 const errorMessage = UTILS.errorMessage
 const PDFJS_VERSION = "6.3.289"
 
@@ -17,7 +17,6 @@ const PDFJS_URLS = {
   worker: `${PDFJS_BASE_URL}/pdf.worker.min.mjs`
 }
 
-const ENGINE_METADATA_PATH = fm.joinPath(paths.pdfEngine, "engine.json")
 const DOWNLOAD_TIMEOUT_SECONDS = 30
 const ENGINE_START_TIMEOUT_MS = 20000
 const MINIMUM_LIBRARY_SIZE_KB = 40
@@ -61,18 +60,41 @@ function extractionTimeout() {
 }
 const WEBVIEW_CALL_MARGIN_MS = 5000
 
+/*
+ * Les bibliothèques vivent sur l'appareil, où CTS Installer les dépose :
+ * iOS ne peut pas les en retirer faute de place, comme il le faisait dans
+ * iCloud. Le moteur ne les attend donc plus d'iCloud ; s'il ne les trouve
+ * pas — un iPhone restauré, une installation interrompue — il les
+ * retélécharge au même endroit.
+ */
+function libraryFiles() {
+  return {
+    local: FileManager.local(),
+    directory: CONFIG.devicePath("Libraries", "PDF"),
+    library: CONFIG.devicePath("Libraries", "PDF", "pdf.min.mjs"),
+    worker: CONFIG.devicePath("Libraries", "PDF", "pdf.worker.min.mjs"),
+    metadata: CONFIG.devicePath("Libraries", "PDF", "engine.json")
+  }
+}
+
 async function ensureReady() {
-  CONFIG.ensureDirectories()
+  const libraries = libraryFiles()
+
+  if (!libraries.local.fileExists(libraries.directory)) {
+    libraries.local.createDirectory(libraries.directory, true)
+  }
 
   const library = await ensureLibraryFile(
-    files.pdfJs,
+    libraries.local,
+    libraries.library,
     PDFJS_URLS.library,
     "Bibliothèque PDF.js",
     "library"
   )
 
   const worker = await ensureLibraryFile(
-    files.pdfWorker,
+    libraries.local,
+    libraries.worker,
     PDFJS_URLS.worker,
     "Worker PDF.js",
     "worker"
@@ -81,11 +103,11 @@ async function ensureReady() {
   /*
    * Les métadonnées décrivent une installation : elles ne s'écrivent donc
    * qu'au moment où le moteur en reçoit une. Les réécrire à chaque lecture
-   * revenait à écrire dans iCloud à chaque réveil du widget, pour un
-   * fichier dont le contenu ne bouge pas.
+   * revenait à écrire à chaque réveil du widget, pour un fichier dont le
+   * contenu ne bouge pas.
    */
   if (library.installed || worker.installed) {
-    await writeEngineMetadata()
+    writeEngineMetadata(libraries.local, libraries.metadata)
   }
 
   return {
@@ -93,20 +115,20 @@ async function ensureReady() {
 
     version: PDFJS_VERSION,
 
-    libraryPath: files.pdfJs,
+    libraryPath: libraries.library,
 
-    workerPath: files.pdfWorker
+    workerPath: libraries.worker
   }
 }
 
-async function ensureLibraryFile(destinationPath, remoteUrl, label, component) {
-  if (await isValidLibraryFile(destinationPath, component)) {
+async function ensureLibraryFile(local, destinationPath, remoteUrl, label, component) {
+  if (isValidLibraryFile(local, destinationPath)) {
     return { installed: false }
   }
 
-  await downloadLibraryFile(destinationPath, remoteUrl, label, component)
+  await downloadLibraryFile(local, destinationPath, remoteUrl, label, component)
 
-  if (!(await isValidLibraryFile(destinationPath, component))) {
+  if (!isValidLibraryFile(local, destinationPath)) {
     throw createTelemetryError(
       component === "worker" ? "PDF_ENGINE_WORKER_INVALID" : "PDF_ENGINE_LIBRARY_INVALID",
 
@@ -119,36 +141,22 @@ async function ensureLibraryFile(destinationPath, remoteUrl, label, component) {
   return { installed: true }
 }
 
-async function isValidLibraryFile(path, component) {
-  if (!fm.fileExists(path)) {
-    return false
-  }
-
+function isValidLibraryFile(local, path) {
   try {
-    await ensureDownloaded(path, {
-      missingCode:
-        component === "worker" ? "PDF_ENGINE_WORKER_MISSING" : "PDF_ENGINE_LIBRARY_MISSING",
+    if (!local.fileExists(path)) return false
 
-      downloadCode:
-        component === "worker"
-          ? "PDF_ENGINE_WORKER_ICLOUD_FAILED"
-          : "PDF_ENGINE_LIBRARY_ICLOUD_FAILED",
+    const sizeKilobytes = local.fileSize(path)
 
-      stage: "engine_install"
-    })
-
-    const sizeKilobytes = fm.fileSize(path)
-
-    return Boolean(Number.isFinite(sizeKilobytes) && sizeKilobytes >= MINIMUM_LIBRARY_SIZE_KB)
+    return Number.isFinite(sizeKilobytes) && sizeKilobytes >= MINIMUM_LIBRARY_SIZE_KB
   } catch (_) {
     return false
   }
 }
 
-async function downloadLibraryFile(destinationPath, remoteUrl, label, component) {
+async function downloadLibraryFile(local, destinationPath, remoteUrl, label, component) {
   const temporaryPath = `${destinationPath}.download`
 
-  removeFileQuietly(temporaryPath)
+  removeFileQuietly(local, temporaryPath)
 
   const request = new Request(remoteUrl)
 
@@ -197,9 +205,9 @@ async function downloadLibraryFile(destinationPath, remoteUrl, label, component)
   }
 
   try {
-    fm.write(temporaryPath, data)
+    local.write(temporaryPath, data)
 
-    const downloadedSizeKilobytes = fm.fileSize(temporaryPath)
+    const downloadedSizeKilobytes = local.fileSize(temporaryPath)
 
     if (
       !Number.isFinite(downloadedSizeKilobytes) ||
@@ -208,11 +216,11 @@ async function downloadLibraryFile(destinationPath, remoteUrl, label, component)
       throw new Error("Le fichier téléchargé est anormalement petit.")
     }
 
-    removeFileQuietly(destinationPath)
+    removeFileQuietly(local, destinationPath)
 
-    fm.move(temporaryPath, destinationPath)
+    local.move(temporaryPath, destinationPath)
   } catch (error) {
-    removeFileQuietly(temporaryPath)
+    removeFileQuietly(local, temporaryPath)
 
     throw createTelemetryError(
       component === "worker"
@@ -228,7 +236,7 @@ async function downloadLibraryFile(destinationPath, remoteUrl, label, component)
   }
 }
 
-async function writeEngineMetadata() {
+function writeEngineMetadata(local, path) {
   const metadata = {
     engine: "PDF.js",
 
@@ -261,54 +269,26 @@ async function writeEngineMetadata() {
    * propre code.
    */
   try {
-    fm.writeString(
-      ENGINE_METADATA_PATH,
-
-      JSON.stringify(metadata, null, 2)
-    )
+    local.writeString(path, JSON.stringify(metadata, null, 2))
   } catch (_) {}
 }
 
 async function extractText(pdfPath) {
-  await ensureReady()
+  const engine = await ensureReady()
 
   await validatePdfPath(pdfPath)
 
-  const libraryBase64 = await readFileAsBase64(
-    files.pdfJs,
+  const libraryBase64 = readLibraryAsBase64(engine.libraryPath, "La bibliothèque PDF.js", {
+    missingCode: "PDF_ENGINE_LIBRARY_MISSING",
+    readCode: "PDF_ENGINE_LIBRARY_READ_FAILED",
+    base64Code: "PDF_ENGINE_LIBRARY_BASE64_FAILED"
+  })
 
-    "La bibliothèque PDF.js",
-
-    {
-      missingCode: "PDF_ENGINE_LIBRARY_MISSING",
-
-      downloadCode: "PDF_ENGINE_LIBRARY_ICLOUD_FAILED",
-
-      readCode: "PDF_ENGINE_LIBRARY_READ_FAILED",
-
-      base64Code: "PDF_ENGINE_LIBRARY_BASE64_FAILED",
-
-      stage: "engine"
-    }
-  )
-
-  const workerBase64 = await readFileAsBase64(
-    files.pdfWorker,
-
-    "Le worker PDF.js",
-
-    {
-      missingCode: "PDF_ENGINE_WORKER_MISSING",
-
-      downloadCode: "PDF_ENGINE_WORKER_ICLOUD_FAILED",
-
-      readCode: "PDF_ENGINE_WORKER_READ_FAILED",
-
-      base64Code: "PDF_ENGINE_WORKER_BASE64_FAILED",
-
-      stage: "engine"
-    }
-  )
+  const workerBase64 = readLibraryAsBase64(engine.workerPath, "Le worker PDF.js", {
+    missingCode: "PDF_ENGINE_WORKER_MISSING",
+    readCode: "PDF_ENGINE_WORKER_READ_FAILED",
+    base64Code: "PDF_ENGINE_WORKER_BASE64_FAILED"
+  })
 
   const pdfBase64 = await readFileAsBase64(
     pdfPath,
@@ -510,6 +490,41 @@ async function readFileAsBase64(path, label, codes) {
 
       `${label} ne peut pas être converti en Base64.`
     )
+  }
+
+  return base64
+}
+
+function readLibraryAsBase64(path, label, { missingCode, readCode, base64Code }) {
+  const local = FileManager.local()
+
+  if (!local.fileExists(path)) {
+    throw createTelemetryError(missingCode, "engine", `${label} est introuvable.`)
+  }
+
+  let data
+
+  try {
+    data = local.read(path)
+  } catch (error) {
+    throw createTelemetryError(readCode, "engine", `${label} ne peut pas être lu.`, error)
+  }
+
+  let base64
+
+  try {
+    base64 = data ? data.toBase64String() : ""
+  } catch (error) {
+    throw createTelemetryError(
+      base64Code,
+      "engine",
+      `${label} ne peut pas être converti en Base64.`,
+      error
+    )
+  }
+
+  if (!base64) {
+    throw createTelemetryError(base64Code, "engine", `${label} ne peut pas être converti en Base64.`)
   }
 
   return base64
@@ -1502,10 +1517,10 @@ function createTelemetryError(code, stage, message, cause = null) {
   )
 }
 
-function removeFileQuietly(path) {
+function removeFileQuietly(manager, path) {
   try {
-    if (fm.fileExists(path)) {
-      fm.remove(path)
+    if (manager.fileExists(path)) {
+      manager.remove(path)
     }
   } catch (_) {}
 }

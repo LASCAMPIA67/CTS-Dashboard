@@ -27,7 +27,8 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const repository = path.resolve(here, "..", "..")
 
 const DOCS = "/documents"
-const ENGINE = `${DOCS}/CTS Dashboard/Libraries/PDF`
+/* Les bibliothèques vivent sur l'appareil, hors d'iCloud. */
+const ENGINE = "/library/CTS Dashboard/Libraries/PDF"
 const LIBRARY = `${ENGINE}/pdf.min.mjs`
 const WORKER = `${ENGINE}/pdf.worker.min.mjs`
 const METADATA = `${ENGINE}/engine.json`
@@ -41,7 +42,6 @@ const TRUNCATED_SIZE_KB = 1
 
 function buildWorld({
   librariesPresent = true,
-  librariesEvicted = false,
   metadataWriteFails = false,
   downloadSizeKb = VALID_SIZE_KB,
   shrinkOnMove = false
@@ -49,33 +49,26 @@ function buildWorld({
   const disk = new Map()
   const written = []
   const downloads = []
-  const waits = []
-
-  /*
-   * Une bibliothèque évacuée est présente dans iCloud sans l'être sur
-   * l'appareil, et iCloud ne la rend jamais. Réécrite, elle redevient
-   * locale.
-   */
-  const evicted = new Set()
+  const iCloudCalls = []
 
   if (librariesPresent) {
     disk.set(LIBRARY, VALID_SIZE_KB)
     disk.set(WORKER, VALID_SIZE_KB)
   }
 
-  if (librariesEvicted) {
-    evicted.add(LIBRARY)
-    evicted.add(WORKER)
-  }
-
   const fm = {
     joinPath: (a, b) => `${a}/${b}`,
     documentsDirectory: () => DOCS,
+    libraryDirectory: () => "/library",
     fileExists: target => disk.has(target),
     createDirectory: () => {},
-    isFileDownloaded: target => !evicted.has(target),
-    downloadFileFromiCloud: target =>
-      evicted.has(target) ? new Promise(() => {}) : Promise.resolve(),
+    isFileDownloaded: target => {
+      iCloudCalls.push(target)
+      return true
+    },
+    downloadFileFromiCloud: async target => {
+      iCloudCalls.push(target)
+    },
     fileSize: target => disk.get(target) ?? 0,
     write: (target, data) => disk.set(target, Number(data?.sizeKilobytes) || 0),
     writeString: (target, content) => {
@@ -94,7 +87,6 @@ function buildWorld({
        */
       disk.set(to, shrinkOnMove ? TRUNCATED_SIZE_KB : disk.get(from))
       disk.delete(from)
-      evicted.delete(to)
     },
     remove: target => disk.delete(target)
   }
@@ -112,10 +104,8 @@ function buildWorld({
       encodeURIComponent, decodeURIComponent,
       config: { runsInWidget: true },
       args: { plainTexts: [], shortcutParameter: null },
-      /* Rend la main aussitôt, en notant l'attente demandée. */
       Timer: class {
         static schedule(milliseconds, repeats, callback) {
-          waits.push(Number(milliseconds) || 0)
           setTimeout(callback, 0)
           return new this()
         }
@@ -153,7 +143,7 @@ function buildWorld({
   load("CTS Utils")
   load("CTS Storage")
 
-  return { engine: load("CTS PDF Engine"), disk, written, downloads, waits }
+  return { engine: load("CTS PDF Engine"), disk, written, downloads, iCloudCalls }
 }
 
 const failures = []
@@ -274,35 +264,29 @@ async function attempt(world) {
 }
 
 /*
- * Les deux bibliothèques évacuées d'iCloud, et iCloud muet.
+ * Les bibliothèques ne dépendent plus d'iCloud.
  *
- * Le moteur avait sa propre attente, douze secondes par fichier, dans le
- * widget comme dans l'application, là où une carte agent qui tardait était
- * abandonnée au bout d'une seconde et demie. Il emprunte désormais l'attente
- * du stockage : un widget ne doit pas accorder plus à une bibliothèque qu'à
- * une carte. Le téléchargement sur le réseau prend ensuite le relais, comme
- * avant.
+ * Rangées dans iCloud, iOS pouvait les retirer de l'appareil faute de
+ * place : le widget devait alors les attendre, ou les retélécharger, au
+ * moment de lire une carte. Sur l'appareil, le moteur n'a plus rien à
+ * demander à iCloud pour elles.
  */
 {
-  const world = buildWorld({ librariesEvicted: true })
+  const world = buildWorld()
   const { result, error } = await attempt(world)
-  const patience = world.waits.reduce((total, value) => total + value, 0)
 
   if (error || !result?.ready) {
-    failures.push(`bibliothèques évacuées : le moteur ne se prépare pas (${error?.message || error})`)
+    failures.push(`bibliothèques locales : le moteur ne se prépare pas (${error?.message || error})`)
   }
 
-  if (world.downloads.length !== 2) {
+  if (world.iCloudCalls.length) {
     failures.push(
-      `bibliothèques évacuées : ${world.downloads.length} téléchargement(s) de secours, deux attendus`
+      `bibliothèques locales : iCloud encore sollicité pour ${world.iCloudCalls.join(", ")}`
     )
   }
 
-  if (patience > 2 * 6000) {
-    failures.push(
-      `bibliothèques évacuées : ${patience} ms accordés à iCloud par le widget, ` +
-      "plus que la patience du stockage sur deux fichiers"
-    )
+  if (!String(result?.libraryPath || "").startsWith("/library/")) {
+    failures.push(`bibliothèques locales : le moteur lit ${result?.libraryPath} au lieu de l'appareil`)
   }
 }
 
@@ -314,6 +298,6 @@ if (failures.length) {
 
 console.log(
   "ok     préparation du moteur PDF (métadonnées jamais bloquantes, écrites à " +
-  "l’installation seulement, bibliothèques toujours contrôlées, attente iCloud " +
-  "empruntée au stockage)"
+  "l’installation seulement, bibliothèques toujours contrôlées, et rangées " +
+  "sur l'appareil sans rien demander à iCloud)"
 )

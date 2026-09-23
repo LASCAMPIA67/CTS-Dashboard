@@ -61,6 +61,9 @@ function repositoryFile(name) {
 /* Système de fichiers temporaire, pré-rempli comme une installation saine. */
 const sandboxRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cts-bench-"))
 const docs = path.join(sandboxRoot, "Documents")
+/* La bibliothèque locale de Scriptable, où vivent les deux PDF.js. */
+const library = path.join(sandboxRoot, "Library")
+const PINNED = new Set(["pdf.min.mjs", "pdf.worker.min.mjs"])
 fs.mkdirSync(docs, { recursive: true })
 
 /*
@@ -78,7 +81,9 @@ function seedInstallation() {
   }
 
   for (const item of manifest.resources) {
-    const target = path.join(root, item.destination)
+    const target = PINNED.has(item.name)
+      ? path.join(library, "CTS Dashboard", item.destination)
+      : path.join(root, item.destination)
     fs.mkdirSync(path.dirname(target), { recursive: true })
     fs.writeFileSync(target, repositoryFile(item.name))
   }
@@ -108,6 +113,7 @@ if (SCENARIO === "fresh") {
 
 const fileManager = {
   documentsDirectory: () => docs,
+  libraryDirectory: () => library,
   joinPath: (a, b) => path.join(a, b),
   fileExists: target => fs.existsSync(target),
   isFileDownloaded: () => true,

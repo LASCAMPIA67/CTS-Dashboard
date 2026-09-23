@@ -23,8 +23,7 @@ const paths = Object.freeze({
   data: joinPath(root, "Data"),
   database: joinPath(root, "Database"),
   cache: joinPath(root, "Cache"),
-  services: joinPath(root, "Services"),
-  libraries: joinPath(root, "Libraries")
+  services: joinPath(root, "Services")
 })
 
 const resolvedPaths = Object.freeze({
@@ -32,8 +31,7 @@ const resolvedPaths = Object.freeze({
   servicesArchive: joinPath(paths.services, "Archive"),
   servicesRejected: joinPath(paths.services, "Rejected"),
   servicesCache: joinPath(paths.cache, "Services"),
-  servicesTextCache: joinPath(joinPath(paths.cache, "Services"), "Text"),
-  pdfEngine: joinPath(paths.libraries, "PDF")
+  servicesTextCache: joinPath(joinPath(paths.cache, "Services"), "Text")
 })
 
 const files = Object.freeze({
@@ -42,8 +40,6 @@ const files = Object.freeze({
   servicesIndex: joinPath(resolvedPaths.data, "services-index.json"),
   servicesScanState: joinPath(resolvedPaths.data, "services-scan-state.json"),
   versionPolicy: joinPath(resolvedPaths.data, "version-policy.json"),
-  pdfJs: joinPath(resolvedPaths.pdfEngine, "pdf.min.mjs"),
-  pdfWorker: joinPath(resolvedPaths.pdfEngine, "pdf.worker.min.mjs"),
   stops: joinPath(resolvedPaths.database, "stops.json"),
   places: joinPath(resolvedPaths.database, "places.json"),
   lines: joinPath(resolvedPaths.database, "lines.json")
@@ -79,8 +75,7 @@ const residueDirectories = Object.freeze([
   resolvedPaths.data,
   resolvedPaths.database,
   resolvedPaths.servicesCache,
-  resolvedPaths.servicesTextCache,
-  resolvedPaths.pdfEngine
+  resolvedPaths.servicesTextCache
 ])
 
 const requiredDirectories = Object.freeze([
@@ -92,10 +87,31 @@ const requiredDirectories = Object.freeze([
   resolvedPaths.servicesArchive,
   resolvedPaths.servicesRejected,
   resolvedPaths.servicesCache,
-  resolvedPaths.servicesTextCache,
-  resolvedPaths.libraries,
-  resolvedPaths.pdfEngine
+  resolvedPaths.servicesTextCache
 ])
+
+/*
+ * Ce qui ne concerne que cet iPhone vit dans la bibliothèque locale de
+ * Scriptable, hors d'iCloud : les verrous, et les deux bibliothèques
+ * PDF.js, qu'iOS pouvait retirer de l'appareil faute de place et qu'il
+ * fallait alors attendre ou retélécharger au moment de lire une carte.
+ * L'application et le widget partagent ce dossier — la documentation ne
+ * le dit pas, une mesure sur iPhone l'a établi le 23 septembre. CTS
+ * Installer y dépose les bibliothèques sous le même nom de dossier.
+ *
+ * Le chemin se résout à l'appel : un module qui n'en a pas besoin n'a pas
+ * à ouvrir le stockage local.
+ */
+const DEVICE_DIRECTORY = "CTS Dashboard"
+
+function devicePath(...parts) {
+  const local = FileManager.local()
+
+  return parts.reduce(
+    (path, part) => local.joinPath(path, part),
+    local.joinPath(local.libraryDirectory(), DEVICE_DIRECTORY)
+  )
+}
 
 function ensureDirectories() {
   for (const directory of requiredDirectories) {
@@ -113,5 +129,6 @@ module.exports = {
   residueDirectories,
   dashboardVersion: DASHBOARD_VERSION,
   servicesIndexVersion: SERVICES_INDEX_VERSION,
+  devicePath,
   ensureDirectories
 }

@@ -227,7 +227,7 @@ function diagnosticState() {
     checks: [
       { title: "Installation", status: "success", detail: "22/22 fichiers valides · Dashboard 1.0.12" },
       { title: "GitHub", status: "success", detail: "Snapshot a7b0d0d accessible" },
-      { title: "Dossiers iCloud", status: "success", detail: "11/11 dossiers présents" },
+      { title: "Dossiers iCloud", status: "success", detail: "9/9 dossiers présents" },
       { title: "Écriture iCloud", status: "success", detail: "Lecture et écriture confirmées" },
       { title: "Ressources", status: "success", detail: "5/5 ressources valides" },
       { title: "Dossier Services", status: "success", detail: "1 PDF · 3 archivés · 0 rejeté" },
