@@ -113,3 +113,18 @@ La page ne dit pas si deux modules qui importent le même fichier
 partagent une seule instance. Un état tenu au niveau d'un module — un
 compteur, une échéance commune à tout un réveil — n'est donc pas garanti
 d'être vu par les autres.
+
+## L'application et le widget partagent le stockage local
+
+La documentation ne le dit pas : c'est une mesure. Le 23/09/2026, sur
+l'iPhone du mainteneur, un script de test a écrit une marque datée depuis
+l'application, puis depuis un widget, dans `FileManager.local()`
+(`documentsDirectory()` et `libraryDirectory()`) et dans iCloud, pris
+pour témoin. Chaque côté a lu la marque de l'autre, au même chemin, dans
+les trois dossiers.
+
+Conséquence : un fichier qui ne concerne que l'appareil — verrou, trace
+d'exécution — peut vivre en local et rester vu des deux contextes, sans
+passer par la synchronisation iCloud. Mesure faite sur un seul appareil
+et une seule version d'iOS : à refaire si Scriptable ou iOS change de
+comportement.
