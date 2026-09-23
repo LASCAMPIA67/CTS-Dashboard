@@ -6,11 +6,23 @@ const DB = importModule("CTS Database")
 const UTILS = importModule("CTS Utils")
 const TRAM_LINE_CODES = new Set(["80", "81", "82", "83", "84", "85"])
 
+/*
+ * HASTUS imprime au bas de chaque page « Page: 1 HASTUS 2025 - poste
+ * 22/09/2026 15:44 ». Terminée par une heure, la ligne se lit comme un
+ * arrêt, et la section de la dernière voiture court jusqu'à la fin du
+ * texte : elle est devenue la direction affichée sur un widget du parc,
+ * « Page: 1 Hast. 2025 - Dtc_. 22/09/2026 ». Rien ne garantit l'ordre dans
+ * lequel la lecture du PDF rend les deux morceaux, d'où les deux
+ * emplacements de « Page ».
+ */
+const PAGE_FOOTER =
+  /(?:Page\s*:\s*\d+\s+)?HASTUS\s+\d{4}\b[^\n]*?\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}(?:\s+Page\s*:\s*\d+)?/gi
+
 const { normalizeText, normalizeTime, isValidTime, toMinutes, escapeRegex, normalizeCode } =
   UTILS
 
 async function parseService(rawText) {
-  const text = normalizeText(rawText)
+  const text = normalizeText(String(rawText || "").replace(PAGE_FOOTER, ""))
   const errors = []
   const warnings = []
   const service = extractServiceNumber(text)
@@ -196,7 +208,7 @@ async function extractDepartureDetails(text, slice, startsAtDepot, endsAtDepot) 
     depotExitAt: startsAtDepot ? extractDepotExitTime(section, lines) : "",
     depotReturnAt: endsAtDepot ? extractDepotReturnTime(lines, slice) : "",
     lineUpAt: startsAtDepot ? await extractLineUpPlace(section, lines, slice) : "",
-    direction: await extractFirstDirection(section, lines)
+    direction: await resolveDirection(slice.lineCode, extractFirstTrip(section, lines))
   }
 }
 
@@ -356,12 +368,42 @@ function isTramLineCode(value) {
   return TRAM_LINE_CODES.has(normalizeCode(value))
 }
 
-async function extractFirstDirection(section, lines) {
+/*
+ * La direction est ce qu'affiche la girouette, et non le dernier arrêt que
+ * le conducteur dessert : une tranche peut finir sur une relève en cours
+ * de ligne. Sur la ligne 2, un trajet parti de Jardin des Deux Rives et
+ * relevé à Montagne Verte va à Lingolsheim Gare. Rien sur la carte ne le
+ * dit ; seuls les terminus de lines.json permettent de le déduire, et
+ * seulement sur une ligne à deux terminus dont chaque trajet part de l'un
+ * pour finir à l'autre. Partout ailleurs, branches ou trajets partiels
+ * rendent la déduction fausse, et le dernier arrêt desservi reste la
+ * meilleure réponse.
+ */
+async function resolveDirection(lineCode, trip) {
+  if (!trip) {
+    return ""
+  }
+
+  const arrival = await DB.formatStop(trip.arrival)
+  const termini = await Promise.all(
+    (await DB.getLineTermini(lineCode)).map(terminus => DB.formatStop(terminus))
+  )
+
+  if (termini.length !== 2 || termini.includes(arrival)) {
+    return arrival
+  }
+
+  const origin = termini.indexOf(await DB.formatStop(trip.departure))
+
+  return origin === -1 ? arrival : termini[1 - origin]
+}
+
+function extractFirstTrip(section, lines) {
   const regularIndex = lines.findIndex(line => /^Régulier\s*\/\s*\S+/i.test(line))
 
   if (regularIndex !== -1) {
     const departure = extractActivityStop(lines[regularIndex])
-    let direction = departure ? await DB.formatStop(departure.name) : ""
+    let arrival = departure
 
     for (let index = regularIndex + 1; index < lines.length; index++) {
       const line = lines[index]
@@ -370,27 +412,26 @@ async function extractFirstDirection(section, lines) {
         break
       }
 
-      const stop = extractTimedStop(line)
-
-      if (stop) {
-        direction = await DB.formatStop(stop.name)
-      }
+      arrival = extractTimedStop(line) || arrival
     }
 
-    if (direction) {
-      return direction
+    if (arrival) {
+      return {
+        departure: departure?.name || "",
+        arrival: arrival.name
+      }
     }
   }
 
-  return extractDirectionFromFlatText(section)
+  return extractFirstTripFromFlatText(section)
 }
 
-async function extractDirectionFromFlatText(section) {
+function extractFirstTripFromFlatText(section) {
   const flatText = section.replace(/\n/g, " ").replace(/\s+/g, " ").trim()
   const start = flatText.search(/\bRégulier\s*\/\s*\S+/i)
 
   if (start === -1) {
-    return ""
+    return null
   }
 
   const afterStart = flatText.slice(start)
@@ -407,14 +448,16 @@ async function extractDirectionFromFlatText(section) {
   ]
 
   if (!matches.length) {
-    return ""
+    return null
   }
 
-  const rawStop = matches[matches.length - 1][1]
-    .replace(/^Régulier\s*\/\s*\S+\s+/i, "")
-    .replace(/^-\s*\/\s*-\s+/i, "")
+  const stopName = match =>
+    match[1].replace(/^Régulier\s*\/\s*\S+\s+/i, "").replace(/^-\s*\/\s*-\s+/i, "")
 
-  return DB.formatStop(rawStop)
+  return {
+    departure: stopName(matches[0]),
+    arrival: stopName(matches[matches.length - 1])
+  }
 }
 
 function extractActivityStop(line) {

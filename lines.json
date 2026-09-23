@@ -3,10 +3,18 @@
     "name": "10"
   },
   "15": {
-    "name": "15"
+    "name": "15",
+    "termini": [
+      "REPUBLIQUE",
+      "BOECKLIN"
+    ]
   },
   "17": {
-    "name": "17"
+    "name": "17",
+    "termini": [
+      "ROTONDE",
+      "MITTELHAUSBERGEN MITTELBERG"
+    ]
   },
   "30": {
     "name": "30"
@@ -39,25 +47,49 @@
     "name": "G"
   },
   "92": {
-    "name": "H"
+    "name": "H",
+    "termini": [
+      "GARE CENTRALE",
+      "PARLEMENT EUROPEEN"
+    ]
   },
   "01": {
     "name": "C1"
   },
   "02": {
-    "name": "2"
+    "name": "2",
+    "termini": [
+      "LINGOLSHEIM GARE",
+      "JARDIN DES DEUX RIVES"
+    ]
   },
   "03": {
-    "name": "C3"
+    "name": "C3",
+    "termini": [
+      "HALLES PONT DE PARIS",
+      "HOENHEIM GARE"
+    ]
   },
   "04": {
-    "name": "C4"
+    "name": "C4",
+    "termini": [
+      "ILLKIRCH FORT UHRICH",
+      "SCHILTIGHEIM CAMPUS"
+    ]
   },
   "05": {
-    "name": "C5"
+    "name": "C5",
+    "termini": [
+      "KOENIGSHOFFEN SUD",
+      "SCHILTIGHEIM LE MARAIS"
+    ]
   },
   "06": {
-    "name": "C6"
+    "name": "C6",
+    "termini": [
+      "PONT PHARIO",
+      "HALLES PONT DE PARIS"
+    ]
   },
   "07": {
     "name": "C7"

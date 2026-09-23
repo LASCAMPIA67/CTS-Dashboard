@@ -96,6 +96,7 @@ Contrôler sur chaque profil d’écran :
 - durée de chaque tranche centrée sous sa plage horaire ;
 - `Ligne … · Voiture …` lisible sur une ligne ;
 - trajets, directions et noms d’arrêts longs réduits proprement avant troncature ;
+- direction d’une tranche relevée en cours de ligne : le terminus de la ligne quand elle n’en a que deux — sur la ligne 2 partie de Jardin des Deux Rives, `Lingolsheim Gare` — et jamais un texte de pied de page commençant par `Page:` ;
 - tranche active identifiable sans nuire à la lisibilité ;
 - cartes Travail / Amplitude alignées et équilibrées ;
 - couleurs BEFORE / WORK / PAUSE / CUT / DONE cohérentes ;

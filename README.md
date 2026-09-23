@@ -418,7 +418,7 @@ conducteurs.
 | `CTS Utils.js` | primitives partagées : temps, dates, texte, et les attentes bornées |
 | `CTS Resources.js` | vérifie que les bases et PDF.js sont bien en place |
 | `CTS Analytics Client.js` | les trois appels réseau, et eux seuls |
-| `lines.json` | noms des lignes |
+| `lines.json` | noms des lignes, et terminus de celles dont chaque trajet va de l'un à l'autre, relevés dans les horaires publiés par la CTS (`opendata.cts-strasbourg.eu`, 22/09/2026) |
 | `stops.json` | noms des arrêts |
 | `places.json` | noms des lieux du bandeau horaires |
 | `pdf.min.mjs` | PDF.js |
@@ -480,13 +480,13 @@ déclarée après l'appel de premier niveau : la syntaxe est valide, mais la
 constante reste inaccessible à l'exécution, et ce piège a déjà tué
 l'installateur 1.0.7 sur l'iPhone d'un collègue.
 
-### Les dix-sept bancs d'essai
+### Les dix-neuf bancs d'essai
 
 Ils complètent la CI parce qu'une vérification statique ne voit pas ce qui
 casse à l'exécution. **Chacun est né d'un défaut réel.**
 
 <details>
-<summary>Les dix-sept bancs, et ce que chacun empêche</summary>
+<summary>Les dix-neuf bancs, et ce que chacun empêche</summary>
 
 | Banc | Ce qu'il empêche |
 |---|---|
@@ -501,6 +501,7 @@ casse à l'exécution. **Chacun est né d'un défaut réel.**
 | `interruption-smoke` | une interruption nommée « pause » par le programme et « coupure » par la pastille d'état |
 | `version-gate-smoke` | un widget bloqué à tort parce qu'il est hors ligne, ou qu'un plancher a été publié de travers |
 | `database-smoke` | un arrêt affiché sous forme de code |
+| `parser-smoke` | un pied de page affiché comme direction, ou l'arrêt de relève à la place du terminus |
 | `layout-smoke` | une grille horaires qui déborde selon l'appareil |
 | `utils-smoke` | une attente sans borne, une date jugée valide par un seul module |
 | `installer-smoke` | une constante inaccessible à l'exécution |
