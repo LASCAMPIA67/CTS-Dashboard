@@ -307,9 +307,10 @@ réseau supplémentaire.
 
 Deux numéros vivent dans [`version.json`](version.json), et ils n'ont pas le
 même métier. Augmenter l'un d'eux, c'est publier : CTS Installer compare le
-numéro du manifeste à celui qui est installé, et n'agit que s'il a monté. Un
-fichier modifié sans numéro nouveau reste dans le dépôt et n'atteint aucun
-iPhone.
+numéro du manifeste à celui qui est installé pour proposer une mise à jour.
+Un fichier modifié sans numéro nouveau atteint tout de même les iPhone, mais
+sans rien annoncer : à la prochaine opération de CTS Installer, vérification
+comprise, dès que la révision du dépôt a bougé.
 
 Un numéro publié désigne un seul état des fichiers, définitivement. Une
 correction qui arrive après coup prend un numéro neuf, même si elle tient en
