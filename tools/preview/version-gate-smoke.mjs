@@ -154,9 +154,7 @@ function buildEngine({ installedVersion, policy }) {
       switchAfter: "",
       displayGraceMs: 3600000,
       withinGracePeriod: false
-    }),
-    listServicePdfs: async () => [],
-    loadScanState: async () => ({ files: {} })
+    })
   }
 
   loaded["CTS Services Cleaner"] = {

@@ -96,15 +96,6 @@ async function readJson(path, fallback = null) {
   }
 }
 
-function writeText(path, value) {
-  ensureDirectories()
-  fm.writeString(path, String(value))
-}
-
-function writeJson(path, value, pretty = true) {
-  writeText(path, JSON.stringify(value, null, pretty ? 2 : 0))
-}
-
 async function writeTextSafely(path, value) {
   ensureDirectories()
 
@@ -185,10 +176,6 @@ function normalizePreferences(value) {
   )
 
   return { textScale: nearest }
-}
-
-function textScales() {
-  return [...TEXT_SCALES]
 }
 
 async function loadPreferences() {
@@ -331,32 +318,9 @@ async function appendLog(type, message, details = null) {
   }
 }
 
-async function clearLog() {
-  try {
-    await writeJsonSafely(files.importLog, [])
-    return true
-  } catch (_) {
-    return false
-  }
-}
-
 async function loadLog() {
   const value = await readJson(files.importLog, [])
   return Array.isArray(value) ? value : []
-}
-
-function fileExists(path) {
-  return fm.fileExists(path)
-}
-
-function removeFile(path) {
-  try {
-    if (!fm.fileExists(path)) return false
-    fm.remove(path)
-    return true
-  } catch (_) {
-    return false
-  }
 }
 
 /*
@@ -553,25 +517,19 @@ module.exports = {
   ensureReadable,
   readText,
   readJson,
-  writeText,
-  writeJson,
   writeTextSafely,
   writeJsonSafely,
   writeJsonAtomically,
   acquireDeviceLock,
   releaseDeviceLock,
   loadPreferences,
-  textScales,
   savePreferences,
   loadVersionPolicy,
   saveVersionPolicy,
   normalizePreferences,
   readCurrentIndex,
   appendLog,
-  clearLog,
   loadLog,
-  fileExists,
-  removeFile,
   removeFileQuietly,
   buildUniqueToken,
   safeModificationDate

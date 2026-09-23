@@ -2175,8 +2175,7 @@ function diagnosticShortTitle(title) {
     "Dossier Services": "SERVICES",
     "Index des services": "INDEX",
     "Journal d’import": "JOURNAL",
-    "Restes d’écriture": "RESTES",
-    "Espace disque": "DISQUE"
+    "Restes d’écriture": "RESTES"
   }[title]
 
   return short || String(title || "").toUpperCase()

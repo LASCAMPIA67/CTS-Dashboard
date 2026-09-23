@@ -15,7 +15,7 @@ const telemetryFromError = UTILS.telemetryFromError
 const normalizeImportTimings = UTILS.normalizeImportTimings
 const INDEX_VERSION = CONFIG.servicesIndexVersion
 
-async function importPdf(pdfPath, options = {}) {
+async function importPdf(pdfPath) {
   CONFIG.ensureDirectories()
 
   const startedAt = new Date().toISOString()

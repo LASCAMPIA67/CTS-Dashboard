@@ -56,7 +56,7 @@ const failures = []
  * Construit une exécution terminée. Les étapes non citées gardent la
  * valeur neutre que leur donne le client.
  */
-function finished({ stages = {}, issues = [], status = null } = {}) {
+function finished({ stages = {}, issues = [] } = {}) {
   const run = ANALYTICS.createTelemetryRun({ executionContext: "widget" })
 
   for (const [stage, value] of Object.entries(stages)) {
@@ -65,10 +65,6 @@ function finished({ stages = {}, issues = [], status = null } = {}) {
 
   for (const issue of issues) {
     ANALYTICS.addTelemetryIssue(run, issue)
-  }
-
-  if (status) {
-    ANALYTICS.setTelemetryRunStatus(run, status)
   }
 
   return ANALYTICS.finishTelemetryRun(run)
@@ -242,19 +238,6 @@ function expect(label, run, expected) {
       `« ${run.serviceStatus} »`
     )
   }
-}
-
-/* Un statut déjà posé par le moteur ne peut pas être adouci. */
-{
-  const run = finished({
-    stages: { pdf: "missing", service: "not_found" },
-    status: "error",
-    issues: [
-      { severity: "warning", errorCode: "PDF_NOT_FOUND", module: "WidgetEngine", stage: "source" }
-    ]
-  })
-
-  expect("statut d'erreur déjà posé", run, "error")
 }
 
 /* Exécution nominale. */

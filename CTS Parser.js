@@ -618,16 +618,5 @@ function uniqueValues(values) {
 }
 
 module.exports = {
-  parseService,
-  extractServiceNumber,
-  extractServiceDate,
-  extractDriver,
-  extractSlices,
-  extractBreaks,
-  extractVehicleSection,
-  rebuildSectionLines,
-  extractActivityStop,
-  extractTimedStop,
-  extractDepotExitTime,
-  validateSlices
+  parseService
 }

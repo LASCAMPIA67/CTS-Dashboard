@@ -5,8 +5,8 @@
 const STORAGE = importModule("CTS Storage")
 const UTILS = importModule("CTS Utils")
 
-async function importPdf(pdfPath, options = {}) {
-  return pipeline().importPdf(pdfPath, options)
+async function importPdf(pdfPath) {
+  return pipeline().importPdf(pdfPath)
 }
 
 /*

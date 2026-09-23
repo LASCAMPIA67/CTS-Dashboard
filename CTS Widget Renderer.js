@@ -1341,7 +1341,6 @@ module.exports = {
   gridGutter,
   statSeparatorWidth: () => STAT_SEPARATOR_WIDTH,
   createWidget,
-  createLargeWidget,
   createErrorWidget,
   createInfoWidget
 }

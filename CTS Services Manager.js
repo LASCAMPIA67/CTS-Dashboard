@@ -172,10 +172,6 @@ async function importCandidate(candidate) {
   }
 }
 
-async function listServicePdfs() {
-  return (await inspectServicesDirectory()).files
-}
-
 async function inspectServicesDirectory() {
   CONFIG.ensureDirectories()
 
@@ -963,7 +959,5 @@ function isCanonicalPdfName(fileName) {
 
 module.exports = {
   scanServices,
-  listServicePdfs,
-  loadScanState,
   resolveServiceForDate
 }

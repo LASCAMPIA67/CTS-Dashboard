@@ -160,10 +160,6 @@ async function isDepot(code) {
   return hasEntryType(await getPlace(code), "depot")
 }
 
-async function isReliefPoint(code) {
-  return hasEntryType(await getPlace(code), "relief")
-}
-
 async function getWarnings() {
   return [...(await load()).warnings]
 }
@@ -275,7 +271,6 @@ function shortenStopLabel(value) {
 }
 
 module.exports = {
-  load,
   reload,
   getStop,
   getPlace,
@@ -285,7 +280,6 @@ module.exports = {
   formatLine,
   getLineTermini,
   isDepot,
-  isReliefPoint,
   getWarnings,
   normalizeCode: UTILS.normalizeCode,
   normalizeKey: UTILS.normalizeKey,

@@ -103,7 +103,6 @@ function translucentWhite(opacity) {
 
 module.exports = {
   createBaseWidget,
-  getGradientColors,
   getAccentHex,
   getAccentColor,
   getSecondaryColor,
@@ -111,6 +110,5 @@ module.exports = {
   getInactiveTextColor,
   getInactiveTimeColor,
   getErrorBackgroundColor,
-  translucentWhite,
-  normalizeStateType
+  translucentWhite
 }
