@@ -4,7 +4,6 @@
 
 const DB = importModule("CTS Database")
 const UTILS = importModule("CTS Utils")
-const TRAM_LINE_CODES = new Set(["80", "81", "82", "83", "84", "85"])
 
 /*
  * HASTUS imprime au bas de chaque page « Page: 1 HASTUS 2025 - poste
@@ -18,8 +17,15 @@ const TRAM_LINE_CODES = new Set(["80", "81", "82", "83", "84", "85"])
 const PAGE_FOOTER =
   /(?:Page\s*:\s*\d+\s+)?HASTUS\s+\d{4}\b[^\n]*?\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}(?:\s+Page\s*:\s*\d+)?/gi
 
-const { normalizeText, normalizeTime, isValidTime, toMinutes, escapeRegex, normalizeCode } =
-  UTILS
+const {
+  normalizeText,
+  normalizeTime,
+  isValidTime,
+  toMinutes,
+  escapeRegex,
+  normalizeCode,
+  isTramLineCode
+} = UTILS
 
 async function parseService(rawText) {
   const text = normalizeText(String(rawText || "").replace(PAGE_FOOTER, ""))
@@ -362,10 +368,6 @@ async function extractTramOperationStart(lines, slice) {
   }
 
   return ""
-}
-
-function isTramLineCode(value) {
-  return TRAM_LINE_CODES.has(normalizeCode(value))
 }
 
 /*

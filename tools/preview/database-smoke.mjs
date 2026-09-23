@@ -154,14 +154,14 @@ const lines = [
  * G et H portent une lettre comme les trams, mais ce sont des lignes de
  * bus à haut niveau de service. Les faire passer pour des trams ferait
  * annoncer un « début d'exploitation » à un conducteur de bus. Le
- * contrôle lit la liste directement dans CTS Parser plutôt que d'en
+ * contrôle lit la liste directement dans CTS Utils plutôt que d'en
  * garder une copie qui pourrait diverger.
  */
 const BUS_LETTER_CODES = ["90", "92"]
 
 const tramCodes = new Set(
   (fs
-    .readFileSync(path.join(repository, "CTS Parser.js"), "utf8")
+    .readFileSync(path.join(repository, "CTS Utils.js"), "utf8")
     .match(/const TRAM_LINE_CODES = new Set\(\[([^\]]*)\]\)/)?.[1] || "")
     .split(",")
     .map(value => value.trim().replace(/"/g, ""))
@@ -255,7 +255,7 @@ for (const [code, expected] of lines) {
 }
 
 if (!tramCodes.size) {
-  failures.push("TRAM_LINE_CODES est introuvable dans CTS Parser.js")
+  failures.push("TRAM_LINE_CODES est introuvable dans CTS Utils.js")
 }
 
 for (const code of BUS_LETTER_CODES) {

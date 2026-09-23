@@ -899,7 +899,7 @@ function getTransportIcon(service) {
 }
 
 function isTramSlice(slice) {
-  return ["80", "81", "82", "83", "84", "85"].includes(String(slice?.lineCode || "").trim())
+  return UTILS.isTramLineCode(slice?.lineCode)
 }
 
 function hasDepotTiming(slice) {
@@ -1277,36 +1277,29 @@ function createErrorWidget(title, message, family) {
 
   const widget = new ListWidget()
   widget.backgroundColor = THEME.getErrorBackgroundColor()
-  widget.setPadding(18, 18, 18, 18)
 
-  const header = widget.addStack()
-  header.centerAlignContent()
-  const icon = header.addStack()
-  icon.size = new Size(34, 34)
-  icon.cornerRadius = 17
-  icon.backgroundColor = THEME.translucentWhite(0.08)
-  icon.centerAlignContent()
-  icon.addSpacer()
-  addSymbol(icon, "exclamationmark.triangle.fill", 15, THEME.getPrimaryTextColor())
-  icon.addSpacer()
-  header.addSpacer(10)
-  addText(header, title, Font.boldSystemFont(17), THEME.getPrimaryTextColor(), 1, 0.72)
-
-  widget.addSpacer(10)
-  const card = addSurface(widget, {
-    padding: [11, 12, 11, 12],
-    radius: 14,
-    backgroundAlpha: 0.05,
-    borderAlpha: 0.07
+  return fillMessageWidget(widget, {
+    title,
+    message,
+    symbol: "exclamationmark.triangle.fill",
+    symbolColor: THEME.getPrimaryTextColor(),
+    messageLines: 4
   })
-  addText(card, message, Font.mediumSystemFont(11), secondary(), 4, 0.72)
-  return markRendered(widget)
 }
 
 function createInfoWidget(title, message, family) {
   if (isAccessoryFamily(family)) return createAccessoryMessage(family, title, message)
 
-  const widget = THEME.createBaseWidget("NEXT")
+  return fillMessageWidget(THEME.createBaseWidget("NEXT"), {
+    title,
+    message,
+    symbol: "tray.and.arrow.down.fill",
+    symbolColor: THEME.getAccentColor("NEXT"),
+    messageLines: 6
+  })
+}
+
+function fillMessageWidget(widget, { title, message, symbol, symbolColor, messageLines }) {
   widget.setPadding(18, 18, 18, 18)
 
   const header = widget.addStack()
@@ -1317,7 +1310,7 @@ function createInfoWidget(title, message, family) {
   icon.backgroundColor = THEME.translucentWhite(0.08)
   icon.centerAlignContent()
   icon.addSpacer()
-  addSymbol(icon, "tray.and.arrow.down.fill", 15, THEME.getAccentColor("NEXT"))
+  addSymbol(icon, symbol, 15, symbolColor)
   icon.addSpacer()
   header.addSpacer(10)
   addText(header, title, Font.boldSystemFont(17), THEME.getPrimaryTextColor(), 1, 0.72)
@@ -1329,7 +1322,7 @@ function createInfoWidget(title, message, family) {
     backgroundAlpha: 0.05,
     borderAlpha: 0.07
   })
-  addText(card, message, Font.mediumSystemFont(11), secondary(), 6, 0.72)
+  addText(card, message, Font.mediumSystemFont(11), secondary(), messageLines, 0.72)
   return markRendered(widget)
 }
 

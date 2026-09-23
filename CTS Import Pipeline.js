@@ -428,8 +428,11 @@ async function movePdfToCanonicalName(plan) {
       )
     }
 
-    archivedPreviousPath = getUniqueArchivePath(
-      ["Remplace", timestampForFileName(), plan.pdfFileName].join("_")
+    archivedPreviousPath = fm.joinPath(
+      paths.servicesArchive,
+      STORAGE.uniqueArchiveFileName(
+        ["Remplace", timestampForFileName(), plan.pdfFileName].join("_")
+      )
     )
 
     try {
@@ -477,21 +480,6 @@ function restoreArchivedPreviousPdf(archivedPath, canonicalPath) {
       fm.move(archivedPath, canonicalPath)
     } catch (_) {}
   }
-}
-
-function getUniqueArchivePath(fileName) {
-  let candidate = fm.joinPath(paths.servicesArchive, fileName)
-  let suffix = 2
-
-  while (fm.fileExists(candidate)) {
-    const extensionIndex = fileName.toLowerCase().lastIndexOf(".pdf")
-    const baseName = extensionIndex >= 0 ? fileName.slice(0, extensionIndex) : fileName
-
-    candidate = fm.joinPath(paths.servicesArchive, `${baseName}_${suffix}.pdf`)
-    suffix++
-  }
-
-  return candidate
 }
 
 async function buildUpdatedIndex(plan, service, extraction, sourceInfo, pdfFileName) {

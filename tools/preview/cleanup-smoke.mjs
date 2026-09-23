@@ -185,6 +185,10 @@ function buildWorld({ lastEnd, serviceDate }) {
     },
     ensureDownloaded: async () => true,
     appendLog: async () => {},
+    readCurrentIndex: async () =>
+      JSON.parse(files.get(`${DATA}/services-index.json`)),
+    /* Le nom unique réel est éprouvé par storage-smoke : ici, aucun doublon. */
+    uniqueArchiveFileName: name => name,
     /* Le verrou réel est éprouvé par storage-smoke : ici, il est toujours libre. */
     acquireDeviceLock: () => ({ acquired: true, token: "verrou" }),
     releaseDeviceLock: () => {},
@@ -196,11 +200,6 @@ function buildWorld({ lastEnd, serviceDate }) {
     writeJsonAtomically: async (target, value) => {
       files.set(target, JSON.stringify(value, null, 2))
     }
-  }
-
-  loaded["CTS Importer"] = {
-    readCurrentIndex: async () =>
-      JSON.parse(files.get(`${DATA}/services-index.json`))
   }
 
   const CLEANER = loadModule("CTS Services Cleaner")

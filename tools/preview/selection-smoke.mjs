@@ -81,8 +81,6 @@ function loadManager(disk) {
   function load(name) {
     if (name === "CTS Importer") {
       return {
-        readCurrentIndex: async () =>
-          JSON.parse(disk.get(`${DATA}/services-index.json`) || '{"services":[]}'),
         importPdf: async () => ({ success: false })
       }
     }

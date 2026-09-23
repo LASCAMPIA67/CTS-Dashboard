@@ -379,6 +379,72 @@ for (const [context, runsInWidget, floor, ceiling] of [
 }
 
 /*
+ * La bascule réussit mais pose un fichier incomplet. Sans relecture,
+ * l'index des services aurait été déclaré écrit alors qu'il ne se relit
+ * plus : seule la relecture le voit, et rend l'ancien contenu.
+ */
+{
+  const fm = createFileManager({ confirmsDownloads: true })
+  const STORAGE = loadStorage(fm)
+  const target = "/documents/CTS Dashboard/Data/services-index.json"
+  const original = JSON.stringify(INDEX)
+
+  fm.disk.set(target, original)
+
+  const move = fm.move
+  fm.move = (from, to) => {
+    move(from, to)
+    if (from.includes(".tmp-")) fm.disk.set(to, "{")
+  }
+
+  let thrown = null
+
+  try {
+    await STORAGE.writeJsonAtomically(target, { version: 99 }, {
+      commitCode: "TEST_COMMIT_FAILED",
+      stage: "test"
+    })
+  } catch (error) {
+    thrown = error
+  }
+
+  fm.move = move
+
+  if (thrown?.telemetryCode !== "TEST_COMMIT_FAILED") {
+    failures.push("fichier posé incomplet : l'écriture ne s'en aperçoit pas")
+  }
+
+  if (fm.disk.get(target) !== original) {
+    failures.push("fichier posé incomplet : l'ancien contenu n'est pas restauré")
+  }
+}
+
+/*
+ * Nom d'archive. L'import qui remplace une carte et le nettoyage qui
+ * range un service passé archivent dans le même dossier : un nom déjà
+ * pris doit en donner un nouveau, jamais écraser l'ancien PDF.
+ */
+{
+  const fm = createFileManager({ confirmsDownloads: true })
+  const STORAGE = loadStorage(fm)
+  const archive = "/documents/CTS Dashboard/Services/Archive"
+
+  fm.disk.set(`${archive}/Service_EA05.pdf`, "%PDF")
+  fm.disk.set(`${archive}/Service_EA05_2.pdf`, "%PDF")
+
+  const taken = STORAGE.uniqueArchiveFileName("Service_EA05.pdf")
+  const free = STORAGE.uniqueArchiveFileName("Services/Service_EA06.pdf")
+
+  if (taken !== "Service_EA05_3.pdf") {
+    failures.push(`nom d'archive : « ${taken} » au lieu de Service_EA05_3.pdf`)
+  }
+
+  if (free !== "Service_EA06.pdf") {
+    failures.push(`nom d'archive : « ${free} » au lieu de Service_EA06.pdf`)
+  }
+}
+
+/*
  * Restes des anciennes écritures, avant que les noms ne portent un
  * jeton. Chaque écriture les balaie au passage — mais une copie de
  * sécurité dont le fichier d'origine manque peut être le dernier
@@ -641,7 +707,7 @@ console.log(
   "ok     lecture des fichiers iCloud " +
   "(iCloud muet, iCloud normal, absent, illisible, sans réponse, aucune attente inutile, " +
   "patience du widget et de l'application, disponibilité déclarée en retard, " +
-  "écriture atomique, bascule interrompue, préférences, verrous de l'appareil, " +
+  "écriture atomique relue, bascule interrompue, nom d'archive unique, préférences, verrous de l'appareil, " +
   "index des services dont le refus " +
   "d'un index corrompu)"
 )

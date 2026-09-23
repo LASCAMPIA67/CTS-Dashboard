@@ -301,3 +301,8 @@ décision lui est antérieure.
   d'une publication de CTS Installer : c'est lui qui les pose désormais
   hors d'iCloud, et qui efface les anciennes copies une fois les nouvelles
   validées.
+- 2026-09-23 — Une seule écriture sûre dans tout le Dashboard, et elle
+  relit toujours ce qu'elle vient de poser : les deux qui coexistaient ne
+  donnaient pas la même garantie, et rien ne disait laquelle choisir.
+  L'index des services et l'état du balayage y gagnent la relecture, au
+  prix d'une lecture de quelques kilo-octets.

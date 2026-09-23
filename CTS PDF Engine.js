@@ -568,7 +568,7 @@ async function readFileDataWithRetry(path, label, codes) {
     }
 
     if (attempt < FILE_READ_ATTEMPTS) {
-      await sleep(FILE_READ_RETRY_MS * attempt)
+      await UTILS.sleep(FILE_READ_RETRY_MS * attempt)
     }
   }
 
@@ -601,7 +601,7 @@ async function readFileSizeWithRetry(path, { code, stage, label }) {
     }
 
     if (attempt < FILE_READ_ATTEMPTS) {
-      await sleep(FILE_READ_RETRY_MS * attempt)
+      await UTILS.sleep(FILE_READ_RETRY_MS * attempt)
     }
   }
 
@@ -1443,12 +1443,6 @@ async function ensureDownloaded(
   if (!downloaded) {
     throw createTelemetryError(missingCode, stage, "Le fichier demandé est introuvable.")
   }
-}
-
-async function sleep(milliseconds) {
-  await new Promise(resolve => {
-    Timer.schedule(Math.max(0, Number(milliseconds) || 0), false, resolve)
-  })
 }
 
 function describeExtractionFailure(result) {

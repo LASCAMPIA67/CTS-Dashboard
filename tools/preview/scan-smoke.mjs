@@ -101,7 +101,6 @@ function loadManager(disk, { runsInWidget, importOutcome = null }) {
   function load(name) {
     if (name === "CTS Importer") {
       return {
-        readCurrentIndex: async () => ({ version: 2, services: [] }),
         importPdf: async pdfPath => {
           imports.push(pdfPath)
 

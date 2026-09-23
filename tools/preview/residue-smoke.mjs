@@ -149,11 +149,10 @@ function loadCleaner(disk, { readableDates = true } = {}) {
     },
     writeJsonAtomically: async (target, value) => {
       disk.put(target, JSON.stringify(value, null, 2), NOW)
-    }
-  }
-
-  /* Comme le vrai : l'index vient du disque, pas d'une copie figée. */
-  loaded["CTS Importer"] = {
+    },
+    /* Le nom unique réel est éprouvé par storage-smoke : ici, aucun doublon. */
+    uniqueArchiveFileName: name => name,
+    /* Comme le vrai : l'index vient du disque, pas d'une copie figée. */
     readCurrentIndex: async () => {
       const entry = disk.files.get(`${DATA}/services-index.json`)
       const value = entry ? JSON.parse(entry.content) : null

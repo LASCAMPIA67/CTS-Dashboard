@@ -209,6 +209,7 @@ function buildWorld(services) {
     },
     ensureDownloaded: async target => files.has(target),
     appendLog: async () => {},
+    readCurrentIndex: async () => JSON.parse(files.get(INDEX_PATH)),
     /* Le verrou réel est éprouvé par storage-smoke : ici, il est toujours libre. */
     acquireDeviceLock: () => ({ acquired: true, token: "verrou" }),
     releaseDeviceLock: () => {},
@@ -223,7 +224,6 @@ function buildWorld(services) {
   }
 
   loaded["CTS Importer"] = {
-    readCurrentIndex: async () => JSON.parse(files.get(INDEX_PATH)),
     importPdf: async () => {
       throw new Error("importPdf n’a pas sa place dans ce banc")
     }

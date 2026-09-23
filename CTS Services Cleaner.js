@@ -4,7 +4,6 @@
 
 const CONFIG = importModule("CTS Config")
 const STORAGE = importModule("CTS Storage")
-const IMPORTER = importModule("CTS Importer")
 const UTILS = importModule("CTS Utils")
 const { fm, paths, files, pdf } = CONFIG
 const REPLACED_PDF_PREFIX = "Remplace_"
@@ -52,7 +51,7 @@ async function maintainServices(currentDate = new Date(), options = {}) {
 
 async function readIndexForCleanup(stage = "archive") {
   try {
-    return await IMPORTER.readCurrentIndex()
+    return await STORAGE.readCurrentIndex()
   } catch (error) {
     if (UTILS.hasTelemetryError(error)) {
       throw error
@@ -342,7 +341,7 @@ async function maintainActivePdfEntry(entry, currentDate, archiveGraceMs) {
     )
   }
 
-  const archiveFileName = uniqueArchiveFileName(pdfFileName)
+  const archiveFileName = STORAGE.uniqueArchiveFileName(pdfFileName)
   const archivePath = fm.joinPath(paths.servicesArchive, archiveFileName)
 
   try {
@@ -1424,25 +1423,6 @@ function resolveNonNegativeDelay(requested, configured, fallback) {
   }
 
   return fallback
-}
-
-function uniqueArchiveFileName(originalFileName) {
-  const cleanName = String(originalFileName || "Service.pdf")
-    .split(/[\\/]/)
-    .pop()
-
-  let candidate = cleanName
-  let suffix = 2
-
-  while (fm.fileExists(fm.joinPath(paths.servicesArchive, candidate))) {
-    const extensionIndex = cleanName.toLowerCase().lastIndexOf(".pdf")
-    const baseName = extensionIndex >= 0 ? cleanName.slice(0, extensionIndex) : cleanName
-
-    candidate = `${baseName}_${suffix}.pdf`
-    suffix++
-  }
-
-  return candidate
 }
 
 function skippedResult(entry, reason) {
