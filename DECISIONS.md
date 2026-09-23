@@ -256,3 +256,13 @@ décision lui est antérieure.
   agent sur un iPhone ; et fusionner distribue, l'installateur synchronisant
   ses ressources dès que la révision du dépôt a bougé, vérification comprise,
   sans qu'aucun numéro de version ait monté.
+- 2026-09-23 — La direction affichée est celle de la girouette, et non le
+  dernier arrêt que le conducteur dessert. Une tranche peut finir sur une
+  relève en cours de ligne : le widget annonçait Montagne Verte, où le
+  collègue est relevé, pour un bus qui va à Lingolsheim Gare — et la carte
+  agent ne dit nulle part où il va. `lines.json` porte donc les deux terminus
+  des lignes dont chaque trajet va de l'un à l'autre, relevés dans les
+  horaires que la CTS publie, et la direction s'en déduit. Les lignes à
+  branches ou à trajets partiels n'en portent pas : la déduction y serait
+  fausse, et le dernier arrêt desservi reste la meilleure réponse. Ces
+  terminus s'entretiennent à la main quand le réseau change.

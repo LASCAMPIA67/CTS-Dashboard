@@ -151,6 +151,11 @@ async function formatLine(code) {
   return Number.isFinite(numeric) ? String(numeric) : normalizedCode
 }
 
+async function getLineTermini(code) {
+  const termini = (await getLine(code))?.termini
+  return Array.isArray(termini) ? termini.filter(value => typeof value === "string") : []
+}
+
 async function isDepot(code) {
   return hasEntryType(await getPlace(code), "depot")
 }
@@ -278,6 +283,7 @@ module.exports = {
   formatStop,
   formatPlace,
   formatLine,
+  getLineTermini,
   isDepot,
   isReliefPoint,
   getWarnings,

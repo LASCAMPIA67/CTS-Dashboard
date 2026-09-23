@@ -76,6 +76,11 @@ jobs:
       - name: Run database resolution test
         run: node tools/preview/database-smoke.mjs
 
+      # Le pied de page HASTUS se termine par une heure, et la direction
+      # d'une relève en cours de ligne n'est pas écrite sur la carte.
+      - name: Run direction parsing test
+        run: node tools/preview/parser-smoke.mjs
+
       # iCloud peut refuser de déclarer disponible un fichier pourtant
       # lisible : le widget concluait alors « aucun service » en silence.
       - name: Run iCloud read test
