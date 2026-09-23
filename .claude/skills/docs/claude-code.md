@@ -62,8 +62,14 @@ session ouverte sur les deux dépôts sans choisir ultracode. Le processus
 a reçu `--effort medium`, et le journal de la session a noté
 `"effort":"medium"`. La ligne a été retirée du script le jour même.
 
-Aucun fichier, de dépôt ou d'environnement, ne rend donc ultracode
-permanent. Il se choisit dans l'appli, ou dans la session :
+Dans une session ouverte sur les deux dépôts, aucun fichier ne rend donc
+ultracode permanent : les réglages des dépôts n'y sont pas lus — voir
+plus bas — et celui de l'environnement cède devant l'appli. Dans une
+session ouverte sur un seul dépôt, la clé posée dans son
+`.claude/settings.json` n'a pas été essayée, et rien ne permet de
+conclure d'avance : la même page montre avec `effortLevel` qu'une clé
+peut agir différemment selon le fichier qui la porte. Dans tous les cas
+essayés, ultracode se choisit dans l'appli, ou dans la session :
 
 > « Claude Code reads this key but never writes it: `/effort ultracode`
 > turns ultracode on for the current session only. »
