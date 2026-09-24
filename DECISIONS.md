@@ -342,3 +342,10 @@ décision lui est antérieure.
   module ne s'en servait, servait encore à l'installateur, et le Diagnostic
   de tout le parc a annoncé une erreur qui n'existait pas pendant que
   « Retirer un service » cessait de fonctionner, sans qu'aucun banc le voie.
+- 2026-09-24 — La règle qui vérifie ce qu'un script emprunte aux modules
+  n'existe qu'en un exemplaire, dans ce dépôt, et vaut aussi pour les
+  outils du mainteneur. Eux aussi empruntent aux modules, et rien ne les
+  confrontait aux modules publiés ; une seconde copie de la règle dans
+  l'autre dépôt aurait fini par ne plus voir la même chose — le jour même,
+  la première relecture de ces outils prenait une adresse internet pour un
+  appel de fonction, défaut que la règle d'ici portait aussi.

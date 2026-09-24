@@ -542,6 +542,12 @@ langage, une console muette, un `Timer` conforme à Scriptable, et les
 façons d'exécuter un script. Une doublure fausse s'y corrige une fois pour
 tous.
 
+`references.mjs` porte la règle qui vérifie ce qu'un script emprunte aux
+modules. `modules-smoke` l'applique aux modules et à CTS Installer, et elle
+vaut aussi pour les outils du mainteneur, qui vivent ailleurs : ils
+empruntent aux mêmes modules, et une seconde copie de la règle finirait par
+ne plus voir la même chose.
+
 ## Licence et auteur
 
 **Emilio IPPOLITO** — projet développé et maintenu indépendamment.
