@@ -37,6 +37,7 @@ Résultat attendu : installation sans intervention manuelle dans les dossiers te
 3. Corrompre une copie locale de `lines.json`, puis vérifier : la ressource doit être restaurée.
 4. Refaire une vérification : `22/22 fichiers valides`, `0 erreur`.
 5. Contrôler que `Services`, `Data`, `Cache`, les PDF et les archives sont conservés.
+6. Choisir `Retirer un service` sur un service de test : la liste des services doit s’afficher, le retrait aboutir sur `Service retiré`, et les autres services rester en place.
 
 ## 4. Import PDF par navigateur
 
@@ -124,6 +125,7 @@ Contrôler sur chaque profil d’écran :
 8. Tronquer `pdf.min.mjs` dans la bibliothèque locale de Scriptable (`CTS Dashboard/Libraries/PDF`) : **Ressources** doit le refuser, alors que le fichier reste lisible.
 9. Après un import interrompu, les étapes qui n’ont pas eu lieu doivent s’écrire `non terminée` dans le rapport, et jamais `0 ms`.
 10. Sur un iPhone installé avant CTS Installer 1.0.32, lancer une vérification : le dossier `CTS Dashboard/Libraries` doit disparaître d’iCloud Drive, puis importer une carte agent — elle doit se lire normalement, le moteur trouvant PDF.js sur l’appareil.
+11. Avec au moins un service enregistré, **Index des services** doit être validé et annoncer le nombre de services indexés — jamais qu’un module « ne fournit pas » une fonction.
 
 ## 9. Critères de diffusion
 

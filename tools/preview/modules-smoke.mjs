@@ -11,8 +11,9 @@
  * Ce test charge donc les dix-sept modules dans l'ordre de leurs
  * dépendances, puis relit chaque fichier pour retrouver les membres qu'il
  * consulte sur les modules qu'il importe, et vérifie que chacun existe.
- * C'est le filet qui permet de déplacer une fonction d'un module à
- * l'autre sans risquer de casser le widget.
+ * Il en fait autant pour ce que CTS Installer emprunte aux modules. C'est
+ * le filet qui permet de déplacer une fonction d'un module à l'autre sans
+ * risquer de casser le widget ni l'installateur.
  */
 
 import fs from "node:fs"
@@ -203,14 +204,13 @@ for (const name of loadOrder()) {
 
 /*
  * Les références réellement écrites dans chaque fichier : `UTILS.machin`
- * quand UTILS vient d'un importModule, et les déstructurations
- * `const { a, b } = importModule(...)`.
+ * quand UTILS vient d'un importModule, les déstructurations
+ * `const { a, b } = importModule(...)`, et les emprunts
+ * `loadDashboardFunction("Module", "fonction")` de l'installateur.
  */
 let checked = 0
 
-for (const consumer of modules) {
-  const source = sources.get(consumer)
-
+function moduleAliases(source) {
   const aliases = new Map()
 
   for (const match of source.matchAll(
@@ -219,6 +219,10 @@ for (const consumer of modules) {
     if (sources.has(match[2])) aliases.set(match[1], match[2])
   }
 
+  return aliases
+}
+
+function checkReferences(consumer, source, aliases) {
   for (const [alias, moduleName] of aliases) {
     const exported = loaded.get(moduleName) || {}
 
@@ -272,7 +276,78 @@ for (const consumer of modules) {
       }
     }
   }
+
+  const borrowings = [...source.matchAll(
+    /loadDashboardFunction\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)/g
+  )]
+
+  /* Un emprunt que ce banc ne sait pas lire passerait sans être vérifié. */
+  const calls = source.match(/(?<!function\s)loadDashboardFunction\(/g) || []
+
+  if (calls.length !== borrowings.length) {
+    failures.push(
+      `${consumer} appelle loadDashboardFunction sans nommer en toutes lettres ` +
+        `le module et la fonction : ce banc ne peut pas vérifier l'emprunt`
+    )
+  }
+
+  for (const [, moduleName, member] of borrowings) {
+    checked++
+
+    if (!sources.has(moduleName)) {
+      failures.push(
+        `${consumer} emprunte ${moduleName}.${member}, mais ${moduleName} n'est pas distribué`
+      )
+    } else if (!(member in (loaded.get(moduleName) || {}))) {
+      failures.push(
+        `${consumer} emprunte ${moduleName}.${member}, absent des exports de ${moduleName}`
+      )
+    }
+  }
 }
+
+for (const consumer of modules) {
+  const source = sources.get(consumer)
+  checkReferences(consumer, source, moduleAliases(source))
+}
+
+/*
+ * CTS Installer vit hors du manifeste. Sur l'iPhone, les modules changent à
+ * chaque révision du dépôt, l'installateur seulement quand son numéro
+ * monte : ce qu'il leur emprunte est la frontière la plus exposée du
+ * projet. Le 23 septembre, un relais retiré de CTS Importer parce que plus
+ * aucun module ne s'en servait a éteint « Retirer un service » et mis en
+ * rouge le Diagnostic de tout le parc. CTS Repair, l'autre script hors
+ * manifeste, n'emprunte rien aux modules : il doit fonctionner sans eux.
+ *
+ * L'installateur importe à la demande, dans un try, puisque le Dashboard
+ * peut manquer : l'affectation y suit la déclaration, et le nom du module
+ * passe parfois par une constante. Le motif des modules n'y verrait rien,
+ * et étendu à eux il confondrait le `module` de Scriptable avec
+ * l'importation locale que CTS Importer nomme ainsi.
+ */
+function installerAliases(source) {
+  const constants = new Map(
+    [...source.matchAll(/const\s+([A-Z][A-Z0-9_]*)\s*=\s*"([^"]+)"/g)].map(match => [
+      match[1],
+      match[2]
+    ])
+  )
+
+  const aliases = new Map()
+
+  for (const match of source.matchAll(
+    /\b([A-Za-z_$][\w$]*)\s*=\s*importModule\(\s*(?:"([^"]+)"|([A-Z][A-Z0-9_]*))\s*\)/g
+  )) {
+    const moduleName = match[2] || constants.get(match[3])
+    if (sources.has(moduleName)) aliases.set(match[1], moduleName)
+  }
+
+  return aliases
+}
+
+const installer = fs.readFileSync(path.join(repository, "CTS Installer.js"), "utf8")
+checkReferences("CTS Installer", installer, installerAliases(installer))
 
 if (touched.length) {
   failures.push(
@@ -288,5 +363,5 @@ if (failures.length) {
 
 console.log(
   `ok     chargement des modules et références croisées ` +
-    `(${modules.length} modules, ${checked} références)`
+    `(${modules.length} modules et CTS Installer, ${checked} références)`
 )
