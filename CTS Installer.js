@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.32"
+const INSTALLER_VERSION = "1.0.33"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -1146,6 +1146,10 @@ function isInstallerSource(content) {
  *
  * Si le Dashboard est absent, ou trop ancien pour exposer la fonction,
  * l'action le dit et s'arrête sans rien toucher.
+ *
+ * Ses échecs ne passent pas par errorAlert, qui envoie vérifier la
+ * connexion Internet : rien ici ne touche au réseau, et le conseil
+ * détournait de la vraie cause.
  */
 async function removeServiceFlow() {
   const cleaner = loadDashboardFunction("CTS Services Cleaner", "removeService")
@@ -1160,7 +1164,7 @@ async function removeServiceFlow() {
   try {
     entries = await loadIndexedServices()
   } catch (error) {
-    await errorAlert(error)
+    await noticeAlert("Retirer un service", messageOf(error))
     return
   }
 
@@ -1199,7 +1203,7 @@ async function removeServiceFlow() {
   try {
     result = await cleaner.value(chosen.id)
   } catch (error) {
-    await errorAlert(error)
+    await noticeAlert("Retirer un service", messageOf(error))
     return
   }
 
@@ -1230,14 +1234,20 @@ function loadDashboardFunction(moduleName, functionName) {
   return { ready: true, value: module[functionName].bind(module), reason: "" }
 }
 
+/*
+ * L'index se lit là où il vit, dans CTS Storage, et jamais par un relais :
+ * les modules changent à chaque révision du dépôt, cet installateur
+ * seulement quand son numéro monte, et un relais qu'un module retire parce
+ * qu'il ne s'en sert plus lui-même coupe l'installateur resté en arrière.
+ */
 async function loadIndexedServices() {
-  const importer = loadDashboardFunction("CTS Importer", "readCurrentIndex")
+  const reader = loadDashboardFunction("CTS Storage", "readCurrentIndex")
 
-  if (!importer.ready) {
-    throw new Error(importer.reason)
+  if (!reader.ready) {
+    throw new Error(reader.reason)
   }
 
-  const index = await importer.value()
+  const index = await reader.value()
   const services = Array.isArray(index?.services) ? index.services : []
 
   return services
@@ -1847,16 +1857,16 @@ function inspectDiagnosticServicesFolder() {
 
 async function inspectDiagnosticIndex() {
   try {
-    const importer = importModule("CTS Importer")
+    const storage = importModule("CTS Storage")
 
-    if (!importer || typeof importer.readCurrentIndex !== "function") {
+    if (!storage || typeof storage.readCurrentIndex !== "function") {
       return {
         status: "error",
-        detail: "CTS Importer ne fournit pas readCurrentIndex()"
+        detail: "CTS Storage ne fournit pas readCurrentIndex()"
       }
     }
 
-    const index = await importer.readCurrentIndex()
+    const index = await storage.readCurrentIndex()
     const count = Array.isArray(index?.services) ? index.services.length : 0
 
     return count > 0

@@ -10,15 +10,18 @@
  * fichier de bout en bout avant d'appeler quoi que ce soit, ce qui initialise
  * tout. Il fallait exécuter le fichier comme l'iPhone l'exécute.
  *
- * Les trois actions du menu sont jouées : vérification, diagnostic,
- * désinstallation.
+ * Chaque action du menu est jouée. Le Diagnostic et le retrait d'un
+ * service le sont aussi contre les vrais modules du Dashboard, auxquels
+ * l'installateur emprunte des fonctions : sur l'iPhone, les modules changent
+ * à chaque révision du dépôt et l'installateur seulement quand son numéro
+ * monte.
  */
 
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import * as ui from "./uitable-shim.mjs"
-import { repository, runScript, scriptableGlobals, timerDouble } from "./sandbox.mjs"
+import { moduleSpace, repository, runScript, scriptableGlobals, timerDouble } from "./sandbox.mjs"
 
 const installerPath = process.argv[2] || path.join(repository, "CTS Installer.js")
 
@@ -32,6 +35,13 @@ const SNAPSHOT = "6a3937ee112251d6093f6678710b6d80187f1085"
  */
 const FUTURE = "1.9.9"
 const manifest = JSON.parse(fs.readFileSync(path.join(repository, "version.json"), "utf8"))
+
+/*
+ * Le service enregistré des scénarios joués contre les vrais modules.
+ * L'installateur leur passe l'horloge réelle : une date lointaine garde ce
+ * service à venir, quel que soit le jour où le banc tourne.
+ */
+const INDEXED_SERVICE = { date: "2099-06-15", number: "EA06", end: "13:30" }
 
 function repositoryFile(name) {
   const file = path.join(repository, name)
@@ -71,7 +81,8 @@ async function runAction(
     scriptName = "CTS Installer",
     runningWriteBroken = false,
     aborts = false,
-    migration = false
+    migration = false,
+    dashboard = false
   } = {}
 ) {
   /*
@@ -147,6 +158,45 @@ async function runAction(
         detected: 0
       })
     )
+
+    if (dashboard) {
+      const stem = `Service_${INDEXED_SERVICE.date}_${INDEXED_SERVICE.number}`
+      const cache = path.join(root, "Cache", "Services")
+
+      fs.mkdirSync(path.join(root, "Services"), { recursive: true })
+      fs.mkdirSync(path.join(cache, "Text"), { recursive: true })
+      fs.writeFileSync(path.join(root, "Services", `${stem}.pdf`), "%PDF-1.7")
+      fs.writeFileSync(
+        path.join(cache, `${stem}.json`),
+        JSON.stringify({
+          date: INDEXED_SERVICE.date,
+          service: INDEXED_SERVICE.number,
+          validation: { valid: true, warnings: [] },
+          slices: [{ dutyStart: "05:30", end: INDEXED_SERVICE.end }]
+        })
+      )
+      fs.writeFileSync(path.join(cache, "Text", `${stem}.txt`), "texte extrait")
+      fs.writeFileSync(
+        path.join(root, "Data", "services-index.json"),
+        JSON.stringify({
+          version: 2,
+          updatedAt: "",
+          services: [
+            {
+              id: `${INDEXED_SERVICE.date}_${INDEXED_SERVICE.number}`,
+              date: INDEXED_SERVICE.date,
+              service: INDEXED_SERVICE.number,
+              pdfFile: `${stem}.pdf`,
+              cacheFile: `${stem}.json`,
+              textFile: `${stem}.txt`,
+              lastEnd: INDEXED_SERVICE.end,
+              firstDutyStart: "05:30",
+              indexedAt: "2099-06-14T18:00:00.000Z"
+            }
+          ]
+        })
+      )
+    }
   }
 
   /*
@@ -363,7 +413,7 @@ async function runAction(
     listContents: target => (fs.existsSync(target) ? fs.readdirSync(target) : [])
   }
 
-  const sandbox = scriptableGlobals({
+  const globals = {
     console: {
       log: () => {},
       warn: () => {},
@@ -392,33 +442,6 @@ async function runAction(
     },
     Safari: { open: url => relaunched.push(String(url)) },
     FileManager: { iCloud: () => fileManager, local: () => fileManager },
-    /*
-     * L'installateur importe CTS Storage à la demande, et uniquement
-     * pour deux choses : relire le journal d'import, et lire ou écrire
-     * les préférences d'affichage. Le doublon ne fournit ce module que
-     * dans le scénario qui l'exige, pour que les autres continuent
-     * d'éprouver le chemin où il manque.
-     */
-    importModule: name => {
-      if (name === "CTS Storage" && (preferencesStore || logEntries)) {
-        const storage = {}
-
-        if (preferencesStore) {
-          storage.loadPreferences = async () => ({ ...preferencesStore.value })
-          storage.savePreferences = async value => {
-            preferencesStore.value = { textScale: Number(value?.textScale) || 1 }
-          }
-        }
-
-        if (logEntries) {
-          storage.loadLog = async () => logEntries
-        }
-
-        return storage
-      }
-
-      throw new Error("module absent")
-    },
     Alert: class {
       constructor() {
         this.actions = []
@@ -533,6 +556,46 @@ async function runAction(
         }
         return content
       }
+    }
+  }
+
+  /*
+   * Le code des modules vient du dépôt et non des copies posées dans le bac
+   * à sable : c'est la version publiée que l'installateur doit trouver. Les
+   * fichiers qu'ils lisent et écrivent sont, eux, ceux du bac à sable.
+   */
+  const dashboardModules = dashboard ? moduleSpace(globals) : null
+
+  const sandbox = scriptableGlobals({
+    ...globals,
+    /*
+     * L'installateur importe CTS Storage à la demande : pour relire le
+     * journal d'import et l'index des services, et pour lire ou écrire les
+     * préférences d'affichage. Le doublon ne fournit ce module que dans le
+     * scénario qui l'exige, pour que les autres continuent d'éprouver le
+     * chemin où il manque — sauf là où les vrais modules répondent.
+     */
+    importModule: name => {
+      if (dashboardModules) return dashboardModules.load(name)
+
+      if (name === "CTS Storage" && (preferencesStore || logEntries)) {
+        const storage = {}
+
+        if (preferencesStore) {
+          storage.loadPreferences = async () => ({ ...preferencesStore.value })
+          storage.savePreferences = async value => {
+            preferencesStore.value = { textScale: Number(value?.textScale) || 1 }
+          }
+        }
+
+        if (logEntries) {
+          storage.loadLog = async () => logEntries
+        }
+
+        return storage
+      }
+
+      throw new Error("module absent")
     }
   })
 
@@ -979,6 +1042,24 @@ const scenarios = [
     choice: 3,
     expected: /CTS Services Cleaner est absent/
   },
+  /*
+   * Les deux chemins qu'un relais retiré de CTS Importer a coupés le
+   * 23 septembre, sans qu'aucun banc ne le voie : celui-ci remplaçait
+   * chaque module par une absence. Joués ici contre les vrais modules, ils
+   * échouent dès qu'une fonction empruntée disparaît.
+   */
+  {
+    label: "index des services lu par le diagnostic",
+    choice: 1,
+    dashboard: true,
+    expected: /\[OK\] Index des services — 1 service indexé/
+  },
+  {
+    label: "retrait d’un service par les vrais modules",
+    choice: [3, 0],
+    dashboard: true,
+    expected: [/Service retiré/, /3 fichiers supprimés/]
+  },
   { label: "désinstallation", choice: 4, expected: /Désinstallation (terminée|partielle)/ },
   /*
    * Une installation neuve écrit tout : elle rouvre donc. La réouverture
@@ -1250,7 +1331,8 @@ for (const scenario of scenarios) {
     scriptName: scenario.scriptName || "CTS Installer",
     runningWriteBroken: scenario.runningWriteBroken === true,
     aborts: scenario.aborts === true,
-    migration: scenario.migration === true
+    migration: scenario.migration === true,
+    dashboard: scenario.dashboard === true
   })
 
   if (failures.length) {

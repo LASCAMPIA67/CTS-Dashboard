@@ -333,3 +333,12 @@ décision lui est antérieure.
   d'un défaut à sa cause. Un `CLAUDE.md` qui grossit laisse se perdre ses
   consignes ; ce qui se vérifie et se cite va donc dans les annexes de la
   skill `docs`, pas dans `CLAUDE.md`.
+- 2026-09-24 — Tout ce que CTS Installer emprunte aux modules du Dashboard
+  est éprouvé en CI contre ces modules, et l'installateur lit l'index là où
+  il vit, dans `CTS Storage`, jamais par un relais. Les deux ne se
+  remplacent pas au même rythme sur l'iPhone — les modules à chaque
+  révision du dépôt, l'installateur seulement quand son numéro monte — : un
+  relais retiré de `CTS Importer` le 23 septembre, parce que plus aucun
+  module ne s'en servait, servait encore à l'installateur, et le Diagnostic
+  de tout le parc a annoncé une erreur qui n'existait pas pendant que
+  « Retirer un service » cessait de fonctionner, sans qu'aucun banc le voie.

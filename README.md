@@ -412,7 +412,7 @@ conducteurs.
 | `CTS Widget Engine.js` | assemble le contexte affiché et décide du prochain rafraîchissement |
 | `CTS Widget Renderer.js` | dessine le widget, et choisit sa densité |
 | `CTS Widget Theme.js` | palettes et couleurs, un jeu par état |
-| `CTS Importer.js` | façade de l'import : délègue au pipeline, lit l'index courant |
+| `CTS Importer.js` | façade de l'import : délègue au pipeline |
 | `CTS Import Pipeline.js` | enchaîne lecture, analyse, validation et rangement d'une carte |
 | `CTS PDF Engine.js` | lit le PDF, en s'appuyant sur PDF.js |
 | `CTS Parser.js` | extrait de la carte HASTUS le service, ses tranches et son conducteur |
@@ -420,7 +420,7 @@ conducteurs.
 | `CTS Services Manager.js` | détecte les cartes déposées, tient l'index, choisit le service utile |
 | `CTS Services Cleaner.js` | archive, purge, retire un service, classe les résidus d'écriture |
 | `CTS Database.js` | résout les codes en noms de lignes, arrêts et lieux |
-| `CTS Storage.js` | lit et écrit dans iCloud avec nouvelles tentatives ; porte aussi les préférences et la politique de version |
+| `CTS Storage.js` | lit et écrit dans iCloud avec nouvelles tentatives ; seul à lire l'index des services, il porte aussi les préférences et la politique de version |
 | `CTS Utils.js` | primitives partagées : temps, dates, texte, et les attentes bornées |
 | `CTS Resources.js` | vérifie que les bases et PDF.js sont bien en place |
 | `CTS Analytics Client.js` | les trois appels réseau, et eux seuls |
@@ -496,7 +496,7 @@ casse à l'exécution. **Chacun est né d'un défaut réel.**
 
 | Banc | Ce qu'il empêche |
 |---|---|
-| `modules-smoke` | une fonction appelée d'un module à l'autre qui n'existe pas |
+| `modules-smoke` | une fonction appelée d'un module à l'autre, ou empruntée par CTS Installer, qui n'existe pas |
 | `dashboard-smoke` | un widget blanc, vide, ou rendu dans une taille non prévue, un réveil trop tardif en service ou après une panne |
 | `scan-smoke` | une carte agent détectée mais jamais importée, un verrou écrit dans iCloud |
 | `selection-smoke` | le mauvais service retenu à cheval sur minuit |
@@ -511,7 +511,7 @@ casse à l'exécution. **Chacun est né d'un défaut réel.**
 | `import-smoke` | une étape d'import qui n'a pas tourné rapportée « 0 ms » dans le Diagnostic |
 | `layout-smoke` | une grille horaires qui déborde selon l'appareil |
 | `utils-smoke` | une attente sans borne, une date jugée valide par un seul module |
-| `installer-smoke` | une constante inaccessible à l'exécution |
+| `installer-smoke` | une constante inaccessible à l'exécution, un Diagnostic ou un retrait de service coupé par une fonction retirée d'un module |
 | `repair-smoke` | un dépannage qui laisse l'iPhone sans installateur, ou avec un installateur tronqué |
 | `telemetry-smoke` | un jour de repos compté comme une panne dans le taux de succès de la flotte |
 | `pdf-engine-smoke` | un fichier que personne ne lit qui empêche toute lecture de carte agent, un moteur qui attend iCloud plus longtemps que le reste du widget |
