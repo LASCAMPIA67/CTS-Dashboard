@@ -90,6 +90,9 @@ Contrôler sur chaque profil d’écran :
 - libellés, heures et lieux centrés dans leur colonne ;
 - avant le départ d'une tranche partant du dépôt : `Prise de service` et
   `Sortie dépôt` ; pendant et après : `Rentrée dépôt` et `Fin de service` ;
+- `Mise en ligne` (ou `Début exploitation`) en couleur et un cran plus
+  grande, `Direction` en blanc à côté d'elle ; une direction seule garde la
+  couleur ;
 - pendant une pause ou une coupure, l'étiquette d'état indique la durée
   totale de l'interruption, par exemple `Pause 55 min` ;
 - aucun nom de lieu réduit : `places.json` est plafonné à 18 caractères et

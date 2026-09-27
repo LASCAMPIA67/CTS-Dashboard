@@ -451,14 +451,22 @@ function addOperationalDetails(parent, slice, state, density) {
 
   const row = addGridRow(parent)
 
+  /*
+   * La mise en ligne est l'arrêt où le conducteur doit se rendre en
+   * sortant du dépôt : c'est elle qui se lit d'abord, et elle prend la
+   * couleur dès qu'elle paraît. La direction ne la garde que seule.
+   */
   if (hasLineUp) {
-    addDetailBlock(row, getOperationStartLabel(slice), slice.lineUpAt, state, density)
+    addDetailBlock(row, getOperationStartLabel(slice), slice.lineUpAt, state, density, {
+      emphasized: true,
+      softLimit: density.detailSoftLimit
+    })
   }
 
   if (hasDirection) {
     if (hasLineUp) row.addSpacer(gridGutter(density))
     addDetailBlock(row, "DIRECTION", slice.direction, state, density, {
-      emphasized: true,
+      emphasized: !hasLineUp,
       width: hasLineUp ? density.columnWidth : 2 * density.columnWidth + gridGutter(density),
       softLimit: hasLineUp ? density.detailSoftLimit : density.directionSoftLimit
     })
@@ -488,10 +496,9 @@ function addDetailBlock(parent, label, value, state, density, options = {}) {
       ? Font.boldMonospacedSystemFont(density.detailTimeSize)
       : Font.semiboldSystemFont(
           fitFont(
-            options.emphasized ? density.directionSize : density.detailValueSize,
+            options.emphasized ? density.emphasizedValueSize : density.detailValueSize,
             value,
-            options.softLimit ??
-              (options.emphasized ? density.directionSoftLimit : density.detailSoftLimit),
+            options.softLimit ?? density.detailSoftLimit,
             density.detailMinimumSize
           )
         ),
@@ -975,8 +982,8 @@ const TEXT_KEYS = Object.freeze([
   "detailMinimumSize",
   "detailTimeSize",
   "detailValueSize",
-  "directionSize",
   "durationSize",
+  "emphasizedValueSize",
   "interruptionSize",
   "numberFont",
   "placeMinimumSize",
@@ -1145,7 +1152,7 @@ function densityComfortable() {
     detailValueGap: 1,
     detailLabelSize: 7.5,
     detailValueSize: 10,
-    directionSize: 10.5,
+    emphasizedValueSize: 10.5,
     detailTimeSize: 11,
     detailSoftLimit: 26,
     directionSoftLimit: 34,
@@ -1217,7 +1224,7 @@ function densityStandard() {
     detailGroupGap: 3,
     detailLabelSize: 7.8,
     detailValueSize: 8.5,
-    directionSize: 9,
+    emphasizedValueSize: 9,
     detailTimeSize: 9.5,
     detailSoftLimit: 24,
     directionSoftLimit: 30,

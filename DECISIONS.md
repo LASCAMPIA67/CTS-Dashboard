@@ -357,3 +357,8 @@ décision lui est antérieure.
   que la carte le nommait déjà en toutes lettres. `places.json` reste
   l'autorité — le nom imprimé n'a ni accents ni abréviation choisie —, et
   l'avertissement dit qu'il faut l'y ajouter.
+- 2026-09-27 — Quand la mise en ligne paraît, c'est elle qui porte la
+  couleur et la taille, et la direction passe en blanc ; la direction ne
+  garde la mise en avant que lorsqu'elle est seule. Choix du mainteneur : la
+  mise en ligne est l'arrêt où le conducteur doit se rendre en sortant du
+  dépôt. Remplace la mise en avant de la direction, en place jusqu'ici.
