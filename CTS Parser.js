@@ -47,6 +47,7 @@ async function parseService(rawText) {
   if (!slices.length) errors.push("Aucune tranche détectée")
 
   validateSlices(slices, errors, warnings)
+  addPlaceWarnings(contexts, warnings)
   addDepartureWarnings(contexts, warnings)
 
   const breaks = extractBreaks(text, slices)
@@ -72,15 +73,34 @@ async function parseService(rawText) {
 async function enrichSlices(text, slices) {
   return Promise.all(
     slices.map(async slice => {
+      const section = extractVehicleSection(text, slice)
+      const lines = rebuildSectionLines(section)
       const startsAtDepot = await DB.isDepot(slice.startPlaceCode)
       const endsAtDepot = await DB.isDepot(slice.endPlaceCode)
-      const details = await extractDepartureDetails(text, slice, startsAtDepot, endsAtDepot)
+      const details = await extractDepartureDetails(
+        section,
+        lines,
+        slice,
+        startsAtDepot,
+        endsAtDepot
+      )
+      const startPlace = await namePlace(
+        slice.startPlaceCode,
+        findPrintedStop(lines, slice.operationStart, { last: false })
+      )
+      const endPlace = await namePlace(
+        slice.endPlaceCode,
+        findPrintedStop(lines, slice.end, { last: true })
+      )
 
       return {
         startsAtDepot,
         endsAtDepot,
+        unknownPlace: !startPlace.known || !endPlace.known,
         slice: {
           ...slice,
+          startPlace: startPlace.name,
+          endPlace: endPlace.name,
           depotExitAt: startsAtDepot ? details.depotExitAt : "",
           depotReturnAt: endsAtDepot ? details.depotReturnAt : "",
           lineUpAt: startsAtDepot ? details.lineUpAt : "",
@@ -89,6 +109,46 @@ async function enrichSlices(text, slices) {
       }
     })
   )
+}
+
+/*
+ * Un code de relève que les bases ignorent s'affichait tel quel : le widget
+ * a montré « Code ANKARA » à un conducteur le 28 septembre 2026, comme
+ * « Code ELSA_C » avant lui. La carte imprime pourtant, dans la section de
+ * la voiture, le nom de l'arrêt en toutes lettres à l'heure où la tranche
+ * commence et à celle où elle finit : c'est lui qui nomme le lieu tant que
+ * places.json ne le connaît pas. Le lieu reste signalé inconnu, parce que
+ * c'est places.json qui doit le nommer — le nom imprimé n'a ni accents ni
+ * abréviation choisie.
+ */
+async function namePlace(code, printedStop) {
+  const name = await DB.findPlaceName(code)
+  if (name) return { name, known: true }
+
+  return {
+    name: printedStop ? await DB.formatStop(printedStop) : await DB.formatPlace(code),
+    known: false
+  }
+}
+
+/*
+ * Plusieurs arrêts peuvent tomber sur la même minute : le lieu de début est
+ * le premier d'entre eux, le lieu de fin le dernier.
+ */
+function findPrintedStop(lines, time, { last }) {
+  const names = lines
+    .filter(line => !isDutyLine(line))
+    .map(line => extractActivityStop(line) || extractTimedStop(line))
+    .filter(stop => stop && stop.time === time)
+    .map(stop => stop.name)
+
+  return (last ? names[names.length - 1] : names[0]) || ""
+}
+
+function addPlaceWarnings(contexts, warnings) {
+  contexts.forEach(({ unknownPlace }, index) => {
+    if (unknownPlace) warnings.push(`Lieu inconnu dans la tranche ${index + 1}`)
+  })
 }
 
 function addDepartureWarnings(contexts, warnings) {
@@ -187,18 +247,14 @@ async function extractSlices(text) {
       end,
       dutyEnd,
       startPlaceCode,
-      startPlace: await DB.formatPlace(startPlaceCode),
-      endPlaceCode,
-      endPlace: await DB.formatPlace(endPlaceCode)
+      endPlaceCode
     })
   }
 
   return removeDuplicateSlices(slices)
 }
 
-async function extractDepartureDetails(text, slice, startsAtDepot, endsAtDepot) {
-  const section = extractVehicleSection(text, slice)
-
+async function extractDepartureDetails(section, lines, slice, startsAtDepot, endsAtDepot) {
   if (!section) {
     return {
       depotExitAt: "",
@@ -207,8 +263,6 @@ async function extractDepartureDetails(text, slice, startsAtDepot, endsAtDepot) 
       direction: ""
     }
   }
-
-  const lines = rebuildSectionLines(section)
 
   return {
     depotExitAt: startsAtDepot ? extractDepotExitTime(section, lines) : "",
@@ -498,10 +552,12 @@ function isActivityLine(line) {
   return /^(Régulier|Haut-le-pied|Entrée|Sortie)\s*\//i.test(line)
 }
 
+function isDutyLine(line) {
+  return /^(Déplacement|Coupure|Pause-café|Prép\.\s*sortie)\b/i.test(line)
+}
+
 function isDirectionBoundary(line) {
-  return (
-    isActivityLine(line) || /^(Déplacement|Coupure|Pause-café|Prép\.\s*sortie)\b/i.test(line)
-  )
+  return isActivityLine(line) || isDutyLine(line)
 }
 
 function extractBreaks(text, slices) {
@@ -571,13 +627,6 @@ function validateSlices(slices, errors, warnings) {
       toMinutes(slice.end) <= toMinutes(slice.operationStart)
     ) {
       errors.push(`Fin antérieure au début pour la tranche ${number}`)
-    }
-
-    if (
-      String(slice.startPlace).startsWith("Code ") ||
-      String(slice.endPlace).startsWith("Code ")
-    ) {
-      warnings.push(`Lieu inconnu dans la tranche ${number}`)
     }
   })
 
