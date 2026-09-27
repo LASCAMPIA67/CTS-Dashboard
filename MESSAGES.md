@@ -121,12 +121,12 @@ Vos cartes agent et vos archives sont conservées.
 
 *Version actuelle : CTS Dashboard 1.0.X*
 *CTS Installer : 1.0.Y*
-
-_Une erreur ? Coupez le Wi-Fi, puis relancez CTS Installer._
 ```
 
-La dernière ligne n'est là que tant que le refus temporaire de GitHub
-peut se produire. Elle disparaîtra quand plus personne ne sera concerné.
+Le message ne rappelle plus le geste qui contournait un refus temporaire
+de GitHub, « Coupez le Wi-Fi, puis relancez CTS Installer » : retiré à la
+1.4.5, il reste dans le tableau de dépannage du README pour qui en aurait
+encore besoin.
 
 Quand CTS Installer change lui aussi de version, ajouter une étape 3 :
 `S'il propose « Installer 1.0.X », acceptez, puis fermez l'écran : il se
