@@ -362,3 +362,13 @@ décision lui est antérieure.
   garde la mise en avant que lorsqu'elle est seule. Choix du mainteneur : la
   mise en ligne est l'arrêt où le conducteur doit se rendre en sortant du
   dépôt. Remplace la mise en avant de la direction, en place jusqu'ici.
+- 2026-09-27 — Une carte dont une section de voiture n'a pas sa tranche dans
+  l'en-tête est refusée, comme une date illisible, plutôt qu'affichée
+  amputée. Un code de relève de neuf lettres, ou portant un chiffre, faisait
+  disparaître une prise de service sans un mot : c'était le seul défaut connu
+  qui montre au conducteur un service faux sans le dire. Rien ne dit quels
+  codes HASTUS imprime ; élargir le motif des codes ne couvre que les formes
+  déjà imaginées, alors que le refus couvre aussi celles qu'on ne connaît pas,
+  et il se voit — sur le widget, et dans la console par l'incident de
+  validation. Le prix est qu'une carte refusée à tort reste refusée jusqu'à
+  ce qu'elle soit redéposée.
