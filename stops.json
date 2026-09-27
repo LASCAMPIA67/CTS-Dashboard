@@ -1,6 +1,12 @@
 {
+  "AMPERE": {
+    "name": "Ampère"
+  },
   "ANEMONES": {
     "name": "Anémones"
+  },
+  "ANKARA": {
+    "name": "Ankara"
   },
   "ARAGO": {
     "name": "Arago"
@@ -41,6 +47,9 @@
   "CAMPUS D'ILLKIRCH": {
     "name": "Campus d’Illkirch"
   },
+  "CARPE HAUTE": {
+    "name": "Carpe Haute"
+  },
   "CESAR JULIEN": {
     "name": "César Julien"
   },
@@ -58,6 +67,9 @@
   "CITE MEINAU": {
     "name": "Cité Meinau"
   },
+  "CLINIQUE SAINTE ANNE": {
+    "name": "Clinique Sainte-Anne"
+  },
   "COMMUNICATION WILSON": {
     "name": "Communication Wilson",
     "aliases": [
@@ -68,11 +80,17 @@
   "COMTES": {
     "name": "Comtes"
   },
+  "CONSEIL DE L'EUROPE": {
+    "name": "Conseil de l’Europe"
+  },
   "COURS DE L'ILLIADE": {
     "name": "Cours de l’Illiade"
   },
   "DANTE": {
     "name": "Dante"
+  },
+  "DANUBE": {
+    "name": "Danube"
   },
   "DANUBE LE VAISSEAU": {
     "name": "Danube Le Vaisseau"
@@ -137,8 +155,14 @@
   "FORT DESAIX": {
     "name": "Fort Desaix"
   },
+  "FORT LOUIS": {
+    "name": "Fort Louis"
+  },
   "FRIDA KAHLO": {
     "name": "Frida Kahlo"
+  },
+  "GALLIA": {
+    "name": "Gallia"
   },
   "GARE AUX MARCHANDISES": {
     "name": "Gare Marchandises"
@@ -419,6 +443,13 @@
   "RIETH": {
     "name": "Rieth"
   },
+  "ROBERTSAU CHASSEURS": {
+    "name": "Robertsau Chasseurs",
+    "aliases": [
+      "ROBERTSAU CHASSEURS 30",
+      "ROBERTSAU CHASSEURS 30 MONTEE"
+    ]
+  },
   "ROBERTSAU EGLISE": {
     "name": "Robertsau Église"
   },
@@ -430,6 +461,14 @@
   },
   "ROBERTSAU RENAISSANCE": {
     "name": "Robertsau Renaiss."
+  },
+  "ROBERTSAU ST ANNE": {
+    "name": "Robertsau Ste-Anne",
+    "aliases": [
+      "ROBERTSAU ST ANNE 30",
+      "ROBERTSAU ST ANNE 30 PASSAGE",
+      "ROBERTSAU ST ANNE 30 TERMINUS"
+    ]
   },
   "ROME": {
     "name": "Rome"
