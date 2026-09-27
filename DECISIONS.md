@@ -349,3 +349,11 @@ décision lui est antérieure.
   l'autre dépôt aurait fini par ne plus voir la même chose — le jour même,
   la première relecture de ces outils prenait une adresse internet pour un
   appel de fonction, défaut que la règle d'ici portait aussi.
+- 2026-09-27 — Un code de relève que les bases ignorent prend, à l'import,
+  le nom de l'arrêt que la carte imprime à l'heure où la tranche commence ou
+  finit, et reste signalé comme lieu inconnu. Le widget a affiché « Code
+  ANKARA » à un conducteur, après « Code ELSA_C » : chaque nouveau point de
+  relève attendait qu'un collègue le voie à l'écran pour être ajouté, alors
+  que la carte le nommait déjà en toutes lettres. `places.json` reste
+  l'autorité — le nom imprimé n'a ni accents ni abréviation choisie —, et
+  l'avertissement dit qu'il faut l'y ajouter.

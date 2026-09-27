@@ -76,9 +76,10 @@ jobs:
       - name: Run database resolution test
         run: node tools/preview/database-smoke.mjs
 
-      # Le pied de page HASTUS se termine par une heure, et la direction
-      # d'une relève en cours de ligne n'est pas écrite sur la carte.
-      - name: Run direction parsing test
+      # Le pied de page HASTUS se termine par une heure, la direction
+      # d'une relève en cours de ligne n'est pas écrite sur la carte, et
+      # un code de relève inconnu des bases s'affichait « Code ANKARA ».
+      - name: Run direction and place parsing test
         run: node tools/preview/parser-smoke.mjs
 
       # Le Diagnostic lit les durées d'étape que l'import a écrites : une

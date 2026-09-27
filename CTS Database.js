@@ -112,6 +112,14 @@ function stripHastusQualifier(value) {
 }
 
 async function formatPlace(code) {
+  const name = await findPlaceName(code)
+  if (name) return name
+
+  const normalizedCode = UTILS.normalizeCode(code)
+  return normalizedCode ? `Code ${normalizedCode}` : "Lieu inconnu"
+}
+
+async function findPlaceName(code) {
   const name = getEntryName(await getPlace(code))
   if (name) return name
 
@@ -121,11 +129,7 @@ async function formatPlace(code) {
     if (rootName) return rootName
   }
 
-  const stopName = await resolvePlaceFromStops(code, root)
-  if (stopName) return stopName
-
-  const normalizedCode = UTILS.normalizeCode(code)
-  return normalizedCode ? `Code ${normalizedCode}` : "Lieu inconnu"
+  return resolvePlaceFromStops(code, root)
 }
 
 function codeRoot(code) {
@@ -277,6 +281,7 @@ module.exports = {
   getLine,
   formatStop,
   formatPlace,
+  findPlaceName,
   formatLine,
   getLineTermini,
   isDepot,

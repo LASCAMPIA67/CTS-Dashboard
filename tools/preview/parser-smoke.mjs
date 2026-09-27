@@ -214,6 +214,60 @@ for (const { name, card, expected } of cases) {
 }
 
 /*
+ * Le 28 septembre 2026, le widget a nommé « Code ANKARA » le début et la
+ * fin d'une tranche : le code de relève manquait aux bases. La carte
+ * imprime le nom de l'arrêt dans la section de la voiture, et c'est lui
+ * qui doit s'afficher, le lieu restant signalé pour qu'on l'ajoute à
+ * places.json.
+ */
+const UNKNOWN_CODE = "ZZZZ_A"
+const UNKNOWN_WARNING = "Lieu inconnu dans la tranche 2"
+
+if (await DATABASE.findPlaceName(UNKNOWN_CODE)) {
+  failures.push(`${UNKNOWN_CODE} est connu des bases : les cas de lieu inconnu n'éprouvent plus rien`)
+}
+
+const unknownCard = CARD.replace(
+  "ELME_A 13:16 15:28 ELME_A",
+  `${UNKNOWN_CODE} 13:16 15:28 ${UNKNOWN_CODE}`
+)
+
+const placeCases = [
+  {
+    name: "des codes de relève connus",
+    card: CARD,
+    expected: "Elmerforst → Elmerforst",
+    warned: false
+  },
+  {
+    name: "un code de relève absent des bases",
+    card: unknownCard,
+    expected: "Elmerforst → Elmerforst",
+    warned: true
+  },
+  {
+    name: "un code absent des bases sans section de voiture",
+    card: unknownCard.replace("Voiture 04 - 6", "Voiture 04 - 9"),
+    expected: `Code ${UNKNOWN_CODE} → Code ${UNKNOWN_CODE}`,
+    warned: true
+  }
+]
+
+for (const { name, card, expected, warned } of placeCases) {
+  const service = await PARSER.parseService(card)
+  const slice = service.slices[1]
+  const places = `${slice.startPlace} → ${slice.endPlace}`
+
+  if (places !== expected) {
+    failures.push(`${name} : lieux « ${places} » au lieu de « ${expected} »`)
+  }
+
+  if (service.validation.warnings.includes(UNKNOWN_WARNING) !== warned) {
+    failures.push(`${name} : ${warned ? "lieu inconnu non signalé" : "lieu connu signalé inconnu"}`)
+  }
+}
+
+/*
  * Un terminus mal orthographié ne casse rien de visible : la déduction ne
  * se fait plus, en silence. Chaque terminus doit donc être un arrêt que
  * stops.json connaît, et chaque ligne en déclarer exactement deux.
@@ -238,11 +292,12 @@ for (const [code, entry] of Object.entries(JSON.parse(RESOURCES["lines.json"])))
 }
 
 if (failures.length) {
-  console.log("ÉCHEC  direction lue sur la carte agent")
+  console.log("ÉCHEC  direction et lieux lus sur la carte agent")
   for (const failure of failures) console.log(`         ${failure}`)
   process.exit(1)
 }
 
 console.log(
-  `ok     direction lue sur la carte agent (${cases.length} cartes, ${terminiCount} terminus)`
+  `ok     direction et lieux lus sur la carte agent ` +
+    `(${cases.length} cartes, ${placeCases.length} cas de lieux, ${terminiCount} terminus)`
 )
