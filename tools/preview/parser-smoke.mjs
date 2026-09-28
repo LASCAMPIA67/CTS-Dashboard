@@ -1,5 +1,5 @@
 /*
- * Test de la direction lue sur une carte agent.
+ * Test des tranches, de la direction et des lieux lus sur une carte agent.
  *
  * Ce test existe à cause d'un défaut réel, arrivé jusqu'à l'écran d'un
  * conducteur le 23 septembre 2026 : sous « Direction », le widget affichait
@@ -214,6 +214,74 @@ for (const { name, card, expected } of cases) {
 }
 
 /*
+ * Une tranche dont la ligne d'en-tête échappait au motif disparaissait
+ * sans un mot : un code de relève de neuf lettres, ou portant un chiffre,
+ * et le widget affichait un service amputé d'une prise. Chaque cas dit les
+ * voitures lues et les erreurs attendues ; une section de voiture sans sa
+ * tranche doit faire refuser la carte.
+ */
+const SLICE_ROW = "04 - 6 13:16 ELME_A 13:16 15:28 ELME_A 15:38"
+const SECOND_RUN_ROW = "04 - 6 16:31 ELS 16:31 17:46 MOVE_C 17:46"
+const TWICE_CARD = CARD.replace("02 - 16 16:31 ELS 16:31 17:46 MOVE_C 17:46", SECOND_RUN_ROW).replace(
+  "Voiture 02 - 16",
+  "Voiture 04 - 6"
+)
+
+const sliceCases = [
+  {
+    name: "la carte telle que le moteur PDF l'a rendue",
+    card: CARD,
+    vehicles: ["15 - 2", "04 - 6", "02 - 16"],
+    errors: []
+  },
+  {
+    name: "un code de relève de neuf lettres",
+    card: CARD.replace(SLICE_ROW, "04 - 6 13:16 ROBERTSAU 13:16 15:28 ROBERTSAU 15:38"),
+    vehicles: ["15 - 2", "04 - 6", "02 - 16"],
+    errors: []
+  },
+  {
+    name: "un code de relève portant un chiffre",
+    card: CARD.replace(SLICE_ROW, "04 - 6 13:16 ELME2_A 13:16 15:28 ELME2_A 15:38"),
+    vehicles: ["15 - 2", "04 - 6", "02 - 16"],
+    errors: []
+  },
+  {
+    name: "une ligne d'en-tête illisible",
+    card: CARD.replace(`${SLICE_ROW}\n`, ""),
+    vehicles: ["15 - 2", "02 - 16"],
+    errors: ["Tranche introuvable pour la voiture 04 - 6"]
+  },
+  {
+    name: "une voiture conduite deux fois",
+    card: TWICE_CARD,
+    vehicles: ["15 - 2", "04 - 6", "04 - 6"],
+    errors: []
+  },
+  {
+    name: "la seconde ligne d'en-tête d'une voiture conduite deux fois, illisible",
+    card: TWICE_CARD.replace(`${SECOND_RUN_ROW}\n`, ""),
+    vehicles: ["15 - 2", "04 - 6"],
+    errors: ["Tranche introuvable pour la voiture 04 - 6"]
+  }
+]
+
+for (const { name, card, vehicles, errors } of sliceCases) {
+  const service = await PARSER.parseService(card)
+  const read = service.slices.map(slice => `${slice.lineCode} - ${slice.vehicle}`)
+
+  if (JSON.stringify(read) !== JSON.stringify(vehicles)) {
+    failures.push(`${name} : voitures « ${read.join(" | ")} » au lieu de « ${vehicles.join(" | ")} »`)
+  }
+
+  if (JSON.stringify(service.validation.errors) !== JSON.stringify(errors)) {
+    failures.push(
+      `${name} : erreurs « ${service.validation.errors.join(" | ")} » au lieu de « ${errors.join(" | ")} »`
+    )
+  }
+}
+
+/*
  * Le 28 septembre 2026, le widget a nommé « Code ANKARA » le début et la
  * fin d'une tranche : le code de relève manquait aux bases. La carte
  * imprime le nom de l'arrêt dans la section de la voiture, et c'est lui
@@ -247,7 +315,7 @@ const placeCases = [
   },
   {
     name: "un code absent des bases sans section de voiture",
-    card: unknownCard.replace("Voiture 04 - 6", "Voiture 04 - 9"),
+    card: unknownCard.replace("Voiture 04 - 6\n", ""),
     expected: `Code ${UNKNOWN_CODE} → Code ${UNKNOWN_CODE}`,
     warned: true
   }
@@ -292,12 +360,13 @@ for (const [code, entry] of Object.entries(JSON.parse(RESOURCES["lines.json"])))
 }
 
 if (failures.length) {
-  console.log("ÉCHEC  direction et lieux lus sur la carte agent")
+  console.log("ÉCHEC  tranches, direction et lieux lus sur la carte agent")
   for (const failure of failures) console.log(`         ${failure}`)
   process.exit(1)
 }
 
 console.log(
-  `ok     direction et lieux lus sur la carte agent ` +
-    `(${cases.length} cartes, ${placeCases.length} cas de lieux, ${terminiCount} terminus)`
+  `ok     tranches, direction et lieux lus sur la carte agent ` +
+    `(${cases.length} cartes, ${sliceCases.length} cas de tranches, ` +
+    `${placeCases.length} cas de lieux, ${terminiCount} terminus)`
 )

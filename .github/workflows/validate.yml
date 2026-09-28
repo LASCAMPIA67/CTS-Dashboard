@@ -77,8 +77,9 @@ jobs:
         run: node tools/preview/database-smoke.mjs
 
       # Le pied de page HASTUS se termine par une heure, la direction
-      # d'une relève en cours de ligne n'est pas écrite sur la carte, et
-      # un code de relève inconnu des bases s'affichait « Code ANKARA ».
+      # d'une relève en cours de ligne n'est pas écrite sur la carte, un
+      # code de relève inconnu des bases s'affichait « Code ANKARA », et
+      # une tranche au code hors du motif disparaissait sans un mot.
       - name: Run direction and place parsing test
         run: node tools/preview/parser-smoke.mjs
 

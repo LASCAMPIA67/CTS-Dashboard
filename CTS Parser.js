@@ -46,6 +46,7 @@ async function parseService(rawText) {
 
   if (!slices.length) errors.push("Aucune tranche détectée")
 
+  validateVehicleSections(text, slices, errors)
   validateSlices(slices, errors, warnings)
   addPlaceWarnings(contexts, warnings)
   addDepartureWarnings(contexts, warnings)
@@ -218,11 +219,22 @@ function extractDriver(text) {
   }
 }
 
+/*
+ * Rien ne dit quels codes de lieu HASTUS imprime : ANKARA était un nom
+ * d'arrêt entier, et un motif limité à huit lettres laissait tomber sans un
+ * mot la tranche d'un code plus long ou portant un chiffre. Le motif reste
+ * pourtant plus étroit que tout mot possible, parce que les deux erreurs ne
+ * coûtent pas pareil : une ligne d'en-tête manquée fait refuser la carte
+ * (validateVehicleSections), une tranche inventée s'afficherait sans
+ * alerte. Il parcourt la carte entière, et ce qui le borne à l'en-tête est
+ * « NN - N » suivi d'une heure, que les sections ne portent jamais — leur
+ * « Voiture NN - N » précède une activité.
+ */
 async function extractSlices(text) {
   const flatText = text.replace(/\n/g, " ")
 
   const regex =
-    /\b(\d{2})\s*-\s*(\d{1,3})\s+(\d{1,2}:\d{2})\s+([A-Z]{3,8}(?:_[A-Z0-9]+)?)\s+(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})\s+([A-Z]{3,8}(?:_[A-Z0-9]+)?)\s+(\d{1,2}:\d{2})\b/g
+    /\b(\d{2})\s*-\s*(\d{1,3})\s+(\d{1,2}:\d{2})\s+([A-Z][A-Z0-9_]*)\s+(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})\s+([A-Z][A-Z0-9_]*)\s+(\d{1,2}:\d{2})\b/g
 
   const slices = []
   let match
@@ -599,6 +611,30 @@ function extractBreaks(text, slices) {
   }
 
   return breaks.sort((first, second) => toMinutes(first.start) - toMinutes(second.start))
+}
+
+/*
+ * Chaque tranche a sa section « Voiture NN - N » dans le corps de la carte.
+ * Une section qu'aucune tranche ne réclame est une ligne d'en-tête que le
+ * motif n'a pas su lire : la carte est refusée, comme une date illisible,
+ * plutôt que d'afficher un service amputé d'une prise. Chaque tranche ne
+ * réclame qu'une section, sans quoi une voiture conduite deux fois
+ * pourrait encore perdre sa seconde tranche en silence.
+ */
+function validateVehicleSections(text, slices, errors) {
+  const unclaimed = [...slices]
+
+  for (const [, line, vehicle] of text.matchAll(/\bVoiture\s+(\d{1,3})\s*-\s*(\d{1,3})\b/gi)) {
+    const index = unclaimed.findIndex(
+      slice => Number(slice.lineCode) === Number(line) && slice.vehicle === Number(vehicle)
+    )
+
+    if (index === -1) {
+      errors.push(`Tranche introuvable pour la voiture ${line} - ${vehicle}`)
+    } else {
+      unclaimed.splice(index, 1)
+    }
+  }
 }
 
 function validateSlices(slices, errors, warnings) {
