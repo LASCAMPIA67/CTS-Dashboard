@@ -78,8 +78,9 @@ jobs:
 
       # Le pied de page HASTUS se termine par une heure, la direction
       # d'une relève en cours de ligne n'est pas écrite sur la carte, un
-      # code de relève inconnu des bases s'affichait « Code ANKARA », et
-      # une tranche au code hors du motif disparaissait sans un mot.
+      # code de relève inconnu des bases s'affichait « Code ANKARA », une
+      # tranche au code hors du motif disparaissait sans un mot, et un
+      # arrêt dont PDF.js colle l'heure au nom était ignoré.
       - name: Run direction and place parsing test
         run: node tools/preview/parser-smoke.mjs
 

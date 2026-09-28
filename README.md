@@ -507,7 +507,7 @@ casse à l'exécution. **Chacun est né d'un défaut réel.**
 | `interruption-smoke` | une interruption nommée « pause » par le programme et « coupure » par la pastille d'état, un service d'après minuit mal compté, un tram dessiné comme un bus |
 | `version-gate-smoke` | un widget bloqué à tort parce qu'il est hors ligne, ou qu'un plancher a été publié de travers |
 | `database-smoke` | un arrêt affiché sous forme de code, une ligne de tram oubliée |
-| `parser-smoke` | une tranche disparue sans un mot, un pied de page affiché comme direction, ou l'arrêt de relève à la place du terminus |
+| `parser-smoke` | une tranche disparue sans un mot, un arrêt ignoré parce que son heure lui est collée, un pied de page affiché comme direction, ou l'arrêt de relève à la place du terminus |
 | `import-smoke` | une étape d'import qui n'a pas tourné rapportée « 0 ms » dans le Diagnostic |
 | `layout-smoke` | une grille horaires qui déborde selon l'appareil |
 | `utils-smoke` | une attente sans borne, une date jugée valide par un seul module |
