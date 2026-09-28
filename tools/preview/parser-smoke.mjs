@@ -336,6 +336,65 @@ for (const { name, card, expected, warned } of placeCases) {
 }
 
 /*
+ * PDF.js a rendu « ROBERTSAU ST ANNE 30 passage11:39 », sans blanc avant
+ * l'heure, sur la carte réelle du 28 septembre 2026 : l'arrêt était
+ * ignoré. Il y tombait en milieu de trajet. L'extrait ci-dessous, repris
+ * de cette carte, coupe la tranche sur lui, pour qu'il soit à la fois le
+ * dernier arrêt du premier trajet — il donne la direction, la ligne 30
+ * n'ayant pas de terminus connus — et la fin d'une tranche au code de
+ * relève inconnu, qu'il doit nommer.
+ */
+const GLUED_STOP = "ROBERTSAU ST ANNE 30 passage11:39"
+
+const GLUED_CARD = `CTS
+XX01
+30 - 2 10:58 ${UNKNOWN_CODE} 10:58 11:39 ${UNKNOWN_CODE} 11:39
+05/01/2026
+CONDUCTEUR FICTIF (000001)
+Voiture 30 - 2
+Régulier / 30 AMPERE 10:58
+- / - ARISTIDE BRIAND 11:04
+DANUBE 11:09
+ANKARA 11:11
+ROME 11:13
+GALLIA 11:21
+CONSEIL DE L'EUROPE 11:27
+FORT LOUIS 11:33
+CLINIQUE SAINTE ANNE 11:38
+${GLUED_STOP}`
+
+const gluedCases = [
+  {
+    name: "une heure collée au nom de l'arrêt",
+    card: GLUED_CARD,
+    expected: "Robertsau Sainte-Anne · direction Robertsau Sainte-Anne"
+  },
+  {
+    /*
+     * HOMME DE FER V1 collé à 6:05 donne « V16:05 », que rien ne
+     * distingue de V à 16:05 : la ligne reste ignorée, comme avant,
+     * plutôt que de nommer un arrêt « Homme de Fer V ».
+     */
+    name: "une heure collée à un nom qui finit par un chiffre",
+    card: GLUED_CARD.replace(GLUED_STOP, "HOMME DE FER V16:05"),
+    expected: `Code ${UNKNOWN_CODE} · direction Clinique Sainte-Anne`
+  }
+]
+
+for (const { name, card, expected } of gluedCases) {
+  const service = await PARSER.parseService(card)
+  const read = `${service.slices[0]?.endPlace} · direction ${service.slices[0]?.direction}`
+
+  if (read !== expected) {
+    failures.push(`${name} : « ${read} » au lieu de « ${expected} »`)
+  }
+
+  if (!service.validation.valid) {
+    failures.push(`${name} : carte refusée (${service.validation.errors.join(", ")})`)
+  }
+}
+
+/*
  * Un terminus mal orthographié ne casse rien de visible : la déduction ne
  * se fait plus, en silence. Chaque terminus doit donc être un arrêt que
  * stops.json connaît, et chaque ligne en déclarer exactement deux.
@@ -368,5 +427,5 @@ if (failures.length) {
 console.log(
   `ok     tranches, direction et lieux lus sur la carte agent ` +
     `(${cases.length} cartes, ${sliceCases.length} cas de tranches, ` +
-    `${placeCases.length} cas de lieux, ${terminiCount} terminus)`
+    `${placeCases.length} cas de lieux, ${gluedCases.length} heures collées, ${terminiCount} terminus)`
 )

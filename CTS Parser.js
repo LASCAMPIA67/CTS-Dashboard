@@ -355,8 +355,17 @@ function extractVehicleSection(text, slice) {
   return text.slice(start, end).trim()
 }
 
+/*
+ * PDF.js rend parfois l'heure collée au nom de l'arrêt, « ROBERTSAU ST ANNE
+ * 30 passage11:39 », et un arrêt se lit à l'heure qui suit un blanc : il
+ * était ignoré. Le blanc n'est rendu qu'après deux lettres : des noms
+ * finissent par une lettre isolée et un chiffre — HOMME DE FER V1 —, et
+ * « V16:05 » peut être V1 à 6:05 comme V à 16:05. Un collage ambigu reste
+ * ignoré plutôt que de nommer un arrêt qui n'existe pas.
+ */
 function rebuildSectionLines(section) {
   return section
+    .replace(/([A-Za-zÀ-ÖØ-öø-ÿ]{2})(\d{1,2}:\d{2})/g, "$1 $2")
     .replace(
       /\s+(?=(?:Prép\.\s*sortie|Sortie\s*\/|Régulier\s*\/|Haut-le-pied\s*\/|Entrée\s*\/|Déplacement\b|Pause-café\b|Coupure\b))/gi,
       "\n"
