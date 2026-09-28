@@ -125,6 +125,7 @@ jobs:
         run: node tools/preview/pdf-engine-smoke.mjs
 
       # Deux sous-systèmes butent sur la même panne dans la même
-      # exécution. La console doit en lire un fait, pas deux lignes.
+      # exécution. La console doit en lire un fait, pas deux lignes, et
+      # un lieu inconnu des bases doit y arriver sans son code.
       - name: Run incident telemetry test
         run: node tools/preview/incident-smoke.mjs

@@ -32,7 +32,7 @@ function loadModule(name, loaded) {
  * qu'on leur demande, de sorte que les incidents observés ne puissent
  * venir que de la façon dont le moteur les enregistre.
  */
-function buildEngine({ detectionErrors = [], selection = null, cleanupErrors = [] }) {
+function buildEngine({ detectionErrors = [], imported = [], selection = null, cleanupErrors = [] }) {
   const fm = {
     joinPath: (parent, child) => `${parent}/${child}`,
     fileExists: () => false,
@@ -71,8 +71,8 @@ function buildEngine({ detectionErrors = [], selection = null, cleanupErrors = [
       success: true,
       status: "idle",
       remaining: 0,
-      detected: detectionErrors.length,
-      imported: [],
+      detected: detectionErrors.length + imported.length,
+      imported,
       failed: [],
       knownFailures: [],
       detectionErrors
@@ -273,6 +273,39 @@ for (const engineCode of [
   )
 }
 
+/* ------------------------------------------------------ lieu inconnu */
+
+/*
+ * Un code de relève absent des bases prend le nom imprimé sur la carte :
+ * le collègue voit son service, et seul un avertissement dit au mainteneur
+ * que places.json doit apprendre ce lieu. L'incident ne porte que les
+ * quatre champs de tout incident — jamais le code du lieu.
+ */
+{
+  const unknown = withCode(
+    await issuesFor({ imported: [{ success: true, status: "imported", slicesWithUnknownPlace: 1 }] }),
+    "PLACE_UNKNOWN"
+  )
+
+  check(
+    unknown.length === 1 && unknown[0].severity === "warning",
+    `un lieu inconnu enregistre ${JSON.stringify(unknown)} au lieu d'un avertissement PLACE_UNKNOWN`
+  )
+
+  check(
+    JSON.stringify(Object.keys(unknown[0] || {}).sort()) ===
+      JSON.stringify(["errorCode", "module", "severity", "stage"]),
+    `l'incident PLACE_UNKNOWN porte d'autres champs : ${JSON.stringify(unknown[0])}`
+  )
+
+  const known = withCode(
+    await issuesFor({ imported: [{ success: true, status: "imported", slicesWithUnknownPlace: 0 }] }),
+    "PLACE_UNKNOWN"
+  )
+
+  check(known.length === 0, "un import aux lieux tous connus a signalé un lieu inconnu")
+}
+
 /* --------------------------------------------------------- résultat */
 
 if (failures.length) {
@@ -285,5 +318,6 @@ if (failures.length) {
 console.log(
   "ok     Incidents d’une exécution (une cause un incident, gravité la plus forte " +
     "retenue, chemin de l’affichage nommé avant celui de l’entretien, pannes " +
-    "distinctes non fusionnées, bibliothèque PDF.js tenue à part de la carte agent)"
+    "distinctes non fusionnées, bibliothèque PDF.js tenue à part de la carte agent, " +
+    "lieu inconnu signalé sans son code)"
 )

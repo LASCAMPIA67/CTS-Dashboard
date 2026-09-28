@@ -36,11 +36,15 @@ function loadModule(name) {
 
 const fileName = target => String(target).replace(/^.*\//, "")
 
+/* Une base nommée ici se lit comme absente de l'iPhone. */
+const missingResources = new Set()
+
 const loaded = {}
 loaded["CTS Utils"] = loadModule("CTS Utils")
 loaded["CTS Config"] = {
   fm: {
-    fileExists: target => Boolean(RESOURCES[fileName(target)]),
+    fileExists: target =>
+      !missingResources.has(fileName(target)) && Boolean(RESOURCES[fileName(target)]),
     readString: target => RESOURCES[fileName(target)] || ""
   },
   files: {
@@ -333,6 +337,29 @@ for (const { name, card, expected, warned } of placeCases) {
   if (service.validation.warnings.includes(UNKNOWN_WARNING) !== warned) {
     failures.push(`${name} : ${warned ? "lieu inconnu non signalé" : "lieu connu signalé inconnu"}`)
   }
+
+  /* C'est ce décompte, et non le texte de l'avertissement, que le widget transmet. */
+  if (service.validation.slicesWithUnknownPlace !== (warned ? 1 : 0)) {
+    failures.push(`${name} : ${service.validation.slicesWithUnknownPlace} tranche(s) au lieu inconnu comptée(s)`)
+  }
+}
+
+/*
+ * Sans places.json, tous les lieux sont inconnus : le décompte qui part
+ * vers la console doit rester nul, sans quoi l'incident enverrait
+ * compléter une base qui connaît déjà ces lieux.
+ */
+missingResources.add("places.json")
+await DATABASE.reload()
+const withoutPlaces = await PARSER.parseService(CARD)
+missingResources.delete("places.json")
+await DATABASE.reload()
+
+if (withoutPlaces.validation.slicesWithUnknownPlace !== 0) {
+  failures.push(
+    `places.json absent : ${withoutPlaces.validation.slicesWithUnknownPlace} tranche(s) ` +
+      `au lieu inconnu comptée(s) au lieu d'aucune`
+  )
 }
 
 /*

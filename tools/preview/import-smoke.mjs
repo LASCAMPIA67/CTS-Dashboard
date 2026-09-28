@@ -10,7 +10,9 @@
  * lecteur sans jamais passer par l'écrivain.
  *
  * Ce banc-ci passe par le pipeline réel, sur des doublures hors ligne, et
- * lit ce qu'il a consigné.
+ * lit ce qu'il a consigné. Il vérifie au passage qu'un import réussi rend
+ * le décompte des tranches au lieu inconnu, dont le widget fait l'incident
+ * PLACE_UNKNOWN.
  */
 
 import { importFrom, isolatedModule } from "./sandbox.mjs"
@@ -20,6 +22,21 @@ function loadModule(name, loaded) {
 }
 
 const PDF_PATH = "/documents/CTS Dashboard/Services/carte.pdf"
+
+const EXTRACTED = async () => ({
+  text: "texte extrait",
+  pageCount: 1,
+  characterCount: 13,
+  engine: "PDF.js",
+  engineVersion: "test"
+})
+
+const REFUSED = async () => ({
+  service: "",
+  date: "",
+  slices: [],
+  validation: { valid: false, errors: ["Aucune tranche détectée"], warnings: [] }
+})
 
 /*
  * Chaque cas arrête l'import à une étape différente, et dit lesquelles ont
@@ -38,15 +55,40 @@ const cases = [
   {
     name: "une carte lue puis refusée à la validation",
     status: "validation-error",
-    extract: async () => ({
-      text: "texte extrait",
-      pageCount: 1,
-      characterCount: 13,
-      engine: "PDF.js",
-      engineVersion: "test"
-    }),
+    extract: EXTRACTED,
+    parse: REFUSED,
     measured: ["sourceInspectionMs", "pdfExtractionMs", "databaseReloadMs", "parserMs", "totalMs"],
     absent: ["registrationMs"]
+  },
+  {
+    /*
+     * Le décompte des lieux inconnus doit sortir du pipeline : c'est de lui
+     * que le widget fait l'incident PLACE_UNKNOWN.
+     */
+    name: "une carte importée dont un lieu est inconnu des bases",
+    status: "imported",
+    extract: EXTRACTED,
+    parse: async () => ({
+      service: "XX01",
+      date: "2030-01-05",
+      slices: [{ dutyStart: "06:48", end: "10:30" }],
+      validation: {
+        valid: true,
+        errors: [],
+        warnings: ["Lieu inconnu dans la tranche 1"],
+        slicesWithUnknownPlace: 1
+      }
+    }),
+    measured: [
+      "sourceInspectionMs",
+      "pdfExtractionMs",
+      "databaseReloadMs",
+      "parserMs",
+      "registrationMs",
+      "totalMs"
+    ],
+    absent: [],
+    slicesWithUnknownPlace: 1
   }
 ]
 
@@ -62,7 +104,9 @@ for (const scenario of cases) {
       fileExists: () => true,
       isDirectory: () => false,
       fileSize: () => 60,
-      joinPath: (a, b) => `${a}/${b}`
+      joinPath: (a, b) => `${a}/${b}`,
+      readString: () => "",
+      move: () => {}
     },
     paths: {},
     files: {},
@@ -76,18 +120,15 @@ for (const scenario of cases) {
     appendLog: async (type, message, details) => {
       logged.push({ type, details })
       return true
-    }
+    },
+    writeJsonSafely: async () => true,
+    writeTextSafely: async () => true,
+    uniqueArchiveFileName: name => name,
+    readCurrentIndex: async () => ({ services: [] })
   }
   loaded["CTS Database"] = { reload: async () => {} }
   loaded["CTS PDF Engine"] = { extractText: scenario.extract }
-  loaded["CTS Parser"] = {
-    parseService: async () => ({
-      service: "",
-      date: "",
-      slices: [],
-      validation: { valid: false, errors: ["Aucune tranche détectée"], warnings: [] }
-    })
-  }
+  loaded["CTS Parser"] = { parseService: scenario.parse ?? REFUSED }
 
   const PIPELINE = loadModule("CTS Import Pipeline", loaded)
   const result = await PIPELINE.importPdf(PDF_PATH)
@@ -121,6 +162,15 @@ for (const scenario of cases) {
       }
     }
   }
+
+  const expectedUnknown = scenario.slicesWithUnknownPlace
+
+  if (expectedUnknown !== undefined && result.slicesWithUnknownPlace !== expectedUnknown) {
+    failures.push(
+      `${scenario.name} : ${result.slicesWithUnknownPlace} tranche(s) au lieu inconnu ` +
+        `transmise(s) au lieu de ${expectedUnknown}`
+    )
+  }
 }
 
 if (failures.length) {
@@ -129,7 +179,10 @@ if (failures.length) {
   process.exit(1)
 }
 
+const completed = cases.filter(scenario => scenario.status === "imported").length
+
 console.log(
-  `ok     durées d'étape consignées par un import (${cases.length} imports interrompus, ` +
-    `aucune étape absente écrite zéro)`
+  `ok     durées d'étape consignées par un import (${cases.length - completed} ` +
+    `imports interrompus, ${completed} complet, aucune étape absente écrite zéro, ` +
+    `lieux inconnus transmis)`
 )

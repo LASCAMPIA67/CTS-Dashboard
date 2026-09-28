@@ -690,6 +690,24 @@ function buildContextTelemetry(resolution, cleanup, hasSource) {
     telemetry.pdfStatus = "missing"
   }
 
+  /*
+   * Un code de relève absent des bases a pris le nom imprimé sur la carte :
+   * le collègue a vu son service, d'où l'avertissement, mais l'import ne le
+   * consignait que sur l'iPhone, et places.json n'apprenait le lieu que si
+   * quelqu'un le signalait. Le code du lieu ne voyage pas : un incident ne
+   * porte rien de la carte, et le nom se lit sur celle du collègue. Il
+   * s'ajoute après ceux du balayage, de la sélection et de l'entretien,
+   * pour ne pas leur prendre une place sous le plafond.
+   */
+  if (imported.some(item => item?.slicesWithUnknownPlace > 0)) {
+    addDiagnosticIssue(telemetry, {
+      severity: "warning",
+      errorCode: "PLACE_UNKNOWN",
+      module: "Importer",
+      stage: "validation"
+    })
+  }
+
   return telemetry
 }
 
