@@ -66,9 +66,22 @@ async function parseService(rawText) {
     validation: {
       valid: errors.length === 0,
       errors: uniqueValues(errors),
-      warnings: uniqueValues(warnings)
+      warnings: uniqueValues(warnings),
+      slicesWithUnknownPlace: await countSlicesWithUnknownPlace(contexts)
     }
   }
+}
+
+/*
+ * Ce décompte part vers la console : il doit dire qu'un lieu manque à
+ * places.json, et non que places.json manque. Une base absente ou
+ * illisible rend tous les lieux inconnus, et l'incident enverrait alors
+ * compléter une base qui les connaît déjà.
+ */
+async function countSlicesWithUnknownPlace(contexts) {
+  if (!(await DB.hasPlaces())) return 0
+
+  return contexts.filter(({ unknownPlace }) => unknownPlace).length
 }
 
 async function enrichSlices(text, slices) {

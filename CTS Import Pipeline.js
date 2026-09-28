@@ -114,6 +114,7 @@ async function importPdf(pdfPath) {
       date: service.date,
       slices: service.slices.length,
       warnings: [...service.validation.warnings],
+      slicesWithUnknownPlace: service.validation.slicesWithUnknownPlace,
       sourceFileName: sourceInfo.fileName,
       pdfFileName: registration.pdfFileName,
       cacheFileName: registration.cacheFileName,

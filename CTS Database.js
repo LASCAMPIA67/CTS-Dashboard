@@ -168,6 +168,10 @@ async function getWarnings() {
   return [...(await load()).warnings]
 }
 
+async function hasPlaces() {
+  return Object.keys((await load()).places).length > 0
+}
+
 function buildLookupIndex(collection) {
   const index = Object.create(null)
   if (!isPlainObject(collection)) return index
@@ -286,6 +290,7 @@ module.exports = {
   getLineTermini,
   isDepot,
   getWarnings,
+  hasPlaces,
   normalizeCode: UTILS.normalizeCode,
   normalizeKey: UTILS.normalizeKey,
   cleanStopName,

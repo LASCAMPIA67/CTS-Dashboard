@@ -372,3 +372,12 @@ décision lui est antérieure.
   et il se voit — sur le widget, et dans la console par l'incident de
   validation. Le prix est qu'une carte refusée à tort reste refusée jusqu'à
   ce qu'elle soit redéposée.
+- 2026-09-28 — Un code de relève absent des bases remonte à la console par
+  un avertissement `PLACE_UNKNOWN`, émis une fois, à l'import, et sans le
+  code du lieu. L'import le consignait sur l'iPhone seulement, et
+  `places.json` n'apprenait un nouveau point de relève que si un collègue
+  remarquait un nom sans accent et le signalait. Avertissement et non
+  erreur, parce que le collègue a vu son service. Le code ne voyage pas : un
+  incident ne porte rien du contenu de la carte, et l'administration sait
+  quel poste relancer. Complète la décision du 27 septembre sur le nom
+  imprimé, qui laissait le lieu signalé sans que personne le lise.

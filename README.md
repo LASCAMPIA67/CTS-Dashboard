@@ -508,14 +508,14 @@ casse à l'exécution. **Chacun est né d'un défaut réel.**
 | `version-gate-smoke` | un widget bloqué à tort parce qu'il est hors ligne, ou qu'un plancher a été publié de travers |
 | `database-smoke` | un arrêt affiché sous forme de code, une ligne de tram oubliée |
 | `parser-smoke` | une tranche disparue sans un mot, un arrêt ignoré parce que son heure lui est collée, un pied de page affiché comme direction, ou l'arrêt de relève à la place du terminus |
-| `import-smoke` | une étape d'import qui n'a pas tourné rapportée « 0 ms » dans le Diagnostic |
+| `import-smoke` | une étape d'import qui n'a pas tourné rapportée « 0 ms » dans le Diagnostic, un lieu inconnu perdu entre la carte et le widget |
 | `layout-smoke` | une grille horaires qui déborde selon l'appareil |
 | `utils-smoke` | une attente sans borne, une date jugée valide par un seul module |
 | `installer-smoke` | une constante inaccessible à l'exécution, un Diagnostic ou un retrait de service coupé par une fonction retirée d'un module |
 | `repair-smoke` | un dépannage qui laisse l'iPhone sans installateur, ou avec un installateur tronqué |
 | `telemetry-smoke` | un jour de repos compté comme une panne dans le taux de succès de la flotte |
 | `pdf-engine-smoke` | un fichier que personne ne lit qui empêche toute lecture de carte agent, un moteur qui attend iCloud plus longtemps que le reste du widget |
-| `incident-smoke` | une même panne rapportée deux fois, sous deux codes et à deux gravités |
+| `incident-smoke` | une même panne rapportée deux fois, sous deux codes et à deux gravités, un lieu inconnu qui ne remonte pas ou qui emporte son code |
 
 </details>
 

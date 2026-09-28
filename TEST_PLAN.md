@@ -130,6 +130,7 @@ Contrôler sur chaque profil d’écran :
 9. Après un import interrompu, les étapes qui n’ont pas eu lieu doivent s’écrire `non terminée` dans le rapport, et jamais `0 ms`.
 10. Sur un iPhone installé avant CTS Installer 1.0.32, lancer une vérification : le dossier `CTS Dashboard/Libraries` doit disparaître d’iCloud Drive, puis importer une carte agent — elle doit se lire normalement, le moteur trouvant PDF.js sur l’appareil.
 11. Avec au moins un service enregistré, **Index des services** doit être validé et annoncer le nombre de services indexés — jamais qu’un module « ne fournit pas » une fonction.
+12. À l’import d’une carte agent dont un point de relève manque à `places.json`, le widget affiche le service avec le nom imprimé sur la carte, et la console d’administration montre pour ce poste un avertissement « Un lieu de relève de la carte agent manque à places.json » — une seule fois, à l’import, et sans le code du lieu.
 
 ## 9. Critères de diffusion
 
