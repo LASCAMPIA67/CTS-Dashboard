@@ -422,6 +422,86 @@ for (const { name, card, expected } of gluedCases) {
 }
 
 /*
+ * Le 12 octobre 2026, une carte de journée de type C a été refusée tout
+ * entière, « Numéro de service introuvable » : son numéro porte un suffixe,
+ * « P2 », après les chiffres. Tout le reste de la carte se lisait. La
+ * carte ci-dessous en reprend la forme, abrégée, sous un service, une date
+ * et un conducteur inventés.
+ */
+const C_CARD = `CTS
+Type
+jrn.
+C
+XX01P2
+Voiture Prise
+début
+Lieu
+début
+Heure
+début
+Heure
+fin
+Lieu
+fin
+Prise
+fin
+40 - 1 8:04 ELSA_A 8:04 12:32 ELSA_A 12:32
+05/01/2026
+CONDUCTEUR FICTIF (000001)
+Voiture 40 - 1
+Régulier / 40 ELSAU 8:04
+- / - ELSAU 8:04
+UNTERELSAU 8:09
+Régulier / 40 UNTERELSAU 8:19
+- / - ELSAU 8:26
+PLAINE DES BOUCHERS 8:35
+NEUHOF GANZAU 8:58
+Régulier / 40 NEUHOF GANZAU 12:02
+- / - NEUHOF RODOLPHE REUSS 12:09
+PLAINE DES BOUCHERS 12:24
+ELSAU 12:32
+ELSAU 12:32
+${FOOTER}`
+
+const serviceCases = [
+  {
+    name: "un numéro de service sans suffixe",
+    card: CARD,
+    number: "XX01"
+  },
+  {
+    name: "un numéro de service de journée de type C",
+    card: C_CARD,
+    number: "XX01P2",
+    slices: ["40 - 1 · Elsau → Elsau · direction Unterelsau"]
+  }
+]
+
+for (const { name, card, number, slices } of serviceCases) {
+  const service = await PARSER.parseService(card)
+
+  if (service.service !== number) {
+    failures.push(`${name} : numéro « ${service.service} » au lieu de « ${number} »`)
+  }
+
+  if (slices) {
+    const read = service.slices.map(
+      slice =>
+        `${slice.lineCode} - ${slice.vehicle} · ${slice.startPlace} → ${slice.endPlace} · ` +
+        `direction ${slice.direction}`
+    )
+
+    if (JSON.stringify(read) !== JSON.stringify(slices)) {
+      failures.push(`${name} : tranches « ${read.join(" | ")} » au lieu de « ${slices.join(" | ")} »`)
+    }
+  }
+
+  if (!service.validation.valid) {
+    failures.push(`${name} : carte refusée (${service.validation.errors.join(", ")})`)
+  }
+}
+
+/*
  * Un terminus mal orthographié ne casse rien de visible : la déduction ne
  * se fait plus, en silence. Chaque terminus doit donc être un arrêt que
  * stops.json connaît, et chaque ligne en déclarer exactement deux.
@@ -454,5 +534,6 @@ if (failures.length) {
 console.log(
   `ok     tranches, direction et lieux lus sur la carte agent ` +
     `(${cases.length} cartes, ${sliceCases.length} cas de tranches, ` +
-    `${placeCases.length} cas de lieux, ${gluedCases.length} heures collées, ${terminiCount} terminus)`
+    `${placeCases.length} cas de lieux, ${gluedCases.length} heures collées, ` +
+    `${serviceCases.length} numéros de service, ${terminiCount} terminus)`
 )

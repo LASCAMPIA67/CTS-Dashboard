@@ -381,3 +381,14 @@ décision lui est antérieure.
   incident ne porte rien du contenu de la carte, et l'administration sait
   quel poste relancer. Complète la décision du 27 septembre sur le nom
   imprimé, qui laissait le lieu signalé sans que personne le lise.
+- 2026-10-12 — Le numéro de service se lit avec n'importe quel suffixe de
+  lettres et de chiffres après sa forme habituelle, deux lettres et un à
+  trois chiffres. Une carte de journée de type C, dont le numéro finit par
+  « P2 », était refusée tout entière alors que tout le reste s'y lisait.
+  Rien ne dit quels suffixes HASTUS imprime, et le mainteneur a préféré
+  cette forme large à une forme limitée au seul suffixe observé : un numéro
+  refusé prive le collègue de son service, quand un numéro mal lu ne change
+  que le nom sous lequel le service s'affiche et se range. C'est la pesée
+  du 27 septembre sur les codes de relève, qui penche ici de l'autre côté :
+  là, élargir pouvait inventer une tranche sans alerte ; ici, élargir ne
+  peut au pire que mal nommer un service bien lu.

@@ -53,6 +53,7 @@ Pour chaque navigateur :
 2. Plusieurs PDF déposés à l’avance.
 3. PDF encore marqué comme non téléchargé localement par iCloud.
 4. Relance du Dashboard après dépôt.
+5. Carte de journée de type C, dont le numéro porte un suffixe après les chiffres — `P2` : importée comme les autres, le numéro affiché en entier dans l’en-tête du widget.
 
 Résultat attendu : détection, extraction, import, renommage/indexation et sélection du bon service sans manipulation technique supplémentaire.
 
