@@ -25,6 +25,7 @@ const DATA = "/documents/CTS Dashboard/Data"
 /* Le verrou ne concerne que l'appareil : il vit hors d'iCloud. */
 const LOCK = "/library/CTS Dashboard/services-scan.lock"
 const STATE = `${DATA}/services-scan-state.json`
+const INDEX = `${DATA}/services-index.json`
 
 /*
  * Une date de modification figée : l'empreinte d'un fichier vaut
@@ -91,7 +92,12 @@ function loadManager(disk, { runsInWidget, importOutcome = null }) {
     { doubles: { "CTS Importer": importer } }
   )
 
-  return { manager: load("CTS Services Manager"), imports, fm }
+  return {
+    manager: load("CTS Services Manager"),
+    imports,
+    fm,
+    dashboardVersion: load("CTS Config").dashboardVersion
+  }
 }
 
 function writeLock(disk, surface) {
@@ -295,13 +301,34 @@ for (const { held, runsInWidget, expected, label } of CASES) {
 }
 
 /*
- * Le refus de validation, lui, doit tenir. Il porte sur le contenu du
- * PDF, pas sur son enregistrement : le même fichier donnera le même
- * refus, et le réessayer à chaque réveil ne ferait que brûler le temps
- * que le widget n'a pas.
+ * Le refus de validation, lui, doit tenir sous la version qui l'a
+ * prononcé. Il porte sur le contenu du PDF, pas sur son enregistrement :
+ * le même fichier donnera le même refus, et le réessayer à chaque réveil
+ * ne ferait que brûler le temps que le widget n'a pas.
+ *
+ * Une version plus récente peut pourtant lire ce que la précédente
+ * refusait : les cartes de journée de type C l'ont été jusqu'à ce que le
+ * parser accepte le suffixe de leur numéro, et restaient refusées après la
+ * correction. Un refus d'une version antérieure, ou d'avant que la version
+ * soit retenue, est relu une fois, et le nouveau refus retient la version
+ * installée. Celui d'une version plus récente tient : un second appareil
+ * du collègue, pas encore à jour, ne doit pas relire à chaque réveil ce que
+ * le premier vient de refuser.
+ *
+ * Sauf si une carte de la même date a été importée depuis le refus : c'est
+ * le dernier dépôt du collègue, et une carte plus ancienne, relue et
+ * acceptée, deviendrait le service affiché à sa place.
  */
-{
-  const rejected = "Service_2026-08-20_EA05.pdf"
+const INSTALLED_VERSION = loadManager(new Map(), { runsInWidget: false }).dashboardVersion
+const REFUSED_AT = "2026-08-19T07:00:00.000Z"
+const REFUSAL = {
+  success: false,
+  status: "validation-error",
+  errors: ["Carte agent illisible"]
+}
+
+function rejectedDisk(dashboardVersion, sameDateIndexedAt) {
+  const rejected = "DriverTimeCard (3).pdf"
   const disk = new Map()
   disk.set(SERVICES, "")
   disk.set(`${SERVICES}/${rejected}`, "%PDF-1.4 contenu")
@@ -316,19 +343,62 @@ for (const { held, runsInWidget, expected, label } of CASES) {
           FIXED_MODIFICATION_DATE.toISOString()
         ].join("|"),
         status: "validation-error",
-        lastAttemptAt: new Date().toISOString(),
-        error: "Carte agent illisible"
+        lastAttemptAt: REFUSED_AT,
+        date: "2026-08-20",
+        error: "Carte agent illisible",
+        ...(dashboardVersion === undefined ? {} : { dashboardVersion })
       }
     }
   }))
 
-  const { manager, imports } = loadManager(disk, { runsInWidget: false })
+  if (sameDateIndexedAt) {
+    disk.set(INDEX, JSON.stringify({
+      version: 2,
+      services: [{
+        id: "2026-08-20_EA06",
+        date: "2026-08-20",
+        service: "EA06",
+        pdfFile: "Service_2026-08-20_EA06.pdf",
+        cacheFile: "Service_2026-08-20_EA06.json",
+        indexedAt: sameDateIndexedAt
+      }]
+    }))
+  }
+
+  return disk
+}
+
+const REJECTION_CASES = [
+  { label: "refus de la version installée", recordedBy: INSTALLED_VERSION, rereads: 0 },
+  { label: "refus d'une version antérieure", recordedBy: "0.0.0", rereads: 1 },
+  { label: "refus d'une version plus récente", recordedBy: "999.0.0", rereads: 0 },
+  { label: "refus d'avant que la version soit retenue", recordedBy: undefined, rereads: 1 },
+  {
+    label: "refus d'une version antérieure, carte de la même date importée depuis",
+    recordedBy: "0.0.0",
+    sameDateIndexedAt: "2026-08-19T08:00:00.000Z",
+    rereads: 0
+  },
+  {
+    label: "refus d'une version antérieure, carte de la même date importée avant lui",
+    recordedBy: "0.0.0",
+    sameDateIndexedAt: "2026-08-19T06:00:00.000Z",
+    rereads: 1
+  }
+]
+
+for (const { label, recordedBy, sameDateIndexedAt, rereads } of REJECTION_CASES) {
+  const { manager, imports } = loadManager(rejectedDisk(recordedBy, sameDateIndexedAt), {
+    runsInWidget: false,
+    importOutcome: REFUSAL
+  })
+
+  await manager.scanServices({})
   await manager.scanServices({})
 
-  if (imports.length) {
+  if (imports.length !== rereads) {
     failures.push(
-      "refus de validation : le PDF est réanalysé alors que son contenu " +
-      "n'a pas changé"
+      `${label} : le PDF est relu ${imports.length} fois en deux balayages au lieu de ${rereads}`
     )
   }
 }
@@ -417,5 +487,6 @@ if (failures.length) {
 }
 
 console.log("ok     balayage des services (verrou : 4 combinaisons, nature, hors d'iCloud, rendu ; détection ; " +
-  "enregistrement perdu ; refus de validation ; aucune écriture inutile ; " +
+  "enregistrement perdu ; refus de validation tenu sous sa version, relu une fois sous une plus récente ; " +
+  "aucune écriture inutile ; " +
   "une carte par réveil ; budget dépassé)")

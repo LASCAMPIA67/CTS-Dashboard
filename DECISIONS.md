@@ -383,12 +383,32 @@ décision lui est antérieure.
   imprimé, qui laissait le lieu signalé sans que personne le lise.
 - 2026-10-12 — Le numéro de service se lit avec n'importe quel suffixe de
   lettres et de chiffres après sa forme habituelle, deux lettres et un à
-  trois chiffres. Une carte de journée de type C, dont le numéro finit par
-  « P2 », était refusée tout entière alors que tout le reste s'y lisait.
-  Rien ne dit quels suffixes HASTUS imprime, et le mainteneur a préféré
-  cette forme large à une forme limitée au seul suffixe observé : un numéro
-  refusé prive le collègue de son service, quand un numéro mal lu ne change
-  que le nom sous lequel le service s'affiche et se range. C'est la pesée
-  du 27 septembre sur les codes de relève, qui penche ici de l'autre côté :
-  là, élargir pouvait inventer une tranche sans alerte ; ici, élargir ne
-  peut au pire que mal nommer un service bien lu.
+  trois chiffres, pourvu que ce suffixe commence par une lettre : sans
+  elle, rien ne le séparerait des chiffres du numéro. Une carte de journée
+  de type C, dont le numéro finit par « P2 », était refusée tout entière
+  alors que tout le reste s'y lisait. Rien ne dit quels suffixes HASTUS
+  imprime, et le mainteneur a préféré cette forme large à une forme limitée
+  au seul suffixe observé : un numéro refusé prive le collègue de son
+  service, quand un numéro mal lu ne change que le nom sous lequel le
+  service s'affiche et se range. C'est la pesée du 27 septembre sur les
+  codes de relève, qui penche ici de l'autre côté : là, élargir pouvait
+  inventer une tranche sans alerte ; ici, élargir ne peut au pire que mal
+  nommer un service bien lu.
+- 2026-10-12 — Une carte refusée à la lecture est relue une fois quand une
+  version plus récente du Dashboard est installée, et plus jamais sous la
+  même. Plus récente et non différente : l'état du balayage suit le
+  collègue d'un appareil à l'autre par iCloud, et deux appareils pas encore
+  à la même version se renverraient la carte à chaque réveil. Le
+  refus était définitif tant que le fichier ne changeait pas, sur l'idée
+  qu'un même PDF donne toujours le même refus — vrai pour un même parser
+  seulement : les cartes de type C déjà déposées seraient restées refusées
+  après la correction ci-dessus, jusqu'à ce que chaque collègue redépose la
+  sienne. Elle n'est pas relue si une carte de la même date a été importée
+  depuis le refus : c'est le dernier dépôt du collègue, et la carte relue,
+  devenue le service le plus récent de sa date, l'aurait supplanté par un
+  service plus ancien. La version et non la révision du dépôt, parce qu'un
+  numéro publié désigne un seul état des fichiers — décision du
+  4 septembre — et que le module la porte sans dépendre de la note de
+  l'installateur. Une correction du parser fusionnée sans numéro ne relit
+  donc rien : elle attend la version qui l'annonce, ce que la décision du
+  6 septembre fait déjà de tout changement visible.

@@ -463,21 +463,34 @@ ELSAU 12:32
 ELSAU 12:32
 ${FOOTER}`
 
+/*
+ * Le suffixe commence par une lettre : un quatrième chiffre n'en est pas
+ * un, et la carte reste refusée comme avant, plutôt que de lire un numéro
+ * dont rien ne dit où il finit.
+ */
 const serviceCases = [
   {
     name: "un numéro de service sans suffixe",
     card: CARD,
-    number: "XX01"
+    number: "XX01",
+    errors: []
   },
   {
     name: "un numéro de service de journée de type C",
     card: C_CARD,
     number: "XX01P2",
-    slices: ["40 - 1 · Elsau → Elsau · direction Unterelsau"]
+    slices: ["40 - 1 · Elsau → Elsau · direction Unterelsau"],
+    errors: []
+  },
+  {
+    name: "un numéro de service à quatre chiffres",
+    card: CARD.replace("\nXX01\n", "\nXX0123\n"),
+    number: "",
+    errors: ["Numéro de service introuvable"]
   }
 ]
 
-for (const { name, card, number, slices } of serviceCases) {
+for (const { name, card, number, slices, errors } of serviceCases) {
   const service = await PARSER.parseService(card)
 
   if (service.service !== number) {
@@ -496,8 +509,10 @@ for (const { name, card, number, slices } of serviceCases) {
     }
   }
 
-  if (!service.validation.valid) {
-    failures.push(`${name} : carte refusée (${service.validation.errors.join(", ")})`)
+  if (JSON.stringify(service.validation.errors) !== JSON.stringify(errors)) {
+    failures.push(
+      `${name} : erreurs « ${service.validation.errors.join(" | ")} » au lieu de « ${errors.join(" | ")} »`
+    )
   }
 }
 
