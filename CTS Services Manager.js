@@ -357,8 +357,16 @@ function shouldProcessPdf(file, index, state, now) {
     case "indexed":
       return true
 
+    /*
+     * Un refus ne vaut que pour la version qui l'a prononcé. Les cartes de
+     * journée de type C, refusées pour un suffixe que le parser ignorait,
+     * seraient restées refusées après la correction tant que le collègue ne
+     * les redéposait pas. La carte est donc relue une fois sous une version
+     * plus récente ; sous la même version, le même fichier donnerait le même
+     * refus, et le relire à chaque réveil brûlerait le temps du widget.
+     */
     case "validation-error":
-      return false
+      return refusedByEarlierVersion(previous) && !supersededSinceRefusal(previous, index)
 
     case "exception":
       return retryDelayElapsed(previous.lastAttemptAt, now)
@@ -396,6 +404,35 @@ function isIndexedAndCurrent(file, index) {
     !indexedModifiedAt || !file.modifiedAt || indexedModifiedAt === file.modifiedAt
 
   return sameSize && sameModificationDate
+}
+
+/*
+ * Plus ancienne, et non différente : l'état du balayage vit dans iCloud et
+ * suit le collègue d'un appareil à l'autre, et deux appareils qui n'ont pas
+ * encore la même version se renverraient la carte à chaque réveil. Un refus
+ * sans version date d'avant qu'un refus la retienne.
+ */
+function refusedByEarlierVersion(previous) {
+  const order = UTILS.compareVersions(previous.dashboardVersion, CONFIG.dashboardVersion)
+
+  return order === null || order < 0
+}
+
+/*
+ * Une carte relue et acceptée devient le service le plus récent de sa date.
+ * Une carte de la même date importée depuis le refus est le dernier dépôt
+ * du collègue : la relecture ne doit pas la supplanter par une carte plus
+ * ancienne.
+ */
+function supersededSinceRefusal(previous, index) {
+  const refusedAt = Date.parse(String(previous.lastAttemptAt || ""))
+  const services = Array.isArray(index?.services) ? index.services : []
+
+  return services.some(
+    entry =>
+      entry?.date === previous.date &&
+      Date.parse(String(entry.indexedAt || entry.importedAt || "")) > refusedAt
+  )
 }
 
 function retryDelayElapsed(lastAttemptAt, now) {
@@ -486,7 +523,8 @@ function recordFailedImport(state, candidate, result) {
       validationFailure ? "validation" : "import"
     ),
     timings: normalizeTimings(result.timings),
-    error: result.error || (Array.isArray(result.errors) ? result.errors.join(" · ") : "")
+    error: result.error || (Array.isArray(result.errors) ? result.errors.join(" · ") : ""),
+    ...(validationFailure ? { dashboardVersion: CONFIG.dashboardVersion } : {})
   }
 }
 

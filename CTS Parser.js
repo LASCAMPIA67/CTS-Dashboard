@@ -199,8 +199,18 @@ function addDepartureWarnings(contexts, warnings) {
   })
 }
 
+/*
+ * Une carte de journée de type C porte un numéro suivi d'un suffixe, « P2 »
+ * après les chiffres, et un motif arrêté aux chiffres refusait la carte
+ * entière. Rien ne dit quels suffixes HASTUS imprime : le motif en accepte
+ * donc n'importe lequel, fait de lettres et de chiffres, pourvu qu'il
+ * commence par une lettre — sans elle, rien ne le séparerait des chiffres du
+ * numéro. Un suffixe refusé prive le collègue de son service, alors qu'un
+ * numéro mal lu ne change que le nom sous lequel le service s'affiche et se
+ * range : les tranches se lisent ailleurs.
+ */
 function extractServiceNumber(text) {
-  return text.match(/\b([A-Z][A-Z]\d{1,3})\b/)?.[1] || null
+  return text.match(/\b([A-Z][A-Z]\d{1,3}(?:[A-Z][A-Z0-9]*)?)\b/)?.[1] || null
 }
 
 function extractServiceDate(text) {
