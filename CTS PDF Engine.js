@@ -7,7 +7,7 @@ const UTILS = importModule("CTS Utils")
 const STORAGE = importModule("CTS Storage")
 const { fm, pdf } = CONFIG
 const errorMessage = UTILS.errorMessage
-const PDFJS_VERSION = "6.3.289"
+const PDFJS_VERSION = "6.4.299"
 
 const PDFJS_BASE_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/legacy/build`
 
