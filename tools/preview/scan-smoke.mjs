@@ -77,6 +77,7 @@ function loadManager(disk, { runsInWidget, importOutcome = null }) {
     importPdf: async pdfPath => {
       imports.push(pdfPath)
 
+      if (typeof importOutcome === "function") return importOutcome(disk)
       if (importOutcome) return { ...importOutcome }
 
       return { success: true, service: "EA05", date: "2026-08-20" }
@@ -404,6 +405,112 @@ for (const { label, recordedBy, sameDateIndexedAt, rereads } of REJECTION_CASES)
 }
 
 /*
+ * Une carte déjà importée n'est jamais relue. Jusqu'à la 1.4.7, pourtant,
+ * la seconde tranche d'une voiture conduite deux fois prenait la direction
+ * de la première : le 26 octobre 2026, un conducteur a attendu sa relève du
+ * mauvais côté. Une carte déposée à l'avance l'aurait gardée jusqu'à son
+ * jour. Celle qui porte deux tranches sur une même voiture, lue par une
+ * version antérieure ou d'avant que la version soit retenue, est relue une
+ * fois ; le pipeline inscrit alors la version installée dans son entrée
+ * d'index, comme le fait le vrai, et elle n'est plus relue.
+ *
+ * Sauf, comme pour un refus, si une carte de la même date a été importée
+ * depuis : c'est le dernier dépôt du collègue, que la carte relue
+ * supplanterait.
+ */
+const CACHE = "/documents/CTS Dashboard/Cache/Services"
+const INDEXED = "Service_2026-08-20_EA05.pdf"
+const INDEXED_AT = "2026-08-19T06:30:00.000Z"
+
+function indexedDisk({ dashboardVersion, vehicles, sameDateIndexedAt, clearedAt }) {
+  const disk = new Map()
+  disk.set(SERVICES, "")
+  disk.set(`${SERVICES}/${INDEXED}`, "%PDF-1.4 contenu")
+  disk.set(`${CACHE}/Service_2026-08-20_EA05.json`, JSON.stringify({
+    service: "EA05",
+    date: "2026-08-20",
+    slices: vehicles.map(vehicle => ({ lineCode: "02", vehicle }))
+  }))
+
+  const services = [{
+    id: "2026-08-20_EA05",
+    date: "2026-08-20",
+    service: "EA05",
+    pdfFile: INDEXED,
+    cacheFile: "Service_2026-08-20_EA05.json",
+    indexedAt: INDEXED_AT,
+    slices: vehicles.length,
+    source: { sizeKilobytes: 1, modifiedAt: FIXED_MODIFICATION_DATE.toISOString() },
+    ...(dashboardVersion === undefined ? {} : { dashboardVersion }),
+    ...(clearedAt ? { cache: { clearedAt } } : {})
+  }]
+
+  if (sameDateIndexedAt) {
+    services.push({
+      id: "2026-08-20_EA06",
+      date: "2026-08-20",
+      service: "EA06",
+      pdfFile: "Service_2026-08-20_EA06.pdf",
+      cacheFile: "Service_2026-08-20_EA06.json",
+      indexedAt: sameDateIndexedAt
+    })
+  }
+
+  disk.set(INDEX, JSON.stringify({ version: 2, services }))
+
+  return disk
+}
+
+function reindexWithInstalledVersion(disk) {
+  const index = JSON.parse(disk.get(INDEX))
+  const entry = index.services.find(service => service.pdfFile === INDEXED)
+
+  entry.dashboardVersion = INSTALLED_VERSION
+  entry.indexedAt = new Date().toISOString()
+  disk.set(INDEX, JSON.stringify(index))
+
+  return { success: true, service: "EA05", date: "2026-08-20", pdfFileName: INDEXED }
+}
+
+const REREAD_CASES = [
+  { label: "même voiture, lue d'avant que la version soit retenue", vehicles: [9, 9], rereads: 1 },
+  { label: "même voiture, lue par une version antérieure", vehicles: [9, 9], recordedBy: "1.4.7", rereads: 1 },
+  { label: "même voiture, lue par la version installée", vehicles: [9, 9], recordedBy: INSTALLED_VERSION, rereads: 0 },
+  { label: "deux voitures différentes", vehicles: [9, 16], rereads: 0 },
+  { label: "une seule tranche", vehicles: [9], rereads: 0 },
+  { label: "même voiture, service passé dont le cache est vidé", vehicles: [9, 9], clearedAt: INDEXED_AT, rereads: 0 },
+  {
+    label: "même voiture, carte de la même date importée depuis",
+    vehicles: [9, 9],
+    sameDateIndexedAt: "2026-08-19T08:00:00.000Z",
+    rereads: 0
+  },
+  {
+    label: "même voiture, carte de la même date importée avant elle",
+    vehicles: [9, 9],
+    sameDateIndexedAt: "2026-08-19T06:00:00.000Z",
+    rereads: 1
+  }
+]
+
+for (const { label, vehicles, recordedBy, sameDateIndexedAt, clearedAt, rereads } of REREAD_CASES) {
+  const disk = indexedDisk({ dashboardVersion: recordedBy, vehicles, sameDateIndexedAt, clearedAt })
+  const { manager, imports } = loadManager(disk, {
+    runsInWidget: false,
+    importOutcome: reindexWithInstalledVersion
+  })
+
+  await manager.scanServices({})
+  await manager.scanServices({})
+
+  if (imports.length !== rereads) {
+    failures.push(
+      `carte importée, ${label} : relue ${imports.length} fois en deux balayages au lieu de ${rereads}`
+    )
+  }
+}
+
+/*
  * Un balayage qui ne trouve rien n'écrit rien.
  *
  * L'état du balayage était réenregistré à chaque réveil, uniquement pour
@@ -488,5 +595,6 @@ if (failures.length) {
 
 console.log("ok     balayage des services (verrou : 4 combinaisons, nature, hors d'iCloud, rendu ; détection ; " +
   "enregistrement perdu ; refus de validation tenu sous sa version, relu une fois sous une plus récente ; " +
+  `carte importée relue une fois quand une voiture y revient (${REREAD_CASES.length} cas) ; ` +
   "aucune écriture inutile ; " +
   "une carte par réveil ; budget dépassé)")

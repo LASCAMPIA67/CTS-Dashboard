@@ -498,7 +498,7 @@ casse à l'exécution. **Chacun est né d'un défaut réel.**
 |---|---|
 | `modules-smoke` | une fonction appelée d'un module à l'autre, ou empruntée par CTS Installer, qui n'existe pas |
 | `dashboard-smoke` | un widget blanc, vide, ou rendu dans une taille non prévue, un réveil trop tardif en service ou après une panne |
-| `scan-smoke` | une carte agent détectée mais jamais importée, un verrou écrit dans iCloud |
+| `scan-smoke` | une carte agent détectée mais jamais importée, un verrou écrit dans iCloud, une carte lue de travers jamais relue, ou relue à chaque réveil |
 | `selection-smoke` | le mauvais service retenu à cheval sur minuit |
 | `storage-smoke` | un fichier lisible qu'iCloud refuse de confirmer, une écriture interrompue ou posée incomplète, un journal d'import qui perd son histoire, une patience iCloud trop courte ou trop longue pour un widget, un verrou périmé qui bloque encore |
 | `cleanup-smoke` | un PDF jamais archivé, un cache effacé trop tôt |

@@ -28,6 +28,7 @@ const SCAN_STATE_HEARTBEAT_MS = 60 * 60 * 1000
 const EXCEPTION_RETRY_DELAY_MS = 15 * 60 * 1000
 const SERVICE_DISPLAY_GRACE_MS = 60 * 60 * 1000
 const SERVICE_HANDOVER_GRACE_MS = 5 * 60 * 1000
+const SAME_VEHICLE_FIX_VERSION = "1.4.8"
 
 const BUDGET_TIMEOUT_CODES = Object.freeze([
   "PDF_EXTRACTION_TIMEOUT",
@@ -72,9 +73,13 @@ async function performScan(options) {
   const servicePdfs = listing.files
   const detectionErrors = listing.detectionErrors
   const now = new Date()
-  const candidates = servicePdfs
-    .filter(file => shouldProcessPdf(file, index, state, now))
-    .sort(compareCandidates)
+  const candidates = []
+
+  for (const file of servicePdfs) {
+    if (await shouldProcessPdf(file, index, state, now)) candidates.push(file)
+  }
+
+  candidates.sort(compareCandidates)
 
   const maximumFiles = resolveMaximumFiles(options.maximumFiles)
   const selectedCandidates = candidates.slice(0, maximumFiles)
@@ -337,8 +342,8 @@ async function inspectPdf(path) {
   }
 }
 
-function shouldProcessPdf(file, index, state, now) {
-  if (isIndexedAndCurrent(file, index)) {
+async function shouldProcessPdf(file, index, state, now) {
+  if (isIndexedAndCurrent(file, index) && !(await readBeforeSameVehicleFix(file, index))) {
     return false
   }
 
@@ -366,7 +371,10 @@ function shouldProcessPdf(file, index, state, now) {
      * refus, et le relire à chaque réveil brûlerait le temps du widget.
      */
     case "validation-error":
-      return refusedByEarlierVersion(previous) && !supersededSinceRefusal(previous, index)
+      return (
+        refusedByEarlierVersion(previous) &&
+        !supersededSince(index, previous.date, previous.lastAttemptAt)
+      )
 
     case "exception":
       return retryDelayElapsed(previous.lastAttemptAt, now)
@@ -379,9 +387,14 @@ function shouldProcessPdf(file, index, state, now) {
   }
 }
 
-function isIndexedAndCurrent(file, index) {
+function findIndexEntry(file, index) {
   const services = Array.isArray(index?.services) ? index.services : []
-  const entry = services.find(item => item?.pdfFile === file.fileName)
+
+  return services.find(item => item?.pdfFile === file.fileName) || null
+}
+
+function isIndexedAndCurrent(file, index) {
+  const entry = findIndexEntry(file, index)
 
   if (!entry?.cacheFile) {
     return false
@@ -407,6 +420,38 @@ function isIndexedAndCurrent(file, index) {
 }
 
 /*
+ * Une carte importée n'est jamais relue, et jusqu'à la 1.4.7 la seconde
+ * tranche d'une voiture conduite deux fois prenait la direction de la
+ * première : le 26 octobre 2026, un conducteur a attendu sa relève du
+ * mauvais côté. Une carte déposée à l'avance l'aurait gardée jusqu'à son
+ * jour. Celle qui porte deux tranches sur une même voiture est donc relue
+ * une fois, et son entrée d'index retient ensuite la version qui l'a lue ;
+ * une entrée sans version date d'avant qu'elle soit retenue. Seul son
+ * cache dit quelles voitures elle porte, et rien ne retient qu'il a déjà
+ * été vu : pour une carte de plusieurs tranches lue avant la correction,
+ * il est rouvert à chaque balayage jusqu'à ce que le service passe. C'est
+ * une lecture de quelques kilo-octets, quand relire le PDF de chacune de
+ * ces cartes coûterait au widget le temps qu'il n'a pas.
+ */
+async function readBeforeSameVehicleFix(file, index) {
+  const entry = findIndexEntry(file, index)
+
+  if (!entry || entry.cache?.clearedAt || Number(entry.slices) < 2) return false
+
+  const order = UTILS.compareVersions(entry.dashboardVersion, SAME_VEHICLE_FIX_VERSION)
+
+  if (order !== null && order >= 0) return false
+  if (supersededSince(index, entry.date, entry.indexedAt || entry.importedAt)) return false
+
+  const service = await STORAGE.readJson(fm.joinPath(paths.servicesCache, entry.cacheFile), null)
+  const vehicles = (Array.isArray(service?.slices) ? service.slices : []).map(
+    slice => `${slice.lineCode} - ${slice.vehicle}`
+  )
+
+  return new Set(vehicles).size < vehicles.length
+}
+
+/*
  * Plus ancienne, et non différente : l'état du balayage vit dans iCloud et
  * suit le collègue d'un appareil à l'autre, et deux appareils qui n'ont pas
  * encore la même version se renverraient la carte à chaque réveil. Un refus
@@ -420,18 +465,18 @@ function refusedByEarlierVersion(previous) {
 
 /*
  * Une carte relue et acceptée devient le service le plus récent de sa date.
- * Une carte de la même date importée depuis le refus est le dernier dépôt
- * du collègue : la relecture ne doit pas la supplanter par une carte plus
- * ancienne.
+ * Une carte de la même date importée depuis son refus, ou depuis sa
+ * première lecture, est le dernier dépôt du collègue : la relecture ne doit
+ * pas la supplanter par une carte plus ancienne.
  */
-function supersededSinceRefusal(previous, index) {
-  const refusedAt = Date.parse(String(previous.lastAttemptAt || ""))
+function supersededSince(index, date, since) {
+  const sinceTime = Date.parse(String(since || ""))
   const services = Array.isArray(index?.services) ? index.services : []
 
   return services.some(
     entry =>
-      entry?.date === previous.date &&
-      Date.parse(String(entry.indexedAt || entry.importedAt || "")) > refusedAt
+      entry?.date === date &&
+      Date.parse(String(entry.indexedAt || entry.importedAt || "")) > sinceTime
   )
 }
 

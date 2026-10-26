@@ -54,6 +54,7 @@ Pour chaque navigateur :
 3. PDF encore marqué comme non téléchargé localement par iCloud.
 4. Relance du Dashboard après dépôt.
 5. Carte de journée de type C, dont le numéro porte un suffixe après les chiffres — `P2` : importée comme les autres, le numéro affiché en entier dans l’en-tête du widget. Une telle carte refusée par une version antérieure (`PDF HASTUS non reconnu`) est relue après la mise à jour, sans être redéposée.
+6. Carte déposée avant la 1.4.8, dont deux tranches partagent la même voiture : relue une fois après la mise à jour, sans être redéposée, et sa seconde tranche affiche alors sa propre direction. Une carte dont les tranches sont sur des voitures différentes n’est pas relue.
 
 Résultat attendu : détection, extraction, import, renommage/indexation et sélection du bon service sans manipulation technique supplémentaire.
 
