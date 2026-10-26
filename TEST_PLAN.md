@@ -102,6 +102,7 @@ Contrôler sur chaque profil d’écran :
 - `Ligne … · Voiture …` lisible sur une ligne ;
 - trajets, directions et noms d’arrêts longs réduits proprement avant troncature ;
 - direction d’une tranche relevée en cours de ligne : le terminus de la ligne quand elle n’en a que deux — sur la ligne 2 partie de Jardin des Deux Rives, `Lingolsheim Gare` — et jamais un texte de pied de page commençant par `Page:` ;
+- direction de chaque tranche quand deux tranches partagent la même voiture : la sienne, jamais celle de la tranche précédente — sur la ligne 2, une tranche du matin vers `Lingolsheim Gare` puis une tranche reprise à Montagne Verte vers `Jardin Deux Rives` ;
 - lieux de début et de fin d’une tranche jamais affichés `Code …` : une tranche de la ligne 30 prise et rendue à Ankara s’affiche `Ankara → Ankara`, et un point de relève encore absent de `places.json` prend le nom de l’arrêt imprimé sur la carte ;
 - tranche active identifiable sans nuire à la lisibilité ;
 - cartes Travail / Amplitude alignées et équilibrées ;

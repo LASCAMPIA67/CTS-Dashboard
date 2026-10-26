@@ -412,3 +412,13 @@ décision lui est antérieure.
   l'installateur. Une correction du parser fusionnée sans numéro ne relit
   donc rien : elle attend la version qui l'annonce, ce que la décision du
   6 septembre fait déjà de tout changement visible.
+- 2026-10-26 — Deux tranches sur la même voiture lisent chacune leur propre
+  section de la carte, rattachée dans l'ordre de l'en-tête, et la lecture
+  suit désormais la même règle que la validation. La lecture donnait la
+  première section de la voiture à toutes ses tranches : une seconde
+  tranche a affiché la direction du matin, Lingolsheim Gare, pour un bus
+  qui partait vers Jardin des Deux Rives, et le conducteur a attendu sa
+  relève du mauvais côté. L'ordre est celui que la validation suivait
+  depuis le 27 septembre, et la carte réelle le confirme une fois lue par
+  PDF.js ; deux règles pour un même rattachement avaient divergé sans que
+  rien le voie, il n'en reste qu'une.

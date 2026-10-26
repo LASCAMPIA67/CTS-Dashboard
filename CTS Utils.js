@@ -118,10 +118,6 @@ function formatDateFull(date) {
     : UNKNOWN_DATE
 }
 
-function escapeRegex(value) {
-  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-}
-
 function normalizeCode(value) {
   return String(value || "")
     .trim()
@@ -384,7 +380,6 @@ module.exports = {
   dayDifference,
   formatDateLong,
   formatDateFull,
-  escapeRegex,
   normalizeCode,
   isTramLineCode,
   normalizeKey,
