@@ -22,7 +22,6 @@ const {
   normalizeTime,
   isValidTime,
   toMinutes,
-  escapeRegex,
   normalizeCode,
   isTramLineCode
 } = UTILS
@@ -40,13 +39,14 @@ async function parseService(rawText) {
   if (!driver.name) warnings.push("Nom du conducteur introuvable")
 
   let slices = await extractSlices(text)
-  const contexts = await enrichSlices(text, slices)
+  const { sections, unclaimed } = matchVehicleSections(text, slices)
+  const contexts = await enrichSlices(slices, sections)
 
   slices = contexts.map(({ slice }) => slice)
 
   if (!slices.length) errors.push("Aucune tranche détectée")
 
-  validateVehicleSections(text, slices, errors)
+  unclaimed.forEach(vehicle => errors.push(`Tranche introuvable pour la voiture ${vehicle}`))
   validateSlices(slices, errors, warnings)
   addPlaceWarnings(contexts, warnings)
   addDepartureWarnings(contexts, warnings)
@@ -84,10 +84,10 @@ async function countSlicesWithUnknownPlace(contexts) {
   return contexts.filter(({ unknownPlace }) => unknownPlace).length
 }
 
-async function enrichSlices(text, slices) {
+async function enrichSlices(slices, sections) {
   return Promise.all(
     slices.map(async slice => {
-      const section = extractVehicleSection(text, slice)
+      const section = sections.get(slice) || ""
       const lines = rebuildSectionLines(section)
       const startsAtDepot = await DB.isDepot(slice.startPlaceCode)
       const endsAtDepot = await DB.isDepot(slice.endPlaceCode)
@@ -248,7 +248,7 @@ function extractDriver(text) {
  * mot la tranche d'un code plus long ou portant un chiffre. Le motif reste
  * pourtant plus étroit que tout mot possible, parce que les deux erreurs ne
  * coûtent pas pareil : une ligne d'en-tête manquée fait refuser la carte
- * (validateVehicleSections), une tranche inventée s'afficherait sans
+ * (matchVehicleSections), une tranche inventée s'afficherait sans
  * alerte. Il parcourt la carte entière, et ce qui le borne à l'en-tête est
  * « NN - N » suivi d'une heure, que les sections ne portent jamais — leur
  * « Voiture NN - N » précède une activité.
@@ -356,26 +356,46 @@ function extractDepotExitTime(section, lines) {
   return match && isValidTime(match[1]) ? normalizeTime(match[1]) : ""
 }
 
-function extractVehicleSection(text, slice) {
-  const header = new RegExp(
-    `\\bVoiture\\s+${escapeRegex(slice.lineCode)}\\s*-\\s*${escapeRegex(
-      String(slice.vehicle)
-    )}\\b`,
-    "i"
-  )
+/*
+ * Chaque tranche a sa section « Voiture NN - N » dans le corps de la carte,
+ * et les sections suivent l'ordre des tranches de l'en-tête. Une voiture
+ * conduite deux fois a donc deux sections : chacune revient à la première
+ * tranche de cette voiture qui n'a pas encore la sienne. La lecture donnait
+ * la première section de la voiture à toutes ses tranches, quand la
+ * validation les rattachait déjà dans l'ordre : le 26 octobre 2026, une
+ * seconde tranche a affiché la direction du matin, et le conducteur a
+ * attendu sa relève du mauvais côté. Une seule règle sert désormais aux
+ * deux.
+ *
+ * Une section qu'aucune tranche ne réclame est une ligne d'en-tête que le
+ * motif n'a pas su lire : la carte est refusée, comme une date illisible,
+ * plutôt que d'afficher un service amputé d'une prise.
+ */
+function matchVehicleSections(text, slices) {
+  const headers = [...text.matchAll(/\bVoiture\s+(\d{1,3})\s*-\s*(\d{1,3})\b/gi)]
+  const sections = new Map()
+  const unclaimed = []
 
-  const match = header.exec(text)
+  headers.forEach((header, position) => {
+    const [label, line, vehicle] = header
+    const slice = slices.find(
+      candidate =>
+        !sections.has(candidate) &&
+        Number(candidate.lineCode) === Number(line) &&
+        candidate.vehicle === Number(vehicle)
+    )
 
-  if (!match) {
-    return ""
-  }
+    if (!slice) {
+      unclaimed.push(`${line} - ${vehicle}`)
+      return
+    }
 
-  const start = match.index + match[0].length
-  const rest = text.slice(start)
-  const nextHeader = /\bVoiture\s+\d{1,3}\s*-\s*\d{1,3}\b/i.exec(rest)
-  const end = nextHeader ? start + nextHeader.index : text.length
+    const end = headers[position + 1]?.index ?? text.length
 
-  return text.slice(start, end).trim()
+    sections.set(slice, text.slice(header.index + label.length, end).trim())
+  })
+
+  return { sections, unclaimed }
 }
 
 /*
@@ -643,30 +663,6 @@ function extractBreaks(text, slices) {
   }
 
   return breaks.sort((first, second) => toMinutes(first.start) - toMinutes(second.start))
-}
-
-/*
- * Chaque tranche a sa section « Voiture NN - N » dans le corps de la carte.
- * Une section qu'aucune tranche ne réclame est une ligne d'en-tête que le
- * motif n'a pas su lire : la carte est refusée, comme une date illisible,
- * plutôt que d'afficher un service amputé d'une prise. Chaque tranche ne
- * réclame qu'une section, sans quoi une voiture conduite deux fois
- * pourrait encore perdre sa seconde tranche en silence.
- */
-function validateVehicleSections(text, slices, errors) {
-  const unclaimed = [...slices]
-
-  for (const [, line, vehicle] of text.matchAll(/\bVoiture\s+(\d{1,3})\s*-\s*(\d{1,3})\b/gi)) {
-    const index = unclaimed.findIndex(
-      slice => Number(slice.lineCode) === Number(line) && slice.vehicle === Number(vehicle)
-    )
-
-    if (index === -1) {
-      errors.push(`Tranche introuvable pour la voiture ${line} - ${vehicle}`)
-    } else {
-      unclaimed.splice(index, 1)
-    }
-  }
 }
 
 function validateSlices(slices, errors, warnings) {

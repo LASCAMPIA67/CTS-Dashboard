@@ -155,6 +155,65 @@ MONTAGNE VERTE (arrivée V.2) 17:46
 ${FOOTER}`
 
 /*
+ * Le 26 octobre 2026, un conducteur a attendu sa relève du mauvais côté de
+ * la rue : sa seconde tranche, sur la même voiture que la première, portait
+ * la direction du matin, Lingolsheim Gare, pour un bus qui partait vers
+ * Jardin des Deux Rives. La carte ci-dessous reprend la sienne, abrégée,
+ * sous un service, une date et un conducteur inventés.
+ */
+const SAME_VEHICLE_CARD = `CTS
+Type
+jrn.
+J
+XX01
+Voiture Prise
+début
+Lieu
+début
+Heure
+début
+Heure
+fin
+Lieu
+fin
+Prise
+fin
+02 - 9 6:13 ELS 6:13 10:37 MOVE_A 10:37
+02 - 9 12:57 MOVE_A 12:57 16:50 MOVE_C 16:50
+05/01/2026
+CONDUCTEUR FICTIF (000001)
+Prép. sortie
+DEPOT ELSAU 6:13
+DEPOT ELSAU 6:23
+Voiture 02 - 9
+Sortie / - DEPOT ELSAU 6:23
+- / - JARDIN DES DEUX RIVES 6:54
+Régulier / 2 JARDIN DES DEUX RIVES 6:54
+- / - PLACE D'ISLANDE 7:01
+GARE CENTRALE 7:24
+MONTAGNE VERTE (arrivée V.2) 7:31
+LINGOLSHEIM GARE 7:46
+Régulier / 2 LINGOLSHEIM GARE 10:18
+- / - GLIESBERG 10:29
+MONTAGNE VERTE (arrivée V.1) 10:37
+MONTAGNE VERTE (arrivée V.1) 10:37
+Coupure 10:37 12:57
+Voiture 02 - 9
+Régulier / 2 MONTAGNE VERTE (arrivée V.1) 12:57
+- / - MONTAGNE VERTE (arrivée V.1) 12:57
+GARE CENTRALE 13:07
+PLACE D'ISLANDE 13:30
+JARDIN DES DEUX RIVES 13:38
+Haut-le-pied / 2 JARDIN DES DEUX RIVES 13:38
+- / - JARDIN DES DEUX RIVES 13:38
+Régulier / 2 JARDIN DES DEUX RIVES 16:07
+- / - PLACE D'ISLANDE 16:18
+GARE CENTRALE 16:43
+MONTAGNE VERTE (arrivée V.2) 16:50
+MONTAGNE VERTE (arrivée V.2) 16:50
+${FOOTER}`
+
+/*
  * Chaque cas dit la carte lue et les directions que le conducteur doit
  * lire, tranche par tranche.
  */
@@ -197,6 +256,11 @@ const cases = [
       "Régulier / 2 PLACE D'ISLANDE 17:10"
     ),
     expected: ["Boecklin", "Schiltigheim Campus", "Montagne Verte"]
+  },
+  {
+    name: "la même voiture sur deux tranches",
+    card: SAME_VEHICLE_CARD,
+    expected: ["Lingolsheim Gare", "Jardin Deux Rives"]
   }
 ]
 
