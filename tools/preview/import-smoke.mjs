@@ -22,6 +22,7 @@ function loadModule(name, loaded) {
 }
 
 const PDF_PATH = "/documents/CTS Dashboard/Services/carte.pdf"
+const INSTALLED_VERSION = "9.9.9"
 
 const EXTRACTED = async () => ({
   text: "texte extrait",
@@ -111,6 +112,7 @@ for (const scenario of cases) {
     paths: {},
     files: {},
     pdf: { maximumFileSizeBytes: 20 * 1024 * 1024 },
+    dashboardVersion: INSTALLED_VERSION,
     servicesIndexVersion: 2,
     ensureDirectories: () => {}
   }
@@ -171,6 +173,18 @@ for (const scenario of cases) {
         `transmise(s) au lieu de ${expectedUnknown}`
     )
   }
+
+  /*
+   * Sans la version qui l'a lue, une carte lue avant une correction du
+   * parser ne se distingue pas d'une carte lue après : le balayage la
+   * relirait à chaque réveil.
+   */
+  if (result.status === "imported" && result.indexEntry?.dashboardVersion !== INSTALLED_VERSION) {
+    failures.push(
+      `${scenario.name} : l'entrée d'index retient la version « ${result.indexEntry?.dashboardVersion} » ` +
+        `au lieu de la version installée`
+    )
+  }
 }
 
 if (failures.length) {
@@ -184,5 +198,5 @@ const completed = cases.filter(scenario => scenario.status === "imported").lengt
 console.log(
   `ok     durées d'étape consignées par un import (${cases.length - completed} ` +
     `imports interrompus, ${completed} complet, aucune étape absente écrite zéro, ` +
-    `lieux inconnus transmis)`
+    `lieux inconnus transmis, version de lecture retenue)`
 )

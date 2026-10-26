@@ -497,6 +497,11 @@ async function buildUpdatedIndex(plan, service, extraction, sourceInfo, pdfFileN
     textFile: plan.textFileName,
     importedAt: service.importedAt || now,
     indexedAt: now,
+    /*
+     * Une carte importée n'est relue que si la version qui l'a lue lisait
+     * mal ce qu'elle contient : le balayage doit pouvoir le savoir.
+     */
+    dashboardVersion: CONFIG.dashboardVersion,
     warnings: service.validation.warnings.length,
     slices: service.slices.length,
     firstDutyStart: service.slices[0]?.dutyStart || "",

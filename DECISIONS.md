@@ -422,3 +422,14 @@ décision lui est antérieure.
   depuis le 27 septembre, et la carte réelle le confirme une fois lue par
   PDF.js ; deux règles pour un même rattachement avaient divergé sans que
   rien le voie, il n'en reste qu'une.
+- 2026-10-26 — Une carte importée avant la 1.4.8 et qui porte deux tranches
+  sur la même voiture est relue une fois, sans que le collègue ait à la
+  redéposer. Choix du mainteneur, plutôt qu'une consigne de redépôt dans le
+  message de publication : les cartes s'impriment plusieurs jours à
+  l'avance, et une carte déjà déposée aurait gardé la mauvaise direction
+  jusqu'à son jour. Seules ces cartes-là sont relues, et non toute carte de
+  plusieurs tranches, parce qu'une lecture de PDF coûte au widget le temps
+  qu'il n'a pas. Comme pour un refus, une carte de la même date importée
+  depuis empêche la relecture : c'est le dernier dépôt du collègue.
+  Complète la décision du 12 octobre, qui ne relisait que les cartes
+  refusées.
