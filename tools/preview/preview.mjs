@@ -15,22 +15,20 @@
 import fs from "node:fs"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 import * as shim from "./scriptable-shim.mjs"
-import { renderSheet, widgetBody } from "./html.mjs"
-import { measureBodies, measureCardWidths } from "./measure.mjs"
+import { IMAGE_FONTS, renderImage, renderSheet, widgetBody } from "./html.mjs"
+import { CHROMIUM, measureBodies, measureCardWidths } from "./measure.mjs"
 import { moduleSpace, repository } from "./sandbox.mjs"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const output = process.argv[2] || path.join(here, "out")
+/*
+ * Absolu, parce que Chromium reçoit une adresse file:// : un dossier donné
+ * en relatif devenait file://docs/images/…, adresse invalide, et la capture
+ * photographiait la page d'erreur du navigateur sans que rien n'échoue.
+ */
+const output = path.resolve(process.argv[2] || path.join(here, "out"))
 fs.mkdirSync(output, { recursive: true })
-
-const CHROMIUM = [
-  "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
-  "/opt/pw-browsers/chromium/chrome-linux/chrome",
-  "/usr/bin/chromium",
-  "/usr/bin/chromium-browser"
-].find(candidate => fs.existsSync(candidate))
 
 /* ------------------------------------------------------------------ */
 /* Chargement des modules du dépôt dans un contexte Scriptable simulé. */
@@ -310,6 +308,8 @@ export function collectItems() {
       const requested = process.env.PREVIEW_FAMILY || "large"
       const widget = renderer().createWidget(requested, context)
       items.push({
+        scenario: name,
+        screen: screen.name,
         label: `${name} — ${screen.name} — ${context.state.label}`,
         width: ACCESSORY_SIZES[requested]?.width || screen.width,
         height: ACCESSORY_SIZES[requested]?.height || screen.height,
@@ -353,6 +353,11 @@ function main() {
     process.exit(overflow ? 1 : 0)
   }
 
+  if (process.env.PREVIEW_MODE === "images") {
+    writeImages(items)
+    return
+  }
+
   const htmlPath = path.join(output, "preview.html")
   fs.writeFileSync(htmlPath, renderSheet(items))
 
@@ -380,7 +385,7 @@ function main() {
       `--virtual-time-budget=3000`,
       `--window-size=${sheetWidth},${sheetHeight}`,
       `--screenshot=${path.join(output, "preview.png")}`,
-      `file://${htmlPath}`
+      pathToFileURL(htmlPath).href
     ],
     { stdio: "pipe" }
   )
@@ -388,4 +393,66 @@ function main() {
   console.log(`Capture : ${path.join(output, "preview.png")}  (${items.length} vignettes)`)
 }
 
-if (process.env.PREVIEW_MODE !== "library") if (process.env.PREVIEW_MODE !== "library") main()
+/*
+ * Une image par vignette, pour le README.
+ *
+ * Une police absente ne s'annonce pas : Chromium dessinerait avec la police
+ * par défaut, et l'image passerait pour fidèle. Elle est donc exigée avant
+ * la première capture plutôt que constatée sur l'image.
+ */
+function writeImages(items) {
+  if (!CHROMIUM) throw new Error("Chromium introuvable : aucune image écrite")
+
+  /* Une famille par nom exact : « Interstate » ne doit pas passer pour Inter. */
+  const installed = new Set(
+    execFileSync("fc-list", [":", "family"], { encoding: "utf8" })
+      .split(/[\n,]/)
+      .map(family => family.trim())
+  )
+  const missing = IMAGE_FONTS.filter(font => !installed.has(font))
+  if (missing.length) throw new Error(`Police absente, aucune image écrite : ${missing.join(", ")}`)
+
+  /*
+   * Un nom de scénario mal recopié ne retient rien, et rien n'échouerait :
+   * les anciennes images resteraient en place, données pour refaites.
+   */
+  if (!items.length) throw new Error("Aucun scénario ne correspond : aucune image écrite")
+
+  for (const item of items) {
+    const name = fileName(`${item.scenario} ${item.screen}`)
+    const htmlPath = path.join(output, `${name}.html`)
+    const imagePath = path.join(output, `${name}.png`)
+
+    fs.writeFileSync(htmlPath, renderImage(item))
+    execFileSync(
+      CHROMIUM,
+      [
+        "--headless",
+        "--disable-gpu",
+        "--no-sandbox",
+        "--hide-scrollbars",
+        "--force-device-scale-factor=2",
+        "--default-background-color=00000000",
+        `--virtual-time-budget=3000`,
+        `--window-size=${item.width},${item.height}`,
+        `--screenshot=${imagePath}`,
+        pathToFileURL(htmlPath).href
+      ],
+      { stdio: "pipe" }
+    )
+    fs.rmSync(htmlPath)
+
+    console.log(`Image : ${imagePath}`)
+  }
+}
+
+function fileName(text) {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+}
+
+if (process.env.PREVIEW_MODE !== "library") main()

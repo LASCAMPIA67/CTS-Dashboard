@@ -8,8 +8,9 @@ CTS Installer lit `version.json` sur `main`. **Fusionner un numéro qui a
 monté publie sur les vingt-quatre iPhone**, sans autre geste, et un numéro
 publié ne se reprend pas.
 
-- [ ] Les vingt et une commandes de la section **Vérifications automatiques** du
-      README passent.
+- [ ] Les vingt et une commandes de la section **Vérifications automatiques**
+      de [`CONTRIBUTING.md`](../CONTRIBUTING.md#vérifications-automatiques)
+      passent.
 - [ ] Aucun secret, et aucun outil de maintenance, n'entre dans le dépôt.
 - [ ] Si un numéro bouge, il bouge aux deux endroits dans le même commit —
       `version.json` et `CTS Config.js`, ou `version.json` et

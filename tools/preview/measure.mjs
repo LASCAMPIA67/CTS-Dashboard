@@ -9,12 +9,25 @@
 import fs from "node:fs"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
+import { pathToFileURL } from "node:url"
 
-const CHROMIUM = [
-  "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
+/*
+ * Le navigateur des mesures et des captures, cherché ici pour tous les
+ * outils du dossier.
+ *
+ * Chacun tenait sa liste, et toutes nommaient un dossier de version que
+ * l'environnement a remplacé depuis : la mesure échouait, la capture
+ * s'arrêtait sur « Chromium introuvable ». /opt/pw-browsers/chromium est
+ * désormais un lien vers le binaire en place, quelle que soit sa version ;
+ * il a été un dossier, d'où le chemin qui y entre et le contrôle du
+ * fichier, un dossier n'étant pas un exécutable.
+ */
+export const CHROMIUM = [
+  "/opt/pw-browsers/chromium",
   "/opt/pw-browsers/chromium/chrome-linux/chrome",
-  "/usr/bin/chromium"
-].find(candidate => fs.existsSync(candidate))
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser"
+].find(candidate => fs.existsSync(candidate) && fs.statSync(candidate).isFile())
 
 export function measureBodies(items, workDirectory) {
   fs.mkdirSync(workDirectory, { recursive: true })
@@ -106,7 +119,7 @@ function readMetrics(file) {
       "--virtual-time-budget=3000",
       "--window-size=1200,4000",
       "--dump-dom",
-      `file://${file}`
+      pathToFileURL(file).href
     ],
     { encoding: "utf8", maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "ignore"] }
   )
