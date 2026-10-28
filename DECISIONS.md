@@ -451,3 +451,32 @@ décision lui est antérieure.
   texte, à dessein, et rognaient le bas d'un widget qui tient entier sur
   le téléphone. Une image doit ressembler au widget, une mesure doit rester
   pessimiste, parce qu'un banc pessimiste ne valide jamais un débordement.
+- 2026-10-28 — Chaque numéro publié a sa Release GitHub, publiée par un
+  workflow à la fusion et jamais à la main : `vX.Y.Z` pour le Dashboard,
+  `installer-vX.Y.Z` pour l'installateur, et seule la première porte
+  « Latest ». Choix du mainteneur, pour un vrai suivi des mises à jour :
+  depuis le 4 septembre un numéro désigne un seul état des fichiers, et rien
+  ne montrait lequel, sinon l'historique Git lu à la main. Une Release par
+  numéro et non par message, parce que c'est le numéro qui figure dans un
+  rapport de diagnostic ; le préfixe sépare deux familles qui ont toutes
+  deux connu des 1.0.x. Une Release ne livre rien — l'installateur lit la
+  révision de `main`, jamais un tag — et le geste qui publie reste la fusion.
+- 2026-10-28 — La note d'une Release est le message pour la communauté,
+  suivi de la liste des pull requests fusionnées depuis la Release
+  précédente du même numéro : le premier dit ce que le conducteur gagne, la
+  seconde ce qui a changé, et aucun des deux ne tient lieu de l'autre. Le
+  message vit donc dans le dépôt, écrit dans la pull request qui écrit le
+  numéro, et la validation refuse un numéro sans lui : une fois la fusion
+  faite, le numéro est déjà sur les iPhone, et une Release sans note ne se
+  rattraperait qu'à la main.
+- 2026-10-28 — Le suivi commence aux numéros en service ce jour-là, CTS
+  Dashboard 1.4.8 et CTS Installer 1.0.33, et ne remonte pas plus loin.
+  L'historique compte des numéros publiés deux fois — 1.1.0 et 1.1.1 avant
+  une remise à 1.0.0, l'installateur 1.0.7 et 1.0.8 le même jour —, et une
+  Release par numéro ancien aurait notifié une centaine de fois ceux qui
+  suivent le dépôt, sans message à y mettre.
+- 2026-10-28 — Les Releases deviennent immuables une fois la première
+  publiée sans défaut : GitHub interdit alors de déplacer un tag ou d'en
+  réutiliser le nom, et fait respecter lui-même la règle du 4 septembre.
+  Pas avant, parce qu'un tag posé de travers par un workflow encore jamais
+  éprouvé serait perdu pour toujours.

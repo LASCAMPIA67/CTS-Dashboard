@@ -1,0 +1,16 @@
+*CTS DASHBOARD 1.4.8*
+
+La direction affichée est maintenant la bonne sur chaque tranche, même quand vous gardez le même bus d'une tranche à l'autre.
+
+• *Direction corrigée* — Quand deux tranches se font sur la même voiture, la seconde affiche désormais sa propre direction, et non plus celle de la première.
+
+*METTRE À JOUR*
+1. Ouvrez *Scriptable*
+2. Lancez *CTS Installer*
+3. _« Mettre à jour vers 1.4.8 »_
+4. Attendez _« 22/22 fichiers valides »_
+
+Vos cartes agent et vos archives sont conservées.
+
+*Version actuelle : CTS Dashboard 1.4.8*
+*CTS Installer : 1.0.33*
