@@ -433,3 +433,21 @@ décision lui est antérieure.
   depuis empêche la relecture : c'est le dernier dépôt du collègue.
   Complète la décision du 12 octobre, qui ne relisait que les cartes
   refusées.
+- 2026-10-28 — Le README s'adresse à deux lecteurs, le conducteur et le
+  responsable qui veut comprendre le projet avant de le laisser
+  s'installer, et chacun a sa partie. Le fonctionnement interne du dépôt —
+  numéros de version, vérifications automatiques — passe dans
+  `CONTRIBUTING.md`, que GitHub affiche dans son propre onglet : mêlé au
+  reste, il repoussait l'installation et les données loin sous des règles
+  qui ne concernent que le mainteneur. Rien n'en a été retiré, tout a
+  changé de place. Complète la charpente commune du 6 septembre, que le
+  README du dépôt admin suivra.
+- 2026-10-28 — Les images du widget dans le README sont dessinées hors
+  iPhone, par le vrai code de rendu, sur un service inventé, et non
+  capturées sur un téléphone. Une capture réelle publierait un numéro de
+  service et des horaires dans un dépôt dont l'historique ne s'efface pas,
+  ce que le rapport de diagnostic s'interdit déjà. Les images ne se
+  dessinent pas comme les mesures : celles-ci surestiment la hauteur du
+  texte, à dessein, et rognaient le bas d'un widget qui tient entier sur
+  le téléphone. Une image doit ressembler au widget, une mesure doit rester
+  pessimiste, parce qu'un banc pessimiste ne valide jamais un débordement.

@@ -3,15 +3,28 @@
 [![Validation](https://github.com/LASCAMPIA67/CTS-Dashboard/actions/workflows/validate.yml/badge.svg)](https://github.com/LASCAMPIA67/CTS-Dashboard/actions/workflows/validate.yml)
 [![Dashboard](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FLASCAMPIA67%2FCTS-Dashboard%2Fmain%2Fversion.json&query=%24.version&label=Dashboard&color=1f6feb)](version.json)
 [![CTS Installer](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2FLASCAMPIA67%2FCTS-Dashboard%2Fmain%2Fversion.json&query=%24.installerVersion&label=CTS%20Installer&color=6e7781)](version.json)
+[![Licence](https://img.shields.io/github/license/LASCAMPIA67/CTS-Dashboard?label=licence&color=6e7781)](LICENSE)
 
-Widget Scriptable pour iPhone permettant aux conducteurs CTS de consulter
-leur service depuis l'écran d'accueil.
+Widget Scriptable pour iPhone : le conducteur CTS dépose sa carte d'agent
+PDF, et son service du jour s'affiche sur l'écran d'accueil.
+
+<p align="center">
+  <img src="docs/images/en-service-2-tranches-pro-max.png" width="360"
+       alt="Le widget CTS Dashboard en service : la tranche en cours de 05:48 à 09:03, la rentrée au dépôt, la mise en ligne et la direction, puis le programme des deux tranches de la journée et les totaux de travail et d'amplitude.">
+</p>
 
 **Développé et maintenu par Emilio IPPOLITO.**
 
 > [!NOTE]
 > CTS Dashboard est un projet indépendant. Les documents de service
 > officiels restent la référence.
+
+Ce README s'adresse à deux lecteurs. [Les conducteurs](#pour-les-conducteurs)
+y trouvent l'installation et l'usage de chaque jour ;
+[les responsables](#pour-les-responsables) y trouvent ce que le projet fait
+des données et comment sa fiabilité est vérifiée. Le fonctionnement interne
+du dépôt — numéros de version, vérifications automatiques — est décrit dans
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Ce que fait CTS Dashboard
 
@@ -22,11 +35,12 @@ et affiche sur l'écran d'accueil ce qu'il reste à faire.
 | | |
 |---|---|
 | **Import automatique** | les cartes d'agent PDF HASTUS sont lues sans aucune manipulation |
-| **Sélection du service** | selon la date, et selon les horaires qui passent minuit |
-| **États du service** | Avant le service · En service · Pause · Coupure · Service terminé |
-| **Programme détaillé** | tranches, directions, dépôts, mises en ligne, durées |
+| **Sélection du service** | selon la date, y compris pour les horaires qui passent minuit |
+| **États du service** | Service demain · Avant le service · En service · Pause · Coupure · Service terminé |
+| **Programme détaillé** | tranches, lignes, voitures, directions, dépôts, mises en ligne, durées |
 | **Retrait d'un service** | depuis le dossier `Services`, ou depuis CTS Installer |
-| **Archivage** | automatique une heure après la fin du service, puis rétention |
+| **Archivage** | une heure après la fin du service, archives gardées sept jours |
+| **Taille du texte** | un réglage « Grandes polices », 25 % plus grand |
 | **Résilience iCloud** | récupération des fichiers non encore synchronisés, avec nouvelles tentatives |
 | **Réparation** | vérification et remplacement des fichiers abîmés |
 | **Diagnostic** | rapport technique anonymisé, transmissible tel quel |
@@ -35,7 +49,41 @@ Le rendu s'adapte aux écrans iPhone plus étroits : il réduit les textes
 longs avant d'en tronquer un, et resserre ses espacements plutôt que de
 laisser déborder une colonne.
 
-## Compatibilité
+### Le widget, état par état
+
+La couleur du widget dit d'un coup d'œil où en est la journée.
+
+| | |
+|:---:|:---:|
+| <img src="docs/images/service-dans-3-jours-2-tranches-pro-max.png" width="300" alt="Le widget en bleu, pastille « Service dans 3 jours » : la prochaine tranche, la prise de service, la sortie du dépôt, la mise en ligne et la direction."><br>**Service à venir** — le prochain service connu, avec le nombre de jours qui en séparent | <img src="docs/images/avant-le-service-2-tranches-pro-max.png" width="300" alt="Le widget en bleu, pastille « Avant le service » : l'heure de prise de service et de sortie du dépôt, la mise en ligne et la direction de la première tranche."><br>**Avant le service** — la prise de service, la sortie du dépôt et la mise en ligne |
+| <img src="docs/images/en-service-2-tranches-pro-max.png" width="300" alt="Le widget en vert, pastille « En service » : la tranche en cours, l'heure de rentrée au dépôt et de fin de service."><br>**En service** — la tranche en cours, la rentrée au dépôt et la fin de service | <img src="docs/images/pause-2-tranches-pro-max.png" width="300" alt="Le widget en orange, pastille « Pause 3 h 28 » : la tranche suivante, son heure de reprise et sa direction."><br>**Pause** — sa durée, et la tranche qui suit |
+| <img src="docs/images/coupure-2-tranches-pro-max.png" width="300" alt="Le widget en violet, pastille « Coupure 3 h 28 » : la tranche suivante, son heure de reprise et sa direction."><br>**Coupure** — même lecture, quand la carte imprime une coupure | <img src="docs/images/service-termine-2-tranches-pro-max.png" width="300" alt="Le widget en gris, pastille « Service terminé » : la dernière tranche, la rentrée au dépôt et la fin de service."><br>**Service terminé** — la dernière tranche, la rentrée au dépôt et la fin de service |
+
+Les images sont dessinées hors iPhone, par le code même qui dessine le
+widget, sur un service inventé : aucune ne montre la carte d'un collègue.
+La police diffère légèrement de celle de l'iPhone, la mise en page et les
+couleurs sont celles du widget.
+
+<details>
+<summary>Ce que contient chaque bloc du widget</summary>
+
+| Bloc | Ce qu'il montre |
+|---|---|
+| **En-tête** | le numéro de service, sa date, et une pastille qui dit l'état du moment |
+| **Bandeau** | la tranche qui compte maintenant — à venir, en cours ou la dernière —, son début, sa fin et leurs lieux ; selon le moment, la prise de service et la sortie du dépôt, ou la rentrée au dépôt et la fin de service ; puis la mise en ligne et la direction |
+| **Programme** | chaque tranche avec sa ligne, sa voiture, ses lieux, ses horaires et sa durée, la tranche active mise en avant, et entre deux tranches la pause ou la coupure qui les sépare |
+| **Bas du widget** | **Travail**, la somme des tranches, et **Amplitude**, de la prise de service à la fin de la dernière tranche |
+
+Un service qui compte une tranche de tram montre un tram dans l'en-tête, et
+cette tranche affiche « Début exploitation » au lieu de « Mise en ligne ».
+La direction est celle de la girouette quand la ligne le permet, et le
+dernier arrêt desservi sinon.
+
+</details>
+
+## Pour les conducteurs
+
+### Compatibilité
 
 CTS Dashboard est conçu exclusivement pour **iPhone** et pour le **widget
 grand format de Scriptable**.
@@ -52,9 +100,9 @@ Les versions bêta d'iOS ne constituent pas une cible de garantie. Elles
 peuvent être testées, mais la compatibilité officielle vise les versions
 publiques récentes.
 
-## Installation
+### Installation
 
-### 1. Obtenir CTS Installer
+#### 1. Obtenir CTS Installer
 
 Rien ne s'installe à la main : un seul script, **CTS Installer**, met tout
 le reste en place. Il se reçoit de deux façons, au choix.
@@ -67,19 +115,20 @@ le reste en place. Il se reçoit de deux façons, au choix.
 Dans les deux cas, la mise en place est identique : ouvrir le fichier reçu,
 puis **Partager → Scriptable → Add to My Scripts**.
 
-### 2. Installer le Dashboard
+#### 2. Installer le Dashboard
 
 1. Installer **Scriptable** depuis l'App Store et l'ouvrir une première fois.
 2. Ajouter `CTS Installer.scriptable` à Scriptable, comme ci-dessus.
 3. Dans Scriptable, exécuter **CTS Installer**.
-4. Choisir **Installer la version disponible** et attendre la validation
-   complète — l'écran doit finir sur `22/22 fichiers valides`.
+4. Toucher **Installer**, suivi du numéro de la version disponible, et
+   attendre la validation complète — l'écran doit finir sur
+   `22/22 fichiers valides`.
 
 Si CTS Installer annonce une version plus récente **de lui-même**, il la
 propose avant tout le reste : acceptez, puis fermez l'écran. Il se rouvre
 seul et poursuit l'installation du Dashboard.
 
-### 3. Ajouter le widget
+#### 3. Ajouter le widget
 
 1. Sur l'écran d'accueil : **Modifier → Ajouter un widget**.
 2. Choisir **Scriptable**, format **grand**.
@@ -91,7 +140,7 @@ porte un libellé ou une icône différente. La procédure qui vaut dans tous
 les cas est **Modifier → Ajouter un widget**. Pour reconfigurer un widget
 déjà en place : **appui long sur le widget → Modifier le widget**.
 
-## Au quotidien
+### Au quotidien
 
 Une carte d'agent suit toujours le même chemin, du dossier `Services`
 jusqu'aux archives. Une seule chose est à faire — déposer le PDF ; tout le
@@ -105,7 +154,7 @@ flowchart TD
     LEC -->|carte reconnue| SEL["Le service de la date utile<br/>est retenu"]
     SEL --> AFF["Le widget affiche le service<br/>sur l'écran d'accueil"]
     AFF --> FIN["Une heure après<br/>la fin du service"]
-    FIN --> ARC["Services / Archive"]
+    FIN --> ARC["Services / Archive,<br/>gardée sept jours"]
 
     AFF -.->|changement de dernière minute| SUP["Carte supprimée<br/>du dossier Services"]
     SUP --> ATT["Une heure d'attente,<br/>le temps d'écarter<br/>un retard d'iCloud"]
@@ -114,7 +163,7 @@ flowchart TD
     INS --> RET
 ```
 
-### Déposer un service
+#### Déposer un service
 
 Enregistrer la carte d'agent PDF dans :
 
@@ -137,7 +186,23 @@ télécharger la carte :
 | Google | [Ouvrir le tutoriel](https://www.icloud.com/notes/0e4kWSTPvql3PyV_V62pH1lFg) |
 | Brave | [Ouvrir le tutoriel](https://www.icloud.com/notes/052duaGDd5AYQILjAeLPS067g) |
 
-### Retirer un service
+#### Une carte en attente de lecture
+
+Le widget ne s'accorde qu'un temps limité à chaque réveil, et la lecture
+d'un PDF peut ne pas y tenir. Quand une carte attend encore d'être lue alors qu'un
+service est déjà affiché, une petite icône de plateau apparaît dans
+l'en-tête, à côté de la pastille d'état. Sans service à afficher, le widget
+dit « Lecture en attente ».
+
+La carte sera reprise automatiquement au réveil suivant. **Toucher le
+widget** la fait lire tout de suite, dans l'application.
+
+<p align="center">
+  <img src="docs/images/carte-agent-en-attente-2-tranches-pro-max.png" width="300"
+       alt="Le widget en service, avec une icône de plateau dans l'en-tête, à gauche de la pastille « En service » : une carte d'agent attend d'être lue.">
+</p>
+
+#### Retirer un service
 
 Quand un service change au dernier moment, l'ancien peut être retiré de
 deux façons.
@@ -154,7 +219,16 @@ confirmation avant de supprimer.
 Dans les deux cas, seuls les fichiers du service retiré sont supprimés. Les
 autres services et les archives ne sont pas touchés.
 
-### Structure créée automatiquement
+#### Régler la taille du texte
+
+Dans **CTS Installer → Taille du texte**, deux réglages :
+
+| Réglage | Ce qu'il change |
+|---|---|
+| **Standard** | toutes les informations, texte de taille habituelle |
+| **Grandes polices** | texte 25 % plus grand ; les détails du dépôt et de la direction sont masqués pour faire la place |
+
+#### Structure créée automatiquement
 
 Aucun de ces dossiers n'est à créer soi-même, et un seul se manipule :
 `Services`.
@@ -175,13 +249,14 @@ l'iPhone, invisible dans l'app Fichiers. iOS ne peut pas les en retirer faute
 de place, comme il le faisait dans iCloud, et le widget n'a donc jamais à les
 attendre au moment de lire une carte.
 
-## Mises à jour
+### Mises à jour
 
-Relancer **CTS Installer** puis choisir **Mettre à jour** ou **Vérifier les
-fichiers**. L'Installer compare les 22 fichiers distribués au snapshot
-GitHub courant et conserve les PDF, les archives et les données protégées.
+Relancer **CTS Installer**. Quand une version plus récente existe, le menu
+propose **Mettre à jour vers**, suivi de son numéro ; sinon, **Vérifier les
+fichiers** compare les 22 fichiers distribués à ceux que publie GitHub. Dans
+les deux cas, les PDF, les archives et les données protégées sont conservés.
 
-### Deux règles, volontairement différentes
+#### Deux règles, volontairement différentes
 
 Deux mécanismes encadrent les versions, et ils ne suivent pas la même
 logique.
@@ -196,16 +271,16 @@ mise à jour qui échoue.
 
 **Dans le widget, seul un plancher bloque.** `minimumDashboard`, dans
 [`version.json`](version.json), fixe la version en dessous de laquelle le
-widget cesse d'afficher un service et demande une mise à jour. Une version
-simplement en retard continue de fonctionner : couper un conducteur en
-service parce qu'une correction vient de paraître n'aurait pas de sens.
+widget cesse d'afficher un service et affiche « Mise à jour requise ». Une
+version simplement en retard continue de fonctionner : couper un conducteur
+en service parce qu'une correction vient de paraître n'aurait pas de sens.
 
 Le widget ne consulte jamais le réseau pour en décider. Il lit une politique
 déposée par l'appel d'activité quotidien, et **l'absence de réponse ne
 bloque jamais** : sans réseau, sans politique connue ou à la première
 installation, il fonctionne normalement.
 
-### Réparer un installateur bloqué
+#### Réparer un installateur bloqué
 
 Si CTS Installer s'arrête sur **Opération impossible** avant d'avoir affiché
 sa liste de fichiers, c'est l'installateur lui-même qui est en cause, et il
@@ -223,20 +298,21 @@ CTS Repair ne touche à aucune donnée : ni PDF, ni archives, ni index. Il
 refuse d'installer un fichier incomplet ou porteur du même défaut, et remet
 l'ancien installateur en place si l'écriture échoue.
 
-## En cas de problème
+### En cas de problème
 
-### Dépannage rapide
+#### Dépannage rapide
 
 | Ce qui se passe | Quoi faire |
 |---|---|
-| Le widget affiche « aucun service » alors qu'une carte est déposée | attendre qu'iCloud finisse de synchroniser le PDF, puis toucher le widget pour le relancer |
-| Le widget demande une mise à jour | lancer CTS Installer et l'accepter : la version installée est passée sous le plancher |
+| Le widget affiche « Aucun PDF » | déposer la carte d'agent dans `Services` ; si elle y est déjà, attendre qu'iCloud finisse de la synchroniser, puis toucher le widget |
+| Le widget affiche « Lecture en attente », ou l'icône de plateau | rien n'est perdu : la carte sera lue au réveil suivant, ou tout de suite en touchant le widget |
+| Le widget affiche « Aucun service exploitable » | la carte déposée n'a pas été reconnue : vérifier que c'est bien une carte d'agent PDF, puis lancer **Diagnostic** |
+| Le widget affiche « Mise à jour requise » | lancer CTS Installer et accepter la mise à jour : la version installée est passée sous le plancher |
 | CTS Installer refuse de se lancer, ou s'arrête sur « Opération impossible » | [réparer un installateur bloqué](#réparer-un-installateur-bloqué) |
-| Une carte d'agent n'est jamais importée | vérifier qu'elle est bien dans `Services`, puis lancer **Diagnostic** |
 | Un service retiré réapparaît | la carte est encore dans `Services` : la supprimer, ou passer par **Retirer un service** |
 | Un refus temporaire de GitHub pendant une mise à jour | couper le Wi-Fi, puis relancer CTS Installer |
 
-### Diagnostic
+#### Diagnostic
 
 Quand le dépannage rapide ne suffit pas :
 
@@ -249,7 +325,7 @@ Le rapport est conçu pour exclure le nom du conducteur, le matricule, les
 horaires, le numéro de service et le contenu des PDF. Il peut donc être
 transmis tel quel, sans relecture.
 
-### Où obtenir de l'aide
+#### Où obtenir de l'aide
 
 L'assistance passe par le groupe WhatsApp du projet, celui-là même où sont
 publiées les notes de chaque version. Un rapport de diagnostic y suffit
@@ -258,13 +334,44 @@ presque toujours à identifier la panne.
 Une faille de sécurité ne s'écrit pas là, ni dans une issue publique :
 [`SECURITY.md`](SECURITY.md) dit par où la signaler.
 
-## Données et confidentialité
+#### Désinstaller
 
-Le widget adresse trois appels à un serveur tenu par le mainteneur. Cette
-section dit exactement ce qu'ils emportent, parce qu'un dépôt public destiné
-à des collègues n'a pas à le laisser deviner.
+**CTS Installer → Désinstaller** retire le Dashboard. Les cartes d'agent PDF
+et leurs archives sont conservées.
 
-### Ce qui sort du téléphone
+## Pour les responsables
+
+Cette partie s'adresse à qui veut comprendre le projet avant de le laisser
+s'installer : comment il est construit, ce qu'il fait des données, et
+comment sa fiabilité est vérifiée.
+
+### Comment le projet est construit
+
+Tout tourne sur l'iPhone du conducteur, dans l'application Scriptable. Le
+dépôt GitHub distribue les scripts, iCloud apporte la carte d'agent, et un
+serveur tenu par le mainteneur reçoit trois appels techniques.
+
+```mermaid
+flowchart LR
+    GH["Ce dépôt GitHub<br/>scripts et bases"] -->|installation,<br/>mises à jour| INS["CTS Installer"]
+    INS --> DASH["CTS Dashboard<br/>sur l'iPhone"]
+    ICL["Dossier Services<br/>dans iCloud Drive"] -->|carte d'agent PDF| DASH
+    DASH --> WID["Widget<br/>sur l'écran d'accueil"]
+    DASH -.->|trois appels techniques| SRV["Serveur<br/>du mainteneur"]
+    SRV -.->|politique de version| DASH
+```
+
+La carte d'agent est lue sur le téléphone, par PDF.js, et son contenu n'en
+sort pas : seuls le nom et le matricule qu'elle porte accompagnent la
+télémétrie, comme le détaille la section suivante. Aucun compte propre au
+projet n'est à créer, et l'affichage ne dépend jamais du réseau.
+
+### Données et confidentialité
+
+Cette section dit exactement ce que les trois appels emportent, parce qu'un
+dépôt public destiné à des collègues n'a pas à le laisser deviner.
+
+#### Ce qui sort du téléphone
 
 | Donnée | Quand | Ce que c'est |
 |---|---|---|
@@ -272,7 +379,7 @@ section dit exactement ce qu'ils emportent, parce qu'un dépôt public destiné
 | `dashboardVersion` | à chaque appel | la version installée |
 | `iosMajorVersion` | à chaque appel | le numéro majeur d'iOS — `18`, `26` — jamais la version complète |
 | `driverName`, `driverId` | avec la télémétrie, **depuis la 1.4.0** | le nom et le matricule **tels que la carte d'agent les porte** |
-| Le déroulé de l'exécution | à chaque exécution du widget | son état — réussite, avertissement, erreur —, sa durée, et l'issue de cinq étapes : lecture du PDF, analyse, sélection, rendu, archivage |
+| Le déroulé de l'exécution | à chaque exécution, depuis le widget ou depuis l'application | si elle vient du widget ou de l'application, son état — réussite, avertissement, erreur —, sa durée, et l'issue de cinq étapes : lecture du PDF, analyse, sélection, rendu, archivage |
 | Les incidents | quand il y en a | un code (`PDF_NOT_FOUND`), un module, une étape, une gravité. Jamais de message libre, jamais de texte saisi. |
 
 > [!IMPORTANT]
@@ -284,114 +391,45 @@ Ils n'avaient jamais quitté l'iPhone avant la 1.4.0 ; ils l'accompagnent
 désormais pour que la console du mainteneur nomme un collègue au lieu de le
 désigner par un code.
 
-### Ce qui n'en sort jamais
+#### Ce qui n'en sort jamais
 
 Les horaires, le numéro de service, les lignes, les arrêts, le contenu de la
 carte d'agent, les archives, la position de l'appareil, et le contenu du
 Keychain.
 
-### À quel rythme
+#### À quel rythme
 
 | Appel | Quand |
 |---|---|
 | `/register` | une fois, à la première exécution, puis seulement si le jeton local est perdu |
 | `/activity` | une fois par jour au plus, avec au moins une heure entre deux tentatives échouées |
-| `/telemetry` | à chaque exécution du widget |
+| `/telemetry` | à chaque exécution |
 
 Aucun de ces appels n'est bloquant : un serveur injoignable ne retarde ni
 n'empêche l'affichage. C'est aussi par la réponse de `/register` et de
 `/activity` que voyage la politique de version — donc sans un seul appel
 réseau supplémentaire.
 
-## Numéros de version
+### Comment la fiabilité est vérifiée
 
-Deux numéros vivent dans [`version.json`](version.json), et ils n'ont pas le
-même métier. Augmenter l'un d'eux, c'est publier : CTS Installer compare le
-numéro du manifeste à celui qui est installé pour proposer une mise à jour.
-Un fichier modifié sans numéro nouveau atteint tout de même les iPhone, mais
-sans rien annoncer : à la prochaine opération de CTS Installer, vérification
-comprise, dès que la révision du dépôt a bougé.
+Un outil consulté avant une prise de service ne doit pas tromper le
+conducteur. Quatre garde-fous y veillent.
 
-Un numéro publié désigne un seul état des fichiers, définitivement. Une
-correction qui arrive après coup prend un numéro neuf, même si elle tient en
-une ligne : la 1.1.2 a été publiée deux fois avec deux comportements
-différents, et un numéro qui en désigne deux ne vaut rien dans un rapport de
-diagnostic.
-
-### `version` — le Dashboard
-
-C'est le numéro qui parle : il s'affiche dans le Diagnostic, voyage avec la
-télémétrie, et le serveur le sert comme dernière version publiée.
-
-**Le correctif est le cas normal.** Une correction, un plantage, une
-lenteur, une mise en page reprise, un libellé faux, une information de plus
-à lire : tout monte d'un cran par défaut.
-
-**Le mineur monte dans quatre cas**, et seulement ceux-là :
-
-| Cas | Précédent |
+| Garde-fou | Ce qu'il garantit |
 |---|---|
-| le conducteur peut faire ce qu'il ne pouvait pas | 1.2.0, retirer un service |
-| il doit apprendre un geste, ou en perd un | 1.1.0, toucher le widget après avoir déposé une carte |
-| ce qui sort du téléphone change de nature | 1.4.0, le nom et le matricule partent avec la télémétrie |
-| un verrou écrit auparavant atteint les téléphones | 1.3.0, un contrôle n'existe que dans la version qui le porte |
+| **Une validation à chaque modification** | la syntaxe, le manifeste, la cohérence des numéros de version et le contraste des couleurs sont contrôlés à chaque poussée et à chaque pull request |
+| **Vingt bancs d'essai** | rejoués au même moment, ils exécutent réellement les scripts hors iPhone, sur des doublures de Scriptable ; chacun est né d'un défaut réel, pour qu'il ne revienne pas |
+| **Une installation vérifiée** | un fichier téléchargé n'est mis en place qu'une fois contrôlé, et la copie en place est conservée sinon |
+| **Une carte douteuse est refusée** | une carte dont une tranche ne se lit pas est écartée et signalée, plutôt qu'affichée amputée |
 
-**Le majeur n'a jamais bougé.** C'est la version dont la publication éteint
-des installations en service : celle qu'accompagne un `minimumDashboard`
-relevé au-dessus de ce que des collègues utilisent encore.
+Le détail des contrôles et des numéros de version est dans
+[`CONTRIBUTING.md`](CONTRIBUTING.md), et les choix structurants du projet,
+datés et justifiés, dans [`DECISIONS.md`](DECISIONS.md).
 
-La taille du changement ne décide de rien. Trois publications d'affilée ont
-repris le bloc du bas du widget sans quitter le correctif. Nommer
-l'intervalle entre deux tranches en est resté un aussi : le conducteur y
-gagne à lire, pas à faire. Et revenir à l'habitude d'avant reste un
-correctif — la 1.1.1 a annulé le geste que la 1.1.0 demandait.
-
-### `installerVersion` — CTS Installer
-
-C'est un numéro qui livre. Son seul rôle est de déclencher le remplacement
-de l'installateur par lui-même : il monte d'un cran chaque fois que
-`CTS Installer.js` change, sans mineur ni majeur. Seize publications l'ont
-fait ainsi, dont la reconstruction complète des trois écrans d'accueil et la
-suppression du bouton qui permettait de refuser une mise à jour.
-
-Quand un changement doit être annoncé, c'est `version` qui l'annonce : la
-1.3.0 a annoncé la mise à jour obligatoire pendant que la 1.0.21 se
-contentait de la livrer. Un changement qui touche les deux fait monter les
-deux dans le même commit.
-
-### Les planchers
-
-`minimumDashboard` et `minimumInstaller` ne suivent pas le rythme des
-versions, et ne bougent jamais dans le commit qui en publie une.
-
-Le premier ne monte que pour éteindre, donc avec une majeure. Le second
-monte quand une version d'installateur devient incapable de faire son
-travail — une seule fois jusqu'ici, à 1.0.23, le jour où la mise à jour est
-devenue obligatoire.
-
-### Qui décide, et quand le numéro s'écrit
-
-Le mainteneur décide de chaque numéro. Le numéro s'écrit au moment de
-publier, jamais au moment de coder, et toujours à deux endroits dans le même
-commit — `version.json` et `CTS Config.js`, ou `version.json` et
-`CTS Installer.js`. La validation refuse qu'ils divergent.
-
-Un changement qui se juge sur le dépôt porte son numéro dans la même pull
-request. Un changement qui se juge sur l'appareil — un rendu, une mise en
-page, un écran — en demande deux : la première change le code sans toucher à
-aucun numéro, la seconde n'écrit que le numéro, une fois le rendu vérifié
-sur un iPhone. Entre les deux, `main` contient du code non publié, et c'est
-l'état normal d'un travail en attente de vérification.
-
-Chaque numéro publié donne lieu à un message pour la communauté, écrit selon
-le gabarit de [`MESSAGES.md`](MESSAGES.md).
-
-## Contenu du dépôt
+### Ce que contient ce dépôt
 
 Ce dépôt est **public** et ne contient que ce qui est destiné aux
 conducteurs.
-
-### Ce qui est distribué
 
 | | |
 |---|---|
@@ -399,7 +437,8 @@ conducteurs.
 | **`CTS Installer.js`** | téléchargé depuis l'URL brute, se met à jour lui-même, hors manifeste |
 | **`CTS Repair.js`** | remplace un installateur bloqué, installé à la main en cas de besoin |
 | **`tools/preview/`** | bancs d'essai et outils de mesure, exécutés hors iPhone |
-| **`.github/`** | la validation, le workflow qui la lance, et le gabarit de pull request |
+| **`docs/images/`** | les images de ce README, jamais installées sur un iPhone |
+| **`.github/`** | la validation, les workflows qui la lancent, et le gabarit de pull request |
 | **`LICENSE`** | la licence MIT du projet |
 
 <details>
@@ -432,11 +471,11 @@ conducteurs.
 
 </details>
 
-### Les documents de travail
+#### Les documents de travail
 
 | Fichier | Ce qu'il porte |
 |---|---|
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | ce que ce dépôt attend de qui veut y contribuer, et où va l'assistance |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | où aller selon ce qu'on cherche, les numéros de version et les vérifications automatiques |
 | [`SECURITY.md`](SECURITY.md) | par où signaler une faille sans l'écrire en public |
 | [`DECISIONS.md`](DECISIONS.md) | une ligne datée par décision structurante, et sa raison |
 | [`TEST_PLAN.md`](TEST_PLAN.md) | la validation minimale avant diffusion d'une version |
@@ -444,7 +483,7 @@ conducteurs.
 | [`CLAUDE.md`](CLAUDE.md) | les consignes de travail dans ce dépôt |
 | [`tools/preview/CALIBRATION.md`](tools/preview/CALIBRATION.md) | ce que le banc de prévisualisation reproduit fidèlement, et ce qu'il ne reproduit pas |
 
-### Ce qui ne figure pas dans ce dépôt
+#### Ce qui ne figure pas dans ce dépôt
 
 Les outils de maintenance du mainteneur — console de statistiques,
 simulateur, éditeur de base, testeur PDF — **n'y sont pas**. Ils vivent
@@ -457,96 +496,6 @@ Cette séparation ne protège aucun secret, car il n'y en a aucun dans ces
 outils. La capacité d'administration tient à une clé conservée dans le
 Keychain du mainteneur et vérifiée par le serveur : sans elle, l'API de
 statistiques répond 401, quel que soit le code exécuté.
-
-## Vérifications automatiques
-
-Tout est rejoué par
-[le workflow de validation](.github/workflows/validate.yml) à chaque poussée
-et à chaque pull request. Les mêmes commandes tournent en local.
-
-Une pull request ouverte ici part du
-[gabarit du dépôt](.github/pull_request_template.md), qui rappelle ce que
-fusionner déclenche.
-
-### La validation statique
-
-```bash
-node .github/scripts/validate.mjs
-```
-
-Elle contrôle le manifeste, la syntaxe, les métadonnées Scriptable, la
-cohérence des versions, l'ordre des planchers, les libellés d'arrêts, le
-contraste de la palette et l'absence d'outil de maintenance.
-
-Deux de ces contrôles méritent d'être connus. Le **contraste** est mesuré
-dans le pire cas de chaque état — le coin le plus clair du dégradé, sous le
-voile d'une carte — parce que le widget se lit debout, dehors, souvent en
-plein soleil. Le contrôle du **point d'entrée** refuse une constante
-déclarée après l'appel de premier niveau : la syntaxe est valide, mais la
-constante reste inaccessible à l'exécution, et ce piège a déjà tué
-l'installateur 1.0.7 sur l'iPhone d'un collègue.
-
-### Les vingt bancs d'essai
-
-Ils complètent la CI parce qu'une vérification statique ne voit pas ce qui
-casse à l'exécution. **Chacun est né d'un défaut réel.**
-
-<details>
-<summary>Les vingt bancs, et ce que chacun empêche</summary>
-
-| Banc | Ce qu'il empêche |
-|---|---|
-| `modules-smoke` | une fonction appelée d'un module à l'autre, ou empruntée par CTS Installer, qui n'existe pas |
-| `dashboard-smoke` | un widget blanc, vide, ou rendu dans une taille non prévue, un réveil trop tardif en service ou après une panne |
-| `scan-smoke` | une carte agent détectée mais jamais importée, un verrou écrit dans iCloud, une carte lue de travers jamais relue, ou relue à chaque réveil |
-| `selection-smoke` | le mauvais service retenu à cheval sur minuit |
-| `storage-smoke` | un fichier lisible qu'iCloud refuse de confirmer, une écriture interrompue ou posée incomplète, un journal d'import qui perd son histoire, une patience iCloud trop courte ou trop longue pour un widget, un verrou périmé qui bloque encore |
-| `cleanup-smoke` | un PDF jamais archivé, un cache effacé trop tôt |
-| `residue-smoke` | une copie de sécurité orpheline effacée alors qu'elle était le dernier exemplaire |
-| `removal-smoke` | un service retiré qui emporte les fichiers d'un autre, ou qu'iCloud fait disparaître à tort |
-| `interruption-smoke` | une interruption nommée « pause » par le programme et « coupure » par la pastille d'état, un service d'après minuit mal compté, un tram dessiné comme un bus |
-| `version-gate-smoke` | un widget bloqué à tort parce qu'il est hors ligne, ou qu'un plancher a été publié de travers |
-| `database-smoke` | un arrêt affiché sous forme de code, une ligne de tram oubliée |
-| `parser-smoke` | une tranche disparue sans un mot, un arrêt ignoré parce que son heure lui est collée, un pied de page affiché comme direction, l'arrêt de relève à la place du terminus, ou la direction d'une tranche donnée à la suivante quand la voiture est la même |
-| `import-smoke` | une étape d'import qui n'a pas tourné rapportée « 0 ms » dans le Diagnostic, un lieu inconnu perdu entre la carte et le widget |
-| `layout-smoke` | une grille horaires qui déborde selon l'appareil |
-| `utils-smoke` | une attente sans borne, une date jugée valide par un seul module |
-| `installer-smoke` | une constante inaccessible à l'exécution, un Diagnostic ou un retrait de service coupé par une fonction retirée d'un module |
-| `repair-smoke` | un dépannage qui laisse l'iPhone sans installateur, ou avec un installateur tronqué |
-| `telemetry-smoke` | un jour de repos compté comme une panne dans le taux de succès de la flotte |
-| `pdf-engine-smoke` | un fichier que personne ne lit qui empêche toute lecture de carte agent, un moteur qui attend iCloud plus longtemps que le reste du widget |
-| `incident-smoke` | une même panne rapportée deux fois, sous deux codes et à deux gravités, un lieu inconnu qui ne remonte pas ou qui emporte son code |
-
-</details>
-
-Chacun se lance seul, par exemple :
-
-```bash
-node tools/preview/modules-smoke.mjs
-```
-
-### Les outils qui ne sont pas des bancs
-
-Trois outils du même dossier ne tournent pas en CI : ils s'exécutent à la
-demande et **ne doivent pas être pris pour des fichiers orphelins** — rien
-ne les référence parce que ce sont des points d'entrée.
-
-| Outil | Usage |
-|---|---|
-| `preview.mjs` | rend les états du widget en images, pour juger le rendu sans iPhone |
-| `installer.mjs` | rend les pages de CTS Installer de la même façon |
-| `installer-bench.mjs` | mesure une installation complète : requêtes, octets, temps |
-
-Tous, bancs et outils, montent leur bac à sable par `sandbox.mjs` : le
-langage, une console muette, un `Timer` conforme à Scriptable, et les
-façons d'exécuter un script. Une doublure fausse s'y corrige une fois pour
-tous.
-
-`references.mjs` porte la règle qui vérifie ce qu'un script emprunte aux
-modules. `modules-smoke` l'applique aux modules et à CTS Installer, et elle
-vaut aussi pour les outils du mainteneur, qui vivent ailleurs : ils
-empruntent aux mêmes modules, et une seconde copie de la règle finirait par
-ne plus voir la même chose.
 
 ## Licence et auteur
 
