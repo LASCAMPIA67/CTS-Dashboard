@@ -86,7 +86,7 @@ export class LinearGradient {
  */
 const SYMBOL_PATHS = {
   "arrow.right": "M3 12h16M13 6l6 6-6 6",
-  "bus.fill": "M4 5h16v10H4zM6 18v2M18 18v2M4 10h16",
+  "bus.fill": "M7 3h10a3 3 0 0 1 3 3v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a3 3 0 0 1 3-3zM4 11h16M7 17v3M17 17v3M8 14h.01M16 14h.01",
   "tram.fill": "M5 4h14v12H5zM9 20l-2 2M15 20l2 2M5 10h14",
   "rectangle.3.group.fill": "M3 4h8v6H3zM13 4h8v6h-8zM3 12h18v8H3z",
   "exclamationmark.triangle.fill": "M12 3l9 17H3zM12 9v5M12 17v.5",

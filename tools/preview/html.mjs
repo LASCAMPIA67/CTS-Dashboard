@@ -1,12 +1,28 @@
 import { symbolPath } from "./scriptable-shim.mjs"
 
 /*
- * Hauteur de ligne et resserrement calibrés sur une capture iPhone réelle
- * (service CL09, trois tranches, Pro Max) : Liberation Sans est plus haute
- * et plus large que San Francisco, ces deux facteurs compensent l'écart.
+ * Deux typographies, parce que mesurer et montrer ne demandent pas la même.
+ *
+ * Les mesures gardent Liberation, avec la hauteur de ligne calibrée sur une
+ * capture iPhone réelle (service CL09, trois tranches, Pro Max) : elle
+ * surestime les hauteurs, et un banc pessimiste ne valide jamais un
+ * débordement.
+ *
+ * Les images du README prennent Inter et JetBrains Mono, plus proches de San
+ * Francisco à l'œil, et une ligne plus serrée, réglée sur une capture iPhone
+ * réelle d'un service de deux tranches : avec la hauteur des mesures,
+ * l'image rognait le bas d'un widget qui tient entier sur le téléphone.
+ *
  * Voir tools/preview/CALIBRATION.md.
  */
-const LINE_HEIGHT = Number(process.env.PREVIEW_LINE_HEIGHT) || 1.2
+export const IMAGE_FONTS = ["Inter", "JetBrains Mono"]
+
+const TYPOGRAPHY =
+  process.env.PREVIEW_MODE === "images"
+    ? { sans: `'${IMAGE_FONTS[0]}', sans-serif`, mono: `'${IMAGE_FONTS[1]}', monospace`, lineHeight: 1.05 }
+    : { sans: "'Liberation Sans', sans-serif", mono: "'Liberation Mono', monospace", lineHeight: 1.2 }
+
+const LINE_HEIGHT = Number(process.env.PREVIEW_LINE_HEIGHT) || TYPOGRAPHY.lineHeight
 const TRACKING = Number(process.env.PREVIEW_TRACKING)
 const LETTER_SPACING = Number.isFinite(TRACKING) ? TRACKING : -0.012
 
@@ -123,7 +139,7 @@ function renderNode(node, parentVertical) {
 
   if (node.kind === "text") {
     const font = node.font
-    const family = font.monospaced ? "'Liberation Mono', monospace" : "'Liberation Sans', sans-serif"
+    const family = font.monospaced ? TYPOGRAPHY.mono : TYPOGRAPHY.sans
     const style = [
       `font-family:${family}`,
       `font-size:${font.size}px`,
@@ -206,21 +222,17 @@ const FIT_SCRIPT = `
 })();
 `
 
-export function renderWidget(widget, { width, height, label }) {
-  analyze(widget)
-  const body = renderNode(widget, true)
+/*
+ * Un widget seul, sans légende ni fond : hors des coins arrondis, l'image
+ * reste transparente et se pose sur le thème clair comme sur le sombre.
+ */
+export function renderImage(item) {
   return `<!doctype html><meta charset="utf-8"><style>
     * { margin:0; padding:0; }
-    body { background:#0A0A0B; font-family:'Liberation Sans',sans-serif; }
-    .frame { width:${width}px; height:${height}px; overflow:hidden; border-radius:24px; position:relative; }
+    html, body { background:transparent; }
+    .frame { width:${item.width}px; height:${item.height}px; overflow:hidden; border-radius:24px; }
     .frame > div { width:100%; height:100%; }
-    .caption { color:#8A8F98; font-size:11px; padding:6px 2px 10px; }
-  </style>
-  <div class="wrap">
-    <div class="frame">${body}</div>
-    <div class="caption">${escapeHtml(label || "")} · ${width}×${height}pt</div>
-  </div>
-  <script>${FIT_SCRIPT}</script>`
+  </style><div class="frame">${item.body}</div><script>${FIT_SCRIPT}</script>`
 }
 
 export function renderSheet(items) {

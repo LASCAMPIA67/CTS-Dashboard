@@ -12,20 +12,16 @@
 import fs from "node:fs"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 import * as ui from "./uitable-shim.mjs"
 import { renderTable, renderSheet, USABLE_HEIGHT } from "./installer-html.mjs"
+import { CHROMIUM } from "./measure.mjs"
 import { evaluateScript, readScript, repository, scriptableGlobals } from "./sandbox.mjs"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const output = process.argv[2] || path.join(here, "out-installer")
+/* Absolu pour la même raison que dans preview.mjs : Chromium reçoit une adresse file://. */
+const output = path.resolve(process.argv[2] || path.join(here, "out-installer"))
 fs.mkdirSync(output, { recursive: true })
-
-const CHROMIUM = [
-  "/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
-  "/opt/pw-browsers/chromium/chrome-linux/chrome",
-  "/usr/bin/chromium"
-].find(candidate => fs.existsSync(candidate))
 
 const tables = []
 
@@ -395,7 +391,7 @@ async function main() {
       "--virtual-time-budget=3000",
       `--window-size=${perRow * 410 + 40},${Math.ceil(panels.length / perRow) * (tallest + 80) + 40}`,
       `--screenshot=${path.join(output, "installer.png")}`,
-      `file://${file}`
+      pathToFileURL(file).href
     ],
     { stdio: "pipe" }
   )

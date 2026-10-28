@@ -10,6 +10,9 @@ en page et en fait une capture avec Chromium.
 `PREVIEW_MODE=measure` remplace la capture par une mesure de la hauteur
 occupée, comparée à la hauteur réelle du widget « large ».
 
+`PREVIEW_MODE=images` écrit une image par vignette, sans légende et
+transparente hors des coins arrondis : ce sont les images du README.
+
 Variables d'environnement : `PREVIEW_SCENARIOS`, `PREVIEW_SCREENS`
 (séparateur `|`), `PREVIEW_LINE_HEIGHT`, `PREVIEW_TRACKING`.
 
@@ -64,6 +67,27 @@ iPhone.
 
 Le sens de l'erreur joue en notre faveur : le banc étant pessimiste, une
 modification qu'il valide est sûre.
+
+## Les images du README
+
+Elles ne servent pas à juger une mise en page, mais à montrer le widget à
+qui ne l'a pas encore. La police des mesures leur nuisait : plus haute que
+San Francisco, elle faisait rogner le bas d'un widget qui tient entier sur
+le téléphone, et ses chiffres à chasse fixe ne ressemblaient pas à ceux de
+l'iPhone.
+
+Le mode `images` prend donc Inter et JetBrains Mono, et une hauteur de
+ligne de 1,05 au lieu de 1,2. Le réglage vient d'une capture iPhone réelle
+d'un service de deux tranches, en service, rejoué par le banc : à 1,2 le
+contenu dépassait le cadre de 15 pt, à 1,05 il tient avec une marge, et
+l'iPhone en garde encore davantage. Les proportions des blocs se lisent
+alors comme sur la capture, et les chiffres ont une allure plus proche.
+
+Ce que ce mode ne change pas : la mise en page, les couleurs et les
+symboles sont ceux des mesures. Les symboles restent des silhouettes
+dessinées pour le banc, les symboles SF n'existant pas hors iOS. Ce mode
+ne mesure rien : une hauteur qui tient dans une image ne dit pas qu'elle
+tient sur un petit écran.
 
 ## Ce qui reste à confirmer sur iPhone
 
