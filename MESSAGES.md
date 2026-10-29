@@ -58,6 +58,25 @@ qui ne se remplace que sur changement de son propre numéro. Publier en
 silence est donc à réserver aux corrections qui peuvent attendre la
 prochaine version annoncée.
 
+## Où le message s'écrit
+
+Le message d'une publication s'écrit aussi dans le dépôt, dans la pull
+request qui écrit le numéro, et devient la note de la Release de ce
+numéro :
+
+- `messages/v1.4.9.txt` quand le Dashboard monte, seul ou avec
+  l'installateur ;
+- `messages/installer-v1.0.34.txt` quand seul l'installateur monte.
+
+Le fichier porte le message mot pour mot, tel qu'il part sur WhatsApp,
+sans le bloc de code qui l'entoure ici. La validation refuse un numéro qui
+n'a pas le sien, et le reconnaît au bouton qu'il cite : _« Mettre à jour
+vers 1.4.9 »_ pour le Dashboard, _« Installer 1.0.34 »_ pour
+l'installateur. Le libellé exact, déjà dû au collègue qui cherche le
+bouton, l'est donc aussi au dépôt. Une demande de vérification des
+fichiers ne s'y range pas : elle ne publie aucun numéro, donc aucune
+Release.
+
 ## Quand la demande remplace l'annonce
 
 Reste le cas où une telle correction ne peut pas attendre. Le message ne

@@ -132,6 +132,45 @@ l'état normal d'un travail en attente de vérification.
 Chaque numéro publié donne lieu à un message pour la communauté, écrit selon
 le gabarit de [`MESSAGES.md`](MESSAGES.md).
 
+### Les Releases
+
+Chaque numéro publié a sa
+[Release](https://github.com/LASCAMPIA67/CTS-Dashboard/releases), que
+[le workflow des Releases](.github/workflows/release.yml) publie dès que la
+fusion arrive sur `main`, sans autre geste :
+
+| Numéro | Tag | Titre |
+|---|---|---|
+| `version` | `v1.4.8` | CTS Dashboard 1.4.8, marquée « Latest » |
+| `installerVersion` | `installer-v1.0.33` | CTS Installer 1.0.33 |
+
+Seule celle du Dashboard porte « Latest » : GitHub donne cette étiquette à
+la dernière Release publiée, et une version de l'installateur la prendrait
+sinon à celle qui parle.
+
+Le tag est posé sur le commit de `main` où le numéro est arrivé, et désigne
+l'état que ce numéro a publié. Un correctif fusionné ensuite sans numéro
+atteint les iPhone sans figurer dans la Release.
+
+La note commence par le message pour la communauté, tel qu'il part sur
+WhatsApp. GitHub y ajoute la liste des pull requests fusionnées depuis la
+Release précédente du même numéro. Le message s'écrit donc dans la pull
+request qui écrit le numéro, sous `messages/` — `MESSAGES.md` dit sous quel
+nom —, et la validation refuse un numéro sans le sien : après la fusion, il
+serait trop tard, le numéro étant déjà parti.
+
+Une Release ne livre rien. CTS Installer lit la révision de `main`, jamais un
+tag : une Release en échec ne retarde aucune mise à jour. Elle se relance
+depuis l'onglet Actions, par « Run workflow », et le workflow ne publie que
+ce qui manque aux numéros en cours. Une Release qu'un numéro suivant a déjà
+dépassée ne se rattrape plus par lui.
+
+Le suivi commence à CTS Dashboard 1.4.8 et CTS Installer 1.0.33, les numéros
+en service le jour où il a été mis en place. Les précédents n'ont pas de
+Release : leur histoire se lit dans Git, et elle compte des numéros publiés
+deux fois. Le message de l'installateur 1.0.33, qui n'avait pas été
+conservé, est reconstitué, et le dit en tête.
+
 ## Vérifications automatiques
 
 Tout est rejoué par
@@ -146,8 +185,9 @@ node .github/scripts/validate.mjs
 ```
 
 Elle contrôle le manifeste, la syntaxe, les métadonnées Scriptable, la
-cohérence des versions, l'ordre des planchers, les libellés d'arrêts, le
-contraste de la palette et l'absence d'outil de maintenance.
+cohérence des versions, l'ordre des planchers, le message de la dernière
+publication, les libellés d'arrêts, le contraste de la palette et l'absence
+d'outil de maintenance.
 
 Deux de ces contrôles méritent d'être connus. Le **contraste** est mesuré
 dans le pire cas de chaque état — le coin le plus clair du dégradé, sous le

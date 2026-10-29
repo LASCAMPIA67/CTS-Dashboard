@@ -9,7 +9,7 @@ monté publie sur les vingt-quatre iPhone**, sans autre geste, et un numéro
 publié ne se reprend pas.
 
 - [ ] Les vingt et une commandes de la section **Vérifications automatiques**
-      de [`CONTRIBUTING.md`](../CONTRIBUTING.md#vérifications-automatiques)
+      de [`CONTRIBUTING.md`](../blob/main/CONTRIBUTING.md#vérifications-automatiques)
       passent.
 - [ ] Aucun secret, et aucun outil de maintenance, n'entre dans le dépôt.
 - [ ] Si un numéro bouge, il bouge aux deux endroits dans le même commit —
@@ -20,8 +20,9 @@ publié ne se reprend pas.
 - [ ] Si `minimumDashboard` monte, `minimumVersion` côté Worker est relevé
       **après** cette fusion, jamais avant.
 - [ ] Si un numéro est publié, le message pour la communauté est écrit
-      d'après [`MESSAGES.md`](../MESSAGES.md).
+      d'après [`MESSAGES.md`](../blob/main/MESSAGES.md) et rangé sous
+      `messages/` : il devient la note de sa Release.
 - [ ] Ce qui doit être constaté sur l'iPhone après fusion est repéré dans
-      [`TEST_PLAN.md`](../TEST_PLAN.md).
-- [ ] [`DECISIONS.md`](../DECISIONS.md) porte les décisions structurantes
-      prises ici.
+      [`TEST_PLAN.md`](../blob/main/TEST_PLAN.md).
+- [ ] [`DECISIONS.md`](../blob/main/DECISIONS.md) porte les décisions
+      structurantes prises ici.

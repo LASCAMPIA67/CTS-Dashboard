@@ -13,10 +13,10 @@ autre date suit la coche, et leur titre relevé.
 
 Les contraintes déjà établies, citées et datées, sont dans les fichiers
 annexes : [`scriptable.md`](scriptable.md), [`pdfjs.md`](pdfjs.md),
-[`node22.md`](node22.md) et [`claude-code.md`](claude-code.md). Lis
-l'annexe avant d'aller en ligne, elle répond peut-être déjà.
-`node22.md` et `claude-code.md` servent aussi au dépôt admin, qui n'en
-tient pas de copie.
+[`node22.md`](node22.md), [`github.md`](github.md) et
+[`claude-code.md`](claude-code.md). Lis l'annexe avant d'aller en ligne,
+elle répond peut-être déjà. `node22.md`, `github.md` et `claude-code.md`
+servent aussi au dépôt admin, qui n'en tient pas de copie.
 
 ## Sur l'iPhone du collègue
 
@@ -67,6 +67,9 @@ Aucun cadriciel de test : les bancs sont des scripts Node nus.
 | Technologie | Version | Documentation |
 |---|---|---|
 | GitHub Actions | `actions/checkout@v4`, `actions/setup-node@v4` | ✓ `docs.github.com/en/actions` |
+| Releases et tags GitHub — une par numéro publié, par `release.yml` | — | ✓ 28/10 `docs.github.com/en/repositories/releasing-projects-on-github` |
+| GitHub CLI — `gh release create`, préinstallé sur les machines de GitHub | — | ✓ 28/10 `cli.github.com/manual/gh_release_create` |
+| Semantic Versioning | 2.0.0 | ✓ 28/10 `semver.org` |
 | GitHub raw — les trois bases | — | ✓ `docs.github.com` |
 | jsDelivr — d'où vient PDF.js | — | ✓ `www.jsdelivr.com/documentation` |
 | Shields.io — les deux badges du README | — | ✓ `shields.io/docs` |

@@ -4,6 +4,13 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
+import {
+  MESSAGES_DIRECTORY,
+  dashboardAnnouncement,
+  dashboardButton,
+  installerAnnouncement,
+  installerButton
+} from './messages.mjs'
 
 const EXPECTED_SCRIPTS = 17
 const EXPECTED_RESOURCES = 5
@@ -357,6 +364,28 @@ function compareVersionStrings(first, second) {
   }
 
   return 0
+}
+
+// ------------------------------------------------ message de la publication
+
+/*
+ * Chaque numéro publié a sa Release, dont la note est le message pour la
+ * communauté. Le workflow des Releases le lit dans messages/ après la
+ * fusion, quand le numéro est déjà parti sur les iPhone : un message absent
+ * ne se verrait qu'à ce moment-là, sur une Release en échec. Il est donc
+ * exigé ici, avant, par la règle même du workflow.
+ */
+for (const [product, version, button, announcement] of [
+  ['CTS Dashboard', manifest.version, dashboardButton, dashboardAnnouncement],
+  ['CTS Installer', manifest.installerVersion, installerButton, installerAnnouncement]
+]) {
+  if (!announcement(version)) {
+    fail(
+      `Aucun message de ${MESSAGES_DIRECTORY}/ ne cite « ${button(version)} » : la ` +
+      `Release de ${product} ${version} n'aurait pas de note. Le message s'écrit ` +
+      `d'après MESSAGES.md, dans la pull request qui écrit le numéro.`
+    )
+  }
 }
 
 // ------------------------------------------------------- libellés de lieux
