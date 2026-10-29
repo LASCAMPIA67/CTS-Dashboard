@@ -297,13 +297,13 @@ async function registerImportedService(service, extraction, sourceInfo) {
     "Le cache texte existant n’a pas pu être préparé."
   )
 
-  const indexSnapshot = await withTelemetryError(
-    () => snapshotTextFile(files.servicesIndex),
-    "SERVICE_INDEX_SNAPSHOT_FAILED",
-    "index",
-    "L’index existant des services n’a pas pu être préparé."
-  )
-
+  /*
+   * L'index n'a pas de copie à restaurer : il est relu juste avant d'être
+   * écrit, en dernier, et une écriture qui échoue remet elle-même l'ancien
+   * contenu en place. Le restaurer après un échec, depuis une copie prise
+   * au début de l'enregistrement, effaçait ce que l'entretien avait pu y
+   * écrire entre-temps.
+   */
   let pdfTransaction = null
 
   try {
@@ -347,8 +347,6 @@ async function registerImportedService(service, extraction, sourceInfo) {
       indexEntry
     }
   } catch (error) {
-    await restoreTextFile(files.servicesIndex, indexSnapshot)
-
     if (pdfTransaction) {
       await pdfTransaction.rollback()
     }

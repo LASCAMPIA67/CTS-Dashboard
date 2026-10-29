@@ -159,8 +159,12 @@ function buildWorld({ lastEnd, serviceDate }) {
     },
     ensureDownloaded: async () => true,
     appendLog: async () => {},
-    readCurrentIndex: async () =>
-      JSON.parse(files.get(`${DATA}/services-index.json`)),
+    /* Comme le vrai : un index absent se lit comme un index vide. */
+    readCurrentIndex: async () => {
+      const content = files.get(`${DATA}/services-index.json`)
+
+      return content ? JSON.parse(content) : { version: 2, updatedAt: "", services: [] }
+    },
     /* Le nom unique réel est éprouvé par storage-smoke : ici, aucun doublon. */
     uniqueArchiveFileName: name => name,
     /* Le verrou réel est éprouvé par storage-smoke : ici, il est toujours libre. */
@@ -312,6 +316,111 @@ await scenario("service après minuit", {
   endsAt: new Date(2026, 7, 15, 0, 48).getTime()
 })
 
+/*
+ * L'application importe une carte pendant que le widget entretient.
+ *
+ * L'entretien lit l'index, puis range le PDF du service terminé : c'est à
+ * cet instant que l'import écrit son service, sous un autre verrou que le
+ * sien. Écrire ensuite la copie lue au début effaçait ce service-là. Une
+ * carte réimportée sous le même identifiant, elle, n'est plus celle que
+ * l'entretien a examinée : c'est elle qui doit rester, sans l'archivage
+ * décidé pour l'ancienne.
+ */
+for (const [label, imported] of [
+  [
+    "un autre service",
+    {
+      id: "2026-08-15_EB12",
+      date: "2026-08-15",
+      service: "EB12",
+      pdfFile: "Service_2026-08-15_EB12.pdf",
+      cacheFile: "Service_2026-08-15_EB12.json",
+      indexedAt: "2026-08-14T18:01:00.000Z"
+    }
+  ],
+  [
+    "le même service, réimporté",
+    {
+      id: "2026-08-14_EA06",
+      date: "2026-08-14",
+      service: "EA06",
+      pdfFile: "Service_2026-08-14_EA06.pdf",
+      cacheFile: "Service_2026-08-14_EA06.json",
+      indexedAt: "2026-08-14T18:01:00.000Z"
+    }
+  ]
+]) {
+  const { files, fm, CLEANER } = buildWorld({ lastEnd: "16:55", serviceDate: "2026-08-14" })
+  const indexPath = `${DATA}/services-index.json`
+  const move = fm.move
+
+  fm.move = (from, to) => {
+    move(from, to)
+
+    if (!to.startsWith(`${ARCHIVE}/`)) return
+
+    const index = JSON.parse(files.get(indexPath))
+
+    index.services = index.services.filter(entry => entry.id !== imported.id).concat(imported)
+    files.set(indexPath, JSON.stringify(index))
+  }
+
+  const result = await CLEANER.maintainServices(
+    new Date(new Date(2026, 7, 14, 16, 55).getTime() + HOUR + 2 * MINUTE)
+  )
+
+  const services = JSON.parse(files.get(indexPath)).services
+  const examined = services.find(entry => entry.id === "2026-08-14_EA06")
+  const arrived = services.find(entry => entry.indexedAt === imported.indexedAt)
+
+  check(result.archived.length === 1, `import pendant l'entretien · ${label} : rien n'a été archivé`)
+  check(
+    Boolean(arrived),
+    `import pendant l'entretien · ${label} : l'entretien a effacé le service que l'import venait d'écrire`
+  )
+
+  if (imported.id === "2026-08-14_EA06") {
+    check(
+      services.length === 1 && !arrived?.archive,
+      `import pendant l'entretien · ${label} : l'archivage de l'ancienne carte a été reporté sur la nouvelle`
+    )
+  } else {
+    check(
+      services.length === 2 && Boolean(examined?.archive?.fileName) && Boolean(examined?.cache?.clearedAt),
+      `import pendant l'entretien · ${label} : l'archivage du service terminé n'a pas été enregistré`
+    )
+  }
+}
+
+/*
+ * L'index est absent à l'instant où l'entretien le relit : un autre
+ * écrivain l'a mis de côté et n'a pas encore posé le nouveau. Lu comme un
+ * index vide, il aurait fait écrire un index sans aucun service, archives
+ * comprises ; l'entretien doit repartir de ce qu'il avait lu.
+ */
+{
+  const { files, fm, CLEANER } = buildWorld({ lastEnd: "16:55", serviceDate: "2026-08-14" })
+  const indexPath = `${DATA}/services-index.json`
+  const move = fm.move
+
+  fm.move = (from, to) => {
+    move(from, to)
+    if (to.startsWith(`${ARCHIVE}/`)) files.delete(indexPath)
+  }
+
+  await CLEANER.maintainServices(
+    new Date(new Date(2026, 7, 14, 16, 55).getTime() + HOUR + 2 * MINUTE)
+  )
+
+  const services = files.has(indexPath) ? JSON.parse(files.get(indexPath)).services : []
+
+  check(
+    services.length === 1 && Boolean(services[0].archive?.fileName),
+    "index absent au moment d'écrire : l'entretien a écrit " +
+      `${services.length} service(s) au lieu du service qu'il venait d'archiver`
+  )
+}
+
 if (failures.length) {
   console.log("ÉCHEC  entretien automatique des services")
   for (const failure of [...new Set(failures)]) console.log(`         ${failure}`)
@@ -320,5 +429,6 @@ if (failures.length) {
 
 console.log(
   `ok     entretien automatique des services ` +
-    `(2 scénarios, vidage du cache, archivage et rétention)`
+    `(2 scénarios, vidage du cache, archivage et rétention, import pendant l'entretien, ` +
+    `index absent au moment d'écrire)`
 )

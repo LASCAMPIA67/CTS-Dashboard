@@ -66,6 +66,70 @@ async function readIndexForCleanup(stage = "archive") {
   }
 }
 
+/*
+ * L'entretien et le retrait lisent l'index au début de leur travail, puis
+ * téléchargent, rangent ou effacent des fichiers avant de l'écrire. Pendant
+ * ces secondes, l'application peut importer une carte sous le verrou du
+ * balayage, qui n'est pas celui-ci : écrire la copie lue au début effaçait
+ * alors le service qu'elle venait d'ajouter.
+ *
+ * L'index est donc relu au moment d'écrire, et n'y est reporté que ce que
+ * l'entretien a fait : les entrées qu'il a modifiées ou retirées, et
+ * seulement si elles désignent encore le même import. Une carte réimportée
+ * entre-temps n'est plus celle qu'il a examinée, et c'est elle qui reste.
+ */
+async function writeIndexChanges(examinedIndex, { changed, removed }, updatedAt, writeOptions) {
+  const current = await rereadIndex(examinedIndex, writeOptions.stage)
+  const examinedById = new Map(examinedIndex.services.map(entry => [entryId(entry), entry]))
+  const changedIds = new Set(changed.map(id => entryId({ id })))
+  const removedIds = new Set(removed.map(id => entryId({ id })))
+
+  const sameImport = entry => {
+    const original = examinedById.get(entryId(entry))
+
+    return Boolean(original) && importIdentity(original) === importIdentity(entry)
+  }
+
+  current.services = current.services
+    .filter(entry => !(removedIds.has(entryId(entry)) && sameImport(entry)))
+    .map(entry =>
+      changedIds.has(entryId(entry)) && sameImport(entry) ? examinedById.get(entryId(entry)) : entry
+    )
+
+  current.updatedAt = updatedAt
+
+  await STORAGE.writeJsonAtomically(files.servicesIndex, current, writeOptions)
+
+  return current
+}
+
+/*
+ * Un index absent ou illisible au moment d'écrire ne dit pas qu'il est
+ * vide : un autre écrivain peut être entre ses deux déplacements, l'ancien
+ * fichier mis de côté et le nouveau pas encore en place. On repart alors de
+ * la copie lue au début, comme avant que l'index soit relu : l'entretien ne
+ * fait jamais pire que perdre l'import qu'il a croisé.
+ */
+async function rereadIndex(examinedIndex, stage) {
+  try {
+    if (fm.fileExists(files.servicesIndex)) return await readIndexForCleanup(stage)
+  } catch (_) {}
+
+  return { ...examinedIndex, services: [...examinedIndex.services] }
+}
+
+function entryId(entry) {
+  return String(entry?.id || "").trim()
+}
+
+/*
+ * Ce qui distingue deux imports d'une même carte : la date de leur
+ * indexation, que chaque import réécrit, et à défaut celle de l'import.
+ */
+function importIdentity(entry) {
+  return String(entry?.indexedAt || entry?.importedAt || "")
+}
+
 async function performMaintenance(currentDate, options) {
   const index = await readIndexForCleanup()
   const services = Array.isArray(index?.services) ? index.services : []
@@ -171,17 +235,28 @@ async function performMaintenance(currentDate, options) {
 
   if (forgotten.length) indexChanged = true
 
-  if (indexChanged) {
-    index.updatedAt = new Date().toISOString()
-
-    await STORAGE.writeJsonAtomically(files.servicesIndex, index, {
-      writeCode: "ARCHIVE_INDEX_TEMP_WRITE_FAILED",
-      commitCode: "ARCHIVE_INDEX_COMMIT_FAILED",
-      stage: "archive",
-      writeMessage: CLEANUP_WRITE_MESSAGE,
-      commitMessage: CLEANUP_COMMIT_MESSAGE
-    })
-  }
+  const currentIndex = indexChanged
+    ? await writeIndexChanges(
+        /*
+         * La liste lue au début, et non index.services, dont la réconciliation
+         * et l'oubli ont déjà retiré des entrées : un retrait ne se reporte
+         * que sur une entrée que l'entretien reconnaît pour l'avoir examinée.
+         */
+        { ...index, services },
+        {
+          changed: [...cacheCleared, ...archived, ...deleted].map(item => item.id),
+          removed: [...reconciliation.removed.map(item => item.id), ...forgotten]
+        },
+        new Date().toISOString(),
+        {
+          writeCode: "ARCHIVE_INDEX_TEMP_WRITE_FAILED",
+          commitCode: "ARCHIVE_INDEX_COMMIT_FAILED",
+          stage: "archive",
+          writeMessage: CLEANUP_WRITE_MESSAGE,
+          commitMessage: CLEANUP_COMMIT_MESSAGE
+        }
+      )
+    : index
 
   let residue = null
 
@@ -189,7 +264,7 @@ async function performMaintenance(currentDate, options) {
     residue = await sweepResidue(currentDate, residueGraceMs)
 
     const replaced = sweepReplacedArchives(currentDate, archiveRetentionMs)
-    const orphans = sweepOrphanCaches(index, currentDate, archiveRetentionMs)
+    const orphans = sweepOrphanCaches(currentIndex, currentDate, archiveRetentionMs)
 
     for (const fileName of replaced.removed) {
       residue.removed.push({ fileName, kind: "replaced-archive" })
@@ -933,19 +1008,20 @@ async function performServiceRemoval(id, currentDate) {
       serviceEndAt: String(entry.cache?.serviceEndAt || ""),
       files: deletion.removed
     }
-  } else {
-    index.services = services.filter(item => item !== entry)
   }
 
-  index.updatedAt = currentDate.toISOString()
-
-  await STORAGE.writeJsonAtomically(files.servicesIndex, index, {
-    writeCode: "SERVICE_REMOVAL_INDEX_TEMP_WRITE_FAILED",
-    commitCode: "SERVICE_REMOVAL_INDEX_COMMIT_FAILED",
-    stage: "removal",
-    writeMessage: CLEANUP_WRITE_MESSAGE,
-    commitMessage: CLEANUP_COMMIT_MESSAGE
-  })
+  await writeIndexChanges(
+    { ...index, services },
+    archivePreserved ? { changed: [id], removed: [] } : { changed: [], removed: [id] },
+    currentDate.toISOString(),
+    {
+      writeCode: "SERVICE_REMOVAL_INDEX_TEMP_WRITE_FAILED",
+      commitCode: "SERVICE_REMOVAL_INDEX_COMMIT_FAILED",
+      stage: "removal",
+      writeMessage: CLEANUP_WRITE_MESSAGE,
+      commitMessage: CLEANUP_COMMIT_MESSAGE
+    }
+  )
 
   try {
     await STORAGE.appendLog(

@@ -508,3 +508,24 @@ décision lui est antérieure.
   `gh`, présents dans la nouvelle image, et Node vient de `setup-node` :
   une version d'Ubuntu figée ne ferait que reporter le même passage à un
   geste fait à la main.
+- 2026-10-29 — Tout écrivain de l'index des services le relit au moment de
+  l'écrire, et n'y reporte que ce qu'il a fait lui-même, plutôt que de
+  partager un verrou avec les autres. L'entretien écrivait la copie lue
+  au début de son passage, plusieurs secondes plus tôt : une carte que
+  l'application importait pendant que le widget entretenait disparaissait
+  de l'index, le balayage et l'entretien ayant chacun leur verrou. Un
+  verrou commun a été écarté : l'application reprend la main sur le verrou
+  d'un widget, faute de savoir s'il a été tué, et la reprendrait sur
+  l'entretien comme sur le balayage ; un verrou qu'elle ne pourrait pas
+  reprendre ferait attendre jusqu'à deux minutes la carte qu'un collègue
+  vient de déposer. Il reste l'instant d'une écriture, que FileManager ne
+  sait pas rendre conditionnelle.
+- 2026-10-29 — Un index des services qu'iCloud n'a pas encore rendu à
+  l'iPhone a son propre incident, `SERVICE_INDEX_ICLOUD_DOWNLOAD_FAILED`,
+  et son propre écran, « Synchronisation iCloud ». Il était déclaré
+  invalide, et le widget affichait « Erreur d'analyse PDF » : le collègue
+  cherchait une carte en cause, et la console un fichier corrompu, là où il
+  n'y avait qu'une synchronisation à attendre. Accord du mainteneur sur ce
+  changement d'écran. Seul un index que l'iPhone détient et ne sait pas
+  lire reste invalide. Complète la décision du 15 septembre, qui refusait
+  un index illisible sans distinguer celui qui n'est pas encore arrivé.

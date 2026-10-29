@@ -11,7 +11,9 @@
  *
  * Ce banc monte le vrai CTS Widget Engine sur des doublures qui
  * reproduisent ces deux paires, et lit la télémétrie qu'il rend à
- * CTS Dashboard : c'est elle qui part vers le serveur.
+ * CTS Dashboard : c'est elle qui part vers le serveur. Pour un index
+ * qu'iCloud n'a pas encore rendu, il lit aussi l'écran : c'est la seule
+ * panne de ce banc dont le titre a changé.
  */
 
 import { importFrom, isolatedModule } from "./sandbox.mjs"
@@ -32,7 +34,13 @@ function loadModule(name, loaded) {
  * qu'on leur demande, de sorte que les incidents observés ne puissent
  * venir que de la façon dont le moteur les enregistre.
  */
-function buildEngine({ detectionErrors = [], imported = [], selection = null, cleanupErrors = [] }) {
+function buildEngine({
+  detectionErrors = [],
+  imported = [],
+  scan = null,
+  selection = null,
+  cleanupErrors = []
+}) {
   const fm = {
     joinPath: (parent, child) => `${parent}/${child}`,
     fileExists: () => false,
@@ -67,16 +75,20 @@ function buildEngine({ detectionErrors = [], imported = [], selection = null, cl
   }
 
   loaded["CTS Services Manager"] = {
-    scanServices: async () => ({
-      success: true,
-      status: "idle",
-      remaining: 0,
-      detected: detectionErrors.length + imported.length,
-      imported,
-      failed: [],
-      knownFailures: [],
-      detectionErrors
-    }),
+    scanServices: async () => {
+      if (scan) throw scan
+
+      return {
+        success: true,
+        status: "idle",
+        remaining: 0,
+        detected: detectionErrors.length + imported.length,
+        imported,
+        failed: [],
+        knownFailures: [],
+        detectionErrors
+      }
+    },
     resolveServiceForDate: async () => {
       if (selection) throw selection
       return { found: false, reason: "no-service" }
@@ -208,6 +220,45 @@ function withCode(issues, code) {
   )
 }
 
+/* ------------------------------------ index qu'iCloud n'a pas rendu */
+
+/*
+ * Le balayage, la sélection et l'entretien butent tous trois sur le même
+ * index, que l'iPhone n'a pas encore reçu. La console doit en lire un seul
+ * incident, rouge puisque le collègue n'a rien vu, et le collègue un écran
+ * qui parle de synchronisation, et non d'une carte agent à mettre en cause.
+ */
+{
+  const awaiting = () =>
+    telemetryError("SERVICE_INDEX_ICLOUD_DOWNLOAD_FAILED", "index", "index pas encore arrivé")
+
+  const engine = buildEngine({
+    scan: awaiting(),
+    selection: awaiting(),
+    cleanupErrors: [
+      {
+        telemetryCode: "SERVICE_INDEX_ICLOUD_DOWNLOAD_FAILED",
+        telemetryStage: "index",
+        error: "index pas encore arrivé"
+      }
+    ]
+  })
+
+  const context = await engine.loadContext(NOW)
+  const index = withCode(context.telemetry?.issues || [], "SERVICE_INDEX_ICLOUD_DOWNLOAD_FAILED")
+
+  check(
+    index.length === 1 && index[0].severity === "error",
+    `un index pas encore arrivé enregistre ${JSON.stringify(index)} au lieu d'un incident rouge`
+  )
+
+  check(
+    context.errorTitle === "Synchronisation iCloud" && /iCloud/.test(context.errorMessage),
+    `un index pas encore arrivé affiche « ${context.errorTitle} » : ` +
+      "le collègue doit lire qu'iCloud n'a pas fini, pas qu'une carte est en cause"
+  )
+}
+
 /* --------------------------------- ce qui ne doit surtout pas fusionner */
 
 /*
@@ -319,5 +370,5 @@ console.log(
   "ok     Incidents d’une exécution (une cause un incident, gravité la plus forte " +
     "retenue, chemin de l’affichage nommé avant celui de l’entretien, pannes " +
     "distinctes non fusionnées, bibliothèque PDF.js tenue à part de la carte agent, " +
-    "lieu inconnu signalé sans son code)"
+    "lieu inconnu signalé sans son code, index en attente d’iCloud dit comme tel)"
 )

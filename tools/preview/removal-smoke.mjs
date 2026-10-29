@@ -562,6 +562,47 @@ const B_ID = `${TOMORROW}_EB12`
   check(world.has(b.pdf) && world.has(b.cache) && world.has(b.text), "verrou · B ne doit pas être touché")
 }
 
+/* ------ un import arrive pendant le retrait : il n'est pas effacé */
+
+/*
+ * CTS Installer retire un service sous le verrou d'entretien, pendant que
+ * le widget peut importer une carte sous celui du balayage. L'import écrit
+ * l'index entre la lecture du retrait et son écriture : le retrait ne doit
+ * emporter que l'entrée qu'il a désignée.
+ */
+{
+  const world = buildWorld([SERVICE_A])
+  const a = filesOf(SERVICE_A)
+  const remove = world.fm.remove
+
+  world.fm.remove = target => {
+    remove(target)
+
+    if (target !== a.pdf) return
+
+    const index = JSON.parse(world.files.get(INDEX_PATH))
+
+    index.services.push({
+      id: B_ID,
+      date: TOMORROW,
+      service: "EB12",
+      pdfFile: `${stemOf(SERVICE_B)}.pdf`,
+      cacheFile: `${stemOf(SERVICE_B)}.json`,
+      textFile: `${stemOf(SERVICE_B)}.txt`,
+      indexedAt: `${TODAY}T09:59:00.000Z`
+    })
+    world.files.set(INDEX_PATH, JSON.stringify(index))
+  }
+
+  const result = await world.CLEANER.removeService(A_ID, NOW)
+
+  check(result.success && result.status === "removed", "import pendant le retrait · le retrait devrait réussir")
+  check(
+    world.indexIds().join() === B_ID,
+    `import pendant le retrait · l’index contient « ${world.indexIds().join(", ")} » au lieu du seul service importé`
+  )
+}
+
 /* --------------------------------------------------------- résultat */
 
 if (failures.length) {
@@ -573,5 +614,6 @@ if (failures.length) {
 
 console.log(
   "ok     Retrait d’un service (demande explicite, réconciliation, délai de confirmation, " +
-    "dossier illisible, idempotence, services voisins intacts, sélection du widget)"
+    "dossier illisible, idempotence, services voisins intacts, sélection du widget, " +
+    "import pendant le retrait)"
 )

@@ -75,6 +75,14 @@ async function ensureReadable(path) {
   }
 }
 
+function isDownloadedLocally(path) {
+  try {
+    return fm.isFileDownloaded(path)
+  } catch (_) {
+    return false
+  }
+}
+
 function readWithoutICloudConfirmation(path, fallback) {
   try {
     if (!fm.fileExists(path)) return fallback
@@ -287,12 +295,36 @@ function emptyServicesIndex() {
  * cette lecture pour afficher le service du jour : la faire dépendre du
  * pipeline d'importation ferait tomber l'affichage avec lui, alors qu'il
  * n'a rien à importer pour montrer ce qui l'est déjà.
+ *
+ * Un index présent qui ne se lit pas n'est pas forcément abîmé : iCloud a
+ * pu ne pas encore le rendre à cet iPhone, et la lecture échoue alors
+ * (docs.scriptable.app/filemanager, readString). Le dire invalide envoyait
+ * chercher un fichier corrompu là où il n'y avait qu'une synchronisation
+ * en retard ; seul un index que l'iPhone détient et ne sait pas lire l'est.
  */
 async function readCurrentIndex() {
-  const exists = fm.fileExists(files.servicesIndex)
-  const value = await readJson(files.servicesIndex, null)
+  if (!fm.fileExists(files.servicesIndex)) return emptyServicesIndex()
 
-  if (!exists) return emptyServicesIndex()
+  let content = await readText(files.servicesIndex, null)
+
+  if (content === null) {
+    if (!isDownloadedLocally(files.servicesIndex)) {
+      throw UTILS.createTelemetryError(
+        "SERVICE_INDEX_ICLOUD_DOWNLOAD_FAILED",
+        "index",
+        "L’index des services n’est pas encore arrivé d’iCloud sur cet iPhone."
+      )
+    }
+
+    /* iCloud peut achever le téléchargement juste après la fin de l'attente. */
+    content = readWithoutICloudConfirmation(files.servicesIndex, null)
+  }
+
+  let value = null
+
+  try {
+    value = content && content.trim() ? JSON.parse(content) : null
+  } catch (_) {}
 
   if (
     !value ||
