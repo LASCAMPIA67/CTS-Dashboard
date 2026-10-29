@@ -56,10 +56,15 @@ qu'une seule est nommée.
 release » · lu le 28/10/2026
 
 Une Release publiée à la fusion vise le commit de `main` lui-même, qui ne
-diffère en rien de `main` : elle n'est pas concernée. Un rattrapage qui
-vise un commit ancien l'est peut-être, si les workflows ont changé
-depuis. La page ne dit pas comment se compare un commit plus ancien que
-`main` : c'est le premier passage qui le dira.
+diffère en rien de `main` : elle n'est pas concernée. La page ne dit pas
+comment se compare un commit plus ancien que `main`.
+
+Ce qui suit vient d'une mesure et non de la page. Le 29/10/2026, le jeton
+du workflow a créé sans refus `installer-v1.0.33` sur `69d9090`, dont
+`validate.yml` diffère de celui de `main`, et `v1.4.8` sur `d91a274`, où
+`release.yml` n'existe pas encore. Un commit plus ancien que `main` n'est
+donc pas refusé pour autant, du moins ce jour-là. La page n'en donne pas la
+raison, et rien ne garantit que la règle ne change pas.
 
 Poser le tag d'abord, puis la Release sur ce tag, ne contourne rien :
 `POST /repos/{owner}/{repo}/git/refs` figure lui aussi dans la table de la
