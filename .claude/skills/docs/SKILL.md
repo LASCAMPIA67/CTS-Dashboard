@@ -13,9 +13,9 @@ autre date suit la coche, et leur titre relevé.
 
 Les contraintes déjà établies, citées et datées, sont dans les fichiers
 annexes : [`scriptable.md`](scriptable.md), [`pdfjs.md`](pdfjs.md),
-[`node22.md`](node22.md), [`github.md`](github.md) et
+[`node.md`](node.md), [`github.md`](github.md) et
 [`claude-code.md`](claude-code.md). Lis l'annexe avant d'aller en ligne,
-elle répond peut-être déjà. `node22.md`, `github.md` et `claude-code.md`
+elle répond peut-être déjà. `node.md`, `github.md` et `claude-code.md`
 servent aussi au dépôt admin, qui n'en tient pas de copie.
 
 ## Sur l'iPhone du collègue
@@ -50,12 +50,12 @@ jsDelivr par le moteur quand le fichier manque sur l'appareil.
 
 | Technologie | Version | Où | Documentation |
 |---|---|---|---|
-| Node.js, modules ES | **22** | 20 bancs joués en CI, `validate.mjs` | ✓ `nodejs.org/docs/latest-v22.x/api` |
-| `node:vm` — exécute les scripts sur des doublures | — | `tools/preview/*.mjs` | ✓ `nodejs.org/docs/latest-v22.x/api/vm.html` |
-| `node:fs`, `node:path`, `node:child_process`, `node:url`, `node:os` | — | bancs et `validate.mjs` | ✓ même adresse |
+| Node.js, modules ES | **26** | 20 bancs joués en CI, `validate.mjs` | ✓ 29/10 `nodejs.org/docs/latest-v26.x/api` |
+| `node:vm` — exécute les scripts sur des doublures | — | `tools/preview/*.mjs` | ✓ 29/10 `nodejs.org/docs/latest-v26.x/api/vm.html` |
+| `node:fs`, `node:path`, `node:child_process`, `node:url`, `node:os` | — | bancs et `validate.mjs` | ✓ 29/10 même adresse |
 
-`latest-v22.x` est un pointeur mouvant, et la branche 22 a une date de
-fin : l'annexe [`node22.md`](node22.md) porte les deux.
+`latest-v26.x` est un pointeur mouvant, et la branche 26 a une date de
+fin : l'annexe [`node.md`](node.md) porte les deux.
 
 `tools/preview/installer-bench.mjs` est le seul banc que la CI ne joue
 pas : c'est une mesure, pas un contrôle.
@@ -66,7 +66,8 @@ Aucun cadriciel de test : les bancs sont des scripts Node nus.
 
 | Technologie | Version | Documentation |
 |---|---|---|
-| GitHub Actions | `actions/checkout@v4`, `actions/setup-node@v4` | ✓ `docs.github.com/en/actions` |
+| GitHub Actions | `actions/checkout` 7.0.1, `actions/setup-node` 7.1.0, épinglées à leur commit | ✓ 29/10 `docs.github.com/en/actions` |
+| Dependabot — relève les actions chaque mois, par `.github/dependabot.yml` | — | ✓ 29/10 `docs.github.com/en/code-security/dependabot` |
 | Releases et tags GitHub — une par numéro publié, par `release.yml` | — | ✓ 28/10 `docs.github.com/en/repositories/releasing-projects-on-github` |
 | GitHub CLI — `gh release create`, préinstallé sur les machines de GitHub | — | ✓ 28/10 `cli.github.com/manual/gh_release_create` |
 | Semantic Versioning | 2.0.0 | ✓ 28/10 `semver.org` |

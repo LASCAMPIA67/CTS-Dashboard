@@ -5,7 +5,7 @@ qui est ici a déjà été vérifié : n'y retourne que si la date est vieille
 ou si le doute porte sur autre chose.
 
 Cette annexe sert **aux deux dépôts**, que les sessions de travail
-ouvrent seuls ou ensemble. Elle vit ici comme `node22.md`, pour n'exister
+ouvrent seuls ou ensemble. Elle vit ici comme `node.md`, pour n'exister
 qu'en un seul exemplaire.
 
 ## Opus 5.5 démarre en effort `medium`

@@ -30,11 +30,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 26
 
       # Compare la version figée à celle que npm publie, et dépose les
       # deux fichiers si npm est en avance. N'écrit rien sinon.
@@ -110,9 +110,12 @@ jobs:
 
           ## Avant de fusionner
 
-          1. Déposer une carte agent dans \`Services\` sur un iPhone, avec
+          1. Lancer la validation : GitHub ne la démarre pas seul sur une
+             pull request ouverte par un workflow. Bouton **Approve
+             workflows to run**, dans le bandeau au bas de cette page.
+          2. Déposer une carte agent dans \`Services\` sur un iPhone, avec
              cette version installée, et vérifier que le service apparaît.
-          2. Se rappeler que **fusionner distribue** : l'installateur
+          3. Se rappeler que **fusionner distribue** : l'installateur
              synchronise les ressources à chacune de ses opérations, y
              compris une simple vérification, dès que la révision du dépôt
              a bougé. Cette bibliothèque atteindra donc le premier collègue
