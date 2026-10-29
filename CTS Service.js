@@ -56,12 +56,6 @@ function normalizeService(source) {
     breaks: normalizeBreaks(source.breaks)
   }
 
-  /*
-   * Attachées ici plutôt que calculées à l'affichage : tout ce qui lit un
-   * service passe par cette fonction — le widget, l'application, le
-   * simulateur du mainteneur — et hérite donc de la même liste, sans que
-   * chacun ait à refaire le calcul ni à connaître la règle.
-   */
   service.interruptions = getInterruptions(service)
 
   return {
@@ -369,20 +363,6 @@ function computeStats(service) {
   }
 }
 
-/*
- * Les intervalles entre deux tranches, nommés et mesurés.
- *
- * computeState sait déjà reconnaître cet intervalle : quand l'heure
- * courante y tombe, il produit l'état PAUSE ou COUPURE et sa pastille.
- * Mais cette connaissance n'existait qu'à l'instant où le conducteur s'y
- * trouve. Un service se lit aussi le matin, ou la veille, et la question
- * « combien de temps de battement entre mes deux tranches » n'avait alors
- * aucune réponse.
- *
- * La règle est donc reprise telle quelle, isCutBetween compris : une
- * seule définition de ce qu'est une coupure, sans quoi la pastille et le
- * programme finiraient par se contredire sur le même service.
- */
 function getInterruptions(service) {
   if (!hasSlices(service)) return []
 

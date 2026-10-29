@@ -66,18 +66,6 @@ async function readIndexForCleanup(stage = "archive") {
   }
 }
 
-/*
- * L'entretien et le retrait lisent l'index au début de leur travail, puis
- * téléchargent, rangent ou effacent des fichiers avant de l'écrire. Pendant
- * ces secondes, l'application peut importer une carte sous le verrou du
- * balayage, qui n'est pas celui-ci : écrire la copie lue au début effaçait
- * alors le service qu'elle venait d'ajouter.
- *
- * L'index est donc relu au moment d'écrire, et n'y est reporté que ce que
- * l'entretien a fait : les entrées qu'il a modifiées ou retirées, et
- * seulement si elles désignent encore le même import. Une carte réimportée
- * entre-temps n'est plus celle qu'il a examinée, et c'est elle qui reste.
- */
 async function writeIndexChanges(examinedIndex, { changed, removed }, updatedAt, writeOptions) {
   const current = await rereadIndex(examinedIndex, writeOptions.stage)
   const examinedById = new Map(examinedIndex.services.map(entry => [entryId(entry), entry]))
@@ -103,13 +91,6 @@ async function writeIndexChanges(examinedIndex, { changed, removed }, updatedAt,
   return current
 }
 
-/*
- * Un index absent ou illisible au moment d'écrire ne dit pas qu'il est
- * vide : un autre écrivain peut être entre ses deux déplacements, l'ancien
- * fichier mis de côté et le nouveau pas encore en place. On repart alors de
- * la copie lue au début, comme avant que l'index soit relu : l'entretien ne
- * fait jamais pire que perdre l'import qu'il a croisé.
- */
 async function rereadIndex(examinedIndex, stage) {
   try {
     if (fm.fileExists(files.servicesIndex)) return await readIndexForCleanup(stage)
@@ -122,10 +103,6 @@ function entryId(entry) {
   return String(entry?.id || "").trim()
 }
 
-/*
- * Ce qui distingue deux imports d'une même carte : la date de leur
- * indexation, que chaque import réécrit, et à défaut celle de l'import.
- */
 function importIdentity(entry) {
   return String(entry?.indexedAt || entry?.importedAt || "")
 }
@@ -237,11 +214,7 @@ async function performMaintenance(currentDate, options) {
 
   const currentIndex = indexChanged
     ? await writeIndexChanges(
-        /*
-         * La liste lue au début, et non index.services, dont la réconciliation
-         * et l'oubli ont déjà retiré des entrées : un retrait ne se reporte
-         * que sur une entrée que l'entretien reconnaît pour l'avoir examinée.
-         */
+        // La liste lue au début : la réconciliation et l'oubli ont déjà retiré des entrées d'index.services.
         { ...index, services },
         {
           changed: [...cacheCleared, ...archived, ...deleted].map(item => item.id),
@@ -652,19 +625,6 @@ function resolveServiceEndDate(source) {
   )
 }
 
-/*
- * Oubli des services entièrement liquidés.
- *
- * Une entrée d'index n'était jamais retirée : l'index grossissait d'un
- * service par jour, indéfiniment, alors qu'il est relu à chaque réveil
- * du widget. Une entrée peut être oubliée quand elle ne désigne plus
- * rien du tout — PDF archivé puis supprimé, cache vidé, et aucun des
- * quatre fichiers qu'elle nomme encore présent sur le disque. Elle ne
- * peut alors plus rien apprendre à personne : ni au balayage, qui n'a
- * plus de fichier à traiter, ni au scanner, qui ne retrouvera aucun PDF
- * à réimporter, ni au widget, dont le service est fini depuis des
- * jours. Toute autre entrée est conservée.
- */
 function forgetSpentEntries(index, currentDate, archiveRetentionMs) {
   const services = Array.isArray(index?.services) ? index.services : []
   const forgotten = []
@@ -701,16 +661,6 @@ function isSpentEntry(entry, currentDate, archiveRetentionMs) {
   return true
 }
 
-/*
- * Les quatre fichiers qu'une entrée d'index désigne nommément, et les
- * seuls qu'une suppression a le droit de toucher. Rien n'est déduit
- * d'un motif de nom : un service voisin, même de même date, ne peut pas
- * être atteint par erreur.
- *
- * Les exemplaires « Remplace_… » n'y figurent pas. Aucune entrée ne les
- * nomme, et le balayage des archives leur applique déjà la rétention de
- * sept jours.
- */
 function namedFilesOf(entry) {
   return [
     [paths.services, entry?.pdfFile],
@@ -720,11 +670,6 @@ function namedFilesOf(entry) {
   ]
 }
 
-/*
- * Ce qu'un retrait a le droit de supprimer : les fichiers de travail,
- * jamais l'archive. Un PDF archivé a déjà sa rétention de sept jours,
- * et c'est au projet de la mener à son terme.
- */
 function removableFilesOf(entry) {
   return [
     [paths.services, entry?.pdfFile],
@@ -733,10 +678,6 @@ function removableFilesOf(entry) {
   ]
 }
 
-/*
- * Suppression des fichiers d'un service. Un fichier déjà absent est un
- * succès, pas une erreur : c'est ce qui rend l'opération rejouable.
- */
 function deleteServiceFiles(entry) {
   const removed = []
   const failed = []
@@ -767,24 +708,6 @@ function deleteServiceFiles(entry) {
   return { removed, failed }
 }
 
-/*
- * Réconciliation des services dont le PDF a disparu.
- *
- * Retirer une carte agent du dossier Services ne suffisait pas à faire
- * disparaître le service : la sélection ne lit que l'index et le cache.
- * L'entrée doit donc être retirée, et ses caches avec elle.
- *
- * Le seul vrai risque est de confondre une suppression volontaire avec
- * un fichier que cet iPhone n'a pas encore reçu. Un fichier présent
- * mais non téléchargé répond déjà « oui » à fileExists, ce qui écarte
- * le cas courant ; restent les synchronisations en retard. On ne
- * conclut donc qu'après plusieurs constats espacés, et jamais si le
- * dossier lui-même n'a pas pu être lu — un dossier illisible ne dit pas
- * qu'un fichier manque, il ne dit rien du tout.
- *
- * Une entrée déjà archivée est hors sujet : c'est le projet qui a
- * déplacé son PDF, et la rétention s'en occupe.
- */
 function reconcileMissingPdfs(
   index,
   previousWatch,
@@ -862,11 +785,6 @@ function isMissingPdfCandidate(entry) {
   return !fm.fileExists(fm.joinPath(paths.servicesArchive, pdfFileName))
 }
 
-/*
- * Un constat par passage, mais pas plus d'un par intervalle : le widget
- * se réveille bien plus souvent que nécessaire, et réécrire l'état à
- * chaque réveil ferait travailler iCloud pour rien.
- */
 function observeMissingPdf(previous, currentDate, observationIntervalMs) {
   const now = currentDate.toISOString()
   const count = Number(previous?.count) || 0
@@ -905,14 +823,6 @@ function readMissingWatch(state) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {}
 }
 
-/*
- * Suppression demandée explicitement, depuis CTS Installer.
- *
- * Même chemin de suppression que la réconciliation — c'est tout
- * l'intérêt : un seul code efface, donc un seul peut se tromper. Seul
- * le déclencheur change, et l'intention étant ici explicite, aucun
- * délai de confirmation ne s'applique.
- */
 async function removeService(id, currentDate = new Date()) {
   CONFIG.ensureDirectories()
 
@@ -975,11 +885,6 @@ async function performServiceRemoval(id, currentDate) {
   const deletion = deleteServiceFiles(entry)
   const pdfFileName = String(entry.pdfFile || "").trim()
 
-  /*
-   * Un PDF encore présent serait réimporté au balayage suivant : le
-   * service reviendrait, sans son entrée ni ses caches. On garde alors
-   * l'entrée, pour que l'état reste cohérent et l'opération rejouable.
-   */
   if (pdfFileName && fm.fileExists(fm.joinPath(paths.services, pdfFileName))) {
     return {
       success: false,
@@ -994,14 +899,6 @@ async function performServiceRemoval(id, currentDate) {
     }
   }
 
-  /*
-   * L'archive est épargnée, mais c'est l'entrée d'index qui porte sa
-   * rétention : la retirer laisserait le PDF archivé sur le disque pour
-   * toujours. On garde donc l'entrée, en la marquant vidée de ses
-   * caches. Le widget ne peut plus la retenir — la sélection exige un
-   * cache lisible — et l'entretien la mènera à son terme : suppression
-   * de l'archive à sept jours, puis oubli de l'entrée.
-   */
   if (archivePreserved) {
     entry.cache = {
       clearedAt: currentDate.toISOString(),
@@ -1065,15 +962,6 @@ function removalFailure(status, id, message, telemetryCode) {
   }
 }
 
-/*
- * Caches sans entrée d'index.
- *
- * Ils ne peuvent plus être atteints : la sélection du service ne lit
- * que les fichiers nommés par l'index. Mais un index absent n'est pas
- * un index vide — il peut être en cours de reconstruction. On ne
- * balaie donc que si l'index existe vraiment, et seulement au-delà de
- * la rétention, jamais sur un cache du jour.
- */
 function sweepOrphanCaches(index, currentDate, retentionMs) {
   const removed = []
   const errors = []
@@ -1135,25 +1023,6 @@ function sweepOrphanCaches(index, currentDate, retentionMs) {
   return { removed, errors }
 }
 
-/*
- * Balayage des restes d'écriture.
- *
- * Une écriture atomique passe par un fichier temporaire puis par une
- * copie de sécurité, tous deux effacés une fois l'écriture validée. iOS
- * peut interrompre un widget entre deux de ces déplacements : le reste
- * survit alors au tour suivant. Comme le jeton du nom est unique, il ne
- * sera jamais réutilisé ni réécrit — il faut donc venir le chercher.
- *
- * La règle décisive est celle de la copie de sécurité. Entre le moment
- * où le fichier d'origine est déplacé vers « .rollback » et celui où le
- * temporaire prend sa place, la copie de sécurité est le SEUL
- * exemplaire des données. Une copie de sécurité dont le fichier
- * d'origine est absent n'est donc jamais supprimée : elle est comptée
- * et signalée, pas effacée. Le temporaire, lui, ne peut jamais être cet
- * exemplaire unique — soit l'original tient toujours sa place, soit la
- * copie de sécurité le protège, soit le fichier n'avait encore jamais
- * existé et personne n'en connaissait le contenu.
- */
 const RESIDUE_RULES = Object.freeze([
   { kind: "diagnostic", match: /^\.cts-diagnostic-\d+\.tmp$/ },
   { kind: "temp", match: /^(.+)\.tmp-\d+-[a-z0-9]+$/ },
@@ -1173,25 +1042,6 @@ function classifyResidue(fileName) {
   return null
 }
 
-/*
- * Remise en place d'une copie de sécurité orpheline.
- *
- * Son fichier d'origine manque : l'écriture a été coupée entre le
- * déplacement de l'ancien et l'arrivée du nouveau. Cette copie était le
- * fichier vivant une seconde plus tôt — elle est complète, jamais
- * partielle. La remettre en place est sûr pour tous les fichiers que ce
- * projet écrit, parce qu'aucun d'eux ne peut faire de dégât en étant un
- * peu en retard : un index périmé ne bloque pas la réimportation, car
- * isIndexedAndCurrent exige que le cache existe ; un cache périmé est
- * réécrit au balayage suivant pour la même raison ; le journal, les
- * préférences et les états d'exécution sont sans conséquence ; une base
- * de données retrouvée évite un téléchargement.
- *
- * La seule chose qui serait pire que l'absence, c'est du contenu
- * illisible : un index absent rend un index vide et tout se réimporte,
- * un index corrompu lève SERVICE_INDEX_INVALID et bloque l'entretien
- * comme l'import. On ne remet donc en place que ce qu'on a pu relire.
- */
 function restoreOrphanRollback(rollbackPath, basePath) {
   let content
 
@@ -1262,10 +1112,6 @@ async function sweepResidue(currentDate, graceMs) {
         continue
       }
 
-      /*
-       * Sans date de modification lisible, l'âge du reste est inconnu :
-       * il pourrait appartenir à une écriture en cours. On conserve.
-       */
       const modifiedAt = STORAGE.safeModificationDate(path)
 
       if (!modifiedAt) {
@@ -1278,14 +1124,6 @@ async function sweepResidue(currentDate, graceMs) {
         continue
       }
 
-      /*
-       * Une copie de sécurité ou un téléchargement partiel dont la
-       * destination manque peut être le dernier état lisible du
-       * fichier. On ne l'efface jamais. Une copie de sécurité relisible
-       * reprend sa place ; un téléchargement partiel, qu'on ne sait pas
-       * vérifier, est simplement gardé — le moteur PDF le remplace de
-       * lui-même au prochain téléchargement.
-       */
       if (residue.kind !== "temp" && residue.kind !== "diagnostic") {
         const basePath = fm.joinPath(directory, residue.baseName)
 
@@ -1324,12 +1162,6 @@ async function sweepResidue(currentDate, graceMs) {
   return { removed, restored, preserved, errors }
 }
 
-/*
- * Les PDF « Remplace_… » sont les exemplaires supplantés d'un service
- * réimporté. Aucun code ne les relit ; ils vivent dans le dossier
- * Archive, dont la règle est déjà une rétention de sept jours. On leur
- * applique exactement cette règle, ni plus courte ni plus longue.
- */
 function sweepReplacedArchives(currentDate, retentionMs) {
   const removed = []
   const errors = []
@@ -1394,13 +1226,6 @@ function shouldSweepResidue(previousState, currentDate) {
   return currentDate.getTime() - lastSweep >= interval
 }
 
-/*
- * L'état d'entretien ne porte, une fois tout rangé, que sa propre date.
- * Le réécrire à chaque réveil du widget ferait travailler iCloud pour
- * rien. On ne le réécrit donc que s'il s'est passé quelque chose, ou si
- * la dernière trace remonte à plus d'une heure — assez pour qu'un
- * diagnostic sache que l'entretien tourne encore.
- */
 function stateWriteIsStale(previousState, currentDate) {
   const writtenAt = Date.parse(String(previousState?.updatedAt || ""))
 
@@ -1430,11 +1255,6 @@ async function saveCleanupState(result, previousState) {
           checkedAt: result.checkedAt,
           removed: result.residue.removed.length,
           restored: result.residue.restored.length,
-          /*
-           * Un reste écarté parce qu'il vient d'être écrit n'a rien
-           * d'anormal : il partira au balayage suivant. Seuls comptent
-           * ici ceux qu'on ne sait pas trancher.
-           */
           preserved: result.residue.preserved.filter(item => item.reason !== "too-recent").length,
           errors: result.residue.errors.length
         }

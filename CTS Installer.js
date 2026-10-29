@@ -68,15 +68,6 @@ const currentInstaller = join(docs, `${Script.name()}.js`)
 const canonicalInstaller = join(docs, INSTALLER_FILE)
 const SCRIPT_RESIDUE = /^(CTS .+\.js)\.(download|rollback)$/
 
-/*
- * Les deux bibliothèques PDF.js vivent sur l'appareil, dans la
- * bibliothèque locale de Scriptable, sous le même nom de dossier que le
- * reste : iOS pouvait les retirer d'iCloud faute de place, et le widget
- * devait alors les attendre au moment de lire une carte. Le moteur PDF
- * les cherche au même endroit. L'application et le widget partagent ce
- * dossier — mesuré sur iPhone le 23 septembre, la documentation ne le dit
- * pas.
- */
 const localFm = FileManager.local()
 const deviceRoot = localFm.joinPath(localFm.libraryDirectory(), "CTS Dashboard")
 const legacyLibraries = join(root, "Libraries")
@@ -119,52 +110,19 @@ async function main() {
       return
     }
 
-    /*
-     * Navigation.
-     *
-     * Il n'y a pas de pile à tenir : Scriptable en a déjà une. Chaque
-     * écran est présenté par `present(true)`, dont la promesse se résout
-     * quand l'utilisateur le ferme, et une ligne qui ne se referme pas à
-     * la sélection peut en présenter un autre par-dessus. « Retour »
-     * existe donc déjà partout, sous le nom de « Close », posé par le
-     * système sur tous les écrans — y compris ceux d'un niveau profond,
-     * comme les détails du diagnostic.
-     *
-     * Ce qui manquait n'était pas le retour mais le retour AU MENU :
-     * l'action choisie était exécutée, puis l'installateur s'arrêtait.
-     * Cette boucle le rend, et rien d'autre n'a besoin de changer. Ajouter
-     * un bouton dessiné aurait doublé un geste que le système fournit, et
-     * une pile maison aurait doublé la sienne.
-     *
-     * Le manifeste est lu une fois pour toute la session ; seul l'état du
-     * disque est relu à chaque retour, parce qu'une action vient peut-être
-     * de le changer.
-     */
     for (;;) {
       const state = await inspect(manifest)
 
-      /*
-       * Le verrou reste au-dessus de la boucle : fermer cette porte
-       * arrête l'installateur au lieu de rendre la main, sans quoi
-       * « Close » deviendrait le contournement qu'on vient de retirer.
-       */
       if (await handleDashboardUpdate(manifest, state)) {
         return
       }
 
       const action = await menu(manifest, state)
 
-      /* Fermer le menu principal, c'est fermer l'installateur. */
       if (!action) {
         return
       }
 
-      /*
-       * Une mise à jour qui a écrit rouvre l'installateur. La nouvelle
-       * exécution reprend tout depuis le début : celle-ci doit donc
-       * s'arrêter, sans quoi deux instances vivraient en même temps et le
-       * menu de l'ancienne reviendrait par-dessus la nouvelle.
-       */
       if (action === "install") {
         if (await installOrUpdate(manifest, state)) {
           return
@@ -280,10 +238,6 @@ function addActionRow(table, { symbol, label, detail, tone, primary, keepOpen, o
   row.height = primary ? 62 : 50
   row.onSelect = onSelect
 
-  /*
-   * Une action qui redessine son propre écran ne doit pas le refermer :
-   * sans cela, la table disparaîtrait au moment où elle a le plus à dire.
-   */
   if (keepOpen) {
     row.dismissOnSelect = false
   }
@@ -510,10 +464,6 @@ function preferencesLabel() {
   }
 }
 
-/*
- * Le widget lit ce réglage, il ne l'écrit jamais : un widget peut être
- * tué en pleine écriture, et c'est l'installateur qui a le temps.
- */
 async function editPreferences() {
   const storage = preferencesModule()
   const current = await storage.loadPreferences()
@@ -612,10 +562,6 @@ async function inspect(manifest) {
   }
 }
 
-/*
- * Rend `true` quand une nouvelle exécution a été lancée : l'appelant doit
- * alors s'arrêter.
- */
 async function installOrUpdate(manifest, previous) {
   const fresh = !previous.present
 
@@ -652,10 +598,6 @@ async function installOrUpdate(manifest, previous) {
     failed: []
   }
 
-  /*
-   * Le résultat est retenu, non plus seulement affiché : c'est lui qui dit
-   * si l'opération mérite une relance. Les trois sorties le renseignent.
-   */
   let outcome = null
 
   const failures = []
@@ -823,11 +765,6 @@ async function installOrUpdate(manifest, previous) {
 
     await writeMetadata(manifest, summary)
 
-    /*
-     * Les anciennes copies d'iCloud ne partent qu'une fois les nouvelles
-     * validées sur l'appareil : jusque-là, elles restent le seul exemplaire
-     * qu'un moteur plus ancien sache lire.
-     */
     removeQuietly(legacyLibraries)
 
     await preserveInstaller()
@@ -866,25 +803,9 @@ async function installOrUpdate(manifest, previous) {
 
     await progress.finish(outcome)
   } finally {
-    /*
-     * La page de résultat se lit. Rendre la main sans attendre sa
-     * fermeture ferait revenir le menu par-dessus, et le compte des
-     * fichiers modifiés ne serait jamais vu. Les trois sorties passent
-     * ici, y compris celle qui abandonne en cours de validation.
-     */
     await progress.closed()
   }
 
-  /*
-   * La relance part du geste qui referme la page de résultat, jamais de
-   * l'écriture elle-même : partir plus tôt ferait passer la nouvelle
-   * exécution sous un écran encore ouvert, et le compte des fichiers
-   * modifiés ne serait jamais lu.
-   *
-   * Si le système refuse d'ouvrir l'URL, la ligne « Fermez cet écran pour
-   * continuer » a promis quelque chose qui n'arrivera pas : le message
-   * prend alors le relais plutôt que de laisser un écran muet.
-   */
   if (!shouldReopen(outcome)) {
     return false
   }
@@ -902,19 +823,6 @@ async function installOrUpdate(manifest, previous) {
   return false
 }
 
-/*
- * Décider de la relance.
- *
- * Elle ne suit pas l'opération mais son résultat. Une vérification qui
- * n'a rien écrit n'a rien à rouvrir, et une opération qui laisse un
- * fichier en erreur ne doit surtout pas repartir comme si de rien
- * n'était : l'ouverture est la façon dont l'outil dit « c'est fait »,
- * elle ne doit donc le dire que quand ça l'est.
- *
- * L'écran de résultat pose exactement la même question avant d'annoncer
- * la réouverture. Une seule fonction pour les deux : annoncer ce qu'on ne
- * fera pas serait pire que ne rien annoncer.
- */
 function shouldReopen(result) {
   if (!result || result.success !== true) {
     return false
@@ -975,16 +883,6 @@ async function syncFile(entry, options = {}) {
 
   for (let attempt = 1; attempt <= RETRIES; attempt++) {
     try {
-      /*
-       * Le contenu reçu n'est retenu qu'une fois validé.
-       *
-       * L'affecter avant le contrôle laissait sortir de la boucle avec
-       * une page d'erreur GitHub en main : `remote` n'étant plus
-       * indéfini, la reprise ne levait pas, et l'écriture atomique
-       * remplaçait le bon fichier par la page avant que la relecture ne
-       * s'en aperçoive. La copie de secours étant déjà effacée à ce
-       * moment-là, le fichier d'origine était perdu.
-       */
       const candidate = await downloadText(
         `${rawUrl(entry.name)}?t=${Date.now()}-${attempt}`,
         entry.name
@@ -1136,21 +1034,6 @@ function isInstallerSource(content) {
   )
 }
 
-/*
- * Retrait d'un service.
- *
- * L'Installer ne supprime rien lui-même : il présente les services
- * connus, demande confirmation, puis délègue à CTS Services Cleaner,
- * qui détient l'unique chemin de suppression du projet. Écrire ici une
- * seconde suppression donnerait deux codes capables de se tromper.
- *
- * Si le Dashboard est absent, ou trop ancien pour exposer la fonction,
- * l'action le dit et s'arrête sans rien toucher.
- *
- * Ses échecs ne passent pas par errorAlert, qui envoie vérifier la
- * connexion Internet : rien ici ne touche au réseau, et le conseil
- * détournait de la vraie cause.
- */
 async function removeServiceFlow() {
   const cleaner = loadDashboardFunction("CTS Services Cleaner", "removeService")
 
@@ -1234,12 +1117,7 @@ function loadDashboardFunction(moduleName, functionName) {
   return { ready: true, value: module[functionName].bind(module), reason: "" }
 }
 
-/*
- * L'index se lit là où il vit, dans CTS Storage, et jamais par un relais :
- * les modules changent à chaque révision du dépôt, cet installateur
- * seulement quand son numéro monte, et un relais qu'un module retire parce
- * qu'il ne s'en sert plus lui-même coupe l'installateur resté en arrière.
- */
+// Lu dans CTS Storage, jamais par un relais qu'un module pourrait retirer : l'installateur évolue moins vite.
 async function loadIndexedServices() {
   const reader = loadDashboardFunction("CTS Storage", "readCurrentIndex")
 
@@ -1261,10 +1139,6 @@ async function loadIndexedServices() {
     .sort((first, second) => first.date.localeCompare(second.date) || first.service.localeCompare(second.service))
 }
 
-/*
- * Le service affiché n'est qu'un repère : le signaler évite de retirer
- * la mauvaise ligne. Son absence n'empêche jamais l'opération.
- */
 async function resolveDisplayedServiceId() {
   try {
     const manager = loadDashboardFunction("CTS Services Manager", "resolveServiceForDate")
@@ -1485,26 +1359,6 @@ function addDiagnosticCheck(diagnostic, title, status, detail) {
   })
 }
 
-/*
- * Conformité des scripts installés.
- *
- * `validateText` ne dit que « ce fichier ressemble à un fichier » :
- * présent, non vide, pas une page d'erreur GitHub. Un script resté des
- * semaines en arrière coche ces trois cases, et l'installation se
- * déclarait saine pendant que le widget exécutait du code périmé. Seule
- * une comparaison avec ce que le dépôt publie le voit — c'est celle que
- * la synchronisation fait déjà fichier par fichier, et que le Diagnostic
- * ne faisait pas.
- *
- * Les deux bibliothèques PDF.js restent hors de cette comparaison : elles
- * pèsent ensemble près de deux mégaoctets, et les retélécharger pour un
- * rapport coûterait plus que ce qu'il en tirerait. Le contrôle
- * « Ressources » dit à leur sujet ce qu'il peut, et dit aussi ce qu'il ne
- * peut pas.
- *
- * Un dépôt injoignable n'est pas une divergence : la conformité devient
- * alors inconnue, et se rapporte comme telle.
- */
 async function inspectDiagnosticConformity(manifest) {
   const entries = manifestEntries(manifest).filter(entry => entry.type === "Script")
   const diverged = []
@@ -1532,11 +1386,6 @@ async function inspectDiagnosticConformity(manifest) {
 async function compareInstalledScript(entry) {
   const local = await inspectLocal(entry.destination, entry.name)
 
-  /*
-   * Un fichier absent ou illisible est déjà compté par le contrôle local :
-   * le télécharger pour l'apprendre une seconde fois coûterait un
-   * aller-retour sans rien apprendre.
-   */
   if (!local.valid) {
     return { name: entry.name, status: "skipped" }
   }
@@ -1651,12 +1500,6 @@ async function diagnosticWriteTest() {
   }
 }
 
-/*
- * L'entretien du widget balaie les restes d'écriture et consigne son
- * passage. On relit sa trace plutôt que de reparcourir les dossiers :
- * ce qui compte ici est de savoir qu'il tourne, et si des fichiers ont
- * été conservés faute de pouvoir prouver qu'ils étaient inutiles.
- */
 function inspectDiagnosticResidue() {
   const scripts = countScriptResidue()
 
@@ -1756,14 +1599,6 @@ async function inspectDiagnosticResources() {
       continue
     }
 
-    /*
-     * Les deux bibliothèques PDF.js sont les seuls fichiers que la
-     * synchronisation ne recompare pas au dépôt tant que le snapshot n'a
-     * pas bougé : leur taille est tout ce qui les sépare d'un fichier
-     * tronqué. Le Diagnostic s'en remet donc à la règle qui décide de les
-     * garder, plutôt que d'en poser une seconde — deux contrôles en
-     * désaccord sur le même fichier ne valent pas mieux qu'aucun.
-     */
     if (PINNED_LIBRARIES.has(resource.name) && !(await canSkipPinnedLibrary(resource))) {
       failures.push(resource.name)
       continue
@@ -2336,11 +2171,6 @@ function buildDiagnosticReport(diagnostic) {
 
   const conformity = diagnostic.conformity
 
-  /*
-   * La ligne de contrôle abrège la liste faute de place ; le rapport, lui,
-   * se lit sans écran. Le nom du fichier en retard est précisément ce
-   * qu'il faut pour savoir quoi réparer.
-   */
   if (conformity && (conformity.diverged.length || conformity.unreachable.length)) {
     lines.push("", "CONFORMITÉ AU DÉPÔT", "-------------------")
 
@@ -2441,13 +2271,7 @@ function formatDiagnosticMs(value) {
   return number === null ? "non terminée" : `${number} ms`
 }
 
-/*
- * Une étape qui n'a pas tourné n'a pas de durée, et `Number(null)` vaut
- * zéro : les six étapes d'un import qui n'en avait commencé aucune se
- * rapportaient « 0 ms », ce qui se lit comme six mesures instantanées.
- * L'absence se reconnaît donc avant toute conversion, et une seule fois
- * pour les deux étages qui manipulent ces durées.
- */
+// Copie voulue de celle de CTS Utils : l'installateur doit fonctionner sans les modules.
 function finiteOrNull(value) {
   if (value === null || value === undefined || value === "") {
     return null
@@ -2655,11 +2479,6 @@ function progressTable({ title, version, entries, operation }) {
     await sleep(10)
   }
 
-  /*
-   * La présentation est retenue, non plus jetée : c'est elle qui dit
-   * quand l'utilisateur a fermé la page de résultat. Sans cela, le menu
-   * reviendrait par-dessus avant qu'elle ait été lue.
-   */
   let presentation = null
 
   return {
@@ -2751,13 +2570,6 @@ function renderFinalPage(table, state, uninstalling) {
   addCreditRow(table)
 }
 
-/*
- * Ce qui va se passer est dit avant de se passer.
- *
- * La réouverture part du geste qui referme cet écran. Sans cette ligne,
- * l'installateur semblerait redémarrer tout seul — et si l'ouverture
- * échouait, personne ne saurait qu'il manque quelque chose.
- */
 function addReopenRow(table, result, uninstalling) {
   if (uninstalling || !shouldReopen(result)) {
     return
@@ -3437,32 +3249,6 @@ function validateManifest(manifest) {
   }
 }
 
-/*
- * Mise à jour obligatoire de l'installateur.
- *
- * Toute version publiée plus récente est imposée, et non plus proposée.
- * L'ancien écran offrait « Continuer avec X » : c'était le seul chemin
- * qui rendait la main sans mettre à jour, et il suffisait d'un geste pour
- * rester indéfiniment en arrière — la mise à jour revenait à chaque
- * lancement et se refusait aussi facilement.
- *
- * Le contournement n'est pas retiré de l'écran, il est retiré du code :
- * cette fonction ne rend `true` — le seul retour qui laisse atteindre le
- * menu — que si aucune mise à jour n'est disponible. Tous les autres
- * chemins, y compris fermer l'écran, arrêtent l'installateur. Cacher le
- * bouton en laissant le retour permissif aurait laissé le contournement
- * en place derrière un écran.
- *
- * Le plancher `minimumInstaller` reste lu : une version publiée en retard
- * ne doit pas désarmer un plancher relevé volontairement. Il ne distingue
- * plus deux comportements, puisqu'il n'y en a plus qu'un.
- *
- * Le Diagnostic reste joignable sans mettre à jour, comme sur la porte du
- * Dashboard. Il n'ouvre aucune fonction — ni installation, ni réparation,
- * ni désinstallation — et n'existe que pour signaler une panne. Si la
- * mise à jour devenait la seule porte et que c'est précisément elle qui
- * échoue, la ligne de secours serait coupée au moment où elle sert.
- */
 async function handleInstallerUpdate(manifest) {
   const available = String(manifest.installerVersion || INSTALLER_VERSION)
   const minimum = String(manifest.minimumInstaller || "0.0.0")
@@ -3477,11 +3263,6 @@ async function handleInstallerUpdate(manifest) {
   for (;;) {
     const choice = await presentInstallerUpdateGate(available)
 
-    /*
-     * Le remplacement a eu lieu sous les yeux de la personne, et l'écran
-     * a annoncé la réouverture avant de se refermer : la relance part de
-     * ce geste. Un refus du système ne laisse personne coincé.
-     */
     if (choice === "installed") {
       if (!relaunch()) {
         await noticeAlert(
@@ -3494,13 +3275,6 @@ async function handleInstallerUpdate(manifest) {
       return false
     }
 
-    /*
-     * L'écran a été refermé pendant l'écriture. Elle est allée au bout —
-     * la couper aurait laissé un fichier à moitié posé — mais le délai que
-     * cette page fabrique n'a pas eu lieu, et Scriptable ne retrouverait
-     * pas encore le script par son nom. Ouvrir maintenant ne ferait rien,
-     * et sans rien dire : mieux vaut le dire.
-     */
     if (choice === "installed-unseen") {
       await noticeAlert(
         "Mise à jour installée",
@@ -3520,24 +3294,6 @@ async function handleInstallerUpdate(manifest) {
   }
 }
 
-/*
- * Relance.
- *
- * Un script ne peut pas recharger son propre code en cours d'exécution :
- * Scriptable a lu le fichier au lancement, et le remplacer ne change rien
- * à ce qui tourne. La seule façon d'exécuter la nouvelle version est d'en
- * démarrer une nouvelle exécution, qui relira le fichier sur le disque.
- *
- * C'est ce que fait l'URL rendue par URLScheme.forRunningScript(). Elle
- * désigne le script, pas son contenu : ce qui repart est donc bien le
- * fichier qui vient d'être écrit, et l'ancienne instance s'achève.
- *
- * Importer le fichier remplacé aurait exécuté le nouveau code imbriqué
- * dans l'ancienne exécution — deux instances vivantes, dont l'une périmée.
- *
- * Un refus n'est jamais une panne : l'appelant retombe sur le message qui
- * demande de relancer à la main, exactement comme avant.
- */
 function relaunch() {
   try {
     if (typeof Safari === "undefined" || typeof URLScheme === "undefined") return false
@@ -3554,27 +3310,7 @@ function relaunch() {
   }
 }
 
-/*
- * Un seul écran pour toute la mise à jour de l'installateur.
- *
- * Il ne se referme pas pour laisser la place à une page de résultat : il
- * se redessine. Deux écrans successifs disaient la même chose en deux
- * temps, et le second paraissait surgir de nulle part.
- *
- * Ce que la page fabrique reste indispensable, et ce n'est pas de
- * l'affichage : l'écriture atomique fait disparaître le fichier du script
- * l'espace d'un instant, et Scriptable cesse alors de le trouver par son
- * nom. Ouvrir dans la foulée ne fait rien, et sans rien dire. Le temps de
- * lire cette page et de la refermer dépasse largement ce qu'il faut, et
- * l'ouverture part de ce geste-là — un délai posé en aveugle aurait figé
- * l'écran sur une course qu'on peut perdre.
- *
- * L'écriture est attendue même si la page est refermée pendant qu'elle se
- * fait : la laisser en plan couperait le remplacement en deux. Mais la
- * relance, elle, n'a lieu que si la page était encore ouverte à la fin —
- * sinon le délai qu'elle fabrique n'a pas eu lieu, et l'ouverture partirait
- * dans le vide.
- */
+// La relance part de la fermeture de cet écran : juste après l'écriture, Scriptable ne retrouve pas le script.
 async function presentInstallerUpdateGate(available) {
   const table = screenTable()
 
@@ -3671,11 +3407,6 @@ async function presentInstallerUpdateGate(available) {
     addCreditRow(table)
   }
 
-  /*
-   * L'écriture n'est pas attendue dans le gestionnaire de la ligne : la
-   * table doit pouvoir se redessiner pendant qu'elle se fait. Elle est
-   * retenue et attendue plus bas, à la fermeture de l'écran.
-   */
   const perform = async () => {
     redraw(drawWorking)
 
@@ -3730,11 +3461,6 @@ async function presentInstallerUpdateGate(available) {
       tone: COLORS.orange,
       primary: true,
       keepOpen: true,
-      /*
-       * La promesse est rendue autant que retenue : si l'hôte attend le
-       * gestionnaire avant de rendre l'écran fermable, il attend alors la
-       * bonne chose plutôt que rien.
-       */
       onSelect: () => (pending = perform())
     })
 
@@ -3761,26 +3487,6 @@ async function presentInstallerUpdateGate(available) {
   return choice === "installed" && !announced ? "installed-unseen" : choice
 }
 
-/*
- * Mise à jour obligatoire du Dashboard.
- *
- * Le widget, lui, ne s'arrête que sous le plancher : couper un
- * conducteur en service parce qu'une correction vient de paraître serait
- * absurde. Ici c'est l'inverse — la personne a déjà l'outil ouvert et
- * deux minutes devant elle, il n'y a aucune raison de la laisser
- * repartir en retard. C'est le seul verrou qui atteigne aussi les
- * versions trop anciennes pour se contrôler elles-mêmes, puisque ce
- * n'est plus leur code qui décide.
- *
- * Le Diagnostic reste joignable sans mettre à jour. Le README en fait la
- * procédure d'assistance, et c'est lui qui identifie une installation
- * cassée : si la mise à jour devenait la seule porte et que c'est
- * précisément elle qui échoue, la ligne de secours serait coupée au
- * moment où elle sert.
- *
- * Renoncer ne piège personne : l'écran se referme et l'installateur
- * s'arrête, exactement comme il le fait déjà pour son propre plancher.
- */
 function dashboardUpdateRequired(manifest, state) {
   return (
     Boolean(state.installedVersion) &&
@@ -3882,11 +3588,6 @@ async function updateInstaller(version) {
     )
   }
 
-  /*
-   * Deux fichiers peuvent porter cet installateur : celui du manifeste, et
-   * celui que Scriptable exécute quand le script a été renommé. Ce second
-   * est celui qui repartira à la relance.
-   */
   const targets =
     currentInstaller === canonicalInstaller
       ? [canonicalInstaller]
@@ -3896,15 +3597,6 @@ async function updateInstaller(version) {
     await writeText(target, content)
   }
 
-  /*
-   * Relu sur le disque, non supposé écrit. C'est cette relecture qui
-   * autorise la relance : démarrer une exécution sur un fichier
-   * incomplet ferait ouvrir une version qui n'existe pas. L'écriture
-   * vérifie déjà la présence du fichier ; ici on vérifie son contenu.
-   *
-   * Chaque fichier écrit est relu, pas seulement celui du manifeste :
-   * vérifier l'un et lancer l'autre ne prouvait rien là où ça compte.
-   */
   for (const target of targets) {
     const written = await readText(target)
 
@@ -3970,21 +3662,6 @@ function verifyRepository(manifest) {
   }
 }
 
-/*
- * Restes d'écriture à la racine de Scriptable.
- *
- * writeText passe par « .download » puis met l'ancien fichier de côté
- * en « .rollback ». iOS peut arrêter l'installateur entre les deux : le
- * script disparaît alors de Scriptable et n'existe plus que sous son
- * nom de secours. Le widget ne balaie pas cet endroit — il n'a rien à y
- * faire, et là un fichier manquant ne se répare pas tout seul.
- *
- * Ce balayage passe APRÈS la synchronisation, donc après que GitHub a
- * eu sa chance de réécrire les fichiers. Ce qui manque encore à ce
- * stade manque vraiment : une copie de secours relisible reprend alors
- * sa place, ce qui sauve l'installation quand le réseau a lâché en
- * cours de route. Rien qui ne commence pas par « CTS » n'est touché.
- */
 function sweepScriptResidue() {
   const removed = []
   const restored = []
@@ -4352,17 +4029,7 @@ async function fetchRepositoryRevision() {
   return sha
 }
 
-/*
- * L'API de GitHub limite les appels sans authentification à soixante par
- * heure et par adresse IP : sur le Wi-Fi d'un dépôt, les collègues se
- * partagent ce compte. Une limite atteinte se dit par un 403 ou un 429 :
- * retry-after y donne le nombre de secondes à attendre, et sinon
- * x-ratelimit-remaining à 0 dit le compte épuisé, x-ratelimit-reset l'heure
- * où il revient. La page demande de ne rien retenter avant
- * (docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
- * Le 403 sortait en « réponse HTTP 403 », sans reprise, et l'alerte envoyait
- * vérifier une connexion qui marchait.
- */
+// Limite de l'API GitHub, 403 ou 429 : rien ne se retente avant l'heure que donnent retry-after ou x-ratelimit-reset.
 function rateLimitRefusal(request, status) {
   if (status !== 403 && status !== 429) {
     return null
@@ -4389,11 +4056,6 @@ function rateLimitRefusal(request, status) {
   )
 }
 
-/*
- * Quelques secondes s'attendent sur place : renvoyer le collègue relancer
- * lui-même coûterait plus que l'attente. withThrottleRetry ne retente
- * alors pas avant la fin de la pause.
- */
 function shortPause(milliseconds, status) {
   const error = new Error(
     `Impossible de déterminer la version GitHub actuelle : réponse HTTP ${status}`
@@ -4404,10 +4066,6 @@ function shortPause(milliseconds, status) {
   return error
 }
 
-/*
- * La documentation de Request ne dit pas la casse des en-têtes, et HTTP les
- * tient pour insensibles à la casse (RFC 9110, section 5.1).
- */
 function responseHeader(request, name) {
   const headers = request.response?.headers
 
@@ -4420,11 +4078,7 @@ function responseHeader(request, name) {
   return key === undefined ? "" : String(headers[key]).trim()
 }
 
-/*
- * Sans heure de reprise lisible, la fenêtre de la limite est d'une heure au
- * plus. Une heure déjà passée vient d'un iPhone en avance sur l'horloge de
- * GitHub : relancer aussitôt essuierait le même refus.
- */
+// Une heure déjà passée vient d'un iPhone en avance sur GitHub : au plus tôt, la minute suivante.
 function rateLimitError(reason, resumeAt) {
   const readable = resumeAt.getTime() > 0 ? resumeAt.getTime() : Date.now() + 60 * 60 * 1000
   const minute = new Date(Math.ceil(Math.max(readable, Date.now() + 60 * 1000) / 60000) * 60000)
@@ -4436,10 +4090,6 @@ function rateLimitError(reason, resumeAt) {
   )
 }
 
-/*
- * Un refus de GitHub n'est pas une coupure réseau : l'alerte ne doit pas
- * envoyer vérifier la connexion.
- */
 function githubRefusal(reason, advice) {
   const error = new Error(
     [reason, "", "Votre installation n’est pas en cause et rien n’est perdu.", advice].join("\n")

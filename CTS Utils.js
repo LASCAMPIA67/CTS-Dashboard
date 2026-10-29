@@ -7,11 +7,7 @@ const MAX_SERVICE_HOUR = 47
 const DAY_MS = 24 * MINUTES_PER_HOUR * 60 * 1000
 const UNKNOWN_DATE = "Date inconnue"
 
-/*
- * Les trams sont codés 80 à 85 sur la carte agent. Le lecteur de carte et
- * le widget en décident tous les deux : G et H portent une lettre comme
- * les trams, mais ce sont des bus, et ne figurent donc pas ici.
- */
+// Les trams sont codés 80 à 85 ; G et H portent une lettre mais sont des bus.
 const TRAM_LINE_CODES = new Set(["80", "81", "82", "83", "84", "85"])
 
 function normalizeText(value) {
@@ -317,19 +313,7 @@ function buildFingerprint({ fileName, sizeKilobytes, modifiedAt }) {
   ].join("|")
 }
 
-/*
- * Numéros de version.
- *
- * CTS Installer sait déjà les comparer, mais son code ne quitte jamais
- * l'installateur. Le widget en a besoin à son tour, pour savoir s'il est
- * encore autorisé à afficher un service : la comparaison vit donc ici,
- * là où les deux mondes peuvent la lire, et le banc des primitives la
- * couvre comme le reste.
- *
- * Une valeur qui n'est pas x.y.z est refusée plutôt que devinée. Un
- * plancher illisible ne doit jamais valoir zéro — ce serait bloquer tout
- * le monde sur une faute de frappe.
- */
+// Refuser plutôt que deviner : un plancher illisible ne doit jamais valoir zéro.
 function parseVersion(value) {
   const parts = String(value ?? "").trim().split(".")
 

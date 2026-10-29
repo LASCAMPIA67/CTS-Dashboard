@@ -212,7 +212,6 @@ function firstLine(value) {
     .filter(Boolean)[0] || ""
 }
 
-
 function createLargeWidget(context) {
   const { service, state, stats, displaySlice: focus } = context
   const density = getDensity(service.slices.length, context?.preferences?.textScale)
@@ -451,11 +450,6 @@ function addOperationalDetails(parent, slice, state, density) {
 
   const row = addGridRow(parent)
 
-  /*
-   * La mise en ligne est l'arrêt où le conducteur doit se rendre en
-   * sortant du dépôt : c'est elle qui se lit d'abord, et elle prend la
-   * couleur dès qu'elle paraît. La direction ne la garde que seule.
-   */
   if (hasLineUp) {
     addDetailBlock(row, getOperationStartLabel(slice), slice.lineUpAt, state, density, {
       emphasized: true,
@@ -529,12 +523,6 @@ function addProgram(parent, service, state, density) {
   )
   card.addSpacer(density.programHeaderGap)
 
-  /*
-   * Calculées par CTS Service au moment de la normalisation. Le renderer
-   * ne dessine que ce qu'on lui donne : lui faire appeler le moteur de
-   * service l'attacherait à CTS Config, donc au système de fichiers, pour
-   * une ligne de texte.
-   */
   const interruptions = Array.isArray(service.interruptions)
     ? service.interruptions
     : []
@@ -554,17 +542,6 @@ function addProgram(parent, service, state, density) {
   })
 }
 
-/*
- * L'intervalle entre deux tranches, écrit là où il se produit.
- *
- * Ce n'est pas une ligne ajoutée au bas du bloc : c'est l'espace qui
- * séparait déjà les deux tranches, qui porte maintenant son nom. Le
- * conducteur lit son programme de haut en bas dans l'ordre de sa
- * journée, et l'attente se trouve exactement là où elle tombe.
- *
- * Sans fond ni bordure, volontairement : une pause n'est pas une
- * tranche, et lui donner la même carte la ferait compter pour telle.
- */
 function addInterruption(parent, interruption, density) {
   parent.addSpacer(density.interruptionGap)
 
@@ -587,20 +564,6 @@ function addInterruption(parent, interruption, density) {
   parent.addSpacer(density.interruptionGap)
 }
 
-/*
- * Pendant la pause, la pastille de l'en-tête annonce déjà « Pause 1 h ».
- * La répéter dans le programme ne dirait rien de neuf et prendrait une
- * ligne, alors que c'est justement le moment où le widget en a le moins.
- *
- * La condition dit précisément cela, et pas « l'intervalle est en
- * cours » : la pastille n'affiche la durée que si elle la connaît. Si
- * elle se contentait un jour du mot « Pause », le programme reprendrait
- * la parole plutôt que de laisser disparaître le seul chiffre.
- *
- * L'état ne suffit pas à désigner l'intervalle : un service peut en
- * compter plusieurs, et seul celui qui précède la tranche à venir est
- * celui qu'on vit.
- */
 function isAnnouncedByPill(interruption, state) {
   return Boolean(
     state &&
@@ -718,10 +681,6 @@ function addSliceNumber(parent, slice, active, state, density) {
 
 function addStats(parent, stats, density) {
   const card = addSurface(parent, {
-    /*
-     * Aucune marge horizontale : les deux colonnes valent chacune la
-     * moitié de la carte, et une marge les décalerait vers le centre.
-     */
     padding: [density.statPaddingVertical, 0, density.statPaddingVertical, 0],
     radius: density.statRadius,
     backgroundAlpha: 0.05,
@@ -729,22 +688,6 @@ function addStats(parent, stats, density) {
   })
   card.centerAlignContent()
 
-  /*
-   * Deux colonnes de largeur fixe et égale, et deux ressorts seulement —
-   * à l'extérieur.
-   *
-   * Le bloc portait auparavant quatre ressorts souples, un de chaque côté
-   * de chaque colonne. Ils se partageaient l'espace restant, donc leur
-   * taille dépendait de la largeur des deux durées : « Amplitude » étant
-   * plus large que « Travail », le séparateur se retrouvait décalé de la
-   * moitié de cet écart, et le décalage changeait avec les valeurs du
-   * jour. Une barre censée marquer le milieu ne peut pas se déplacer selon
-   * le service affiché.
-   *
-   * Les deux ressorts restants sont symétriques par construction : le
-   * groupe est centré dans la carte, et comme les colonnes sont égales, le
-   * séparateur tombe exactement au centre, quelles que soient les durées.
-   */
   card.addSpacer()
   addStatBlock(card, UTILS.formatDuration(stats.work), "Travail", density)
   addStatSeparator(card, density)
@@ -752,23 +695,7 @@ function addStats(parent, stats, density) {
   card.addSpacer()
 }
 
-/*
- * Une colonne de largeur imposée, dont chaque ligne se centre par des
- * ressorts souples.
- *
- * C'est exactement la construction de la colonne des horaires dans le
- * programme — largeur fixe, puis addCenteredLine — et ce n'est pas un
- * détail de style : centerAlignContent() sur une pile verticale ne centre
- * pas horizontalement sur l'iPhone. Les deux lignes s'y collent à gauche
- * de la colonne, ce qu'une capture d'écran a montré. Le banc, lui,
- * l'annonçait centré : son shim traduit centerAlignContent par
- * align-items:center, dont l'axe transversal est horizontal en flexbox
- * quand la pile est verticale. Il mesurait donc son propre modèle.
- *
- * Un ressort souple, lui, se comporte pareil des deux côtés — c'est la
- * base de toute la mise en page du widget, et la colonne des horaires le
- * prouve sur appareil.
- */
+// Des ressorts souples, pas centerAlignContent() : sur iPhone, il ne centre pas une pile verticale.
 function addStatBlock(parent, value, label, density) {
   const block = parent.addStack()
   block.layoutVertically()
@@ -791,10 +718,6 @@ function addStatBlock(parent, value, label, density) {
   )
 }
 
-/*
- * La largeur du séparateur entre dans le calcul des colonnes : la nommer
- * évite que les deux endroits divergent d'un point sans qu'on le voie.
- */
 const STAT_SEPARATOR_WIDTH = 1
 
 function addStatSeparator(parent, density) {
@@ -1019,15 +942,6 @@ function withTextScale(density, scaleValue) {
 
 function getDensity(sliceCountValue, textScale = 1) {
   const count = Math.max(1, Number(sliceCountValue) || 1)
-  /*
-   * Deux paliers, et non trois. Un troisième existait au-delà de trois
-   * tranches, qui resserrait tout ; aucun service de la CTS n'en compte
-   * quatre, et il n'a donc jamais été dessiné sur un téléphone.
-   *
-   * Un quatrième cas reste possible par erreur de lecture, et le banc
-   * continue de l'éprouver : il est simplement rendu à la densité
-   * standard, qui doit l'encaisser.
-   */
   const base = count >= 3 ? densityStandard() : densityComfortable()
   const screen = getDeviceSize()
   return withColumnWidth(withTextScale(adaptDensity(base, screen.width), textScale), screen)
@@ -1056,27 +970,6 @@ function estimateWidgetWidth(screen) {
 
 const COLUMN_SAFETY_MARGIN = 18
 
-/*
- * Une colonne du bloc du bas vaut exactement la moitié de la carte.
- *
- * La carte n'a plus de marge horizontale, et c'est ce qui rend le centrage
- * juste. Une marge décale forcément le contenu vers le séparateur : la
- * colonne commencerait après elle, alors que l'œil, lui, mesure l'écart
- * depuis le bord visible de la carte. Elle ne servait qu'à écarter le texte
- * des angles arrondis, ce dont deux colonnes centrées n'ont pas besoin.
- *
- * La marge de sécurité est celle du bandeau horaires, et pas une valeur
- * propre à ce bloc. Elle a d'abord été fixée à deux points, en pariant que
- * la table des écrans ne se trompe que par défaut. Le pari était faux : sur
- * un iPhone dont la table surestime la largeur, les deux colonnes — dont le
- * cadre est rigide — réclamaient plus que la carte ne pouvait donner, et
- * la carte s'élargissait au-delà de celles du dessus.
- *
- * Le prix de la marge est connu : elle rentre les deux colonnes de neuf
- * points vers l'intérieur. C'est exactement ce que fait déjà le bandeau
- * horaires, dont les colonnes gardent le même jeu. Les deux blocs se
- * comportent donc pareil, ce qui est le but.
- */
 function statColumnWidth(density, screen) {
   const card =
     estimateWidgetWidth(screen) -
@@ -1264,7 +1157,6 @@ function densityStandard() {
     statSeparatorHeight: 24
   }
 }
-
 
 function validateContext(context) {
   if (!context || typeof context !== "object") {

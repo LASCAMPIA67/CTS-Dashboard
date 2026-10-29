@@ -60,13 +60,6 @@ function extractionTimeout() {
 }
 const WEBVIEW_CALL_MARGIN_MS = 5000
 
-/*
- * Les bibliothèques vivent sur l'appareil, où CTS Installer les dépose :
- * iOS ne peut pas les en retirer faute de place, comme il le faisait dans
- * iCloud. Le moteur ne les attend donc plus d'iCloud ; s'il ne les trouve
- * pas — un iPhone restauré, une installation interrompue — il les
- * retélécharge au même endroit.
- */
 function libraryFiles() {
   return {
     local: FileManager.local(),
@@ -100,12 +93,6 @@ async function ensureReady() {
     "worker"
   )
 
-  /*
-   * Les métadonnées décrivent une installation : elles ne s'écrivent donc
-   * qu'au moment où le moteur en reçoit une. Les réécrire à chaque lecture
-   * revenait à écrire à chaque réveil du widget, pour un fichier dont le
-   * contenu ne bouge pas.
-   */
   if (library.installed || worker.installed) {
     writeEngineMetadata(libraries.local, libraries.metadata)
   }
@@ -253,21 +240,6 @@ function writeEngineMetadata(local, path) {
     }
   }
 
-  /*
-   * Ce fichier n'est lu par personne : ni le widget, ni le Diagnostic, ni
-   * l'installateur. Il documente l'installation, rien de plus.
-   *
-   * Son écriture levait pourtant une erreur, et cet appel se trouvait sur
-   * le chemin de toute lecture de PDF. Un collègue dont ce seul fichier ne
-   * pouvait pas s'écrire n'a jamais pu lire une seule carte agent : 132
-   * tentatives, 132 échecs, pour un fichier que rien n'ouvre. Ce qui ne
-   * sert à personne ne doit pouvoir arrêter personne.
-   *
-   * Rien n'est perdu côté diagnostic : les deux fichiers dont dépend
-   * réellement le moteur sont contrôlés juste au-dessus, et signalent leur
-   * absence, leur téléchargement manqué ou leur taille anormale sous leur
-   * propre code.
-   */
   try {
     local.writeString(path, JSON.stringify(metadata, null, 2))
   } catch (_) {}
@@ -846,10 +818,6 @@ function buildRuntimeHtml(libraryBase64, workerBase64) {
   window.__ctsWorkerMode = "unknown"
   window.__ctsPdfVersion = ""
 
-  /*
-   * Détail technique joint à chaque échec. Le message brut de
-   * JavaScriptCore, seul, ne permet pas de localiser la panne.
-   */
   function failureDetails(error, extra) {
     const details = {
       errorName: (error && error.name) || "",
@@ -984,14 +952,6 @@ function buildRuntimeHtml(libraryBase64, workerBase64) {
 
       window.__ctsPdfVersion = String(pdfjsLib.version || "")
 
-      /*
-       * PDF.js construit son worker avec new Worker(url, { type: "module" }).
-       * Certaines WebView refusent un worker de module servi depuis une URL
-       * blob et PDF.js bascule alors silencieusement sur un worker de repli.
-       * Savoir lequel a servi est déterminant pour diagnostiquer un échec.
-       *
-       * Cette sonde ne doit jamais empêcher le démarrage du moteur.
-       */
       try {
         const probe = new Worker(window.__ctsWorkerUrl, { type: "module" })
 

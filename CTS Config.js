@@ -90,18 +90,7 @@ const requiredDirectories = Object.freeze([
   resolvedPaths.servicesTextCache
 ])
 
-/*
- * Ce qui ne concerne que cet iPhone vit dans la bibliothèque locale de
- * Scriptable, hors d'iCloud : les verrous, et les deux bibliothèques
- * PDF.js, qu'iOS pouvait retirer de l'appareil faute de place et qu'il
- * fallait alors attendre ou retélécharger au moment de lire une carte.
- * L'application et le widget partagent ce dossier — la documentation ne
- * le dit pas, une mesure sur iPhone l'a établi le 23 septembre. CTS
- * Installer y dépose les bibliothèques sous le même nom de dossier.
- *
- * Le chemin se résout à l'appel : un module qui n'en a pas besoin n'a pas
- * à ouvrir le stockage local.
- */
+// L'application et le widget partagent ce dossier local : mesuré sur iPhone le 23/09/2026, non documenté.
 const DEVICE_DIRECTORY = "CTS Dashboard"
 
 function devicePath(...parts) {

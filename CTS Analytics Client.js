@@ -36,20 +36,7 @@ const TELEMETRY_RUN_STATUSES = new Set(["success", "warning", "error"])
 const TELEMETRY_SEVERITIES = new Set(["warning", "error", "fatal"])
 const TELEMETRY_CONTEXTS = new Set(["widget", "app"])
 
-/*
- * Absence de travail n'est pas défaut de fonctionnement.
- *
- * Un jour de repos, ou l'intervalle entre deux cartes agent, produit une
- * exécution où il n'y a simplement rien à afficher. Ces codes décrivent
- * cette situation. Ils restent enregistrés dans les diagnostics — la
- * console d'administration continue de les compter — mais ils ne pèsent
- * plus sur le statut de l'exécution, sans quoi le taux de succès de la
- * flotte mesure la présence d'un PDF et non la fiabilité du logiciel.
- *
- * Un PDF présent mais inexploitable relève d'un autre code
- * (SERVICE_NOT_FOUND) et garde tout son poids : ce qui est ici, c'est le
- * cas où le dossier Services est vide.
- */
+// Un dossier Services vide n'est pas une panne : ce code ne dégrade pas l'exécution.
 const TELEMETRY_NO_WORK_CODES = new Set(["PDF_NOT_FOUND"])
 
 function createOpaqueId() {
@@ -133,15 +120,7 @@ async function registerActivity({ dashboardVersion }) {
   )
 }
 
-/*
- * La politique de version voyage dans les réponses que ce client reçoit
- * déjà — aucun appel n'est ajouté pour elle.
- *
- * Ce module la rapporte, il ne l'applique pas et ne l'écrit nulle part :
- * celui qui parle au réseau ne doit pas être celui qui décide d'éteindre
- * le widget. Il n'importe d'ailleurs aucun autre module, et cela doit le
- * rester.
- */
+// Rapporte la politique sans l'appliquer : ce module n'importe aucun autre module.
 function withVersionPolicy(result) {
   const policy = result?.data?.versionPolicy
 
@@ -255,20 +234,6 @@ function createTelemetryRun({ executionContext = "widget" } = {}) {
   }
 }
 
-/*
- * L'identité du conducteur, telle que sa carte agent la porte.
- *
- * CTS Parser l'extrait depuis toujours — « DUPONT MARIE (123456) » — et
- * CTS Service la conserve dans le service enregistré. Elle n'avait
- * jamais quitté l'iPhone ; elle accompagne désormais la télémétrie, pour
- * que la console d'administration nomme les collègues au lieu de les
- * désigner par un code. Rien n'est demandé à personne, aucun écran n'est
- * ajouté : la valeur est déjà là quand le widget s'exécute.
- *
- * Elle se pose sur le run, à la manière d'une étape, et non dans un état
- * partagé du module : deux exécutions concurrentes ne peuvent pas se
- * voler leur conducteur.
- */
 function setTelemetryDriver(run, driver) {
   ensureTelemetryRun(run)
 
@@ -283,15 +248,10 @@ function normalizeTelemetryDriver(driver) {
 
   if (!name && !id) return null
 
-  /* Le matricule tel que la carte le porte : quatre à dix chiffres. */
   return { name, id: /^\d{4,10}$/.test(id) ? id : "" }
 }
 
-/*
- * Le conducteur voyage au même niveau que l'appareil, jamais dans le
- * run : normalizeTelemetryRunForSend n'en retient que les champs du
- * contrat, et le serveur refuserait un run porteur d'un champ inconnu.
- */
+// Au niveau de l'appareil, jamais dans le run : le serveur y refuse un champ inconnu.
 function telemetryDriverPayload(run) {
   const driver = run?.driver
 
@@ -504,16 +464,7 @@ function deriveTelemetryRunStatus(run) {
     result = strongestTelemetryStatus(result, "error")
   }
 
-  /*
-   * pdfStatus « missing » et serviceStatus « not_found » ne dégradent plus
-   * l'exécution à eux seuls : ils décrivent une absence, pas une panne.
-   *
-   * Tous les chemins du moteur qui posent ces deux valeurs à cause d'un
-   * vrai défaut ajoutent en même temps un incident — import refusé,
-   * validation HASTUS, PDF détecté mais inexploitable. C'est cet incident
-   * qui porte le poids, à la boucle ci-dessus. Retirer l'absence d'ici ne
-   * masque donc aucune panne : elle en est distinguée.
-   */
+  // « missing » et « not_found » seuls ne dégradent pas : un vrai défaut pose son propre incident.
   if (run.archiveStatus === "error") {
     result = strongestTelemetryStatus(result, "warning")
   }
