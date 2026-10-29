@@ -41,8 +41,10 @@
 - Niveau senior : lisible, cohérent avec l'existant, sans complexité
   inutile ni code mort.
 - La lisibilité prime sur la brièveté.
-- Les commentaires expliquent une contrainte non évidente — le pourquoi,
-  jamais le quoi. Aucun ne paraphrase le code.
+- Un commentaire ne signale qu'un piège, en une ligne : là où une
+  correction future défairait un choix voulu sans qu'aucun banc ne la
+  rattrape. Ni récit, ni historique, ni paraphrase : le pourquoi se lit
+  dans `DECISIONS.md`, les bancs et l'historique Git.
 - Un défaut se corrige à sa cause : ne masque jamais une erreur et ne
   contourne jamais un validateur pour passer au vert.
 
