@@ -474,7 +474,10 @@ décision lui est antérieure.
   L'historique compte des numéros publiés deux fois — 1.1.0 et 1.1.1 avant
   une remise à 1.0.0, l'installateur 1.0.7 et 1.0.8 le même jour —, et une
   Release par numéro ancien aurait notifié une centaine de fois ceux qui
-  suivent le dépôt, sans message à y mettre.
+  suivent le dépôt, sans message à y mettre. Le message de l'installateur
+  1.0.33 n'avait pas été conservé : il est reconstitué d'après sa pull
+  request et le dit en tête, plutôt que de laisser le numéro en service sans
+  Release ou de faire passer un texte réécrit pour celui qui est parti.
 - 2026-10-28 — Les Releases deviennent immuables une fois la première
   publiée sans défaut : GitHub interdit alors de déplacer un tag ou d'en
   réutiliser le nom, et fait respecter lui-même la règle du 4 septembre.

@@ -168,7 +168,8 @@ dépassée ne se rattrape plus par lui.
 Le suivi commence à CTS Dashboard 1.4.8 et CTS Installer 1.0.33, les numéros
 en service le jour où il a été mis en place. Les précédents n'ont pas de
 Release : leur histoire se lit dans Git, et elle compte des numéros publiés
-deux fois.
+deux fois. Le message de l'installateur 1.0.33, qui n'avait pas été
+conservé, est reconstitué, et le dit en tête.
 
 ## Vérifications automatiques
 

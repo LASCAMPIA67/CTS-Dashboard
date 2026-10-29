@@ -1,0 +1,17 @@
+_Message reconstitué le 28 octobre 2026 : celui envoyé le 24 septembre n'a pas été conservé._
+
+*CTS INSTALLER 1.0.33*
+
+« Retirer un service » fonctionne de nouveau, et le Diagnostic ne signale plus une erreur qui n'existe pas.
+
+• *Retirer un service* — Le bouton retire de nouveau le service choisi, et un échec ne vous envoie plus vérifier votre connexion Internet, qui n'y était pour rien.
+
+• *Diagnostic* — Le contrôle de l'index des services ne se met plus en erreur à tort.
+
+*METTRE À JOUR*
+1. Ouvrez *Scriptable*
+2. Lancez *CTS Installer*
+3. _« Installer 1.0.33 »_, puis fermez l'écran : il se rouvre seul
+
+*Version actuelle : CTS Dashboard 1.4.4*
+*CTS Installer : 1.0.33*
