@@ -152,6 +152,12 @@ Le tag est posé sur le commit de `main` où le numéro est arrivé, et désigne
 l'état que ce numéro a publié. Un correctif fusionné ensuite sans numéro
 atteint les iPhone sans figurer dans la Release.
 
+Les Releases du dépôt sont immuables depuis le 29 octobre 2026 : une fois
+publiée, une Release garde son tag, qui ne se déplace ni ne se supprime, et
+un nom de tag ne resert jamais, même après suppression. Seuls son titre et
+sa note restent modifiables. Les deux Releases du rattrapage, publiées
+avant ce réglage, ne le sont pas.
+
 La note commence par le message pour la communauté, tel qu'il part sur
 WhatsApp. GitHub y ajoute la liste des pull requests fusionnées depuis la
 Release précédente du même numéro. Le message s'écrit donc dans la pull
