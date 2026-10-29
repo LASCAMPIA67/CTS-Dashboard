@@ -1,26 +1,3 @@
-/*
- * Balayage des restes d'écriture.
- *
- * Une écriture atomique passe par un temporaire puis par une copie de
- * sécurité. iOS peut arrêter un widget entre deux déplacements, et le
- * jeton unique du nom fait qu'aucune écriture suivante ne repassera par
- * là : le reste s'installe pour de bon.
- *
- * Le point délicat n'est pas de les effacer, c'est de savoir lesquels.
- * Entre le déplacement du fichier vers « .rollback » et l'arrivée du
- * temporaire à sa place, la copie de sécurité est le seul exemplaire
- * des données. Ce banc vérifie donc surtout ce que le balayage NE
- * supprime PAS : une copie de sécurité orpheline, un reste trop récent,
- * un fichier dont l'âge est illisible, et tout ce qui ne porte pas une
- * de nos extensions de travail.
- *
- * Et ce qu'il remet en place. Une copie de sécurité orpheline était le
- * fichier vivant une seconde avant la coupure : si elle se relit, elle
- * reprend sa place. Si elle ne se relit pas, elle reste où elle est —
- * un index absent rend un index vide et tout se réimporte, un index
- * corrompu bloque l'entretien comme l'import.
- */
-
 import { importFrom, isolatedModule } from "./sandbox.mjs"
 
 const ROOT = "/docs/CTS Dashboard"
@@ -48,10 +25,6 @@ function check(condition, message) {
   if (!condition) failures.push(message)
 }
 
-/*
- * Un disque en mémoire où chaque fichier porte une date de
- * modification, puisque c'est elle qui décide de l'âge d'un reste.
- */
 function createDisk() {
   const files = new Map()
 
@@ -130,7 +103,6 @@ function loadCleaner(disk, { readableDates = true } = {}) {
     },
     ensureDownloaded: async () => true,
     appendLog: async () => {},
-    /* Le verrou réel est éprouvé par storage-smoke : ici, il est toujours libre. */
     acquireDeviceLock: () => ({ acquired: true, token: "verrou" }),
     releaseDeviceLock: () => {},
     safeModificationDate: target => {
@@ -144,9 +116,7 @@ function loadCleaner(disk, { readableDates = true } = {}) {
     writeJsonAtomically: async (target, value) => {
       disk.put(target, JSON.stringify(value, null, 2), NOW)
     },
-    /* Le nom unique réel est éprouvé par storage-smoke : ici, aucun doublon. */
     uniqueArchiveFileName: name => name,
-    /* Comme le vrai : l'index vient du disque, pas d'une copie figée. */
     readCurrentIndex: async () => {
       const entry = disk.files.get(`${DATA}/services-index.json`)
       const value = entry ? JSON.parse(entry.content) : null
@@ -161,21 +131,14 @@ function loadCleaner(disk, { readableDates = true } = {}) {
 
   return isolatedModule("CTS Services Cleaner", {
     importModule: importFrom(loaded),
-    globals: { setTimeout, config: { runsInWidget: true }, args: { plainTexts: [] } }
+    globals: { setTimeout, config: { runsInWidget: true } }
   })
 }
 
 loaded["CTS Utils"] = isolatedModule("CTS Utils", {
-  globals: { setTimeout, config: { runsInWidget: true }, args: { plainTexts: [] } }
+  globals: { setTimeout, config: { runsInWidget: true } }
 })
 
-/*
- * Test 1 — ce qui doit disparaître.
- *
- * Un temporaire n'est jamais l'exemplaire unique : soit l'original tient
- * sa place, soit la copie de sécurité le protège, soit le fichier
- * n'avait encore jamais existé.
- */
 {
   const disk = createDisk()
 
@@ -225,13 +188,6 @@ loaded["CTS Utils"] = isolatedModule("CTS Utils", {
   }
 }
 
-/*
- * Test 2 — la copie de sécurité orpheline.
- *
- * L'original manque : cette copie est peut-être le dernier état lisible
- * du fichier. Elle est conservée et signalée, jamais supprimée. Même
- * chose pour un téléchargement partiel dont la destination manque.
- */
 {
   const disk = createDisk()
 
@@ -254,15 +210,6 @@ loaded["CTS Utils"] = isolatedModule("CTS Utils", {
   )
 }
 
-/*
- * Test 2 bis — une copie de sécurité relisible reprend sa place.
- *
- * Elle était le fichier vivant une seconde avant la coupure : elle est
- * complète, jamais partielle. La laisser de côté reviendrait à laisser
- * les données perdues alors qu'un exemplaire intact est juste à côté.
- * Rien ne peut être écrasé au passage, puisqu'on n'agit que lorsque le
- * fichier d'origine manque.
- */
 {
   const disk = createDisk()
   const index = JSON.stringify({ version: 2, updatedAt: "", services: [] })
@@ -291,14 +238,6 @@ loaded["CTS Utils"] = isolatedModule("CTS Utils", {
   )
 }
 
-/*
- * Test 2 ter — mais jamais du contenu illisible.
- *
- * Un index absent rend un index vide et tout se réimporte ; un index
- * corrompu lève SERVICE_INDEX_INVALID et bloque l'entretien comme
- * l'import. Le pire n'est donc pas l'absence, c'est le remplacement par
- * quelque chose qu'on ne sait pas relire.
- */
 {
   const disk = createDisk()
 
@@ -327,7 +266,6 @@ loaded["CTS Utils"] = isolatedModule("CTS Utils", {
   )
 }
 
-/* Test 3 — un reste trop récent peut appartenir à une écriture en cours. */
 {
   const disk = createDisk()
 
@@ -347,11 +285,6 @@ loaded["CTS Utils"] = isolatedModule("CTS Utils", {
   )
 }
 
-/*
- * Un reste écarté pour cause de jeunesse n'est pas une anomalie : il
- * partira tout seul au balayage suivant. Le diagnostic ne doit donc pas
- * le compter comme un fichier conservé faute de preuve.
- */
 {
   const disk = createDisk()
   const statePath = `${DATA}/services-cleanup-state.json`
@@ -371,7 +304,6 @@ loaded["CTS Utils"] = isolatedModule("CTS Utils", {
   )
 }
 
-/* Test 4 — âge illisible : on ne peut rien prouver, donc on conserve. */
 {
   const disk = createDisk()
 
@@ -391,10 +323,6 @@ loaded["CTS Utils"] = isolatedModule("CTS Utils", {
   )
 }
 
-/*
- * Test 5 — tout ce qui n'est pas un reste doit être laissé tranquille,
- * y compris les verrous, qui ont leur propre durée de vie.
- */
 {
   const disk = createDisk()
 
@@ -435,13 +363,6 @@ loaded["CTS Utils"] = isolatedModule("CTS Utils", {
   }
 }
 
-/*
- * Test 6 — les PDF supplantés d'un service réimporté.
- *
- * Ils ne sont référencés nulle part et vivent dans le dossier Archive,
- * dont la règle est déjà une rétention de sept jours. Avant l'échéance
- * ils restent ; après, ils partent.
- */
 {
   const disk = createDisk()
 
@@ -474,13 +395,6 @@ loaded["CTS Utils"] = isolatedModule("CTS Utils", {
   )
 }
 
-/*
- * Test 7 — le balayage est espacé.
- *
- * Il parcourt cinq dossiers ; le refaire à chaque réveil du widget
- * coûterait pour rien. La date du dernier passage est gardée dans
- * l'état d'entretien, et c'est elle qui décide.
- */
 {
   const disk = createDisk()
 
@@ -497,12 +411,6 @@ loaded["CTS Utils"] = isolatedModule("CTS Utils", {
   check(later.residue !== null, "le balayage n'a pas repris après six heures")
 }
 
-/*
- * Test 8 — l'état d'entretien n'est pas réécrit pour rien.
- *
- * Rien à archiver, rien à balayer : iCloud ne doit pas travailler. Le
- * fichier ne bouge donc pas avant l'heure de battement.
- */
 {
   const disk = createDisk()
   const statePath = `${DATA}/services-cleanup-state.json`
@@ -524,15 +432,6 @@ loaded["CTS Utils"] = isolatedModule("CTS Utils", {
   )
 }
 
-/*
- * Test 9 — l'oubli des services entièrement liquidés.
- *
- * L'index est relu à chaque réveil du widget. Une entrée qui ne désigne
- * plus aucun fichier ne peut plus rien apprendre à personne : ni au
- * balayage, ni au scanner, ni au widget. Elle part. Tout le reste — un
- * PDF encore là, une archive encore là, un cache encore là, une date
- * trop récente, une liquidation inachevée — reste.
- */
 {
   const disk = createDisk()
 
@@ -576,14 +475,6 @@ loaded["CTS Utils"] = isolatedModule("CTS Utils", {
   check(remaining.services.length === 6, "l'index n'a pas été réécrit sans l'entrée oubliée")
 }
 
-/*
- * Test 10 — les caches sans entrée d'index.
- *
- * Ils ne sont plus atteignables. Mais un index absent n'est pas un
- * index vide : il peut être en reconstruction, et le cache servira. On
- * ne balaie donc rien tant que le fichier d'index n'existe pas, ni
- * avant la rétention.
- */
 {
   const disk = createDisk()
 
@@ -631,7 +522,6 @@ loaded["CTS Utils"] = isolatedModule("CTS Utils", {
   )
 }
 
-/* Sans fichier d'index, rien n'est touché : il peut être en reconstruction. */
 {
   const disk = createDisk()
 
@@ -647,7 +537,6 @@ loaded["CTS Utils"] = isolatedModule("CTS Utils", {
   )
 }
 
-/* Le classement des noms, isolé du reste. */
 {
   const disk = createDisk()
   const { classifyResidue } = loadCleaner(disk)

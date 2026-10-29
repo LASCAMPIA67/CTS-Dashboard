@@ -17,7 +17,7 @@ agent se lit dans une WebView servie par iOS, et le dépôt vise encore
 iOS 18 : rien ne garantit que le build moderne y trouve ce qu'il
 suppose.
 
-Le correctif maison de `CTS PDF Engine.js:757` ne vient pas de cette
+Le correctif maison de `CTS PDF Engine.js:729` ne vient pas de cette
 page : il est né d'une panne constatée, et complète l'itération
 asynchrone sur `ReadableStream`. Aucune documentation PDF.js ne dit
 qu'elle est requise. C'est un constat du projet, pas une citation.
@@ -51,7 +51,7 @@ directement, pas d'une page de documentation.
 ## Le moteur ne revérifie jamais la version installée
 
 Constat de lecture du dépôt, non documenté ailleurs :
-`isValidLibraryFile` — `CTS PDF Engine.js:144` — ne contrôle que deux
+`isValidLibraryFile` — `CTS PDF Engine.js:131` — ne contrôle que deux
 choses, l'existence du fichier et sa taille minimale de 100 Ko — le
 plancher de CTS Installer et de la validation, qui refuse qu'ils
 divergent ; il était de 40 Ko jusqu'au 29/10/2026. Le numéro de version
@@ -65,6 +65,6 @@ et il les compare à ceux de l'appareil dès que la révision du dépôt a
 bougé. Constat de lecture de `CTS Installer.js` (`syncFile`,
 `canSkipPinnedLibrary`).
 
-`writeEngineMetadata` — `CTS PDF Engine.js:239` — écrit pourtant la
-version installée dans un fichier de métadonnées, mais son commentaire
-dit que rien ne le lit : « Ce fichier n'est lu par personne ».
+`writeEngineMetadata` — `CTS PDF Engine.js:226` — écrit pourtant la
+version installée dans un fichier de métadonnées, `engine.json`, que rien
+ne lit : ni le widget, ni le Diagnostic, ni l'installateur.

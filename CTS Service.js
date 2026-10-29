@@ -7,7 +7,7 @@ const UTILS = importModule("CTS Utils")
 const isUsableDate = UTILS.isUsableDate
 const DAY_MS = 24 * 60 * 60 * 1000
 const MINUTES_PER_DAY = 24 * 60
-let placeLookupCache = null
+let placeIndexCache = null
 
 const STATE = {
   NEXT: { type: "NEXT", label: "Service demain" },
@@ -56,12 +56,6 @@ function normalizeService(source) {
     breaks: normalizeBreaks(source.breaks)
   }
 
-  /*
-   * Attachées ici plutôt que calculées à l'affichage : tout ce qui lit un
-   * service passe par cette fonction — le widget, l'application, le
-   * simulateur du mainteneur — et hérite donc de la même liste, sans que
-   * chacun ait à refaire le calcul ni à connaître la règle.
-   */
   service.interruptions = getInterruptions(service)
 
   return {
@@ -126,90 +120,28 @@ function normalizeSlice(slice, index) {
 }
 
 function resolvePlaceLabel(code, fallback) {
-  const name = getPlaceName(code)
-
-  if (name) {
-    return name
-  }
-
-  return String(fallback || "Lieu inconnu")
+  return (
+    UTILS.getEntryName(UTILS.resolveIndexedEntry(placeIndex(), code)) ||
+    String(fallback || "Lieu inconnu")
+  )
 }
 
-function getPlaceName(code) {
-  const key = UTILS.normalizeKey(code)
-
-  if (!key) {
-    return ""
-  }
-
-  const lookup = getPlaceLookup()
-  return lookup[key] || ""
+function placeIndex() {
+  if (!placeIndexCache) placeIndexCache = UTILS.buildLookupIndex(readPlaces())
+  return placeIndexCache
 }
 
-function getPlaceLookup() {
-  if (placeLookupCache) {
-    return placeLookupCache
-  }
-
-  const lookup = Object.create(null)
-
+function readPlaces() {
   try {
-    const fm = CONFIG.fm
-    const path = CONFIG.files.places
+    const { fm, files } = CONFIG
 
-    if (!fm.fileExists(path) || !fm.isFileDownloaded(path)) {
-      placeLookupCache = lookup
-      return lookup
-    }
+    if (!fm.fileExists(files.places) || !fm.isFileDownloaded(files.places)) return null
 
-    const text = fm.readString(path).trim()
+    const text = fm.readString(files.places).trim()
 
-    if (!text) {
-      placeLookupCache = lookup
-      return lookup
-    }
-
-    const database = JSON.parse(text)
-
-    if (!database || typeof database !== "object" || Array.isArray(database)) {
-      placeLookupCache = lookup
-      return lookup
-    }
-
-    for (const [code, rawEntry] of Object.entries(database)) {
-      const entry = typeof rawEntry === "string" ? { name: rawEntry } : rawEntry
-
-      if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-        continue
-      }
-
-      const name = String(entry.name || "").trim()
-
-      if (!name) {
-        continue
-      }
-
-      addPlaceLookupEntry(lookup, code, name)
-
-      const aliases = Array.isArray(entry.aliases)
-        ? entry.aliases
-        : typeof entry.aliases === "string"
-          ? [entry.aliases]
-          : []
-
-      aliases.forEach(alias => addPlaceLookupEntry(lookup, alias, name))
-    }
-  } catch (_) {}
-
-  placeLookupCache = lookup
-  return lookup
-}
-
-function addPlaceLookupEntry(lookup, code, name) {
-  const key = UTILS.normalizeKey(code)
-
-  if (key && !Object.prototype.hasOwnProperty.call(lookup, key)) {
-    lookup[key] = name
+    return text ? JSON.parse(text) : null
+  } catch (_) {
+    return null
   }
 }
 
@@ -369,20 +301,6 @@ function computeStats(service) {
   }
 }
 
-/*
- * Les intervalles entre deux tranches, nommés et mesurés.
- *
- * computeState sait déjà reconnaître cet intervalle : quand l'heure
- * courante y tombe, il produit l'état PAUSE ou COUPURE et sa pastille.
- * Mais cette connaissance n'existait qu'à l'instant où le conducteur s'y
- * trouve. Un service se lit aussi le matin, ou la veille, et la question
- * « combien de temps de battement entre mes deux tranches » n'avait alors
- * aucune réponse.
- *
- * La règle est donc reprise telle quelle, isCutBetween compris : une
- * seule définition de ce qu'est une coupure, sans quoi la pastille et le
- * programme finiraient par se contredire sur le même service.
- */
 function getInterruptions(service) {
   if (!hasSlices(service)) return []
 

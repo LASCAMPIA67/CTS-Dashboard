@@ -1,26 +1,6 @@
-/*
- * Invariant de la grille du bandeau horaires.
- *
- * La carte des horaires est une grille symétrique : deux colonnes de
- * largeur identique, la flèche dans la gouttière, un ressort souple à
- * chaque extrémité. La symétrie ne tient que si la ligne entre dans la
- * largeur intérieure de la carte. Si elle déborde, les ressorts
- * s'écrasent, les colonnes se décalent et la flèche quitte le centre.
- *
- * Or la largeur du widget n'est pas mesurable : Scriptable ne l'expose
- * pas. Le renderer l'estime à partir d'une table de tailles d'écran. Une
- * estimation trop optimiste suffit donc à casser l'alignement — c'est ce
- * qui est arrivé sur un iPhone situé exactement sur la dernière ligne
- * connue de la table, quand la marge de sécurité n'était que de 6 pt.
- *
- * Ce banc vérifie que la ligne tient, sur chaque écran supporté et pour
- * chaque nombre de tranches, avec du jeu.
- */
-
 import * as shim from "./scriptable-shim.mjs"
 import { moduleSpace } from "./sandbox.mjs"
 
-/* Écrans supportés, du plus petit au plus grand, plus un inconnu à venir. */
 const SCREENS = [
   { label: "SE 1re génération", width: 320, height: 568 },
   { label: "SE 2e / 3e", width: 375, height: 667 },
@@ -33,14 +13,6 @@ const SCREENS = [
   { label: "15 Pro Max", width: 430, height: 932 },
   { label: "16 Pro Max", width: 440, height: 956 },
   { label: "modèle inconnu plus grand", width: 460, height: 1000 },
-  /*
-   * Écrans qui ne figurent dans aucune ligne de la table du renderer.
-   * L'estimation retombe alors sur la ligne connue immédiatement
-   * inférieure, donc sous-estime — ce qui est le bon sens de l'erreur.
-   * Encore faut-il que la grille tienne quand même : c'est ce que ces
-   * quatre-là vérifient, entre deux lignes, en dessous de la plus petite
-   * et au-delà de la plus grande.
-   */
   { label: "inconnu entre deux lignes", width: 400, height: 860 },
   { label: "inconnu large et court", width: 420, height: 900 },
   { label: "inconnu plus petit", width: 360, height: 780 },
@@ -62,11 +34,6 @@ let SCREEN = SCREENS[0]
 const RENDERER = loadRenderer()
 const failures = []
 
-/*
- * Jeu minimal exigé. Zéro suffirait en théorie ; on en demande davantage
- * parce que la table des largeurs ne peut pas être vérifiée pour chaque
- * modèle, présent ou futur.
- */
 const MINIMUM_SLACK = 10
 
 for (const screen of SCREENS) {
@@ -94,20 +61,6 @@ for (const screen of SCREENS) {
   }
 }
 
-/*
- * Les deux colonnes du bloc Travail / Amplitude.
- *
- * Elles portaient auparavant quatre ressorts souples qui se partageaient
- * l'espace restant : leur taille dépendait donc de la largeur des durées
- * du jour, et le séparateur — censé marquer le milieu — se décalait de la
- * moitié de l'écart entre « Travail » et « Amplitude ». Il bougeait selon
- * le service affiché.
- *
- * Chaque colonne vaut désormais exactement la moitié de la carte. Ce qui
- * doit être tenu ici est donc que les deux moitiés plus le séparateur
- * entrent bien dans cette carte : une colonne trop large ferait déborder
- * le bloc, et surtout écraserait le ressort qui garantit la symétrie.
- */
 for (const screen of SCREENS) {
   SCREEN = screen
 
@@ -119,21 +72,7 @@ for (const screen of SCREENS) {
       const demanded = 2 * density.statColumnWidth + RENDERER.statSeparatorWidth()
       const slack = card - demanded
 
-      /*
-       * Le jeu exigé est celui du bandeau, et pour la même raison.
-       *
-       * Ce contrôle demandait d'abord l'inverse : il refusait plus de
-       * quatre points de jeu, au motif que des colonnes trop étroites
-       * laisseraient le contenu se tasser vers le séparateur. Il n'a donc
-       * pas laissé passer le défaut suivant, il l'a imposé — la carte du
-       * bas est partie en production plus large que celles du dessus, sur
-       * un iPhone dont la table des largeurs surestime.
-       *
-       * Une colonne au cadre rigide ne se comprime pas : si les deux
-       * réclament plus que la carte, c'est la carte qui cède. Le jeu est
-       * donc ce qui absorbe l'erreur de la table, exactement comme pour la
-       * grille du bandeau.
-       */
+      // Le même jeu que le bandeau : des colonnes rigides ne se compriment pas, c'est la carte qui cède.
       if (slack < MINIMUM_SLACK) {
         failures.push(
           `${screen.label} · ${slices} tranche(s) · texte ×${textScale} : les deux ` +
@@ -145,7 +84,6 @@ for (const screen of SCREENS) {
   }
 }
 
-/* La largeur estimée ne doit jamais dépasser l'écran : garde-fou de la table. */
 for (const screen of SCREENS) {
   SCREEN = screen
   const widget = RENDERER.estimateWidgetWidth(screen)

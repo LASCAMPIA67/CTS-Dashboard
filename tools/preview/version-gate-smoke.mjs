@@ -1,23 +1,3 @@
-/*
- * Test du verrou de version.
- *
- * Un verrou se juge d'abord sur ses faux positifs. Bloquer une version
- * périmée est facile ; ne jamais bloquer un conducteur dont la version
- * est bonne l'est beaucoup moins, et c'est ce qui décide si ce contrôle
- * sécurise le projet ou devient son nouveau point de panne.
- *
- * La règle éprouvée ici est donc dissymétrique : bloquer exige une
- * affirmation, jamais un silence. Pas de politique en cache, fichier
- * illisible, plancher incohérent, réseau absent depuis des semaines,
- * première installation — le widget fonctionne. Seul un plancher
- * lisible, cohérent et réellement au-dessus de la version installée
- * l'arrête.
- *
- * Le banc monte le vrai CTS Widget Engine sur un disque en mémoire et
- * lit ce qu'il renvoie à CTS Dashboard, puisque c'est ce contexte qui
- * décide de l'écran affiché.
- */
-
 import { importFrom, isolatedModule } from "./sandbox.mjs"
 
 const ROOT = "/docs/CTS Dashboard"
@@ -32,18 +12,12 @@ function loadModule(name, loaded, sandboxExtra = {}) {
     globals: {
       setTimeout,
       config: { runsInWidget: true },
-      args: { plainTexts: [] },
       UUID: { string: () => Math.random().toString(36).slice(2) },
       ...sandboxExtra
     }
   })
 }
 
-/*
- * Le moteur est monté avec des doublures pour tout ce qui n'est pas le
- * verrou : la résolution de service renvoie toujours un contexte valide,
- * de sorte qu'un blocage observé ne puisse venir que du verrou lui-même.
- */
 function buildEngine({ installedVersion, policy }) {
   const files = new Map()
 
@@ -109,10 +83,6 @@ function buildEngine({ installedVersion, policy }) {
     loadPreferences: async () => ({ textScale: 1 })
   }
 
-  /*
-   * Si le verrou laisse passer, la résolution rend un service valide :
-   * un contexte bloqué ne peut donc venir que du verrou.
-   */
   loaded["CTS Services Manager"] = {
     scanServices: async () => ({ success: true, status: "idle", remaining: 0, imported: [], failed: [], knownFailures: [], detectionErrors: [] }),
     resolveServiceForDate: async () => ({
@@ -161,8 +131,6 @@ function isBlocked(context) {
   return context?.versionBlocked === true
 }
 
-/* ------------------------------------------ ce qui doit être bloqué */
-
 {
   const context = await contextFor({
     installedVersion: "1.1.4",
@@ -189,8 +157,6 @@ function isBlocked(context) {
   check(isBlocked(context), "version très ancienne : devrait être bloquée")
 }
 
-/* -------------------------------- ce qui ne doit surtout pas bloquer */
-
 {
   const context = await contextFor({
     installedVersion: "1.2.0",
@@ -210,7 +176,6 @@ function isBlocked(context) {
 }
 
 {
-  /* Une version récente, alors qu'un correctif vient de paraître. */
   const context = await contextFor({
     installedVersion: "1.2.0",
     policy: { minimumVersion: "1.2.0", latestVersion: "1.2.5" }
@@ -223,7 +188,6 @@ function isBlocked(context) {
 }
 
 {
-  /* Première installation, ou aucun réseau depuis toujours. */
   const context = await contextFor({ installedVersion: "1.0.4", policy: undefined })
 
   check(!isBlocked(context), "aucune politique en cache : ne doit jamais bloquer")
@@ -251,11 +215,6 @@ function isBlocked(context) {
 }
 
 {
-  /*
-   * Le garde-fou contre l'erreur de configuration : un plancher publié
-   * au-dessus de la dernière version éteindrait jusqu'aux installations
-   * à jour. Une telle politique est ignorée, pas appliquée.
-   */
   const context = await contextFor({
     installedVersion: "1.2.0",
     policy: { minimumVersion: "1.9.0", latestVersion: "1.2.0" }
@@ -279,10 +238,7 @@ function isBlocked(context) {
   )
 }
 
-/* ------------------------------------------------ retour à la normale */
-
 {
-  /* La mise à jour a eu lieu : la même politique ne bloque plus. */
   const policy = { minimumVersion: "1.2.0", latestVersion: "1.2.0" }
   const before = await contextFor({ installedVersion: "1.1.4", policy })
   const after = await contextFor({ installedVersion: "1.2.0", policy })
@@ -293,8 +249,6 @@ function isBlocked(context) {
     "après mise à jour : le verdict doit devenir caduc de lui-même, sans réseau"
   )
 }
-
-/* --------------------------------------------------------- résultat */
 
 if (failures.length) {
   console.error(`\n${failures.length} problème(s) :\n`)

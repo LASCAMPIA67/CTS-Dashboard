@@ -1,21 +1,3 @@
-/*
- * Les intervalles entre tranches : pause ou coupure.
- *
- * Le widget nomme désormais ce qui sépare deux tranches. La règle qui
- * décide entre « Pause » et « Coupure » n'est pas nouvelle : c'est celle
- * de computeState, qui produit la pastille quand l'heure courante tombe
- * dans l'intervalle. Elle sert maintenant à deux endroits, et c'est
- * précisément le risque : si le programme et la pastille se mettaient à
- * répondre différemment sur le même service, le conducteur verrait le
- * widget se contredire lui-même.
- *
- * Ce banc fixe donc les deux ensemble. Pour chaque service, il compare ce
- * que getInterruptions annonce d'un intervalle avec ce que computeState
- * en dit lorsqu'on s'y place à l'intérieur.
- *
- *   node tools/preview/interruption-smoke.mjs
- */
-
 import * as shim from "./scriptable-shim.mjs"
 import { widgetBody } from "./html.mjs"
 import { moduleSpace } from "./sandbox.mjs"
@@ -25,10 +7,6 @@ function loadModules() {
     Intl,
     Device: { screenSize: () => new shim.Size(428, 926) },
 
-    /*
-     * CTS Config touche iCloud dès son chargement. Rien ici n'en a besoin :
-     * seules les tables de lieux comptent, et elles sont facultatives.
-     */
     FileManager: {
       iCloud: () => fileManagerDouble(),
       local: () => fileManagerDouble()
@@ -106,7 +84,6 @@ function build(slices, breaks = []) {
   return result.service
 }
 
-/* Le service réel du 27 août : deux tranches, une heure entre les deux. */
 {
   const service = build([
     slice(1, "04:56", "04:56", "07:39"),
@@ -129,11 +106,6 @@ function build(slices, breaks = []) {
   check(interruption.nextIndex === 2, `nextIndex ${interruption.nextIndex}`)
 }
 
-/*
- * Une coupure déclarée par le parseur doit être nommée coupure. C'est la
- * distinction que le conducteur attend : une pause se passe sur place,
- * une coupure le renvoie chez lui.
- */
 {
   const service = build(
     [slice(1, "05:30", "05:48", "09:03"), slice(2, "12:31", "12:31", "16:55")],
@@ -147,12 +119,6 @@ function build(slices, breaks = []) {
   check(interruption.duration === 208, `durée ${interruption.duration} au lieu de 208`)
 }
 
-/*
- * Une coupure dont la fin coïncide avec la prise de service et non avec
- * le début d'exploitation : le parseur produit les deux formes, et
- * isCutBetween les accepte toutes les deux. L'intervalle affiché reste
- * celui qui sépare les deux tranches à l'écran.
- */
 {
   const service = build(
     [slice(1, "05:30", "05:48", "09:03"), slice(2, "12:20", "12:31", "16:55")],
@@ -163,18 +129,11 @@ function build(slices, breaks = []) {
 
   check(interruption.label === "Coupure", `fin sur la prise de service : « ${interruption.label} »`)
 
-  /*
-   * L'intervalle se mesure d'un bout de ligne affichée à l'autre, donc
-   * jusqu'à 12:31 et non jusqu'à la prise de service de 12:20. Le
-   * mesurer sur dutyStart ferait dire au programme autre chose que ce
-   * que les deux lignes qui l'encadrent montrent.
-   */
   check(interruption.end === "12:31", `intervalle affiché jusqu'à ${interruption.end}`)
   check(interruption.start === "09:03", `intervalle affiché depuis ${interruption.start}`)
   check(interruption.duration === 208, `durée ${interruption.duration} au lieu de 208`)
 }
 
-/* Le programme et la pastille doivent dire la même chose du même moment. */
 {
   const cases = [
     {
@@ -213,7 +172,6 @@ function build(slices, breaks = []) {
   }
 }
 
-/* Une tranche unique n'a pas d'intervalle : il n'y a rien à afficher. */
 {
   const service = build([slice(1, "04:56", "04:56", "12:50")])
 
@@ -223,10 +181,6 @@ function build(slices, breaks = []) {
   )
 }
 
-/*
- * Deux tranches qui s'enchaînent sans battement ne produisent rien non
- * plus. Sans ce filtre, le widget afficherait « Pause · 0 min ».
- */
 {
   const service = build([
     slice(1, "04:56", "04:56", "07:39"),
@@ -239,7 +193,6 @@ function build(slices, breaks = []) {
   )
 }
 
-/* Trois tranches donnent deux intervalles, dans l'ordre de la journée. */
 {
   const service = build([
     slice(1, "05:30", "05:48", "09:03"),
@@ -263,11 +216,6 @@ function build(slices, breaks = []) {
   )
 }
 
-/*
- * Un service à cheval sur minuit. Le parseur écrit les horaires au-delà
- * de 24:00 ; l'intervalle doit se mesurer sur cette échelle, sans quoi il
- * ressortirait négatif et disparaîtrait de l'affichage.
- */
 {
   const service = build([
     slice(1, "20:10", "20:10", "23:40"),
@@ -285,7 +233,6 @@ function build(slices, breaks = []) {
   )
 }
 
-/* Un service sans liste de coupures ne doit pas faire échouer le calcul. */
 {
   const service = build([
     slice(1, "04:56", "04:56", "07:39"),
@@ -300,24 +247,11 @@ function build(slices, breaks = []) {
   check(interruptions[0]?.label === "Pause", "sans liste de coupures, le libellé change")
 }
 
-/* Un service vide ne produit rien plutôt que de lever. */
 {
   check(SERVICE.getInterruptions(null).length === 0, "un service absent lève ou produit un intervalle")
   check(SERVICE.getInterruptions({}).length === 0, "un service sans tranche produit un intervalle")
 }
 
-/*
- * Ce que le widget écrit vraiment.
- *
- * Le programme nomme l'intervalle, sauf pendant l'intervalle lui-même :
- * la pastille l'annonce alors déjà, durée comprise, et la répéter
- * coûterait une ligne au moment précis où le widget en a le moins.
- *
- * Les deux moitiés de la règle comptent autant l'une que l'autre. Ne
- * jamais afficher la ligne serait un widget muet ; l'afficher pendant la
- * pause serait un widget qui se répète. Le banc rend donc le même service
- * à deux moments et vérifie les deux.
- */
 function renderProgram(service, state) {
   const widget = RENDERER.createWidget("large", {
     valid: true,
@@ -344,7 +278,6 @@ function programText(service, at) {
     slice(2, "08:39", "08:39", "12:50")
   ])
 
-  /* 09:30 : en pleine tranche 2, la pastille parle d'autre chose. */
   const working = programText(service, new Date(2026, 7, 27, 9, 30))
 
   check(
@@ -352,7 +285,6 @@ function programText(service, at) {
     "en service, le programme ne nomme pas la pause"
   )
 
-  /* 08:00 : dans la pause, la pastille dit déjà « Pause 1 h ». */
   const pausing = programText(service, new Date(2026, 7, 27, 8, 0))
 
   check(
@@ -370,10 +302,6 @@ function programText(service, at) {
     "pendant la pause, le programme répète ce que la pastille dit déjà"
   )
 
-  /*
-   * Trois tranches, une seule pause en cours : celle qu'on ne vit pas
-   * doit rester écrite, sans quoi une pause en masquerait une autre.
-   */
   const long = build([
     slice(1, "05:30", "05:48", "09:03"),
     slice(2, "12:31", "12:31", "16:55"),
@@ -398,18 +326,6 @@ function programText(service, at) {
   )
 }
 
-/*
- * Le programme ne se tait que si la pastille prend réellement la parole.
- *
- * Les deux conditions qui le garantissent — même intervalle, et durée
- * connue — ne peuvent pas se prendre en défaut aujourd'hui : computeState
- * et getInterruptions suivent la même règle et le banc l'a vérifié plus
- * haut. Ce sont donc des garde-fous, et un garde-fou que rien n'éprouve
- * finit par être supprimé comme inutile par quelqu'un qui a raison de le
- * croire. Ces deux cas décrivent ce qui doit se produire si les deux
- * moitiés du widget se mettaient un jour à diverger : le programme
- * reprend la parole plutôt que de laisser disparaître le chiffre.
- */
 {
   const service = build([
     slice(1, "04:56", "04:56", "07:39"),
@@ -418,7 +334,6 @@ function programText(service, at) {
 
   const pause = SERVICE.computeState(service, new Date(2026, 7, 27, 8, 0))
 
-  /* Une pastille qui ne connaît pas la durée ne l'annonce pas. */
   const silent = renderProgram(service, { ...pause, breakDuration: 0 })
 
   check(
@@ -426,7 +341,6 @@ function programText(service, at) {
     "pastille sans durée : le programme se tait aussi, le chiffre disparaît"
   )
 
-  /* Une pastille qui parle d'une coupure ne dit pas la pause du programme. */
   const disagreeing = renderProgram(service, {
     ...pause,
     type: "CUT",
@@ -439,11 +353,6 @@ function programText(service, at) {
   )
 }
 
-/*
- * Après minuit, un service de la veille continue : 25:30 est 1 h 30 du
- * matin suivant. À 0 h 45, il reste 45 minutes, pas une de plus — une
- * journée comptée de travers décalerait tout ce que la pastille annonce.
- */
 {
   const service = build([slice(1, "21:00", "21:10", "25:30")])
   const state = SERVICE.computeState(service, new Date(2026, 7, 28, 0, 45))
@@ -452,13 +361,6 @@ function programText(service, at) {
   check(state.remaining === 45, `0 h 45 le lendemain : ${state.remaining} min restantes au lieu de 45`)
 }
 
-/*
- * Tram ou bus : l'icône et le libellé du départ en dépendent.
- *
- * Un tram « débute son exploitation », un bus « se met en ligne ». Un
- * service de tram dessiné comme un bus dit au conducteur quelque chose de
- * faux sur son propre métier.
- */
 function symbolsOf(node, found = new Set()) {
   if (node?.kind === "image") found.add(node.symbol)
   for (const child of node?.children || []) symbolsOf(child, found)

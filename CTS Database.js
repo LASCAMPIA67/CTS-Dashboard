@@ -7,6 +7,7 @@ const RESOURCES = importModule("CTS Resources")
 const STORAGE = importModule("CTS Storage")
 const UTILS = importModule("CTS Utils")
 const { fm, files, ensureDirectories } = CONFIG
+const { isPlainObject, buildLookupIndex, resolveIndexedEntry, getEntryName } = UTILS
 
 const DATABASE_LABELS = Object.freeze({
   stops: "stops.json",
@@ -172,47 +173,6 @@ async function hasPlaces() {
   return Object.keys((await load()).places).length > 0
 }
 
-function buildLookupIndex(collection) {
-  const index = Object.create(null)
-  if (!isPlainObject(collection)) return index
-
-  for (const [key, rawEntry] of Object.entries(collection)) {
-    const entry = normalizeEntry(rawEntry)
-    if (!entry) continue
-    addIndexEntry(index, key, rawEntry)
-    for (const alias of normalizeAliases(entry)) addIndexEntry(index, alias, rawEntry)
-  }
-  return index
-}
-
-function addIndexEntry(index, value, rawEntry) {
-  const key = UTILS.normalizeKey(value)
-  if (key && !Object.prototype.hasOwnProperty.call(index, key)) index[key] = rawEntry
-}
-
-function resolveIndexedEntry(index, value) {
-  const key = UTILS.normalizeKey(value)
-  if (!key || !index || !Object.prototype.hasOwnProperty.call(index, key)) return null
-  return normalizeEntry(index[key])
-}
-
-function normalizeEntry(entry) {
-  if (typeof entry === "string") return { name: entry }
-  return isPlainObject(entry) ? entry : null
-}
-
-function normalizeAliases(entry) {
-  if (!entry) return []
-  if (typeof entry.aliases === "string") return [entry.aliases]
-  return Array.isArray(entry.aliases)
-    ? entry.aliases.filter(value => typeof value === "string")
-    : []
-}
-
-function getEntryName(entry) {
-  return entry && typeof entry.name === "string" ? entry.name.trim() : ""
-}
-
 function hasEntryType(entry, type) {
   return Boolean(
     entry &&
@@ -220,10 +180,6 @@ function hasEntryType(entry, type) {
       .trim()
       .toLowerCase() === type
   )
-}
-
-function isPlainObject(value) {
-  return Boolean(value && typeof value === "object" && !Array.isArray(value))
 }
 
 function cleanStopName(value) {
@@ -281,8 +237,6 @@ function shortenStopLabel(value) {
 module.exports = {
   reload,
   getStop,
-  getPlace,
-  getLine,
   formatStop,
   formatPlace,
   findPlaceName,
@@ -290,10 +244,5 @@ module.exports = {
   getLineTermini,
   isDepot,
   getWarnings,
-  hasPlaces,
-  normalizeCode: UTILS.normalizeCode,
-  normalizeKey: UTILS.normalizeKey,
-  cleanStopName,
-  shortenStopLabel,
-  formatFallbackName
+  hasPlaces
 }

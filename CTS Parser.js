@@ -5,15 +5,6 @@
 const DB = importModule("CTS Database")
 const UTILS = importModule("CTS Utils")
 
-/*
- * HASTUS imprime au bas de chaque page « Page: 1 HASTUS 2025 - poste
- * 22/09/2026 15:44 ». Terminée par une heure, la ligne se lit comme un
- * arrêt, et la section de la dernière voiture court jusqu'à la fin du
- * texte : elle est devenue la direction affichée sur un widget du parc,
- * « Page: 1 Hast. 2025 - Dtc_. 22/09/2026 ». Rien ne garantit l'ordre dans
- * lequel la lecture du PDF rend les deux morceaux, d'où les deux
- * emplacements de « Page ».
- */
 const PAGE_FOOTER =
   /(?:Page\s*:\s*\d+\s+)?HASTUS\s+\d{4}\b[^\n]*?\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}(?:\s+Page\s*:\s*\d+)?/gi
 
@@ -72,12 +63,6 @@ async function parseService(rawText) {
   }
 }
 
-/*
- * Ce décompte part vers la console : il doit dire qu'un lieu manque à
- * places.json, et non que places.json manque. Une base absente ou
- * illisible rend tous les lieux inconnus, et l'incident enverrait alors
- * compléter une base qui les connaît déjà.
- */
 async function countSlicesWithUnknownPlace(contexts) {
   if (!(await DB.hasPlaces())) return 0
 
@@ -125,16 +110,6 @@ async function enrichSlices(slices, sections) {
   )
 }
 
-/*
- * Un code de relève que les bases ignorent s'affichait tel quel : le widget
- * a montré « Code ANKARA » à un conducteur le 28 septembre 2026, comme
- * « Code ELSA_C » avant lui. La carte imprime pourtant, dans la section de
- * la voiture, le nom de l'arrêt en toutes lettres à l'heure où la tranche
- * commence et à celle où elle finit : c'est lui qui nomme le lieu tant que
- * places.json ne le connaît pas. Le lieu reste signalé inconnu, parce que
- * c'est places.json qui doit le nommer — le nom imprimé n'a ni accents ni
- * abréviation choisie.
- */
 async function namePlace(code, printedStop) {
   const name = await DB.findPlaceName(code)
   if (name) return { name, known: true }
@@ -145,10 +120,6 @@ async function namePlace(code, printedStop) {
   }
 }
 
-/*
- * Plusieurs arrêts peuvent tomber sur la même minute : le lieu de début est
- * le premier d'entre eux, le lieu de fin le dernier.
- */
 function findPrintedStop(lines, time, { last }) {
   const names = lines
     .filter(line => !isDutyLine(line))
@@ -199,16 +170,6 @@ function addDepartureWarnings(contexts, warnings) {
   })
 }
 
-/*
- * Une carte de journée de type C porte un numéro suivi d'un suffixe, « P2 »
- * après les chiffres, et un motif arrêté aux chiffres refusait la carte
- * entière. Rien ne dit quels suffixes HASTUS imprime : le motif en accepte
- * donc n'importe lequel, fait de lettres et de chiffres, pourvu qu'il
- * commence par une lettre — sans elle, rien ne le séparerait des chiffres du
- * numéro. Un suffixe refusé prive le collègue de son service, alors qu'un
- * numéro mal lu ne change que le nom sous lequel le service s'affiche et se
- * range : les tranches se lisent ailleurs.
- */
 function extractServiceNumber(text) {
   return text.match(/\b([A-Z][A-Z]\d{1,3}(?:[A-Z][A-Z0-9]*)?)\b/)?.[1] || null
 }
@@ -242,17 +203,6 @@ function extractDriver(text) {
   }
 }
 
-/*
- * Rien ne dit quels codes de lieu HASTUS imprime : ANKARA était un nom
- * d'arrêt entier, et un motif limité à huit lettres laissait tomber sans un
- * mot la tranche d'un code plus long ou portant un chiffre. Le motif reste
- * pourtant plus étroit que tout mot possible, parce que les deux erreurs ne
- * coûtent pas pareil : une ligne d'en-tête manquée fait refuser la carte
- * (matchVehicleSections), une tranche inventée s'afficherait sans
- * alerte. Il parcourt la carte entière, et ce qui le borne à l'en-tête est
- * « NN - N » suivi d'une heure, que les sections ne portent jamais — leur
- * « Voiture NN - N » précède une activité.
- */
 async function extractSlices(text) {
   const flatText = text.replace(/\n/g, " ")
 
@@ -356,21 +306,6 @@ function extractDepotExitTime(section, lines) {
   return match && isValidTime(match[1]) ? normalizeTime(match[1]) : ""
 }
 
-/*
- * Chaque tranche a sa section « Voiture NN - N » dans le corps de la carte,
- * et les sections suivent l'ordre des tranches de l'en-tête. Une voiture
- * conduite deux fois a donc deux sections : chacune revient à la première
- * tranche de cette voiture qui n'a pas encore la sienne. La lecture donnait
- * la première section de la voiture à toutes ses tranches, quand la
- * validation les rattachait déjà dans l'ordre : le 26 octobre 2026, une
- * seconde tranche a affiché la direction du matin, et le conducteur a
- * attendu sa relève du mauvais côté. Une seule règle sert désormais aux
- * deux.
- *
- * Une section qu'aucune tranche ne réclame est une ligne d'en-tête que le
- * motif n'a pas su lire : la carte est refusée, comme une date illisible,
- * plutôt que d'afficher un service amputé d'une prise.
- */
 function matchVehicleSections(text, slices) {
   const headers = [...text.matchAll(/\bVoiture\s+(\d{1,3})\s*-\s*(\d{1,3})\b/gi)]
   const sections = new Map()
@@ -398,14 +333,7 @@ function matchVehicleSections(text, slices) {
   return { sections, unclaimed }
 }
 
-/*
- * PDF.js rend parfois l'heure collée au nom de l'arrêt, « ROBERTSAU ST ANNE
- * 30 passage11:39 », et un arrêt se lit à l'heure qui suit un blanc : il
- * était ignoré. Le blanc n'est rendu qu'après deux lettres : des noms
- * finissent par une lettre isolée et un chiffre — HOMME DE FER V1 —, et
- * « V16:05 » peut être V1 à 6:05 comme V à 16:05. Un collage ambigu reste
- * ignoré plutôt que de nommer un arrêt qui n'existe pas.
- */
+// L'heure collée ne se sépare qu'après deux lettres : « V16:05 » peut être V1 à 6:05 comme V à 16:05.
 function rebuildSectionLines(section) {
   return section
     .replace(/([A-Za-zÀ-ÖØ-öø-ÿ]{2})(\d{1,2}:\d{2})/g, "$1 $2")
@@ -488,17 +416,7 @@ async function extractTramOperationStart(lines, slice) {
   return ""
 }
 
-/*
- * La direction est ce qu'affiche la girouette, et non le dernier arrêt que
- * le conducteur dessert : une tranche peut finir sur une relève en cours
- * de ligne. Sur la ligne 2, un trajet parti de Jardin des Deux Rives et
- * relevé à Montagne Verte va à Lingolsheim Gare. Rien sur la carte ne le
- * dit ; seuls les terminus de lines.json permettent de le déduire, et
- * seulement sur une ligne à deux terminus dont chaque trajet part de l'un
- * pour finir à l'autre. Partout ailleurs, branches ou trajets partiels
- * rendent la déduction fausse, et le dernier arrêt desservi reste la
- * meilleure réponse.
- */
+// La girouette ne se déduit que sur une ligne à deux terminus ; ailleurs, le dernier arrêt desservi.
 async function resolveDirection(lineCode, trip) {
   if (!trip) {
     return ""

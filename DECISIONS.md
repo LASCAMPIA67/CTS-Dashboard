@@ -547,3 +547,11 @@ décision lui est antérieure.
   pour défaillant dans le Diagnostic. Le plancher le plus strict l'emporte,
   parce que les deux fichiers pèsent l'un un demi-mégaoctet, l'autre plus
   d'un, et qu'il était déjà celui de l'installateur.
+- 2026-10-29 — Le code ne garde qu'une ligne de commentaire par piège, là
+  où une correction future défairait un choix voulu sans qu'aucun banc ne
+  la rattrape, en plus de l'en-tête Scriptable et des lignes que
+  l'outillage lit. Remplace la règle qui admettait tout commentaire disant
+  le pourquoi : récits d'incidents, historique et paraphrases y
+  vieillissaient sans que rien ne les vérifie, et le mainteneur ne veut
+  plus de texte dans le code. Le pourquoi se lit ici, dans les bancs et
+  dans l'historique Git.

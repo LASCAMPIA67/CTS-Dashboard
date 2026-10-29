@@ -297,13 +297,7 @@ async function registerImportedService(service, extraction, sourceInfo) {
     "Le cache texte existant n’a pas pu être préparé."
   )
 
-  /*
-   * L'index n'a pas de copie à restaurer : il est relu juste avant d'être
-   * écrit, en dernier, et une écriture qui échoue remet elle-même l'ancien
-   * contenu en place. Le restaurer après un échec, depuis une copie prise
-   * au début de l'enregistrement, effaçait ce que l'entretien avait pu y
-   * écrire entre-temps.
-   */
+  // Pas de copie de l'index à restaurer : elle effacerait ce que l'entretien y a écrit entre-temps.
   let pdfTransaction = null
 
   try {
@@ -495,10 +489,6 @@ async function buildUpdatedIndex(plan, service, extraction, sourceInfo, pdfFileN
     textFile: plan.textFileName,
     importedAt: service.importedAt || now,
     indexedAt: now,
-    /*
-     * Une carte importée n'est relue que si la version qui l'a lue lisait
-     * mal ce qu'elle contient : le balayage doit pouvoir le savoir.
-     */
     dashboardVersion: CONFIG.dashboardVersion,
     warnings: service.validation.warnings.length,
     slices: service.slices.length,

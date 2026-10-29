@@ -21,30 +21,7 @@ const FAILED_SCAN_REFRESH_MS = 5 * 60 * 1000
 const MAX_TELEMETRY_ISSUES = 12
 const INDEX_AWAITING_ICLOUD_CODE = "SERVICE_INDEX_ICLOUD_DOWNLOAD_FAILED"
 
-/*
- * Les codes qui décrivent la même panne sous deux noms.
- *
- * iCloud injoignable arrête l'inspection de la carte agent et l'archivage
- * du même fichier, dans la même exécution : deux sous-systèmes constatent
- * une seule panne, chacun avec son code. La console affichait donc deux
- * lignes pour un fait, et à deux gravités — l'entretien ne coûte jamais
- * l'affichage, l'inspection si.
- *
- * Un code absent de cette table est sa propre cause : c'est le cas
- * ordinaire, et il n'y a rien à déclarer pour lui.
- *
- * PDF_ENGINE_LIBRARY_ICLOUD_FAILED et PDF_ENGINE_WORKER_ICLOUD_FAILED
- * restent dehors, bien que ce soit le même iCloud qui refuse de rendre un
- * fichier. Ils ne décrivent pas la même panne : la carte agent se
- * télécharge avant la bibliothèque, si bien qu'un iCloud muet arrête
- * l'import sur la carte et que ces deux codes-là ne sortent que lorsque
- * la carte, elle, est déjà locale. Là où ils paraissent quand même côte à
- * côte — deux PDF d'une même exécution — ce sont deux gestes différents :
- * une carte à redéposer d'un côté, une installation à refaire de l'autre.
- * Les fusionner ferait garder le premier code vu, donc parfois celui de
- * la carte pour une bibliothèque absente, et enverrait chercher dans le
- * dossier Services un fichier qui n'a rien.
- */
+// Les codes iCloud des bibliothèques PDF.js restent à part : autre panne, autre geste.
 const TELEMETRY_CAUSES = {
   ARCHIVE_ICLOUD_DOWNLOAD_FAILED: "ICLOUD_DOWNLOAD",
   ICLOUD_DOWNLOAD_FAILED: "ICLOUD_DOWNLOAD",
@@ -361,11 +338,6 @@ function buildMissingServiceContext(resolution, cleanup, currentDate) {
   const telemetry = buildContextTelemetry(resolution, cleanup, false)
   const scanError = String(resolution?.scanError || "").trim()
 
-  /*
-   * Le balayage lit l'index avant tout PDF : un index qu'iCloud n'a pas
-   * encore rendu l'arrête là. « Erreur d'analyse PDF » faisait croire à une
-   * carte agent en cause, alors qu'il n'y a qu'une synchronisation à attendre.
-   */
   if (
     [resolution?.scanTelemetryCode, resolution?.selectionTelemetryCode].includes(
       INDEX_AWAITING_ICLOUD_CODE
@@ -713,15 +685,6 @@ function buildContextTelemetry(resolution, cleanup, hasSource) {
     telemetry.pdfStatus = "missing"
   }
 
-  /*
-   * Un code de relève absent des bases a pris le nom imprimé sur la carte :
-   * le collègue a vu son service, d'où l'avertissement, mais l'import ne le
-   * consignait que sur l'iPhone, et places.json n'apprenait le lieu que si
-   * quelqu'un le signalait. Le code du lieu ne voyage pas : un incident ne
-   * porte rien de la carte, et le nom se lit sur celle du collègue. Il
-   * s'ajoute après ceux du balayage, de la sélection et de l'entretien,
-   * pour ne pas leur prendre une place sous le plafond.
-   */
   if (imported.some(item => item?.slicesWithUnknownPlace > 0)) {
     addDiagnosticIssue(telemetry, {
       severity: "warning",
@@ -802,21 +765,6 @@ function applyImportFailureTelemetry(telemetry, item, hasSource) {
   })
 }
 
-/*
- * Une cause, un incident, et la gravité la plus forte qu'elle ait values.
- *
- * Le dédoublonnage portait sur le module, qui diffère par construction
- * quand deux sous-systèmes butent sur la même panne : un index corrompu
- * arrête la sélection du service et l'entretien, iCloud injoignable
- * arrête l'inspection et l'archivage. La console recevait donc deux
- * lignes pour un fait unique, l'une rouge et l'autre orange.
- *
- * Ce que le collègue a perdu ne dépend pas du sous-système qui l'a
- * constaté : la gravité retenue est la plus forte. Le code, le module et
- * l'étape restent ceux du premier chemin — buildContextTelemetry ajoute
- * l'affichage avant l'entretien, et c'est l'affichage qui nomme la panne
- * en termes utiles.
- */
 function addDiagnosticIssue(telemetry, issue) {
   if (!telemetry || !Array.isArray(telemetry.issues)) {
     return
@@ -835,11 +783,7 @@ function addDiagnosticIssue(telemetry, issue) {
     current => telemetryCause(current.errorCode) === cause
   )[0]
 
-  /*
-   * Le plafond se vérifie après la recherche, et non avant : une cause
-   * déjà enregistrée doit pouvoir s'aggraver même quand la liste est
-   * pleine, sinon la douzième panne décide de la gravité des onze autres.
-   */
+  // Le plafond après la recherche : une cause déjà notée doit pouvoir s'aggraver liste pleine.
   if (existing) {
     existing.severity = strongestIssueSeverity(existing.severity, normalized.severity)
     return
@@ -1055,24 +999,6 @@ function servicesFolderIsEmpty(resolution) {
   return Number(scan.detected) === 0
 }
 
-/*
- * Verrou de version.
- *
- * Le seul chemin capable d'éteindre le widget, et il ne touche jamais au
- * réseau : il lit un fichier local, écrit par l'appel d'activité
- * quotidien qui existe déjà et dont l'échec n'a jamais eu de
- * conséquence. Attendre une réponse ici ferait de ce contrôle le
- * nouveau point de panne qu'il est censé éviter.
- *
- * Bloquer exige une affirmation, jamais un silence. Pas de politique en
- * cache, pas de réseau depuis des semaines, première installation,
- * serveur en panne : le widget fonctionne. Seul un plancher lisible,
- * cohérent, et réellement au-dessus de la version installée l'arrête.
- *
- * Un plancher supérieur à la dernière version publiée est refusé : ce
- * serait le signe d'une politique fautive, et une faute de frappe ne
- * doit pas pouvoir éteindre tout le parc d'un coup.
- */
 async function resolveVersionBlock(currentDate) {
   let policy
 
@@ -1152,7 +1078,5 @@ function failure(title, message, currentDate = new Date(), telemetry = null) {
 
 module.exports = {
   loadContext,
-  computeNextRefreshDate,
-  dateForServiceTime,
   getWidgetFamily
 }

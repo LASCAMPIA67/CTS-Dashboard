@@ -1,13 +1,3 @@
-/*
- * Émulation de l'UITable de Scriptable, suffisante pour rejouer les pages
- * de CTS Installer : progression, résultat et diagnostic.
- *
- * Une UITable est une liste de lignes de hauteur fixe. Chaque ligne
- * contient des cellules — texte à deux niveaux, ou image — réparties
- * proportionnellement à leur `widthWeight`. C'est tout le modèle, ce qui
- * le rend fidèle à reproduire, contrairement au widget.
- */
-
 export class Color {
   constructor(hex, alpha = 1) {
     this.hex = String(hex || "#000000")
@@ -66,11 +56,6 @@ export class Font {
   }
 }
 
-/*
- * Les symboles SF n'existent pas hors iOS. On garde leur encombrement et
- * on dessine une silhouette : ce qui compte ici est la hauteur des lignes
- * et l'équilibre des colonnes, pas le dessin exact du pictogramme.
- */
 export class SFSymbol {
   constructor(name) {
     this.name = name

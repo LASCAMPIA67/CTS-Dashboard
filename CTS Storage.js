@@ -13,17 +13,6 @@ const ICLOUD_DOWNLOAD_TIMEOUT_MS = 12000
 const WIDGET_DOWNLOAD_ATTEMPTS = 2
 const WIDGET_DOWNLOAD_TIMEOUT_MS = 2500
 
-/*
- * La seule attente iCloud du Dashboard : le moteur PDF l'emprunte aussi.
- *
- * Le widget accorde deux essais de deux secondes et demie par fichier. Une
- * attente unique d'une seconde et demie rendait une erreur là où il n'y
- * avait qu'un retard. La patience de l'application se compte elle aussi par
- * fichier : sur la carte et les deux bibliothèques PDF.js, elle retiendrait
- * le widget plus de deux minutes avant même la lecture. Le second essai
- * relit l'état du fichier, qu'iCloud peut déclarer disponible un instant
- * après avoir rendu la main.
- */
 function iCloudPatience() {
   return UTILS.runsInApplication()
     ? { attempts: ICLOUD_DOWNLOAD_ATTEMPTS, timeoutMs: ICLOUD_DOWNLOAD_TIMEOUT_MS }
@@ -163,11 +152,6 @@ async function writeTextSafely(path, value) {
   }
 }
 
-/*
- * La console distingue un temporaire qui ne s'écrit pas d'une bascule qui
- * échoue : l'un dit que le dossier refuse l'écriture, l'autre qu'un
- * fichier a pu rester à mi-chemin.
- */
 function withWritePhase(error, phase) {
   const failure = error instanceof Error ? error : new Error(String(error))
 
@@ -216,18 +200,6 @@ async function savePreferences(value) {
   await writeJsonSafely(files.preferences, normalizePreferences(value))
 }
 
-/*
- * Politique de version.
- *
- * Ce que le serveur a dit la dernière fois qu'on a pu le joindre : la
- * dernière version publiée, et le plancher en dessous duquel le widget
- * ne doit plus afficher de service.
- *
- * Une lecture ne lève jamais. Un fichier absent, illisible ou incohérent
- * rend null, et null veut dire « aucune politique connue », donc aucun
- * blocage : ce fichier ne peut pas mettre le widget en panne, seulement
- * l'autoriser à s'arrêter.
- */
 async function loadVersionPolicy() {
   try {
     if (!fm.fileExists(files.versionPolicy)) return null
@@ -282,26 +254,6 @@ function emptyServicesIndex() {
   return { version: SERVICES_INDEX_VERSION, updatedAt: "", services: [] }
 }
 
-/*
- * L'index des services, par le seul chemin qui le lise.
- *
- * Un index absent n'est pas une erreur : c'est une installation qui n'a
- * encore rien importé. Un index illisible en est une, et elle se lève
- * plutôt que de rendre une liste vide — un service qu'on n'affiche pas
- * parce que le fichier est cassé ne doit pas se lire comme un matin sans
- * service.
- *
- * Elle vit ici, et non dans l'importeur, parce que le widget passe par
- * cette lecture pour afficher le service du jour : la faire dépendre du
- * pipeline d'importation ferait tomber l'affichage avec lui, alors qu'il
- * n'a rien à importer pour montrer ce qui l'est déjà.
- *
- * Un index présent qui ne se lit pas n'est pas forcément abîmé : iCloud a
- * pu ne pas encore le rendre à cet iPhone, et la lecture échoue alors
- * (docs.scriptable.app/filemanager, readString). Le dire invalide envoyait
- * chercher un fichier corrompu là où il n'y avait qu'une synchronisation
- * en retard ; seul un index que l'iPhone détient et ne sait pas lire l'est.
- */
 async function readCurrentIndex() {
   if (!fm.fileExists(files.servicesIndex)) return emptyServicesIndex()
 
@@ -316,7 +268,6 @@ async function readCurrentIndex() {
       )
     }
 
-    /* iCloud peut achever le téléchargement juste après la fin de l'attente. */
     content = readWithoutICloudConfirmation(files.servicesIndex, null)
   }
 
@@ -371,13 +322,6 @@ async function loadLog() {
   return Array.isArray(value) ? value : []
 }
 
-/*
- * Restes des anciennes écritures, avant que les noms ne portent un
- * jeton. Le temporaire ne contient rien que quelqu'un ait pu lire ; la
- * copie de sécurité, elle, est le dernier exemplaire connu du fichier
- * tant que celui-ci n'a pas repris sa place. On ne l'efface donc que
- * lorsque l'original existe.
- */
 function cleanupLegacyWriteFiles(path) {
   removeFileQuietly(`${path}.tmp`)
   if (fm.fileExists(path)) removeFileQuietly(`${path}.rollback`)
@@ -401,11 +345,6 @@ function safeModificationDate(path) {
   }
 }
 
-/*
- * Un PDF archivé ne doit jamais en écraser un autre : l'import qui
- * remplace une carte et le nettoyage qui range un service passé écrivent
- * dans le même dossier, parfois sous le même nom.
- */
 function uniqueArchiveFileName(originalFileName) {
   const cleanName = String(originalFileName || "Service.pdf")
     .split(/[\\/]/)
@@ -429,10 +368,6 @@ function buildUniqueToken() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-/*
- * La même écriture que writeTextSafely, relecture comprise, pour les
- * fichiers dont l'échec doit remonter à la console sous un code précis.
- */
 async function writeJsonAtomically(path, value, options = {}) {
   const {
     writeCode = "JSON_TEMP_WRITE_FAILED",
@@ -456,20 +391,6 @@ async function writeJsonAtomically(path, value, options = {}) {
   }
 }
 
-/*
- * Verrous de l'appareil.
- *
- * Un verrou dit qu'un processus de cet iPhone travaille. Rangé dans
- * iCloud, il coûtait quatre écritures synchronisées par réveil, et,
- * recopié sur un iPad de la même personne, pouvait y bloquer un balayage
- * deux minutes sans rien lui apprendre. Il vit donc dans la bibliothèque
- * locale de Scriptable, que l'application et le widget partagent : la
- * documentation ne le dit pas, une mesure sur iPhone l'a établi le
- * 23 septembre.
- *
- * Un verrou illisible compte pour absent : le garder bloquerait le
- * balayage ou l'entretien pour toujours.
- */
 function deviceLockPath(local, name) {
   const directory = CONFIG.devicePath()
 
@@ -573,7 +494,6 @@ module.exports = {
   appendLog,
   loadLog,
   removeFileQuietly,
-  buildUniqueToken,
   uniqueArchiveFileName,
   safeModificationDate
 }

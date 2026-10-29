@@ -1,16 +1,5 @@
 #!/bin/sh
-# Rend les captures d'écran lisibles dès l'ouverture d'une session.
-#
-# Elles arrivent en PDF, et aucune page ne s'affiche sans pdftoppm, que
-# le paquet poppler-utils apporte et que la machine de travail distante
-# n'embarque pas.
-#
-# Hors machine distante, il n'y a rien à faire : une installation locale
-# a ses propres outils, et ce script n'a pas à y toucher.
-#
-# Il ne doit jamais empêcher une session de s'ouvrir : il rend donc la
-# main sans erreur même quand l'installation échoue, en disant à quoi
-# s'en tenir — sa sortie est lue au démarrage.
+# Ne doit jamais empêcher une session de s'ouvrir : chaque issue rend la main sans erreur.
 
 set -u
 
@@ -27,9 +16,6 @@ fi
 
 export DEBIAN_FRONTEND=noninteractive
 
-# Les listes de paquets de l'image peuvent être vides ou périmées. Les
-# rafraîchir coûte une trentaine de secondes, et n'a lieu qu'en second
-# recours.
 if apt-get install -y -qq poppler-utils >/dev/null 2>&1 ||
   { apt-get update -qq >/dev/null 2>&1 &&
     apt-get install -y -qq poppler-utils >/dev/null 2>&1; }; then

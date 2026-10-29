@@ -1,20 +1,3 @@
-/*
- * Test des durées d'étape qu'un import écrit dans son journal.
- *
- * Ce test existe à cause d'un défaut réel, et d'une correction qui le
- * croyait réglé. Le 16 septembre, le Diagnostic a appris à écrire « non
- * terminée » pour une étape qui n'a pas tourné, au lieu de « 0 ms ». Mais le
- * pipeline d'import, qui écrit ces durées avant que le Diagnostic ne les
- * lise, convertissait déjà l'absence en zéro : Number(null) vaut 0. Le banc
- * du Diagnostic lui fournissait un journal écrit à la main, et éprouvait le
- * lecteur sans jamais passer par l'écrivain.
- *
- * Ce banc-ci passe par le pipeline réel, sur des doublures hors ligne, et
- * lit ce qu'il a consigné. Il vérifie au passage qu'un import réussi rend
- * le décompte des tranches au lieu inconnu, dont le widget fait l'incident
- * PLACE_UNKNOWN.
- */
-
 import { importFrom, isolatedModule } from "./sandbox.mjs"
 
 function loadModule(name, loaded) {
@@ -39,10 +22,6 @@ const REFUSED = async () => ({
   validation: { valid: false, errors: ["Aucune tranche détectée"], warnings: [] }
 })
 
-/*
- * Chaque cas arrête l'import à une étape différente, et dit lesquelles ont
- * réellement tourné.
- */
 const cases = [
   {
     name: "une lecture du PDF qui échoue",
@@ -62,10 +41,6 @@ const cases = [
     absent: ["registrationMs"]
   },
   {
-    /*
-     * Le décompte des lieux inconnus doit sortir du pipeline : c'est de lui
-     * que le widget fait l'incident PLACE_UNKNOWN.
-     */
     name: "une carte importée dont un lieu est inconnu des bases",
     status: "imported",
     extract: EXTRACTED,
@@ -174,11 +149,6 @@ for (const scenario of cases) {
     )
   }
 
-  /*
-   * Sans la version qui l'a lue, une carte lue avant une correction du
-   * parser ne se distingue pas d'une carte lue après : le balayage la
-   * relirait à chaque réveil.
-   */
   if (result.status === "imported" && result.indexEntry?.dashboardVersion !== INSTALLED_VERSION) {
     failures.push(
       `${scenario.name} : l'entrée d'index retient la version « ${result.indexEntry?.dashboardVersion} » ` +

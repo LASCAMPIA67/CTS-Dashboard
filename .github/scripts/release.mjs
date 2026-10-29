@@ -1,16 +1,3 @@
-// Publication des Releases GitHub.
-// Exécuté par .github/workflows/release.yml, et seulement là : il publie.
-//
-// Chaque numéro de version.json a sa Release, posée sur le commit de main
-// où il est arrivé : `v1.4.8` pour le Dashboard, `installer-v1.0.33` pour
-// CTS Installer. Le script ne publie que ce qui manque aux numéros de l'état
-// de main qu'il lit : un passage relancé ne publie jamais deux fois, et une
-// Release qu'un numéro suivant a dépassée ne se rattrape plus ici.
-//
-// Une Release ne livre rien. CTS Installer lit la révision de main et
-// télécharge à cette révision, jamais par un tag : une Release en échec ne
-// retarde aucune mise à jour.
-
 import fs from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import {
@@ -24,11 +11,6 @@ import {
 const MANIFEST = 'version.json'
 const REPOSITORY = process.env.GITHUB_REPOSITORY
 
-/*
- * Lancé hors de GitHub Actions, il publierait pour de bon avec la session
- * gh du poste. Un tag posé par erreur ne se reprend pas une fois les
- * Releases du dépôt immuables : GitHub interdit alors de réutiliser son nom.
- */
 if (process.env.GITHUB_ACTIONS !== 'true') {
   console.error('release.mjs publie des Releases : il ne tourne que dans GitHub Actions.')
   process.exit(1)
@@ -47,8 +29,6 @@ function run(command, args, input) {
 
 const git = (...args) => run('git', args)
 
-// Un manifeste illisible ne porte aucun numéro : l'historique ancien en
-// compte un, et la recherche s'arrête là comme sur un numéro différent.
 function numberAt(commit, field) {
   try {
     return JSON.parse(git('show', `${commit}:${MANIFEST}`))[field]
@@ -58,12 +38,7 @@ function numberAt(commit, field) {
   }
 }
 
-/*
- * Le commit où le numéro est arrivé : le plus ancien d'une suite
- * ininterrompue qui le porte, en ne suivant que le premier parent. Une pull
- * request arrive sur main par son commit de fusion, et c'est l'état de main
- * à cet instant que le numéro a publié, pas celui de la branche.
- */
+// Premier parent seulement : une pull request arrive par sa fusion, et c'est l'état de main qu'elle publie.
 function arrivalCommit(field, number) {
   const commits = git('log', '--first-parent', '--format=%H', 'HEAD', '--', MANIFEST)
   let arrival = null
@@ -76,11 +51,6 @@ function arrivalCommit(field, number) {
   return arrival
 }
 
-/*
- * Les Releases elles-mêmes, et non les tags : un tag resté seul, posé à la
- * main ou survivant à une Release supprimée, ne doit pas passer pour une
- * publication.
- */
 const releases = JSON.parse(
   run('gh', [
     'release', 'list',
@@ -96,12 +66,7 @@ const latestOfFamily = prefix =>
     .filter(release => release.tagName.startsWith(prefix))
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))[0]?.tagName ?? null
 
-/*
- * gh réutilise un tag existant et ignore alors --target. Un tag resté seul
- * sur un autre commit donnerait donc une Release qui désigne un autre état
- * des fichiers, et qui, une fois les Releases immuables, ne se corrigerait
- * plus.
- */
+// gh réutilise un tag existant et ignore alors --target : la Release désignerait un autre état.
 function checkExistingTag(release) {
   if (!git('tag', '--list', release.tag).trim()) return
 
@@ -149,13 +114,7 @@ function publish(release) {
     `--latest=${release.latest}`
   ]
 
-  /*
-   * Sans point de départ explicite, GitHub prend la Release précédente,
-   * quelle que soit sa famille : la liste d'une version du Dashboard
-   * partirait d'une version de l'installateur. Sans Release précédente dans
-   * la famille, il n'y a pas de liste du tout plutôt qu'une liste qui
-   * remonterait au début du dépôt.
-   */
+  // Sans --notes-start-tag, GitHub part de la Release précédente, quelle que soit sa famille.
   const start = latestOfFamily(release.prefix)
   if (start) args.push('--generate-notes', '--notes-start-tag', start)
 
@@ -175,8 +134,7 @@ const dashboard = {
   commit: arrivalCommit('version', manifest.version),
   button: dashboardButton(manifest.version),
   message: dashboardAnnouncement(manifest.version),
-  // GitHub donne « Latest » à la dernière Release publiée : une version de
-  // l'installateur la prendrait sinon à la version qui parle.
+  // Sinon « Latest » irait à la dernière publiée, parfois celle de l'installateur.
   latest: true
 }
 

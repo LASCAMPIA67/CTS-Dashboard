@@ -1,26 +1,12 @@
 name: Veille PDF.js
 
-# PDF.js est la seule bibliothèque tierce qui arrive sur les iPhone des
-# collègues, et sa version est figée dans le moteur. Rien ne disait
-# jusqu'ici qu'une version plus récente existait : le dépôt en a compté
-# deux de retard sans que personne le sache.
-#
-# Cette veille ne corrige pas ça toute seule. Elle prépare une pull
-# request et s'arrête là. Fusionner reste un geste, et il le reste pour
-# une raison précise, écrite dans le corps de la pull request qu'elle
-# ouvre : ce dépôt distribue par `main`.
-
 on:
-  # Lundi 6 h 17 UTC — soit 8 h 17 à Strasbourg en été, 7 h 17 en hiver.
-  # GitHub évalue les crons en UTC, comme Cloudflare. Un lundi matin pour
-  # que la pull request attende le mainteneur en début de semaine, et
-  # jamais un vendredi soir.
+  # En UTC, pas à l'heure de Strasbourg : 8 h 17 en été, 7 h 17 en hiver.
   schedule:
     - cron: '17 6 * * 1'
 
   workflow_dispatch:
 
-# Elle écrit une branche et ouvre une pull request. Rien d'autre.
 permissions:
   contents: write
   pull-requests: write
@@ -36,21 +22,14 @@ jobs:
         with:
           node-version: 26
 
-      # Compare la version figée à celle que npm publie, et dépose les
-      # deux fichiers si npm est en avance. N'écrit rien sinon.
       - name: Comparer à la version publiée
         id: watch
         run: node .github/scripts/pdfjs-watch.mjs
 
-      # Le validateur refuse une bibliothèque qui ne correspond pas à
-      # PDFJS_VERSION : c'est lui qui vérifie que le dépôt de fichiers
-      # s'est bien passé, et il le fait déjà pour les publications.
       - name: Valider le dépôt
         if: steps.watch.outputs.changed == 'true'
         run: node .github/scripts/validate.mjs
 
-      # Le seul banc qui exécute réellement le moteur. Il ne peut pas
-      # ouvrir de WebView : ce qu'il prouve est écrit dans la pull request.
       - name: Éprouver le moteur PDF
         if: steps.watch.outputs.changed == 'true'
         run: node tools/preview/pdf-engine-smoke.mjs
@@ -65,9 +44,6 @@ jobs:
         run: |
           BRANCH="veille/pdfjs-${PUBLISHED}"
 
-          # Une veille hebdomadaire retomberait chaque lundi sur la même
-          # version tant que la pull request n'est pas traitée. La branche
-          # porte le numéro : si elle existe, il n'y a rien à rouvrir.
           if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
             echo "La branche $BRANCH existe déjà : pull request en attente."
             exit 0

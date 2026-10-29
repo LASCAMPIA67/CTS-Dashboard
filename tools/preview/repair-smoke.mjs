@@ -1,13 +1,3 @@
-/*
- * Test de fumée de CTS Repair.
- *
- * Ce script est le seul recours d'un conducteur dont l'installateur ne
- * peut plus s'écrire lui-même : il doit fonctionner du premier coup, sans
- * filet, et ne jamais laisser l'iPhone sans installateur. Le fichier est
- * donc exécuté entier — `await main()` compris — sur des doublures, dans
- * cinq situations.
- */
-
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -16,12 +6,10 @@ import { readScript, runScript, scriptableGlobals, timerDouble } from "./sandbox
 
 const installerSource = readScript("CTS Installer")
 
-/* Le numéro attendu est celui du dépôt, jamais une valeur recopiée. */
 const installerVersion = installerSource.match(
   /const INSTALLER_VERSION = "([^"]+)"/
 )[1]
 
-/* Un installateur qui reproduit le défaut de 1.0.7. */
 const brokenInstaller = installerSource.replace(
   /^await main\(\)$/m,
   "await main()\nconst LATE_CONSTANT = 1"
@@ -173,11 +161,6 @@ const scenarios = [
     }
   },
   {
-    /*
-     * Coupé en route : l'en-tête et le numéro de version sont là, seule
-     * la longueur trahit le fichier. Posé, il laisserait l'iPhone avec un
-     * installateur qui ne démarre pas — le défaut que ce dépanneur répare.
-     */
     label: "installateur reçu tronqué",
     seed: ["CTS Installer.js"],
     serve: () => installerSource.slice(0, 40000),

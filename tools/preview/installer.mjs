@@ -1,14 +1,3 @@
-/*
- * Prévisualisation des pages de CTS Installer.
- *
- * Le fichier s'exécute normalement de haut en bas et lance `main()`, qui
- * exige le réseau et iCloud. On charge donc la source privée de ses deux
- * dernières lignes — l'appel à `main()` et `Script.complete()` — ce qui
- * laisse toutes les fonctions accessibles sans rien exécuter. Aucune autre
- * transformation : ce sont bien les vraies fonctions de rendu qui sont
- * appelées ensuite.
- */
-
 import fs from "node:fs"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
@@ -19,7 +8,7 @@ import { CHROMIUM } from "./measure.mjs"
 import { evaluateScript, readScript, repository, scriptableGlobals } from "./sandbox.mjs"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-/* Absolu pour la même raison que dans preview.mjs : Chromium reçoit une adresse file://. */
+// Absolu pour la même raison que dans preview.mjs : Chromium reçoit une adresse file://.
 const output = path.resolve(process.argv[2] || path.join(here, "out-installer"))
 fs.mkdirSync(output, { recursive: true })
 
@@ -27,7 +16,7 @@ const tables = []
 
 function loadInstaller() {
   const source = readScript("CTS Installer")
-    .replace(/^await main\(\)$/m, "/* main() neutralisé pour la prévisualisation */")
+    .replace(/^await main\(\)$/m, "")
     .replace(/^Script\.complete\(\)$/m, "")
 
   class RecordingTable extends ui.UITable {
@@ -37,7 +26,6 @@ function loadInstaller() {
     }
   }
 
-  /* Un appareil neuf : rien n'est encore posé, ni dans iCloud ni sur l'iPhone. */
   const fileManager = {
     documentsDirectory: () => "/Documents",
     libraryDirectory: () => "/Library",
@@ -93,10 +81,6 @@ function loadInstaller() {
 }
 
 const installer = loadInstaller()
-
-/* ------------------------------------------------------------------ */
-/* Jeux d'état réalistes.                                              */
-/* ------------------------------------------------------------------ */
 
 const MANIFEST = JSON.parse(fs.readFileSync(path.join(repository, "version.json"), "utf8"))
 
@@ -217,12 +201,6 @@ function diagnosticState() {
   }
 }
 
-/*
- * Les trois états d'accueil. Ce sont eux que le conducteur voit en
- * premier, et ils partagent le même squelette : identité, versions,
- * santé, actions, crédit. Les rendre côte à côte est la seule façon de
- * juger s'ils appartiennent au même produit.
- */
 function menuStates() {
   const files = MANIFEST.scripts.length + MANIFEST.resources.length
 
@@ -321,8 +299,6 @@ function menuStates() {
     }
   ]
 }
-
-/* ------------------------------------------------------------------ */
 
 async function main() {
   const panels = []

@@ -1,20 +1,3 @@
-/*
- * Passage d'un service au suivant.
- *
- * Un service terminé reste affiché un moment : le conducteur qui rentre
- * au dépôt doit encore pouvoir relire ses horaires. Mais la durée juste
- * n'est pas la même selon qu'une prochaine carte agent est déjà là ou
- * non.
- *
- *   carte suivante disponible → cinq minutes, puis on bascule
- *   aucune carte suivante     → une heure, puis « aucune carte agent »
- *
- * La règle est recalculée à chaque exécution, jamais démarrée une fois
- * pour toutes : une carte déposée vingt minutes après la fin du service
- * raccourcit donc l'attente au lieu de la laisser courir. C'est ce que
- * ce banc fixe, avec les cas de bord qui vont avec.
- */
-
 import { moduleSpace } from "./sandbox.mjs"
 
 const failures = []
@@ -55,7 +38,6 @@ function loadManager(disk) {
   const { load } = moduleSpace(
     {
       config: { runsInWidget: true },
-      args: { plainTexts: [], shortcutParameter: null },
       FileManager: { iCloud: () => fm, local: () => fm }
     },
     { doubles: { "CTS Importer": { importPdf: async () => ({ success: false }) } } }
@@ -71,10 +53,6 @@ const dayKey = date =>
     String(date.getDate()).padStart(2, "0")
   ].join("-")
 
-/*
- * Un service d'une tranche, dont on choisit le jour et l'heure de fin.
- * Le cache porte le contenu ; l'index porte l'entrée qui le désigne.
- */
 function service({ date, number, start, end }) {
   const stem = `Service_${date}_${number}`
 
@@ -159,7 +137,6 @@ function check(label, actual, expected) {
   }
 }
 
-/* Test 1 — la carte suivante est déjà là : cinq minutes, puis bascule. */
 {
   const disk = world([current, nextDay])
 
@@ -169,7 +146,6 @@ function check(label, actual, expected) {
   check("A · fin + 30 min", (await selectionAt(disk, at(14, 30))).service, "EA07")
 }
 
-/* Test 2 — aucune carte suivante : une heure, puis plus de service. */
 {
   const disk = world([current])
 
@@ -182,13 +158,6 @@ function check(label, actual, expected) {
   check("B · motif", expired.reason, "service-finished")
 }
 
-/*
- * Test 3 — la carte suivante arrive pendant l'attente.
- *
- * Elle est déposée vingt minutes après la fin. La règle étant recalculée
- * à chaque exécution, l'attente devient celle du cas A — déjà écoulée —
- * et le conducteur ne reste pas bloqué les quarante minutes restantes.
- */
 {
   const disk = world([current])
 
@@ -202,14 +171,12 @@ function check(label, actual, expected) {
   check("C · après dépôt", (await selectionAt(disk, at(14, 21))).service, "EA07")
 }
 
-/* Test 4 — plusieurs cartes : c'est la plus proche qui prend la suite. */
 {
   const disk = world([current, farAway, nextDay])
 
   check("D · succession", (await selectionAt(disk, at(14, 10))).service, "EA07")
 }
 
-/* Test 5 — une carte au cache illisible ne doit pas écourter l'attente. */
 {
   const disk = world([current, nextDay])
   disk.set(`${CACHE}/${nextDay.stem}.json`, "{ ceci n'est pas du JSON")
@@ -221,13 +188,6 @@ function check(label, actual, expected) {
   check("E · fin + 90 min", expired.found ? expired.service : "aucun", "aucun")
 }
 
-/*
- * Test 6 — aucune exécution au moment exact du basculement.
- *
- * iOS ne garantit pas de réveiller le widget à la minute près. L'état
- * doit donc se déduire de l'heure qu'il est, jamais d'un compte à
- * rebours qu'une exécution manquée laisserait en plan.
- */
 {
   const disk = world([current, nextDay])
 
@@ -241,7 +201,6 @@ function check(label, actual, expected) {
   check("F · sans suivante, + 9 h", expired.found ? expired.service : "aucun", "aucun")
 }
 
-/* Le basculement annoncé doit correspondre à la règle appliquée. */
 {
   const withNext = await selectionAt(world([current, nextDay]), at(14, 1))
   const alone = await selectionAt(world([current]), at(14, 1))

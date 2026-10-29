@@ -7,11 +7,7 @@ const MAX_SERVICE_HOUR = 47
 const DAY_MS = 24 * MINUTES_PER_HOUR * 60 * 1000
 const UNKNOWN_DATE = "Date inconnue"
 
-/*
- * Les trams sont codés 80 à 85 sur la carte agent. Le lecteur de carte et
- * le widget en décident tous les deux : G et H portent une lettre comme
- * les trams, mais ce sont des bus, et ne figurent donc pas ici.
- */
+// Les trams sont codés 80 à 85 ; G et H portent une lettre mais sont des bus.
 const TRAM_LINE_CODES = new Set(["80", "81", "82", "83", "84", "85"])
 
 function normalizeText(value) {
@@ -139,6 +135,51 @@ function normalizeKey(value) {
     .toUpperCase()
 }
 
+function isPlainObject(value) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value))
+}
+
+function buildLookupIndex(collection) {
+  const index = Object.create(null)
+  if (!isPlainObject(collection)) return index
+
+  for (const [key, rawEntry] of Object.entries(collection)) {
+    const entry = normalizeEntry(rawEntry)
+    if (!entry) continue
+    addIndexEntry(index, key, rawEntry)
+    for (const alias of normalizeAliases(entry)) addIndexEntry(index, alias, rawEntry)
+  }
+  return index
+}
+
+function addIndexEntry(index, value, rawEntry) {
+  const key = normalizeKey(value)
+  if (key && !Object.prototype.hasOwnProperty.call(index, key)) index[key] = rawEntry
+}
+
+function resolveIndexedEntry(index, value) {
+  const key = normalizeKey(value)
+  if (!key || !index || !Object.prototype.hasOwnProperty.call(index, key)) return null
+  return normalizeEntry(index[key])
+}
+
+function normalizeEntry(entry) {
+  if (typeof entry === "string") return { name: entry }
+  return isPlainObject(entry) ? entry : null
+}
+
+function normalizeAliases(entry) {
+  if (!entry) return []
+  if (typeof entry.aliases === "string") return [entry.aliases]
+  return Array.isArray(entry.aliases)
+    ? entry.aliases.filter(value => typeof value === "string")
+    : []
+}
+
+function getEntryName(entry) {
+  return entry && typeof entry.name === "string" ? entry.name.trim() : ""
+}
+
 function finiteOrNull(value) {
   if (value === null || value === undefined || value === "") {
     return null
@@ -246,62 +287,6 @@ function runsInApplication() {
   }
 }
 
-function hasPlainTextInput() {
-  return Array.isArray(args.plainTexts) && args.plainTexts.length > 0
-}
-
-function isShortcutExecution() {
-  const parameter = args.shortcutParameter
-  return Boolean(
-    config.runsWithSiri ||
-    (parameter !== null && parameter !== undefined) ||
-    hasPlainTextInput()
-  )
-}
-
-function getShortcutInput() {
-  const parameter = args.shortcutParameter
-  if (typeof parameter === "string") return parameter
-  if (Array.isArray(parameter)) return parameter.join("\n")
-  if (hasPlainTextInput()) return args.plainTexts.join("\n")
-
-  if (parameter && typeof parameter === "object") {
-    if (typeof parameter.text === "string") return parameter.text
-    if (typeof parameter.value === "string") return parameter.value
-    if (Array.isArray(parameter.texts)) return parameter.texts.join("\n")
-  }
-  return ""
-}
-
-async function finishWithResult({ success, title, message, output = {} }) {
-  const result = {
-    success: Boolean(success),
-    title: String(title || ""),
-    message: String(message || ""),
-    ...output
-  }
-
-  if (isShortcutExecution()) {
-    Script.setShortcutOutput(result)
-    return result
-  }
-
-  const alert = new Alert()
-  alert.title = result.title
-  alert.message = result.message
-  alert.addAction("OK")
-  await alert.present()
-  return result
-}
-
-async function finishSuccess(title, message, output = {}) {
-  return finishWithResult({ success: true, title, message, output })
-}
-
-async function finishError(title, message, output = {}) {
-  return finishWithResult({ success: false, title, message, output })
-}
-
 function fileNameFromPath(path) {
   return String(path || "")
     .split(/[\\/]/)
@@ -317,19 +302,7 @@ function buildFingerprint({ fileName, sizeKilobytes, modifiedAt }) {
   ].join("|")
 }
 
-/*
- * Numéros de version.
- *
- * CTS Installer sait déjà les comparer, mais son code ne quitte jamais
- * l'installateur. Le widget en a besoin à son tour, pour savoir s'il est
- * encore autorisé à afficher un service : la comparaison vit donc ici,
- * là où les deux mondes peuvent la lire, et le banc des primitives la
- * couvre comme le reste.
- *
- * Une valeur qui n'est pas x.y.z est refusée plutôt que devinée. Un
- * plancher illisible ne doit jamais valoir zéro — ce serait bloquer tout
- * le monde sur une faute de frappe.
- */
+// Refuser plutôt que deviner : un plancher illisible ne doit jamais valoir zéro.
 function parseVersion(value) {
   const parts = String(value ?? "").trim().split(".")
 
@@ -374,15 +347,17 @@ module.exports = {
   parseDate,
   isValidDate,
   isUsableDate,
-  finiteOrNull,
   normalizeImportTimings,
-  startOfDay,
   dayDifference,
   formatDateLong,
   formatDateFull,
   normalizeCode,
   isTramLineCode,
   normalizeKey,
+  isPlainObject,
+  buildLookupIndex,
+  resolveIndexedEntry,
+  getEntryName,
   errorMessage,
   normalizeTelemetryCode,
   normalizeTelemetryStage,
@@ -392,14 +367,8 @@ module.exports = {
   sleep,
   withTimeout,
   runsInApplication,
-  isShortcutExecution,
-  getShortcutInput,
-  finishWithResult,
-  finishSuccess,
-  finishError,
   safeError,
   fileNameFromPath,
   buildFingerprint,
-  parseVersion,
   compareVersions
 }

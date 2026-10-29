@@ -1,24 +1,7 @@
-/*
- * Ce qu'un script emprunte aux modules distribués, et si chaque emprunt
- * existe.
- *
- * Trois sortes de scripts empruntent : les modules entre eux, CTS
- * Installer, et les outils du mainteneur, qui vivent dans un autre dépôt.
- * Tous doivent passer par la même règle, pour qu'elle n'existe qu'en un
- * exemplaire : une règle recopiée d'un dépôt à l'autre finit par ne plus
- * voir la même chose.
- */
-
 import fs from "node:fs"
 import path from "node:path"
 import { isolatedModule, repository } from "./sandbox.mjs"
 
-/*
- * Doublures de l'API Scriptable. Elles n'ont pas à être fidèles : aucun
- * module ne doit toucher au disque ni au réseau au chargement. Si l'une
- * d'elles est appelée pendant le chargement, c'est en soi une anomalie —
- * le widget paierait ce coût à chaque rafraîchissement.
- */
 function scriptableStubs(touched) {
   const fileManager = {
     documentsDirectory: () => "/docs",
@@ -42,7 +25,6 @@ function scriptableStubs(touched) {
   return {
     Intl,
     setTimeout,
-    args: { plainTexts: [], fileURLs: [], urls: [] },
     config: { runsInWidget: false, runsInApp: true, widgetFamily: "large" },
     Script: { name: () => "test", complete: () => {}, setWidget: () => {} },
     Device: { systemVersion: () => "27.0", screenSize: () => ({ width: 393, height: 852 }) },
@@ -125,7 +107,6 @@ export function loadDistributedModules() {
     sources.set(name.replace(/\.js$/, ""), fs.readFileSync(path.join(repository, name), "utf8"))
   }
 
-  /* Le point d'entrée n'est pas un module : il s'exécute, il n'exporte rien. */
   const names = [...sources.keys()].filter(name => name !== "CTS Dashboard")
 
   const dependenciesOf = name => [
@@ -134,7 +115,6 @@ export function loadDistributedModules() {
     )
   ].filter(dependency => sources.has(dependency))
 
-  /* Tri topologique : un module se charge après ceux qu'il importe. */
   const ordered = []
   const seen = new Set()
   const stack = new Set()
@@ -202,13 +182,7 @@ export function moduleAliases(source, { sources }) {
   return aliases
 }
 
-/*
- * Les scripts hors manifeste importent aussi à la demande, dans un try,
- * puisque le Dashboard peut manquer : l'affectation y suit la déclaration,
- * et le nom du module passe parfois par une constante. Le motif des
- * modules n'y verrait rien, et étendu à eux il confondrait le `module` de
- * Scriptable avec l'importation locale que CTS Importer nomme ainsi.
- */
+// Motif distinct de celui des modules : étendu ici, il confondrait le `module` de Scriptable avec celui de CTS Importer.
 export function consumerAliases(source, { sources }) {
   const constants = new Map(
     [...source.matchAll(/const\s+([A-Z][A-Z0-9_]*)\s*=\s*"([^"]+)"/g)].map(match => [
@@ -229,12 +203,6 @@ export function consumerAliases(source, { sources }) {
   return aliases
 }
 
-/*
- * Les références réellement écrites dans un script : `UTILS.machin` quand
- * UTILS vient d'un importModule, les déstructurations
- * `const { a, b } = importModule(...)`, et les emprunts
- * `loadDashboardFunction("Module", "fonction")` des installateurs.
- */
 export function checkReferences(consumer, source, aliases, { sources, loaded }) {
   const failures = []
   let checked = 0
@@ -248,12 +216,7 @@ export function checkReferences(consumer, source, aliases, { sources, loaded }) 
   for (const [alias, moduleName] of aliases) {
     const exported = loaded.get(moduleName) || {}
 
-    /*
-     * Un alias précédé d'un tiret, ou d'un point qui n'ouvre pas un
-     * étalement `...`, n'en est pas un : c'est un morceau d'adresse ou la
-     * fin d'un autre nom — « cts-analytics.nameless » n'appelle rien sur CTS
-     * Analytics Client.
-     */
+    // Précédé d'un tiret ou d'un point hors étalement, ce n'est pas un alias : « cts-analytics.nameless ».
     const name = alias.replace(/\$/g, "\\$")
 
     for (const use of source.matchAll(
@@ -288,7 +251,6 @@ export function checkReferences(consumer, source, aliases, { sources, loaded }) 
     }
   }
 
-  /* Déstructuration depuis un alias déjà résolu : const { fm } = CONFIG */
   for (const match of source.matchAll(
     /const\s*\{([^}]*)\}\s*=\s*([A-Za-z_$][\w$]*)(?![\w$.(\[])/g
   )) {
@@ -313,7 +275,6 @@ export function checkReferences(consumer, source, aliases, { sources, loaded }) 
     /loadDashboardFunction\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*\)/g
   )]
 
-  /* Un emprunt que cette règle ne sait pas lire passerait sans être vérifié. */
   const calls = source.match(/(?<!function\s)loadDashboardFunction\(/g) || []
 
   if (calls.length !== borrowings.length) {

@@ -1,19 +1,3 @@
-/*
- * Statut d'une exécution télémétrique.
- *
- * Le taux de succès de la flotte se calcule sur ce statut : le serveur
- * compte comme échec tout ce qui n'est pas « success ». Une exécution est
- * pourtant créée et envoyée à chaque lancement, y compris un jour de repos
- * où il n'y a rien à afficher. Tant que l'absence de carte agent pesait
- * comme une panne, la mesure décrivait l'agenda des collègues et non la
- * fiabilité du logiciel — une version pouvait chuter de 99 % à 69 % sans
- * qu'une seule ligne de code ait failli.
- *
- * Ce banc fixe la frontière : l'absence de travail passe en succès,
- * chaque vraie panne garde son poids, et l'incident reste enregistré pour
- * la console d'administration.
- */
-
 import { isolatedModule } from "./sandbox.mjs"
 
 function loadAnalytics() {
@@ -36,10 +20,6 @@ function loadAnalytics() {
 const ANALYTICS = loadAnalytics()
 const failures = []
 
-/*
- * Construit une exécution terminée. Les étapes non citées gardent la
- * valeur neutre que leur donne le client.
- */
 function finished({ stages = {}, issues = [] } = {}) {
   const run = ANALYTICS.createTelemetryRun({ executionContext: "widget" })
 
@@ -64,7 +44,6 @@ function expect(label, run, expected) {
   }
 }
 
-/* Jour de repos : aucun PDF déposé, aucun service du jour. */
 {
   const run = finished({
     stages: { pdf: "missing", service: "not_found" },
@@ -75,27 +54,23 @@ function expect(label, run, expected) {
 
   expect("dossier Services vide", run, "success")
 
-  /* L'information ne disparaît pas : la console doit continuer à la voir. */
   if (!codes(run).includes("PDF_NOT_FOUND")) {
     failures.push("dossier Services vide : l'incident PDF_NOT_FOUND a été effacé des diagnostics")
   }
 }
 
-/* Dernier service terminé, prochaine carte agent pas encore déposée. */
 {
   const run = finished({ stages: { service: "not_found" } })
 
   expect("service terminé sans carte suivante", run, "success")
 }
 
-/* Carte agent en cours de lecture : état transitoire, pas une panne. */
 {
   const run = finished({ stages: { pdf: "found", service: "not_found" } })
 
   expect("lecture en attente", run, "success")
 }
 
-/* Service en cours, dossier vidé après archivage : rien n'est en défaut. */
 {
   const run = finished({ stages: { pdf: "missing", service: "found", render: "success" } })
 
@@ -109,10 +84,6 @@ function expect(label, run, expected) {
   }
 }
 
-/*
- * PDF présent mais aucun service exploitable : là, quelque chose ne
- * fonctionne pas. L'exemption ne doit pas s'étendre à ce cas.
- */
 {
   const run = finished({
     stages: { pdf: "found", service: "not_found" },
@@ -124,10 +95,6 @@ function expect(label, run, expected) {
   expect("PDF détecté sans service exploitable", run, "warning")
 }
 
-/*
- * Un jour sans carte agent pendant lequel une vraie anomalie survient
- * reste une anomalie : l'exemption porte sur un code, pas sur l'exécution.
- */
 {
   const run = finished({
     stages: { pdf: "missing", service: "not_found", archive: "error" },
@@ -145,7 +112,6 @@ function expect(label, run, expected) {
   expect("absence de PDF accompagnée d'un échec d'archivage", run, "warning")
 }
 
-/* PDF illisible : erreur, et elle doit le rester. */
 {
   const run = finished({
     stages: { pdf: "read_error", service: "not_found" },
@@ -157,7 +123,6 @@ function expect(label, run, expected) {
   expect("PDF illisible", run, "error")
 }
 
-/* Import refusé sans service en place : le moteur pose « not_found » et un incident. */
 {
   const run = finished({
     stages: { pdf: "found", service: "not_found" },
@@ -169,39 +134,30 @@ function expect(label, run, expected) {
   expect("import refusé", run, "error")
 }
 
-/* Analyse impossible côté parseur. */
 {
   const run = finished({ stages: { pdf: "found", parser: "error" } })
 
   expect("parseur en échec", run, "error")
 }
 
-/* Dessin impossible : le collègue voit un widget vide. */
 {
   const run = finished({ stages: { pdf: "found", service: "found", render: "error" } })
 
   expect("rendu en échec", run, "error")
 }
 
-/* Index de services corrompu. */
 {
   const run = finished({ stages: { service: "error" } })
 
   expect("index de services en erreur", run, "error")
 }
 
-/* Archivage manqué seul : avertissement conservé. */
 {
   const run = finished({ stages: { pdf: "found", service: "found", archive: "error" } })
 
   expect("archivage en échec", run, "warning")
 }
 
-/*
- * Lecture verrouillée : un second lancement analyse déjà le PDF. Le code
- * est retiré et les étapes reviennent à leur valeur neutre — sans quoi une
- * exécution concurrente compterait deux fois.
- */
 {
   const run = finished({
     stages: { pdf: "missing", service: "not_found" },
@@ -224,7 +180,6 @@ function expect(label, run, expected) {
   }
 }
 
-/* Exécution nominale. */
 {
   const run = finished({
     stages: { pdf: "found", parser: "success", service: "found", render: "success", archive: "success" }
@@ -233,14 +188,6 @@ function expect(label, run, expected) {
   expect("exécution nominale", run, "success")
 }
 
-/*
- * L'identité du conducteur voyage à côté du run, jamais dedans.
- *
- * Le serveur valide la forme du run et refuserait un champ qu'il ne
- * connaît pas. Le nom se pose donc sur l'objet run côté client — pour
- * qu'il suive l'exécution qui l'a lu — mais n'entre jamais dans ce qui
- * est envoyé sous la clé « run ».
- */
 {
   const run = ANALYTICS.createTelemetryRun({ executionContext: "widget" })
 
@@ -252,7 +199,6 @@ function expect(label, run, expected) {
     )
   }
 
-  /* Un matricule qui n'est pas un matricule est écarté, le nom reste. */
   const autre = ANALYTICS.createTelemetryRun({ executionContext: "widget" })
 
   ANALYTICS.setTelemetryDriver(autre, { name: "MARTIN JEAN", id: "EM76" })
@@ -265,7 +211,6 @@ function expect(label, run, expected) {
     failures.push("un matricule invalide a emporté le nom avec lui")
   }
 
-  /* Une carte sans conducteur lisible ne pose rien du tout. */
   const vide = ANALYTICS.createTelemetryRun({ executionContext: "widget" })
 
   ANALYTICS.setTelemetryDriver(vide, { name: "", id: "" })

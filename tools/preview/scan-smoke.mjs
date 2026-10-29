@@ -1,37 +1,13 @@
-/*
- * Verrou d'analyse du dossier Services.
- *
- * Un réveil de widget peut être tué en pleine lecture d'un PDF : iOS ne
- * lui accorde que quelques secondes, la lecture en demande jusqu'à
- * vingt-cinq. Il laisse alors son verrou derrière lui, valable deux
- * minutes.
- *
- * Sans reprise, le seul contexte capable de terminer l'import —
- * l'application, où le temps ne manque pas — se voyait refuser le travail
- * par celui qui, précisément, ne pouvait pas le finir. Le conducteur
- * voyait « Analyse en cours » dans le widget comme dans l'application, et
- * sa carte agent n'était jamais importée.
- *
- * Ce banc fixe la règle : l'application passe devant un widget, jamais
- * l'inverse, et deux exécutions de même nature se respectent.
- */
-
 import { moduleSpace } from "./sandbox.mjs"
 
 const failures = []
 
 const SERVICES = "/documents/CTS Dashboard/Services"
 const DATA = "/documents/CTS Dashboard/Data"
-/* Le verrou ne concerne que l'appareil : il vit hors d'iCloud. */
 const LOCK = "/library/CTS Dashboard/services-scan.lock"
 const STATE = `${DATA}/services-scan-state.json`
 const INDEX = `${DATA}/services-index.json`
 
-/*
- * Une date de modification figée : l'empreinte d'un fichier vaut
- * « nom | taille | date de modification », et un banc qui la laisse
- * bouger ne peut rien affirmer sur ce que le balayage a déjà vu.
- */
 const FIXED_MODIFICATION_DATE = new Date("2026-08-19T06:00:00.000Z")
 
 function createFileManager(disk) {
@@ -64,11 +40,6 @@ function createFileManager(disk) {
   }
 }
 
-/*
- * Le gestionnaire est chargé avec ses vraies dépendances de stockage.
- * Seul l'importateur est doublé : c'est lui qui lit réellement le PDF, ce
- * qu'aucun banc hors iPhone ne peut faire.
- */
 function loadManager(disk, { runsInWidget, importOutcome = null }) {
   const imports = []
   const fm = createFileManager(disk)
@@ -87,7 +58,6 @@ function loadManager(disk, { runsInWidget, importOutcome = null }) {
   const { load } = moduleSpace(
     {
       config: { runsInWidget },
-      args: { plainTexts: [], shortcutParameter: null },
       FileManager: { iCloud: () => fm, local: () => fm }
     },
     { doubles: { "CTS Importer": importer } }
@@ -116,10 +86,6 @@ function newDisk() {
   return disk
 }
 
-/*
- * Les quatre combinaisons. Une seule doit passer outre le verrou :
- * l'application devant un widget.
- */
 const CASES = [
   { held: "widget", runsInWidget: false, expected: true, label: "application devant un widget" },
   { held: "widget", runsInWidget: true, expected: false, label: "widget devant un widget" },
@@ -143,7 +109,6 @@ for (const { held, runsInWidget, expected, label } of CASES) {
   }
 }
 
-/* Sans verrou, le PDF déposé doit être détecté et importé. */
 {
   const disk = newDisk()
   const { manager, imports } = loadManager(disk, { runsInWidget: false })
@@ -162,16 +127,6 @@ for (const { held, runsInWidget, expected, label } of CASES) {
   }
 }
 
-/*
- * Le widget importe, mais une carte à la fois.
- *
- * Lire une carte agent demande jusqu'à vingt-cinq secondes dans
- * l'application, quand iOS n'en accorde que quelques-unes à un widget.
- * L'import automatique est conservé — un conducteur qui dépose sa carte
- * ne doit rien avoir à faire — mais le widget s'en tient à un seul
- * fichier par réveil, et le moteur PDF y travaille sous un budget bien
- * plus court, vérifié par le banc des budgets.
- */
 {
   const disk = newDisk()
   disk.set(`${SERVICES}/DriverTimeCard (4).pdf`, "%PDF-1.4 second")
@@ -200,16 +155,6 @@ for (const { held, runsInWidget, expected, label } of CASES) {
   }
 }
 
-/*
- * Budget dépassé dans le widget : la carte agent n'est pas fautive.
- *
- * Un widget qui renonce au bout de quelques secondes n'a rien appris du
- * PDF. L'annoncer comme un échec d'import afficherait au conducteur
- * « CTS Dashboard n'a pas réussi à importer ce PDF » pour un fichier
- * parfaitement valide, et poserait un délai de quinze minutes avant la
- * prochaine tentative. La carte reste donc simplement en attente, et
- * l'application la reprendra.
- */
 {
   const timeout = {
     success: false,
@@ -241,7 +186,6 @@ for (const { held, runsInWidget, expected, label } of CASES) {
     )
   }
 
-  /* Le même échec dans l'application est un vrai échec, lui. */
   const appDisk = newDisk()
   const application = loadManager(appDisk, { runsInWidget: false, importOutcome: timeout })
   const appResult = await application.manager.scanServices({})
@@ -251,21 +195,6 @@ for (const { held, runsInWidget, expected, label } of CASES) {
   }
 }
 
-/*
- * Un enregistrement perdu doit être refait.
- *
- * L'état de balayage retient qu'un PDF a été importé puis indexé. Mais
- * cet état ne décrit que ce qui a été fait — il ne prouve pas que le
- * cache et l'entrée d'index sont encore là. Un cache effacé à la main,
- * égaré dans une synchronisation ou jamais redescendu sur un nouvel
- * appareil laissait le fichier dans un angle mort : détecté à chaque
- * balayage, jamais réimporté, et le widget annonçait « 1 PDF détecté,
- * aucun service exploitable » sans fin. Seul un changement de nom du
- * fichier en sortait.
- *
- * Ici l'index est vide et l'état dit « indexé » : les deux se
- * contredisent, et c'est l'index qui fait foi.
- */
 {
   const canonical = "Service_2026-08-20_EA05.pdf"
   const disk = new Map()
@@ -301,25 +230,6 @@ for (const { held, runsInWidget, expected, label } of CASES) {
   }
 }
 
-/*
- * Le refus de validation, lui, doit tenir sous la version qui l'a
- * prononcé. Il porte sur le contenu du PDF, pas sur son enregistrement :
- * le même fichier donnera le même refus, et le réessayer à chaque réveil
- * ne ferait que brûler le temps que le widget n'a pas.
- *
- * Une version plus récente peut pourtant lire ce que la précédente
- * refusait : les cartes de journée de type C l'ont été jusqu'à ce que le
- * parser accepte le suffixe de leur numéro, et restaient refusées après la
- * correction. Un refus d'une version antérieure, ou d'avant que la version
- * soit retenue, est relu une fois, et le nouveau refus retient la version
- * installée. Celui d'une version plus récente tient : un second appareil
- * du collègue, pas encore à jour, ne doit pas relire à chaque réveil ce que
- * le premier vient de refuser.
- *
- * Sauf si une carte de la même date a été importée depuis le refus : c'est
- * le dernier dépôt du collègue, et une carte plus ancienne, relue et
- * acceptée, deviendrait le service affiché à sa place.
- */
 const INSTALLED_VERSION = loadManager(new Map(), { runsInWidget: false }).dashboardVersion
 const REFUSED_AT = "2026-08-19T07:00:00.000Z"
 const REFUSAL = {
@@ -404,20 +314,6 @@ for (const { label, recordedBy, sameDateIndexedAt, rereads } of REJECTION_CASES)
   }
 }
 
-/*
- * Une carte déjà importée n'est jamais relue. Jusqu'à la 1.4.7, pourtant,
- * la seconde tranche d'une voiture conduite deux fois prenait la direction
- * de la première : le 26 octobre 2026, un conducteur a attendu sa relève du
- * mauvais côté. Une carte déposée à l'avance l'aurait gardée jusqu'à son
- * jour. Celle qui porte deux tranches sur une même voiture, lue par une
- * version antérieure ou d'avant que la version soit retenue, est relue une
- * fois ; le pipeline inscrit alors la version installée dans son entrée
- * d'index, comme le fait le vrai, et elle n'est plus relue.
- *
- * Sauf, comme pour un refus, si une carte de la même date a été importée
- * depuis : c'est le dernier dépôt du collègue, que la carte relue
- * supplanterait.
- */
 const CACHE = "/documents/CTS Dashboard/Cache/Services"
 const INDEXED = "Service_2026-08-20_EA05.pdf"
 const INDEXED_AT = "2026-08-19T06:30:00.000Z"
@@ -510,16 +406,6 @@ for (const { label, vehicles, recordedBy, sameDateIndexedAt, clearedAt, rereads 
   }
 }
 
-/*
- * Un balayage qui ne trouve rien n'écrit rien.
- *
- * L'état du balayage était réenregistré à chaque réveil, uniquement pour
- * y inscrire une nouvelle date. Un widget réveillé souvent écrivait donc
- * dans iCloud plusieurs fois par heure sans qu'aucun fichier n'ait
- * changé — de l'usure, et autant d'occasions d'être tué en pleine
- * écriture. L'état n'est plus écrit que lorsqu'il apporte quelque chose,
- * ou une fois par heure pour rester lisible dans le diagnostic.
- */
 {
   const disk = new Map()
   disk.set(SERVICES, "")
@@ -550,11 +436,6 @@ for (const { label, vehicles, recordedBy, sameDateIndexedAt, clearedAt, rereads 
   }
 }
 
-/*
- * Le verrou pris porte la nature de l'exécution, sinon la reprise est
- * aveugle. Et il ne passe jamais par iCloud : il n'y coûtait que des
- * écritures synchronisées, et pouvait bloquer un autre appareil.
- */
 for (const runsInWidget of [true, false]) {
   const disk = newDisk()
   const { manager, fm } = loadManager(disk, { runsInWidget })

@@ -1,6 +1,3 @@
-// Validation du dépôt CTS Dashboard.
-// Exécutable en CI et en local : node .github/scripts/validate.mjs
-
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -18,14 +15,8 @@ const INSTALLER_FILE = 'CTS Installer.js'
 const METADATA_MARKER = '// Variables used by Scriptable.'
 const MINIMUM_LIBRARY_BYTES = 100 * 1024
 
-// Fichiers .js présents à la racine sans faire partie du manifeste mais
-// bel et bien destinés aux collègues : CTS Installer, qu'ils téléchargent
-// depuis l'URL brute, et CTS Repair, qui le remplace quand il est bloqué.
 const UNMANIFESTED_SCRIPTS = new Set([INSTALLER_FILE, 'CTS Repair.js'])
 
-// Outils réservés au mainteneur. Ce dépôt est public : leur présence ici
-// les publierait, et l'historique Git les conserverait. Ils vivent
-// uniquement sur son iPhone, et la validation refuse qu'ils reviennent.
 const ADMIN_ONLY_SCRIPTS = [
   'CTS Analytics Admin.js',
   'CTS Analytics Test.js',
@@ -55,18 +46,6 @@ function checkSyntax(content, label) {
   return true
 }
 
-/*
- * Une constante de premier niveau déclarée sous l'appel au point d'entrée
- * reste dans sa zone morte temporelle pendant toute l'exécution : la
- * fonction qui l'utilise lève « Cannot access … before initialization ».
- * La syntaxe est pourtant valide, et le fichier ne révèle le défaut qu'au
- * moment précis où le chemin d'exécution y passe — un piège qui a déjà
- * atteint un utilisateur, avec CTS Installer 1.0.7.
- *
- * Le contrôle vaut pour tout script de la racine, manifeste compris : un
- * module sans appel await de premier niveau n'est simplement pas
- * concerné, et CTS Dashboard.js, lui, l'est.
- */
 function checkEntryPoint(content, label) {
   const lines = content.split('\n')
   const entryLine = lines.findIndex(line => /^await\s+[A-Za-z_$][\w$]*\(/.test(line))
@@ -86,9 +65,6 @@ function checkEntryPoint(content, label) {
   })
 }
 
-// unique : impose un seul marqueur dans tout le fichier. Désactivé pour
-// CTS Installer, qui écrit des scripts Scriptable et porte donc
-// légitimement ce marqueur dans des chaînes de caractères.
 function checkScriptableMetadata(content, label, { unique = true } = {}) {
   if (!content.startsWith(METADATA_MARKER)) {
     fail(`Les métadonnées Scriptable doivent être en tête de ${label}`)
@@ -105,8 +81,6 @@ function checkScriptableMetadata(content, label, { unique = true } = {}) {
     fail(`Ligne icon-color / icon-glyph invalide dans ${label}`)
   }
 }
-
-// ---------------------------------------------------------------- manifeste
 
 let manifest
 try {
@@ -171,13 +145,6 @@ for (const file of required) {
   }
 }
 
-// ------------------------------------------------- scripts distribués + JSON
-
-/*
- * Le crédit d'auteur appartient aux outils de gestion — CTS Installer —
- * et à eux seuls. Le widget est l'écran d'un conducteur en service, pas
- * une vitrine : aucun des scripts distribués ne doit le porter.
- */
 const CREDIT_PATTERN = /IPPOLITO|Cré[ée] et d[ée]velopp[ée] par/i
 
 for (const file of scripts) {
@@ -192,15 +159,6 @@ for (const file of scripts) {
       `ce crédit n'a sa place que dans CTS Installer.`
     )
   }
-  /*
-   * Le point d'entrée est contrôlé ici aussi. On avait supposé que les
-   * scripts du manifeste étaient tous des modules sans appel de premier
-   * niveau — or CTS Dashboard.js est précisément le point d'entrée du
-   * widget. La zone morte temporelle a donc pu y être publiée alors même
-   * que ce contrôle existait, écrit après qu'elle eut tué l'installateur
-   * 1.0.7. checkEntryPoint ne coûte rien aux vrais modules : sans appel
-   * await de premier niveau, il rend la main immédiatement.
-   */
   checkEntryPoint(content, file)
 }
 
@@ -212,8 +170,6 @@ for (const file of fs.readdirSync('.').filter(name => name.endsWith('.json'))) {
   }
 }
 
-// ------------------------------------------- aucun outil admin publié
-
 for (const file of ADMIN_ONLY_SCRIPTS) {
   if (fs.existsSync(file)) {
     fail(
@@ -222,8 +178,6 @@ for (const file of ADMIN_ONLY_SCRIPTS) {
     )
   }
 }
-
-// -------------------------------------------------- aucun script orphelin
 
 const rootScripts = fs.readdirSync('.').filter(name => name.endsWith('.js'))
 for (const file of rootScripts) {
@@ -235,14 +189,6 @@ for (const file of rootScripts) {
   }
 }
 
-/*
- * Les scripts hors manifeste sont installés à la main, donc jamais
- * remplacés par CTS Installer : une faute y reste sur l'iPhone jusqu'à ce
- * que quelqu'un la remarque. Ils reçoivent donc les mêmes contrôles que
- * les scripts distribués. Le marqueur de métadonnées n'est unique que
- * pour ceux qui n'écrivent pas de scripts Scriptable — CTS Installer et
- * CTS Repair le portent légitimement dans des chaînes.
- */
 for (const file of UNMANIFESTED_SCRIPTS) {
   if (!fs.existsSync(file)) {
     fail(`${file} est déclaré comme distribué hors manifeste mais absent du dépôt`)
@@ -256,17 +202,11 @@ for (const file of UNMANIFESTED_SCRIPTS) {
     continue
   }
 
-  // CTS Installer et CTS Repair écrivent des scripts Scriptable : ils
-  // portent légitimement le marqueur de métadonnées dans des chaînes.
   checkScriptableMetadata(content, file, { unique: false })
   checkSyntax(content, file)
   checkEntryPoint(content, file)
 }
 
-// ------------------------------------------------------------ CTS Installer
-
-// Syntaxe, métadonnées et point d'entrée sont déjà contrôlés plus haut,
-// avec les autres scripts hors manifeste. Reste la cohérence de version.
 if (fs.existsSync(INSTALLER_FILE)) {
   const installer = read(INSTALLER_FILE)
   const declared = installer.match(/const INSTALLER_VERSION = "([^"]+)"/)
@@ -280,8 +220,6 @@ if (fs.existsSync(INSTALLER_FILE)) {
     )
   }
 }
-
-// ------------------------------------------------------ cohérence de version
 
 const config = read('CTS Config.js')
 const configVersion = config.match(/const DASHBOARD_VERSION = "([^"]+)"/)
@@ -304,12 +242,6 @@ for (const [label, value] of [
   }
 }
 
-/*
- * Un plancher au-dessus de la version publiée éteindrait le widget de
- * tout le monde, y compris ceux qui viennent de mettre à jour. Le client
- * refuse déjà une telle politique, mais elle n'a rien à faire dans le
- * manifeste : autant qu'elle ne parte jamais.
- */
 const floorOrder = compareVersionStrings(manifest.minimumDashboard, manifest.version)
 
 if (floorOrder === null) {
@@ -321,13 +253,6 @@ if (floorOrder === null) {
   )
 }
 
-/*
- * Même règle pour l'installateur, et elle pèse plus lourd depuis que la
- * mise à jour est imposée : un plancher au-dessus de la version publiée
- * afficherait à chacun une porte proposant d'installer la version qu'il
- * a déjà, sans aucune issue. Le manifeste est le seul endroit où ce
- * couple peut encore être vérifié avant d'atteindre les téléphones.
- */
 const installerFloorOrder = compareVersionStrings(
   manifest.minimumInstaller,
   manifest.installerVersion
@@ -366,15 +291,6 @@ function compareVersionStrings(first, second) {
   return 0
 }
 
-// ------------------------------------------------ message de la publication
-
-/*
- * Chaque numéro publié a sa Release, dont la note est le message pour la
- * communauté. Le workflow des Releases le lit dans messages/ après la
- * fusion, quand le numéro est déjà parti sur les iPhone : un message absent
- * ne se verrait qu'à ce moment-là, sur une Release en échec. Il est donc
- * exigé ici, avant, par la règle même du workflow.
- */
 for (const [product, version, button, announcement] of [
   ['CTS Dashboard', manifest.version, dashboardButton, dashboardAnnouncement],
   ['CTS Installer', manifest.installerVersion, installerButton, installerAnnouncement]
@@ -388,23 +304,6 @@ for (const [product, version, button, announcement] of [
   }
 }
 
-// ------------------------------------------------------- libellés de lieux
-
-/*
- * Les limites correspondent au seuil à partir duquel le widget commence à
- * réduire la police. Les respecter garantit que rien n'est jamais rapetissé
- * dans le rendu courant.
- *
- *   places.json alimente le bandeau horaires  → placeSoftLimit  = 18
- *   stops.json  alimente direction et mise en ligne → 21, la même limite
- *               que CTS Database applique au repli quand un arrêt manque
- *
- * Un point de relève est à la fois un lieu et un arrêt : il figure dans les
- * deux bases. Le bandeau horaires le nomme via places.json, la direction via
- * stops.json. Si l'on n'en renomme qu'un, le widget désigne le même endroit
- * de deux façons selon la ligne — d'où le contrôle d'appariement plus bas.
- */
-/* Lue dans CTS Database pour que les deux limites ne puissent pas diverger. */
 const STOP_LABEL_LIMIT = (() => {
   const match = read('CTS Database.js').match(/const MAX_STOP_LABEL_LENGTH = (\d+)/)
   if (!match) fail('MAX_STOP_LABEL_LENGTH est introuvable dans CTS Database.js')
@@ -434,7 +333,6 @@ for (const [file, limit, usage] of LABEL_LIMITS) {
       }
     }
   } catch (_) {
-    // Le JSON invalide est déjà signalé plus haut.
   }
 }
 
@@ -460,13 +358,6 @@ if (labels.has('places.json') && labels.has('stops.json')) {
       )
     }
 
-    /*
-     * CTS Database ramène ELSA_C à ELSA quand le code exact est absent.
-     * Réinscrire un suffixe qui porte le même nom que sa racine n'ajoute
-     * donc rien, et laisse croire qu'il faut énumérer les combinaisons —
-     * c'est exactement l'illusion qui a produit « Code ELSA_C ». Un
-     * suffixe reste légitime s'il nomme un lieu réellement différent.
-     */
     const root = code.replace(/_[A-Z0-9]{1,2}$/, '')
     if (root !== code && places[root] && nameOf(places[root]) === label) {
       fail(
@@ -477,34 +368,10 @@ if (labels.has('places.json') && labels.has('stops.json')) {
   }
 }
 
-// ------------------------------------------------- contraste de la palette
-
-/*
- * Le widget se lit debout, dehors, souvent en plein soleil. La lumière
- * ambiante réfléchie par la dalle s'ajoute au texte comme au fond et écrase
- * les rapports de contraste ; il faut donc une marge confortable en
- * intérieur pour rester lisible dehors.
- *
- * On mesure le pire cas de chaque état : le coin le plus clair du dégradé,
- * recouvert du voile blanc le plus opaque d'une carte, puis teinté par
- * l'accent comme l'est la ligne de la tranche en cours. Ce sont les deux
- * surfaces qui portent du texte. Les pastilles — numéro de tranche, état,
- * flèche — sont décoratives et volontairement hors périmètre : leur fond
- * plus teinté n'entoure qu'un chiffre ou un pictogramme, jamais une
- * information à lire.
- *
- * Si un réglage de couleur passe sous les seuils, la CI le refuse.
- */
 const CONTRAST_TARGETS = { primary: 12, secondary: 7, accent: 7 }
 const CARD_WHITE_ALPHA = 0.055
 const PROGRAM_WHITE_ALPHA = 0.05
 
-/*
- * Lu dans le moteur de rendu pour que le contrôle suive toute retouche.
- * Un repli silencieux vaudrait ici un contrôle mené sur une valeur qui
- * n'est plus celle du rendu : l'absence est donc une erreur, comme pour
- * MAX_STOP_LABEL_LENGTH.
- */
 const ACTIVE_ROW_ACCENT_ALPHA = (() => {
   const renderer = read('CTS Widget Renderer.js')
   const match = renderer.match(
@@ -598,8 +465,6 @@ function contrastRatio(first, second) {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
 }
 
-// ------------------------------------------------------------------ PDF.js
-
 const engine = read('CTS PDF Engine.js')
 const pdfjsVersion = engine.match(/const PDFJS_VERSION\s*=\s*\n?\s*"([^"]+)"/)
 
@@ -607,9 +472,6 @@ if (!pdfjsVersion) {
   fail('PDFJS_VERSION est introuvable dans CTS PDF Engine.js')
 }
 
-// Le moteur, l'installateur et la veille jugent une bibliothèque sur sa
-// taille, chacun avec sa constante : le moteur acceptait jusqu'à 40 Ko ce
-// que l'installateur refusait sous 100, et rien ne voyait l'écart.
 for (const [file, pattern] of [
   ['CTS PDF Engine.js', /const MINIMUM_LIBRARY_SIZE_KB = (\d+)/],
   [INSTALLER_FILE, /const MINIMUM_LIBRARY_KILOBYTES = (\d+)/],
@@ -640,8 +502,6 @@ for (const file of ['pdf.min.mjs', 'pdf.worker.min.mjs']) {
     )
   }
 }
-
-// ------------------------------------------------------------------ verdict
 
 if (problems.length) {
   console.error(`\n${problems.length} problème(s) détecté(s) :\n`)

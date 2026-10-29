@@ -1,21 +1,7 @@
-/*
- * Test de résolution des noms de lieux et d'arrêts.
- *
- * Ce test existe à cause de deux défauts réels, arrivés jusqu'à l'écran
- * d'un conducteur : « Code WILSON », puis « Code ELSA_C ». Les deux
- * venaient d'un code que la base ne savait pas ramener à son lieu, et
- * aucune vérification statique ne pouvait les voir — les fichiers JSON
- * étaient parfaitement valides.
- *
- * On charge donc CTS Database avec les vraies bases du dépôt et on lui
- * demande de nommer des codes, dont ceux qui ont échoué.
- */
-
 import fs from "node:fs"
 import path from "node:path"
 import { importFrom, isolatedModule, readScript, repository } from "./sandbox.mjs"
 
-/* Les bases sont lues depuis le dépôt, jamais recopiées ici. */
 function resource(name) {
   return fs.readFileSync(path.join(repository, name), "utf8")
 }
@@ -29,18 +15,13 @@ const RESOURCES = {
 function loadModule(name, extra = {}) {
   return isolatedModule(name, {
     importModule: importFrom(loaded),
-    globals: { args: { plainTexts: [] }, ...extra }
+    globals: extra
   })
 }
 
 const loaded = {}
 loaded["CTS Utils"] = loadModule("CTS Utils")
 
-/*
- * CTS Database lit ses bases à travers CTS Config, CTS Storage et
- * CTS Resources. On ne réimplémente aucun des trois : le gestionnaire de
- * fichiers sert les fichiers du dépôt, rien d'autre n'est simulé.
- */
 const fileName = target => String(target).replace(/^.*\//, "")
 
 loaded["CTS Config"] = {
@@ -61,10 +42,6 @@ loaded["CTS Resources"] = { ensureInstalled: async () => true }
 
 const DATABASE = loadModule("CTS Database")
 
-/*
- * Chaque cas dit ce que HASTUS écrit et ce que le conducteur doit lire.
- * Aucun ne doit produire « Code … » : c'est précisément le symptôme.
- */
 const places = [
   ["ELSA_A", "Elsau"],
   ["ELSA_C", "Elsau"],
@@ -78,26 +55,12 @@ const places = [
   ["ESPL_2", "Esplanade"],
   ["MOVE_C", "Montagne Verte"],
   ["RORE_A", "Neuhof R. Reuss"],
-  /*
-   * Troisième occurrence du même défaut, après « Code WILSON » et
-   * « Code ELSA_C » : le service KL110 finit sa première tranche à
-   * WICH_A, et la racine WICH manquait. Le code se lit comme les autres
-   * points de relève — deux lettres par mot, WInston CHurchill — mais
-   * rien ne permet de le deviner depuis la base, puisque c'est le nom de
-   * l'arrêt qui y figure, pas son abréviation.
-   */
   ["WICH_A", "Winston Churchill"],
   ["WICH", "Winston Churchill"],
   ["WILSON", "Wilson"],
   ["KIBI_A", "Kibitzenau"],
   ["KIBI_1", "Kibitzenau"],
   ["KIBI_2", "Kibitzenau"],
-  /*
-   * HASTUS écrit « ROTONDE 17 » : le 17 est le numéro du poste, pas une
-   * partie du nom de l'arrêt. Le conducteur lit « Mise en ligne
-   * Rotonde », comme sur le terrain. Les repères Q1/Q2/V1/V2 des
-   * stations de tram, eux, nomment un vrai quai et sont conservés.
-   */
   ["ROTONDE 17", "Rotonde"],
   ["ROTONDE", "Rotonde"],
   ["HOMME DE FER V.1 ARRIVEE", "Homme de Fer V1"],
@@ -106,11 +69,6 @@ const places = [
   ["CRB", "UPC"]
 ]
 
-/*
- * Les lignes de tram sont codées 80 à 85 sur la carte agent et doivent
- * s'afficher A à F. Un service tram passe par le même chemin qu'un bus,
- * mais son libellé vient entièrement de lines.json.
- */
 const lines = [
   ["82", "C"],
   ["80", "A"],
@@ -122,13 +80,6 @@ const lines = [
   ["40", "40"]
 ]
 
-/*
- * G et H portent une lettre comme les trams, mais ce sont des lignes de
- * bus à haut niveau de service. Les faire passer pour des trams ferait
- * annoncer un « début d'exploitation » à un conducteur de bus. Le
- * contrôle lit la liste directement dans CTS Utils plutôt que d'en
- * garder une copie qui pourrait diverger.
- */
 const BUS_LETTER_CODES = ["90", "92"]
 
 const tramCodes = new Set(
@@ -148,10 +99,6 @@ for (const [code, expected] of places) {
   }
 }
 
-/*
- * Un suffixe inconnu sur une racine connue doit rester résolu : c'est la
- * garantie qui évite d'avoir à énumérer les combinaisons une par une.
- */
 for (const suffix of ["B", "D", "E", "3", "9"]) {
   const actual = await DATABASE.formatPlace(`ELSA_${suffix}`)
   if (actual !== "Elsau") {
@@ -159,17 +106,11 @@ for (const suffix of ["B", "D", "E", "3", "9"]) {
   }
 }
 
-/* Un code réellement inconnu doit rester reconnaissable, pas inventé. */
 const unknown = await DATABASE.formatPlace("ZZZZ_A")
 if (!/^Code /.test(unknown)) {
   failures.push(`un code inconnu doit rester lisible tel quel, reçu « ${unknown} »`)
 }
 
-/*
- * Les arrêts lus sur les cartes agent, y compris les variantes de quai
- * que HASTUS écrit entre parenthèses : elles nomment le même lieu et
- * doivent produire le même libellé, borné à la largeur du widget.
- */
 const stops = [
   ["HOHBERG", "Hohberg"],
   ["ELSAU ARRIVEE", "Elsau"],
@@ -197,17 +138,6 @@ const stops = [
   ["DEPOT KIBITZENAU E/S", "Dépôt Kibitzenau"],
   ["OBSERVATOIRE (Blvd Leblois)", "Observatoire"],
   ["Rodolphe Reuss Tiroir", "Neuhof R. Reuss"],
-  /*
-   * « Mise en ligne Rotonde 17 » est arrivé sur l'écran d'un conducteur :
-   * le 17 est le numéro de la ligne prise au départ, pas une partie du
-   * nom de l'arrêt, exactement comme le L.10 de « PLACE DE PIERRE L.10 »
-   * juste au-dessus. Les repères Q1/Q2/V1/V2 des stations de tram, eux,
-   * nomment un vrai quai et restent affichés.
-   *
-   * Ce cas-ci est celui qui protège l'affichage réel : le libellé vient
-   * de formatStop (CTS Parser.js:367). Le cas formatPlace plus haut suit
-   * le même défaut, les deux chemins lisant la même entrée de stops.json.
-   */
   ["ROTONDE 17", "Rotonde"]
 ]
 
@@ -238,11 +168,6 @@ for (const code of BUS_LETTER_CODES) {
   }
 }
 
-/*
- * L'inverse : une ligne que la base nomme A à F est un tram. Oubliée dans
- * la liste, elle annoncerait une « mise en ligne » au lieu d'un « début
- * d'exploitation », et l'icône d'un bus.
- */
 const TRAM_LETTERS = /^[A-F]$/
 
 for (const [code, line] of Object.entries(JSON.parse(RESOURCES["lines.json"]))) {

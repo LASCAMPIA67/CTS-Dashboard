@@ -362,14 +362,6 @@ async function shouldProcessPdf(file, index, state, now) {
     case "indexed":
       return true
 
-    /*
-     * Un refus ne vaut que pour la version qui l'a prononcé. Les cartes de
-     * journée de type C, refusées pour un suffixe que le parser ignorait,
-     * seraient restées refusées après la correction tant que le collègue ne
-     * les redéposait pas. La carte est donc relue une fois sous une version
-     * plus récente ; sous la même version, le même fichier donnerait le même
-     * refus, et le relire à chaque réveil brûlerait le temps du widget.
-     */
     case "validation-error":
       return (
         refusedByEarlierVersion(previous) &&
@@ -419,20 +411,6 @@ function isIndexedAndCurrent(file, index) {
   return sameSize && sameModificationDate
 }
 
-/*
- * Une carte importée n'est jamais relue, et jusqu'à la 1.4.7 la seconde
- * tranche d'une voiture conduite deux fois prenait la direction de la
- * première : le 26 octobre 2026, un conducteur a attendu sa relève du
- * mauvais côté. Une carte déposée à l'avance l'aurait gardée jusqu'à son
- * jour. Celle qui porte deux tranches sur une même voiture est donc relue
- * une fois, et son entrée d'index retient ensuite la version qui l'a lue ;
- * une entrée sans version date d'avant qu'elle soit retenue. Seul son
- * cache dit quelles voitures elle porte, et rien ne retient qu'il a déjà
- * été vu : pour une carte de plusieurs tranches lue avant la correction,
- * il est rouvert à chaque balayage jusqu'à ce que le service passe. C'est
- * une lecture de quelques kilo-octets, quand relire le PDF de chacune de
- * ces cartes coûterait au widget le temps qu'il n'a pas.
- */
 async function readBeforeSameVehicleFix(file, index) {
   const entry = findIndexEntry(file, index)
 
@@ -451,24 +429,13 @@ async function readBeforeSameVehicleFix(file, index) {
   return new Set(vehicles).size < vehicles.length
 }
 
-/*
- * Plus ancienne, et non différente : l'état du balayage vit dans iCloud et
- * suit le collègue d'un appareil à l'autre, et deux appareils qui n'ont pas
- * encore la même version se renverraient la carte à chaque réveil. Un refus
- * sans version date d'avant qu'un refus la retienne.
- */
+// Plus ancienne, et non différente : deux iPhone de versions différentes se renverraient la carte.
 function refusedByEarlierVersion(previous) {
   const order = UTILS.compareVersions(previous.dashboardVersion, CONFIG.dashboardVersion)
 
   return order === null || order < 0
 }
 
-/*
- * Une carte relue et acceptée devient le service le plus récent de sa date.
- * Une carte de la même date importée depuis son refus, ou depuis sa
- * première lecture, est le dernier dépôt du collègue : la relecture ne doit
- * pas la supplanter par une carte plus ancienne.
- */
 function supersededSince(index, date, since) {
   const sinceTime = Date.parse(String(since || ""))
   const services = Array.isArray(index?.services) ? index.services : []
@@ -749,19 +716,12 @@ async function resolveServiceForDate(currentDate = new Date()) {
     return emptyServiceSelection("empty-index")
   }
 
-  const findSuccessorOfYesterday = successorFinder(entries, localDateKey(new Date(
-    currentDate.getFullYear(),
-    currentDate.getMonth(),
-    currentDate.getDate() - 1
-  )))
   const todayKey = localDateKey(currentDate)
-  const yesterdayDate = new Date(
-    currentDate.getFullYear(),
-    currentDate.getMonth(),
-    currentDate.getDate() - 1
+  const yesterdayKey = localDateKey(
+    new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() - 1)
   )
-  const yesterdayKey = localDateKey(yesterdayDate)
-  const findSuccessorOfToday = successorFinder(entries, localDateKey(currentDate))
+  const findSuccessorOfYesterday = successorFinder(entries, yesterdayKey)
+  const findSuccessorOfToday = successorFinder(entries, todayKey)
   let expiredCandidate = null
   const previousDayEntries = entries
     .filter(entry => entry.date === yesterdayKey)

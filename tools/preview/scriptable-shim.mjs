@@ -1,17 +1,3 @@
-/*
- * Émulation minimale de l'API Scriptable utilisée par CTS Widget Renderer.
- *
- * Le but n'est pas de reproduire iOS au pixel près — c'est impossible sans
- * la police San Francisco — mais de rejouer la MISE EN PAGE réelle du
- * moteur de rendu : imbrication des piles, ressorts souples et fixes,
- * largeurs imposées, réduction de police avant troncature, dégradés et
- * couleurs. Ce sont exactement les propriétés que l'on cherche à valider :
- * symétrie, équilibre, alignement, contraste.
- *
- * Chaque objet produit un arbre décrivant la mise en page ; le rendu HTML
- * est fait par html.mjs, la capture par Chromium.
- */
-
 export class Size {
   constructor(width, height) {
     this.width = width
@@ -79,11 +65,6 @@ export class LinearGradient {
   }
 }
 
-/*
- * Les symboles SF n'existent pas hors iOS. On garde leur encombrement
- * exact — c'est lui qui compte pour la mise en page — et on dessine une
- * silhouette reconnaissable en SVG pour juger l'équilibre visuel.
- */
 const SYMBOL_PATHS = {
   "arrow.right": "M3 12h16M13 6l6 6-6 6",
   "bus.fill": "M7 3h10a3 3 0 0 1 3 3v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a3 3 0 0 1 3-3zM4 11h16M7 17v3M17 17v3M8 14h.01M16 14h.01",

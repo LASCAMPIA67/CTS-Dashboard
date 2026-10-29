@@ -1,20 +1,6 @@
 import { symbolPath } from "./scriptable-shim.mjs"
 
-/*
- * Deux typographies, parce que mesurer et montrer ne demandent pas la même.
- *
- * Les mesures gardent Liberation, avec la hauteur de ligne calibrée sur une
- * capture iPhone réelle (service CL09, trois tranches, Pro Max) : elle
- * surestime les hauteurs, et un banc pessimiste ne valide jamais un
- * débordement.
- *
- * Les images du README prennent Inter et JetBrains Mono, plus proches de San
- * Francisco à l'œil, et une ligne plus serrée, réglée sur une capture iPhone
- * réelle d'un service de deux tranches : avec la hauteur des mesures,
- * l'image rognait le bas d'un widget qui tient entier sur le téléphone.
- *
- * Voir tools/preview/CALIBRATION.md.
- */
+// Les mesures gardent Liberation, pessimiste ; les images prennent Inter, plus proche de San Francisco. Voir CALIBRATION.md.
 export const IMAGE_FONTS = ["Inter", "JetBrains Mono"]
 
 const TYPOGRAPHY =
@@ -26,19 +12,7 @@ const LINE_HEIGHT = Number(process.env.PREVIEW_LINE_HEIGHT) || TYPOGRAPHY.lineHe
 const TRACKING = Number(process.env.PREVIEW_TRACKING)
 const LETTER_SPACING = Number.isFinite(TRACKING) ? TRACKING : -0.012
 
-/*
- * Traduction de l'arbre Scriptable en flexbox.
- *
- * Règle centrale, corrigée sur une capture iPhone : une pile ne réclame
- * l'espace disponible le long de son axe que si elle contient un ressort
- * souple **parmi ses enfants directs**. Un ressort enfoui d'un niveau ne
- * répartit que la place déjà occupée par son propre conteneur — c'est
- * exactement ce qui laissait les cases de tranches plus étroites que leur
- * carte alors que le bandeau horaires, lui, allait d'un bord à l'autre.
- *
- * La conquête ne remonte donc que sur l'axe transversal : une carte
- * verticale s'élargit parce qu'une de ses lignes s'élargit.
- */
+// Une pile ne s'étend sur son axe que si un ressort souple est parmi ses enfants directs.
 function analyze(node) {
   if (node.kind === "spacer") {
     node.flexible = node.length === undefined || node.length === null
@@ -74,8 +48,6 @@ function gradientCss(gradient) {
       return `${color.css()} ${percent.toFixed(2)}%`
     })
     .join(", ")
-  /* startPoint (0,0) → endPoint (1,1) correspond au coin haut-gauche vers
-     le coin bas-droit, soit 135deg en CSS. */
   return `background-image: linear-gradient(135deg, ${stops});`
 }
 
@@ -83,21 +55,7 @@ function boxStyle(node, parentVertical) {
   const style = []
   style.push(`display:flex`)
   style.push(`flex-direction:${node.vertical ? "column" : "row"}`)
-  /*
-   * centerAlignContent() ne centre que dans une pile horizontale.
-   *
-   * En flexbox, align-items agit sur l'axe transversal : dans une pile
-   * verticale, c'est l'axe horizontal. Le banc centrait donc horizontalement
-   * ce que l'iPhone laisse collé à gauche — une capture d'écran l'a montré
-   * sur le bloc Travail / Amplitude, que le banc annonçait pourtant centré
-   * au dixième de point près.
-   *
-   * Une pile verticale n'est donc plus centrée ici. Le sens de l'erreur
-   * redevient le bon : le banc montrera un défaut là où il n'y en a
-   * peut-être pas, plutôt que d'en cacher un. Pour centrer réellement dans
-   * une colonne, le renderer dispose d'addCenteredLine, dont les ressorts
-   * souples se comportent pareil des deux côtés.
-   */
+  // centerAlignContent() ne centre que dans une pile horizontale, comme sur iPhone.
   const centered = node.centered && !node.vertical
   style.push(`align-items:${centered ? "center" : "flex-start"}`)
   style.push(`justify-content:flex-start`)
@@ -116,7 +74,6 @@ function boxStyle(node, parentVertical) {
     style.push(`border:${node.borderWidth}px solid ${(node.borderColor || node.backgroundColor)?.css() || "transparent"}`)
   }
 
-  /* Expansion héritée de Scriptable. */
   const mainExpands = parentVertical ? node.expandsV : node.expandsH
   const crossExpands = parentVertical ? node.expandsH : node.expandsV
   if (mainExpands && !(parentVertical ? node.size?.height > 0 : node.size?.width > 0)) {
@@ -124,8 +81,6 @@ function boxStyle(node, parentVertical) {
   }
   if (crossExpands) style.push(`align-self:stretch`)
 
-  /* Une pile doit pouvoir se comprimer pour que la réduction de police
-     s'applique comme sur iOS, jamais déborder la carte. */
   style.push(`min-width:0`)
   return style.join(";")
 }
@@ -149,29 +104,11 @@ function renderNode(node, parentVertical) {
       `white-space:nowrap`,
       `overflow:hidden`,
       `min-width:0`,
-      /* San Francisco est un peu plus resserré que Liberation Sans ; ce
-         réglage rapproche les largeurs sans déformer les glyphes. */
       `letter-spacing:${(font.monospaced ? LETTER_SPACING - 0.008 : LETTER_SPACING).toFixed(4)}em`,
       `line-height:${LINE_HEIGHT}`
     ].join(";")
     const attrs = `data-fit="1" data-size="${font.size}" data-min="${node.minimumScaleFactor}"`
-    /*
-     * centerAlignText() centre les glyphes dans le cadre du texte, pas le
-     * texte dans sa colonne.
-     *
-     * Le banc étirait le texte à la largeur du parent — align-self:stretch —
-     * puis le centrait dedans : dans une pile verticale de largeur imposée,
-     * il annonçait donc un centrage que l'iPhone ne fait pas. Le bloc
-     * Travail / Amplitude de la 1.3.5 est parti en production ainsi, mesuré
-     * centré au dixième de point près, et il s'affichait collé à gauche.
-     *
-     * L'étirement ne subsiste que dans une pile horizontale, où il porte sur
-     * l'axe vertical et ne déplace donc rien horizontalement. Centrer dans
-     * une colonne se fait par addCenteredLine, dont les ressorts souples
-     * sont, eux, fidèlement reproduits — c'est ce qu'emploient le bandeau
-     * horaires et la colonne des horaires du programme, tous deux centrés
-     * sur appareil.
-     */
+    // centerAlignText() centre les glyphes dans leur cadre : jamais d'étirement dans une pile verticale.
     const width = node.align === "left" || parentVertical ? "" : "align-self:stretch;"
     return `<span ${attrs} style="${width}${style}">${escapeHtml(node.value)}</span>`
   }
@@ -194,11 +131,6 @@ function escapeHtml(value) {
   return String(value).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c])
 }
 
-/*
- * Reproduction de `minimumScaleFactor` : iOS réduit la police jusqu'à ce
- * que le texte tienne, sans jamais descendre sous le facteur donné, puis
- * tronque. Mesuré après la mise en page, comme le fait le système.
- */
 const FIT_SCRIPT = `
 (function () {
   document.querySelectorAll('[data-fit]').forEach(function (element) {
@@ -222,10 +154,6 @@ const FIT_SCRIPT = `
 })();
 `
 
-/*
- * Un widget seul, sans légende ni fond : hors des coins arrondis, l'image
- * reste transparente et se pose sur le thème clair comme sur le sombre.
- */
 export function renderImage(item) {
   return `<!doctype html><meta charset="utf-8"><style>
     * { margin:0; padding:0; }

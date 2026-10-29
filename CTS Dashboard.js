@@ -208,12 +208,7 @@ function createTelemetryRunSafely(client) {
   }
 }
 
-/*
- * Appelé sans await, volontairement : le réseau n'a jamais bloqué le
- * rendu de ce widget et ne doit pas commencer. La politique de version
- * rapportée par le serveur est simplement rangée pour le prochain
- * réveil — le contrôle, lui, ne lit que le fichier.
- */
+// Appelée sans await : le réseau ne doit jamais retarder le rendu.
 async function registerAnalytics(client) {
   if (!client || typeof client.registerDailyActivity !== "function") return
   try {
@@ -262,15 +257,6 @@ function applyContextTelemetrySafely(client, run, telemetry) {
   }
 }
 
-/*
- * Le nom et le matricule du conducteur, lus sur sa carte agent par le
- * parseur et conservés dans le service. Ils accompagnent la télémétrie
- * pour que la console d'administration nomme les collègues.
- *
- * Comme tout ce qui touche à la télémétrie ici, l'échec est silencieux :
- * une étiquette manquante ne doit jamais empêcher le widget de
- * s'afficher.
- */
 function applyDriverTelemetrySafely(client, run, driver) {
   if (!client || !run || !driver) return
   if (typeof client.setTelemetryDriver !== "function") return

@@ -1,25 +1,7 @@
-/*
- * Test des tranches, de la direction et des lieux lus sur une carte agent.
- *
- * Ce test existe à cause d'un défaut réel, arrivé jusqu'à l'écran d'un
- * conducteur le 23 septembre 2026 : sous « Direction », le widget affichait
- * « Page: 1 Hast. 2025 - Dtc_. 22/09/2026 ». C'était le pied de page que
- * HASTUS imprime au bas de la carte, lu comme un arrêt parce qu'il se
- * termine par une heure. Et la vraie direction, Lingolsheim Gare, ne
- * figurait nulle part sur la carte : le conducteur y était relevé à
- * Montagne Verte, en cours de ligne.
- *
- * La carte ci-dessous reproduit ce que le moteur PDF a rendu de la carte
- * réelle, en-tête de voiture déjà remis dans l'ordre. Le service, la date
- * et le conducteur sont inventés : un dépôt public n'a pas à porter les
- * siens.
- */
-
 import fs from "node:fs"
 import path from "node:path"
 import { importFrom, isolatedModule, repository } from "./sandbox.mjs"
 
-/* Les bases sont lues depuis le dépôt, jamais recopiées ici. */
 function resource(name) {
   return fs.readFileSync(path.join(repository, name), "utf8")
 }
@@ -36,7 +18,6 @@ function loadModule(name) {
 
 const fileName = target => String(target).replace(/^.*\//, "")
 
-/* Une base nommée ici se lit comme absente de l'iPhone. */
 const missingResources = new Set()
 
 const loaded = {}
@@ -154,13 +135,7 @@ MONTAGNE VERTE (arrivée V.2) 17:46
 MONTAGNE VERTE (arrivée V.2) 17:46
 ${FOOTER}`
 
-/*
- * Le 26 octobre 2026, un conducteur a attendu sa relève du mauvais côté de
- * la rue : sa seconde tranche, sur la même voiture que la première, portait
- * la direction du matin, Lingolsheim Gare, pour un bus qui partait vers
- * Jardin des Deux Rives. La carte ci-dessous reprend la sienne, abrégée,
- * sous un service, une date et un conducteur inventés.
- */
+// Service, date et conducteur inventés : un dépôt public ne porte aucune carte réelle.
 const SAME_VEHICLE_CARD = `CTS
 Type
 jrn.
@@ -213,10 +188,6 @@ MONTAGNE VERTE (arrivée V.2) 16:50
 MONTAGNE VERTE (arrivée V.2) 16:50
 ${FOOTER}`
 
-/*
- * Chaque cas dit la carte lue et les directions que le conducteur doit
- * lire, tranche par tranche.
- */
 const cases = [
   {
     name: "la carte telle que le moteur PDF l'a rendue",
@@ -229,20 +200,11 @@ const cases = [
     expected: ["Boecklin", "Schiltigheim Campus", "Lingolsheim Gare"]
   },
   {
-    /*
-     * Une carte de deux pages porte un pied de page au milieu d'une
-     * section. Posé juste avant l'activité suivante, il était le dernier
-     * arrêt du trajet.
-     */
     name: "un changement de page au bout du premier trajet",
     card: CARD.replace("BOECKLIN 7:48\n", `BOECKLIN 7:48\n${FOOTER}\n`),
     expected: ["Boecklin", "Schiltigheim Campus", "Lingolsheim Gare"]
   },
   {
-    /*
-     * La ligne 40 a des trajets partiels : la déduction y serait fausse,
-     * et le dernier arrêt desservi reste la meilleure réponse.
-     */
     name: "une relève en cours de ligne sur une ligne sans terminus connus",
     card: CARD.replace("02 - 16 16:31", "40 - 16 16:31")
       .replace("Voiture 02 - 16", "Voiture 40 - 16")
@@ -281,13 +243,6 @@ for (const { name, card, expected } of cases) {
   }
 }
 
-/*
- * Une tranche dont la ligne d'en-tête échappait au motif disparaissait
- * sans un mot : un code de relève de neuf lettres, ou portant un chiffre,
- * et le widget affichait un service amputé d'une prise. Chaque cas dit les
- * voitures lues et les erreurs attendues ; une section de voiture sans sa
- * tranche doit faire refuser la carte.
- */
 const SLICE_ROW = "04 - 6 13:16 ELME_A 13:16 15:28 ELME_A 15:38"
 const SECOND_RUN_ROW = "04 - 6 16:31 ELS 16:31 17:46 MOVE_C 17:46"
 const TWICE_CARD = CARD.replace("02 - 16 16:31 ELS 16:31 17:46 MOVE_C 17:46", SECOND_RUN_ROW).replace(
@@ -349,13 +304,6 @@ for (const { name, card, vehicles, errors } of sliceCases) {
   }
 }
 
-/*
- * Le 28 septembre 2026, le widget a nommé « Code ANKARA » le début et la
- * fin d'une tranche : le code de relève manquait aux bases. La carte
- * imprime le nom de l'arrêt dans la section de la voiture, et c'est lui
- * qui doit s'afficher, le lieu restant signalé pour qu'on l'ajoute à
- * places.json.
- */
 const UNKNOWN_CODE = "ZZZZ_A"
 const UNKNOWN_WARNING = "Lieu inconnu dans la tranche 2"
 
@@ -402,17 +350,11 @@ for (const { name, card, expected, warned } of placeCases) {
     failures.push(`${name} : ${warned ? "lieu inconnu non signalé" : "lieu connu signalé inconnu"}`)
   }
 
-  /* C'est ce décompte, et non le texte de l'avertissement, que le widget transmet. */
   if (service.validation.slicesWithUnknownPlace !== (warned ? 1 : 0)) {
     failures.push(`${name} : ${service.validation.slicesWithUnknownPlace} tranche(s) au lieu inconnu comptée(s)`)
   }
 }
 
-/*
- * Sans places.json, tous les lieux sont inconnus : le décompte qui part
- * vers la console doit rester nul, sans quoi l'incident enverrait
- * compléter une base qui connaît déjà ces lieux.
- */
 missingResources.add("places.json")
 await DATABASE.reload()
 const withoutPlaces = await PARSER.parseService(CARD)
@@ -426,15 +368,6 @@ if (withoutPlaces.validation.slicesWithUnknownPlace !== 0) {
   )
 }
 
-/*
- * PDF.js a rendu « ROBERTSAU ST ANNE 30 passage11:39 », sans blanc avant
- * l'heure, sur la carte réelle du 28 septembre 2026 : l'arrêt était
- * ignoré. Il y tombait en milieu de trajet. L'extrait ci-dessous, repris
- * de cette carte, coupe la tranche sur lui, pour qu'il soit à la fois le
- * dernier arrêt du premier trajet — il donne la direction, la ligne 30
- * n'ayant pas de terminus connus — et la fin d'une tranche au code de
- * relève inconnu, qu'il doit nommer.
- */
 const GLUED_STOP = "ROBERTSAU ST ANNE 30 passage11:39"
 
 const GLUED_CARD = `CTS
@@ -461,11 +394,6 @@ const gluedCases = [
     expected: "Robertsau Sainte-Anne · direction Robertsau Sainte-Anne"
   },
   {
-    /*
-     * HOMME DE FER V1 collé à 6:05 donne « V16:05 », que rien ne
-     * distingue de V à 16:05 : la ligne reste ignorée, comme avant,
-     * plutôt que de nommer un arrêt « Homme de Fer V ».
-     */
     name: "une heure collée à un nom qui finit par un chiffre",
     card: GLUED_CARD.replace(GLUED_STOP, "HOMME DE FER V16:05"),
     expected: `Code ${UNKNOWN_CODE} · direction Clinique Sainte-Anne`
@@ -485,13 +413,6 @@ for (const { name, card, expected } of gluedCases) {
   }
 }
 
-/*
- * Le 12 octobre 2026, une carte de journée de type C a été refusée tout
- * entière, « Numéro de service introuvable » : son numéro porte un suffixe,
- * « P2 », après les chiffres. Tout le reste de la carte se lisait. La
- * carte ci-dessous en reprend la forme, abrégée, sous un service, une date
- * et un conducteur inventés.
- */
 const C_CARD = `CTS
 Type
 jrn.
@@ -527,11 +448,6 @@ ELSAU 12:32
 ELSAU 12:32
 ${FOOTER}`
 
-/*
- * Le suffixe commence par une lettre : un quatrième chiffre n'en est pas
- * un, et la carte reste refusée comme avant, plutôt que de lire un numéro
- * dont rien ne dit où il finit.
- */
 const serviceCases = [
   {
     name: "un numéro de service sans suffixe",
@@ -580,11 +496,6 @@ for (const { name, card, number, slices, errors } of serviceCases) {
   }
 }
 
-/*
- * Un terminus mal orthographié ne casse rien de visible : la déduction ne
- * se fait plus, en silence. Chaque terminus doit donc être un arrêt que
- * stops.json connaît, et chaque ligne en déclarer exactement deux.
- */
 let terminiCount = 0
 
 for (const [code, entry] of Object.entries(JSON.parse(RESOURCES["lines.json"]))) {
