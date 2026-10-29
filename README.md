@@ -283,8 +283,9 @@ installation, il fonctionne normalement.
 #### Réparer un installateur bloqué
 
 Si CTS Installer s'arrête sur **Opération impossible** avant d'avoir affiché
-sa liste de fichiers, c'est l'installateur lui-même qui est en cause, et il
-ne peut pas se remplacer tout seul. Le script **CTS Repair** existe pour ce
+sa liste de fichiers — hors refus de GitHub, que l'alerte dit comme tel —,
+c'est l'installateur lui-même qui est en cause, et il ne peut pas se
+remplacer tout seul. Le script **CTS Repair** existe pour ce
 seul cas :
 
 1. ouvrir le fichier [`CTS Repair.js`](CTS%20Repair.js) du dépôt, puis
@@ -306,12 +307,13 @@ l'ancien installateur en place si l'écriture échoue.
 |---|---|
 | Le widget affiche « Aucun PDF » | déposer la carte d'agent dans `Services` ; si elle y est déjà, attendre qu'iCloud finisse de la synchroniser, puis toucher le widget |
 | Le widget affiche « Lecture en attente », ou l'icône de plateau | rien n'est perdu : la carte sera lue au réveil suivant, ou tout de suite en touchant le widget |
+| Le widget affiche « Synchronisation iCloud » | rien à faire : la liste des services n'est pas encore arrivée sur cet iPhone, et le widget réessaie tout seul |
 | Le widget affiche « Aucun service exploitable » | la carte déposée n'a pas été reconnue : vérifier que c'est bien une carte d'agent PDF, puis lancer **Diagnostic** |
 | Le widget affiche « Mise à jour requise » | lancer CTS Installer et accepter la mise à jour : la version installée est passée sous le plancher |
-| CTS Installer refuse de se lancer, ou s'arrête sur « Opération impossible » | [réparer un installateur bloqué](#réparer-un-installateur-bloqué) |
+| CTS Installer s'arrête sur « Opération impossible » et dit que votre installation n'est pas en cause | rien n'est en panne : relancer CTS Installer plus tard, à l'heure indiquée s'il en donne une, ou tout de suite en passant du Wi-Fi aux données mobiles |
+| CTS Installer refuse de se lancer, ou s'arrête sur « Opération impossible » pour une autre raison | [réparer un installateur bloqué](#réparer-un-installateur-bloqué) |
 | Un service retiré réapparaît | la carte est encore dans `Services` : la supprimer, ou passer par **Retirer un service** |
 | Un refus temporaire de GitHub pendant une mise à jour | couper le Wi-Fi, puis relancer CTS Installer |
-
 #### Diagnostic
 
 Quand le dépannage rapide ne suffit pas :

@@ -18,9 +18,9 @@ const ENGINE_FILE = 'CTS PDF Engine.js'
 const REGISTRY_URL = 'https://registry.npmjs.org/pdfjs-dist'
 const LIBRARY_FILES = ['pdf.min.mjs', 'pdf.worker.min.mjs']
 
-// Le même plancher que celui du validateur : en dessous, ce n'est pas une
-// bibliothèque, c'est une page d'erreur.
-const MINIMUM_LIBRARY_BYTES = 40 * 1024
+// Le même plancher que le moteur et l'installateur, et le validateur refuse
+// qu'il s'en écarte : en dessous, ce n'est pas une bibliothèque complète.
+const MINIMUM_LIBRARY_BYTES = 100 * 1024
 
 // La même adresse que celle du moteur. Les deux doivent rester d'accord :
 // le moteur télécharge ici quand un fichier manque sur l'appareil.

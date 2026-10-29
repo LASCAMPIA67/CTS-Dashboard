@@ -529,3 +529,21 @@ décision lui est antérieure.
   changement d'écran. Seul un index que l'iPhone détient et ne sait pas
   lire reste invalide. Complète la décision du 15 septembre, qui refusait
   un index illisible sans distinguer celui qui n'est pas encore arrivé.
+- 2026-10-29 — Quand GitHub refuse une vérification parce que le réseau a
+  épuisé son compte horaire, ou demande une pause de plus de quelques
+  secondes, CTS Installer s'arrête sans réessayer et dit l'heure de
+  reprise, sans envoyer vérifier la connexion Internet. GitHub compte les
+  appels anonymes par adresse, et les collègues d'un même Wi-Fi se
+  partagent ce compte ; il demande de ne rien retenter avant l'heure qu'il
+  donne, et l'installateur accusait une connexion qui marchait. Une pause
+  de quelques secondes s'attend sur place, et les refus brefs gardent
+  leurs nouvelles tentatives : renvoyer le collègue relancer coûterait
+  plus que l'attente. Épuisées, elles ne renvoient plus vérifier la
+  connexion non plus. Accord du mainteneur sur ces changements d'écran.
+- 2026-10-29 — Une bibliothèque PDF.js n'est complète qu'à partir de
+  100 Ko, pour le moteur comme pour l'installateur et la veille, et la
+  validation refuse qu'ils divergent. Le moteur se contentait de 40 Ko : un
+  fichier tronqué entre les deux passait pour installé dans le widget et
+  pour défaillant dans le Diagnostic. Le plancher le plus strict l'emporte,
+  parce que les deux fichiers pèsent l'un un demi-mégaoctet, l'autre plus
+  d'un, et qu'il était déjà celui de l'installateur.

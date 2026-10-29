@@ -28,7 +28,7 @@ const WORKER = `${ENGINE}/pdf.worker.min.mjs`
 const METADATA = `${ENGINE}/engine.json`
 
 /*
- * Le moteur juge une bibliothèque sur sa taille : en deçà de 40 ko, il la
+ * Le moteur juge une bibliothèque sur sa taille : en deçà de 100 ko, il la
  * refuse. Les doublures raisonnent donc en kilo-octets, comme Scriptable.
  */
 const VALID_SIZE_KB = 400
