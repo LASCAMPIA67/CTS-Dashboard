@@ -2,7 +2,7 @@
 // These must be at the very top of the file. Do not edit.
 // icon-color: red; icon-glyph: arrow.down.circle.fill;
 
-const INSTALLER_VERSION = "1.0.33"
+const INSTALLER_VERSION = "1.0.34"
 
 const REPO = {
   owner: "LASCAMPIA67",
@@ -3929,25 +3929,20 @@ async function withThrottleRetry(operation) {
         break
       }
 
-      await sleep(THROTTLE_RETRY_DELAYS[attempt])
+      await sleep(Math.max(THROTTLE_RETRY_DELAYS[attempt], Number(error?.retryAfter) || 0))
     }
   }
 
   throw isThrottled(lastError)
-    ? new Error(
-        [
-          "GitHub a temporairement mis votre connexion de côté.",
-          "",
-          "Votre installation n’est pas en cause et rien n’est perdu.",
-          "Patientez quelques minutes, ou passez du Wi-Fi aux données",
-          "mobiles, puis relancez CTS Installer."
-        ].join("\n")
+    ? githubRefusal(
+        "GitHub a temporairement mis votre connexion de côté.",
+        "Patientez quelques minutes, ou passez du Wi-Fi aux données mobiles, puis relancez CTS Installer."
       )
     : lastError
 }
 
 function isThrottled(error) {
-  return /HTTP (429|503)/i.test(messageOf(error))
+  return Number(error?.retryAfter) > 0 || /HTTP (429|503)/i.test(messageOf(error))
 }
 
 function loadManifest() {
@@ -4326,6 +4321,11 @@ async function fetchRepositoryRevision() {
   }
 
   const status = Number(request.response?.statusCode)
+  const refusal = rateLimitRefusal(request, status)
+
+  if (refusal) {
+    throw refusal
+  }
 
   if (Number.isFinite(status) && (status < 200 || status >= 300)) {
     throw new Error(
@@ -4350,6 +4350,104 @@ async function fetchRepositoryRevision() {
   }
 
   return sha
+}
+
+/*
+ * L'API de GitHub limite les appels sans authentification à soixante par
+ * heure et par adresse IP : sur le Wi-Fi d'un dépôt, les collègues se
+ * partagent ce compte. Une limite atteinte se dit par un 403 ou un 429 :
+ * retry-after y donne le nombre de secondes à attendre, et sinon
+ * x-ratelimit-remaining à 0 dit le compte épuisé, x-ratelimit-reset l'heure
+ * où il revient. La page demande de ne rien retenter avant
+ * (docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
+ * Le 403 sortait en « réponse HTTP 403 », sans reprise, et l'alerte envoyait
+ * vérifier une connexion qui marchait.
+ */
+function rateLimitRefusal(request, status) {
+  if (status !== 403 && status !== 429) {
+    return null
+  }
+
+  const pause = Number(responseHeader(request, "retry-after")) * 1000
+
+  if (pause > 0) {
+    return pause <= Math.max(...THROTTLE_RETRY_DELAYS)
+      ? shortPause(pause, status)
+      : rateLimitError(
+          "GitHub demande une pause avant la prochaine vérification depuis ce réseau.",
+          new Date(Date.now() + pause)
+        )
+  }
+
+  if (responseHeader(request, "x-ratelimit-remaining") !== "0") {
+    return null
+  }
+
+  return rateLimitError(
+    "GitHub limite le nombre de vérifications par heure depuis ce réseau, et la limite est atteinte.",
+    new Date(Number(responseHeader(request, "x-ratelimit-reset")) * 1000)
+  )
+}
+
+/*
+ * Quelques secondes s'attendent sur place : renvoyer le collègue relancer
+ * lui-même coûterait plus que l'attente. withThrottleRetry ne retente
+ * alors pas avant la fin de la pause.
+ */
+function shortPause(milliseconds, status) {
+  const error = new Error(
+    `Impossible de déterminer la version GitHub actuelle : réponse HTTP ${status}`
+  )
+
+  error.retryAfter = milliseconds
+
+  return error
+}
+
+/*
+ * La documentation de Request ne dit pas la casse des en-têtes, et HTTP les
+ * tient pour insensibles à la casse (RFC 9110, section 5.1).
+ */
+function responseHeader(request, name) {
+  const headers = request.response?.headers
+
+  if (!isRecord(headers)) {
+    return ""
+  }
+
+  const key = Object.keys(headers).find(candidate => candidate.toLowerCase() === name)
+
+  return key === undefined ? "" : String(headers[key]).trim()
+}
+
+/*
+ * Sans heure de reprise lisible, la fenêtre de la limite est d'une heure au
+ * plus. Une heure déjà passée vient d'un iPhone en avance sur l'horloge de
+ * GitHub : relancer aussitôt essuierait le même refus.
+ */
+function rateLimitError(reason, resumeAt) {
+  const readable = resumeAt.getTime() > 0 ? resumeAt.getTime() : Date.now() + 60 * 60 * 1000
+  const minute = new Date(Math.ceil(Math.max(readable, Date.now() + 60 * 1000) / 60000) * 60000)
+  const clock = `${minute.getHours()} h ${String(minute.getMinutes()).padStart(2, "0")}`
+
+  return githubRefusal(
+    reason,
+    `Relancez CTS Installer après ${clock}, ou passez du Wi-Fi aux données mobiles.`
+  )
+}
+
+/*
+ * Un refus de GitHub n'est pas une coupure réseau : l'alerte ne doit pas
+ * envoyer vérifier la connexion.
+ */
+function githubRefusal(reason, advice) {
+  const error = new Error(
+    [reason, "", "Votre installation n’est pas en cause et rien n’est perdu.", advice].join("\n")
+  )
+
+  error.connectionUnrelated = true
+
+  return error
 }
 
 async function downloadText(url, label) {
@@ -4403,11 +4501,11 @@ async function confirm(title, message, action, destructive = false) {
 async function errorAlert(error) {
   const alert = new Alert()
   alert.title = "Opération impossible"
-  alert.message = [
-    messageOf(error),
-    "",
-    "Vérifiez votre connexion Internet puis relancez CTS Installer."
-  ].join("\n")
+  const advice = error?.connectionUnrelated
+    ? []
+    : ["", "Vérifiez votre connexion Internet puis relancez CTS Installer."]
+
+  alert.message = [messageOf(error), ...advice].join("\n")
   alert.addAction("OK")
   await alert.present()
 }

@@ -333,3 +333,38 @@ encadré « Announcements » · lu le 29/10/2026
 La même page liste, pour l'image `20261026.180.1`, Git 2.56.0 et GitHub
 CLI 2.103.2. Les workflows des deux dépôts n'emploient rien d'autre de la
 machine : Node vient de `setup-node`. Ils gardent donc `ubuntu-latest`.
+
+## Sans authentification, l'API compte soixante appels par heure et par adresse
+
+> « Unauthenticated requests are associated with the originating IP
+> address, not with the user or application that made the request. »
+
+> « The primary rate limit for unauthenticated requests is 60 requests per
+> hour. »
+
+> « If you exceed your primary rate limit, you will receive a `403` or
+> `429` response, and the `x-ratelimit-remaining` header will be `0`. You
+> should not retry your request until after the time specified by the
+> `x-ratelimit-reset` header. »
+
+> « If the `retry-after` response header is present, you should not retry
+> your request until after that many seconds has elapsed. […] Otherwise,
+> wait for at least one minute before retrying. »
+
+`docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api`
+· lu le 29/10/2026
+
+CTS Installer appelle l'API une fois par lancement, pour la révision du
+dépôt (`fetchRepositoryRevision`) ; les fichiers viennent de
+`raw.githubusercontent.com`, que la page ne couvre pas. Constat de
+lecture du code. Les collègues d'un même Wi-Fi se partagent donc les
+soixante appels de l'heure.
+
+Depuis la 1.0.34, l'installateur respecte `retry-after` — il attend sur
+place jusqu'à neuf secondes, et au-delà s'arrête en donnant l'heure — et
+s'arrête sur un compte à zéro jusqu'à `x-ratelimit-reset`. Reste un
+écart : une limite secondaire sans `retry-after` ni compte à zéro, que la
+page ne reconnaît qu'à son message d'erreur, n'est pas traitée comme
+telle, et un 429 sans en-tête est retenté au bout d'une seconde et demie,
+non d'une minute. Un appel par lancement ne devrait pas atteindre une
+limite secondaire : c'est une estimation, pas une citation.

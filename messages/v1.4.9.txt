@@ -1,0 +1,21 @@
+*CTS DASHBOARD 1.4.9*
+
+Le widget et l'installateur vous disent maintenant quand il suffit d'attendre, au lieu d'afficher une erreur.
+
+• *Widget qui patiente* — Quand il attend encore la liste de vos services, le widget le dit et réessaie tout seul, au lieu d'afficher « Erreur d'analyse PDF ».
+
+• *Installateur plus clair* — Quand il doit patienter, CTS Installer indique l'heure à laquelle le relancer, au lieu de vous envoyer vérifier votre connexion Internet.
+
+• *Corrections de bugs* — La liste de vos services et la lecture de vos cartes agent sont plus fiables.
+
+*METTRE À JOUR*
+1. Ouvrez *Scriptable*
+2. Lancez *CTS Installer*
+3. S'il propose _« Installer 1.0.34 »_, acceptez, puis fermez l'écran : il se rouvre seul
+4. _« Mettre à jour vers 1.4.9 »_
+5. Attendez _« 22/22 fichiers valides »_
+
+Vos cartes agent et vos archives sont conservées.
+
+*Version actuelle : CTS Dashboard 1.4.9*
+*CTS Installer : 1.0.34*

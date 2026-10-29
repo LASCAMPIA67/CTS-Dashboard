@@ -52,8 +52,10 @@ directement, pas d'une page de documentation.
 
 Constat de lecture du dépôt, non documenté ailleurs :
 `isValidLibraryFile` — `CTS PDF Engine.js:144` — ne contrôle que deux
-choses, l'existence du fichier et sa taille minimale de 40 Ko. Le
-numéro de version n'entre nulle part dans la décision.
+choses, l'existence du fichier et sa taille minimale de 100 Ko — le
+plancher de CTS Installer et de la validation, qui refuse qu'ils
+divergent ; il était de 40 Ko jusqu'au 29/10/2026. Le numéro de version
+n'entre nulle part dans la décision.
 
 Conséquence : changer `PDFJS_VERSION` seul ne change rien sur un iPhone
 où la bibliothèque est déjà posée — le moteur ne la retélécharge que si

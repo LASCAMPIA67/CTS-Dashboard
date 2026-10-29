@@ -16,7 +16,7 @@ const EXPECTED_SCRIPTS = 17
 const EXPECTED_RESOURCES = 5
 const INSTALLER_FILE = 'CTS Installer.js'
 const METADATA_MARKER = '// Variables used by Scriptable.'
-const MINIMUM_LIBRARY_BYTES = 40 * 1024
+const MINIMUM_LIBRARY_BYTES = 100 * 1024
 
 // Fichiers .js présents à la racine sans faire partie du manifeste mais
 // bel et bien destinés aux collègues : CTS Installer, qu'ils téléchargent
@@ -605,6 +605,21 @@ const pdfjsVersion = engine.match(/const PDFJS_VERSION\s*=\s*\n?\s*"([^"]+)"/)
 
 if (!pdfjsVersion) {
   fail('PDFJS_VERSION est introuvable dans CTS PDF Engine.js')
+}
+
+// Le moteur, l'installateur et la veille jugent une bibliothèque sur sa
+// taille, chacun avec sa constante : le moteur acceptait jusqu'à 40 Ko ce
+// que l'installateur refusait sous 100, et rien ne voyait l'écart.
+for (const [file, pattern] of [
+  ['CTS PDF Engine.js', /const MINIMUM_LIBRARY_SIZE_KB = (\d+)/],
+  [INSTALLER_FILE, /const MINIMUM_LIBRARY_KILOBYTES = (\d+)/],
+  ['.github/scripts/pdfjs-watch.mjs', /const MINIMUM_LIBRARY_BYTES = (\d+) \* 1024/]
+]) {
+  const floor = read(file).match(pattern)
+
+  if (!floor || Number(floor[1]) * 1024 !== MINIMUM_LIBRARY_BYTES) {
+    fail(`${file} ne juge pas PDF.js sur le plancher de ${MINIMUM_LIBRARY_BYTES / 1024} Ko`)
+  }
 }
 
 for (const file of ['pdf.min.mjs', 'pdf.worker.min.mjs']) {

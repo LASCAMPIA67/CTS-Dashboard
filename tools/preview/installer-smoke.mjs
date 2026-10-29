@@ -59,6 +59,8 @@ async function runAction(
     seed = true,
     forbidden = null,
     throttle = 0,
+    rateLimit = null,
+    retriedAfter = 0,
     expected = null,
     absent = null,
     installedVersion = null,
@@ -86,11 +88,13 @@ async function runAction(
   } = {}
 ) {
   /*
-   * Nombre de réponses 429 servies avant la première réponse utile, pour
-   * rejouer une adresse mise de côté par GitHub.
+   * Nombre de refus servis avant la première réponse utile, pour rejouer
+   * une adresse mise de côté par GitHub : un 429 nu, ou la réponse de
+   * limite du scénario.
    */
   let remainingThrottled = throttle
   let networkAttempts = 0
+  const apiCalls = []
   const sandboxRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cts-smoke-"))
   const docs = path.join(sandboxRoot, "Documents")
   /* La bibliothèque locale de Scriptable, où vivent les deux PDF.js. */
@@ -488,10 +492,16 @@ async function runAction(
       async loadString() {
         networkAttempts++
 
+        if (this.url.includes("api.github.com")) {
+          apiCalls.push(Date.now())
+        }
+
         if (remainingThrottled > 0) {
           remainingThrottled--
-          this.response = { statusCode: 429 }
-          return "429: Too Many Requests"
+          this.response = rateLimit || { statusCode: 429 }
+          return rateLimit
+            ? JSON.stringify({ message: "API rate limit exceeded" })
+            : "429: Too Many Requests"
         }
 
         if (this.url.includes("api.github.com")) {
@@ -644,9 +654,14 @@ async function runAction(
 
   /*
    * Le crédit doit être identifiable sur les écrans de gestion : menu,
-   * vérification, mise à jour, installation, diagnostic.
+   * vérification, mise à jour, installation, diagnostic. Un refus de GitHub
+   * arrête l'installateur avant le premier d'entre eux : il n'a montré
+   * qu'une alerte.
    */
-  if (!shown.some(text => /Créé et développé par Emilio IPPOLITO/.test(text))) {
+  if (
+    (tables.length || !(aborts && throttle)) &&
+    !shown.some(text => /Créé et développé par Emilio IPPOLITO/.test(text))
+  ) {
     failures.push("aucun crédit d'auteur affiché sur cet écran de gestion")
   }
 
@@ -692,9 +707,25 @@ async function runAction(
     failures.push(`écran qui n’aurait pas dû être atteint : ${absent}`)
   }
 
-  if (throttle && networkAttempts <= throttle) {
+  if (throttle && !aborts && networkAttempts <= throttle) {
     failures.push(
-      `aucune reprise après ${throttle} réponse(s) 429 : ${networkAttempts} tentative(s)`
+      `aucune reprise après ${throttle} refus de GitHub : ${networkAttempts} tentative(s)`
+    )
+  }
+
+  /*
+   * Arrêté sur un refus, l'installateur n'a rien retenté après lui : la
+   * page de GitHub interdit de retenter avant l'heure de reprise.
+   */
+  if (throttle && aborts && networkAttempts !== throttle) {
+    failures.push(`${networkAttempts} appel(s) pour ${throttle} refus de GitHub servi(s)`)
+  }
+
+  /* Le délai réellement attendu, à l'arrondi de l'horloge près. */
+  if (retriedAfter && !(apiCalls.length > 1 && apiCalls[1] - apiCalls[0] >= retriedAfter - 50)) {
+    failures.push(
+      `pause demandée par GitHub non respectée : ${apiCalls.length} appel(s), ` +
+        `${apiCalls.length > 1 ? apiCalls[1] - apiCalls[0] : 0} ms d'écart au lieu de ${retriedAfter}`
     )
   }
 
@@ -903,6 +934,16 @@ async function runAction(
   fs.rmSync(sandboxRoot, { recursive: true, force: true })
   return [...new Set(failures)]
 }
+
+/*
+ * GitHub rend son compte quarante secondes avant une minute ronde :
+ * l'alerte doit annoncer cette minute-là, ni la précédente, déjà trop tôt,
+ * ni une heure tirée d'ailleurs.
+ */
+const RATE_LIMIT_RESUME = new Date(Math.ceil(Date.now() / 60000 + 25) * 60000)
+const RATE_LIMIT_RESET_SECONDS = RATE_LIMIT_RESUME.getTime() / 1000 - 40
+const RATE_LIMIT_CLOCK =
+  `${RATE_LIMIT_RESUME.getHours()} h ${String(RATE_LIMIT_RESUME.getMinutes()).padStart(2, "0")}`
 
 /*
  * Le diagnostic d'une installation saine ne doit accuser personne. Un
@@ -1143,6 +1184,72 @@ const scenarios = [
    */
   { label: "reprise après un refus temporaire de GitHub", choice: 0, throttle: 1 },
   /*
+   * Les collègues d'un même Wi-Fi se partagent les soixante appels par heure
+   * que GitHub accorde sans authentification. Le 403 qui dit la limite
+   * atteinte sortait en « réponse HTTP 403 », et l'alerte envoyait vérifier
+   * une connexion qui marchait. Les en-têtes portent ici des majuscules, que
+   * la page de GitHub n'écrit pas : la lecture ne doit pas dépendre de leur
+   * casse.
+   */
+  {
+    label: "limite horaire de GitHub dite comme telle",
+    choice: 0,
+    throttle: 1,
+    rateLimit: {
+      statusCode: 403,
+      headers: {
+        "X-RateLimit-Remaining": "0",
+        "X-RateLimit-Reset": String(RATE_LIMIT_RESET_SECONDS)
+      }
+    },
+    aborts: true,
+    expected: [
+      /GitHub limite le nombre de vérifications par heure/,
+      new RegExp(`Relancez CTS Installer après ${RATE_LIMIT_CLOCK},`)
+    ],
+    absent: /Vérifiez votre connexion Internet/
+  },
+  /*
+   * Une limite secondaire donne sa pause en secondes. Quelques secondes
+   * s'attendent sur place, jamais moins que demandé…
+   */
+  {
+    label: "courte pause demandée par GitHub respectée",
+    choice: 0,
+    throttle: 1,
+    rateLimit: { statusCode: 429, headers: { "Retry-After": "2" } },
+    retriedAfter: 2000
+  },
+  /*
+   * … et des pauses qui se répètent finissent par arrêter l'installateur,
+   * sur un refus de GitHub et non sur une coupure réseau.
+   */
+  {
+    label: "pauses répétées de GitHub dites comme telles",
+    choice: 0,
+    throttle: 4,
+    rateLimit: { statusCode: 403, headers: { "Retry-After": "1" } },
+    aborts: true,
+    expected: /GitHub a temporairement mis votre connexion de côté/,
+    absent: /Vérifiez votre connexion Internet/
+  },
+  /* Au-delà de quelques secondes, l'alerte donne l'heure, sans parler de limite horaire. */
+  {
+    label: "longue pause demandée par GitHub dite comme telle",
+    choice: 0,
+    throttle: 1,
+    rateLimit: {
+      statusCode: 403,
+      headers: { "Retry-After": "600", "X-RateLimit-Remaining": "12" }
+    },
+    aborts: true,
+    expected: [
+      /GitHub demande une pause avant la prochaine vérification/,
+      /Relancez CTS Installer après \d{1,2} h \d{2},/
+    ],
+    absent: /par heure|Vérifiez votre connexion Internet/
+  },
+  /*
    * Second verrou : une installation en retard ne doit pas pouvoir
    * atteindre le menu. C'est le seul contrôle qui rattrape les versions
    * trop anciennes pour se surveiller elles-mêmes, puisque ce n'est plus
@@ -1309,6 +1416,8 @@ for (const scenario of scenarios) {
     seed: scenario.seed !== false,
     forbidden: scenario.forbidden || null,
     throttle: scenario.throttle || 0,
+    rateLimit: scenario.rateLimit || null,
+    retriedAfter: scenario.retriedAfter || 0,
     expected: scenario.expected || null,
     absent: scenario.absent || null,
     installedVersion: scenario.installedVersion || null,
