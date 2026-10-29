@@ -19,6 +19,7 @@ const ON_DUTY_STATES = ["WORK", "PAUSE", "CUT"]
 const PENDING_SCAN_REFRESH_MS = 60 * 1000
 const FAILED_SCAN_REFRESH_MS = 5 * 60 * 1000
 const MAX_TELEMETRY_ISSUES = 12
+const INDEX_AWAITING_ICLOUD_CODE = "SERVICE_INDEX_ICLOUD_DOWNLOAD_FAILED"
 
 /*
  * Les codes qui décrivent la même panne sous deux noms.
@@ -359,6 +360,28 @@ function buildMissingServiceContext(resolution, cleanup, currentDate) {
   const scanResult = resolution?.scanResult
   const telemetry = buildContextTelemetry(resolution, cleanup, false)
   const scanError = String(resolution?.scanError || "").trim()
+
+  /*
+   * Le balayage lit l'index avant tout PDF : un index qu'iCloud n'a pas
+   * encore rendu l'arrête là. « Erreur d'analyse PDF » faisait croire à une
+   * carte agent en cause, alors qu'il n'y a qu'une synchronisation à attendre.
+   */
+  if (
+    [resolution?.scanTelemetryCode, resolution?.selectionTelemetryCode].includes(
+      INDEX_AWAITING_ICLOUD_CODE
+    )
+  ) {
+    return failure(
+      "Synchronisation iCloud",
+      [
+        "La liste de tes services n’est pas encore arrivée d’iCloud sur cet iPhone.",
+        "",
+        "Le widget attend la synchronisation et réessaie tout seul."
+      ].join("\n"),
+      currentDate,
+      telemetry
+    )
+  }
 
   if (scanError) {
     return failure(

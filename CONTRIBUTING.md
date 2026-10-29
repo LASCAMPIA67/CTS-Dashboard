@@ -224,10 +224,10 @@ casse à l'exécution. **Chacun est né d'un défaut réel.**
 | `dashboard-smoke` | un widget blanc, vide, ou rendu dans une taille non prévue, un réveil trop tardif en service ou après une panne |
 | `scan-smoke` | une carte agent détectée mais jamais importée, un verrou écrit dans iCloud, une carte lue de travers jamais relue, ou relue à chaque réveil |
 | `selection-smoke` | le mauvais service retenu à cheval sur minuit |
-| `storage-smoke` | un fichier lisible qu'iCloud refuse de confirmer, une écriture interrompue ou posée incomplète, un journal d'import qui perd son histoire, une patience iCloud trop courte ou trop longue pour un widget, un verrou périmé qui bloque encore |
-| `cleanup-smoke` | un PDF jamais archivé, un cache effacé trop tôt |
+| `storage-smoke` | un fichier lisible qu'iCloud refuse de confirmer, une écriture interrompue ou posée incomplète, un journal d'import qui perd son histoire, une patience iCloud trop courte ou trop longue pour un widget, un verrou périmé qui bloque encore, un index qu'iCloud n'a pas encore rendu annoncé corrompu |
+| `cleanup-smoke` | un PDF jamais archivé, un cache effacé trop tôt, un service importé pendant l'entretien effacé de l'index |
 | `residue-smoke` | une copie de sécurité orpheline effacée alors qu'elle était le dernier exemplaire |
-| `removal-smoke` | un service retiré qui emporte les fichiers d'un autre, ou qu'iCloud fait disparaître à tort |
+| `removal-smoke` | un service retiré qui emporte les fichiers d'un autre, ou qu'iCloud fait disparaître à tort, un service importé pendant le retrait qui disparaît avec lui |
 | `interruption-smoke` | une interruption nommée « pause » par le programme et « coupure » par la pastille d'état, un service d'après minuit mal compté, un tram dessiné comme un bus |
 | `version-gate-smoke` | un widget bloqué à tort parce qu'il est hors ligne, ou qu'un plancher a été publié de travers |
 | `database-smoke` | un arrêt affiché sous forme de code, une ligne de tram oubliée |
@@ -239,7 +239,7 @@ casse à l'exécution. **Chacun est né d'un défaut réel.**
 | `repair-smoke` | un dépannage qui laisse l'iPhone sans installateur, ou avec un installateur tronqué |
 | `telemetry-smoke` | un jour de repos compté comme une panne dans le taux de succès de la flotte |
 | `pdf-engine-smoke` | un fichier que personne ne lit qui empêche toute lecture de carte agent, un moteur qui attend iCloud plus longtemps que le reste du widget |
-| `incident-smoke` | une même panne rapportée deux fois, sous deux codes et à deux gravités, un lieu inconnu qui ne remonte pas ou qui emporte son code |
+| `incident-smoke` | une même panne rapportée deux fois, sous deux codes et à deux gravités, un lieu inconnu qui ne remonte pas ou qui emporte son code, un index en attente d'iCloud présenté comme une carte agent en cause |
 
 </details>
 

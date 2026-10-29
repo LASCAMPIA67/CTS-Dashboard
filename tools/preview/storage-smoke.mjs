@@ -614,13 +614,44 @@ for (const [context, runsInWidget, floor, ceiling] of [
       )
     }
   }
+
+  /*
+   * Un index qu'iCloud n'a pas encore rendu n'est pas un index corrompu :
+   * le dire invalide envoyait chercher un fichier abîmé là où il n'y avait
+   * qu'une synchronisation à attendre. Seul l'index que l'iPhone détient et
+   * ne sait pas lire est invalide.
+   */
+  for (const [label, confirmsDownloads, expected] of [
+    ["pas encore téléchargé", false, "SERVICE_INDEX_ICLOUD_DOWNLOAD_FAILED"],
+    ["téléchargé mais illisible", true, "SERVICE_INDEX_INVALID"]
+  ]) {
+    const fm = createFileManager({ confirmsDownloads, unreadable: true })
+    const STORAGE = loadStorage(fm)
+
+    fm.disk.set(target, JSON.stringify(INDEX))
+
+    let thrown = null
+
+    try {
+      await STORAGE.readCurrentIndex()
+    } catch (error) {
+      thrown = error
+    }
+
+    if (thrown?.telemetryCode !== expected || thrown?.telemetryStage !== "index") {
+      failures.push(
+        `index ${label} : ${thrown ? `code « ${thrown.telemetryCode} »` : "aucune erreur"} ` +
+          `au lieu de ${expected}`
+      )
+    }
+  }
 }
 
 /*
  * Les verrous de l'appareil.
  *
- * Le balayage et l'entretien partagent désormais un seul verrou, rangé
- * hors d'iCloud. Ce qui se joue ici décide si une carte agent est lue ou
+ * Le balayage et l'entretien ont chacun le leur, rangé hors d'iCloud. Ce
+ * qui se joue ici décide si une carte agent est lue ou
  * attend : un verrou actif bloque, un verrou périmé ou illisible ne
  * bloque rien — sans quoi un widget tué fermerait la porte pour toujours
  * — et personne ne libère le verrou d'un autre.
@@ -702,5 +733,5 @@ console.log(
   "patience du widget et de l'application, disponibilité déclarée en retard, " +
   "écriture atomique relue, bascule interrompue, journal d'import borné, nom d'archive unique, préférences, verrous de l'appareil, " +
   "index des services dont le refus " +
-  "d'un index corrompu)"
+  "d'un index corrompu, distingué d'un index qu'iCloud n'a pas encore rendu)"
 )
