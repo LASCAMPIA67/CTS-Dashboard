@@ -29,8 +29,8 @@ servent aussi au dépôt admin, qui n'en tient pas de copie.
 | iCloud Drive | — | `CTS Config.js:5` | ✓ `support.apple.com/en-us/108922` · guide Mac `mchle5a61431` (voir l'annexe) |
 | Trousseau iOS | — | `CTS Analytics Client.js` | ✓ `docs.scriptable.app/keychain` |
 | PDF.js — lecture de la carte agent | **6.3.289**, build `legacy` | `CTS PDF Engine.js:10` | ✓ `mozilla.github.io/pdf.js/api` |
-| HTML / CSS / DOM en WebView | — | `CTS PDF Engine.js:753-1102` | ✓ `developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model` |
-| Streams API — un correctif maison compense son absence | — | `CTS PDF Engine.js:757` | ✓ `developer.mozilla.org/en-US/docs/Web/API/Streams_API` |
+| HTML / CSS / DOM en WebView | — | `CTS PDF Engine.js:725-1062` | ✓ `developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model` |
+| Streams API — un correctif maison compense son absence | — | `CTS PDF Engine.js:729` | ✓ `developer.mozilla.org/en-US/docs/Web/API/Streams_API` |
 | HASTUS (Giro) — le format de la carte agent | — | `CTS Parser.js` | format propriétaire, aucune doc publique |
 
 La bibliothèque PDF.js arrive par deux chemins : `pdf.min.mjs` et

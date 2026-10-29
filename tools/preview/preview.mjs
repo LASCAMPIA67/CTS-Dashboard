@@ -1,17 +1,3 @@
-/*
- * Banc de prévisualisation du widget CTS Dashboard.
- *
- * Charge le VRAI CTS Widget Renderer (et son thème) dans un contexte muni
- * d'une émulation de l'API Scriptable, produit la mise en page de plusieurs
- * scénarios et tailles d'écran, puis en fait une capture avec Chromium.
- *
- * Limite assumée : San Francisco n'existe pas ici. Les largeurs de texte
- * sont donc approchées à quelques pour cent près. Cela n'affecte pas les
- * propriétés que l'on cherche à contrôler — symétrie, équilibre des
- * colonnes, hauteur totale, contraste — car l'écart de métrique s'applique
- * de la même façon des deux côtés.
- */
-
 import fs from "node:fs"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
@@ -22,25 +8,12 @@ import { CHROMIUM, measureBodies, measureCardWidths } from "./measure.mjs"
 import { moduleSpace, repository } from "./sandbox.mjs"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-/*
- * Absolu, parce que Chromium reçoit une adresse file:// : un dossier donné
- * en relatif devenait file://docs/images/…, adresse invalide, et la capture
- * photographiait la page d'erreur du navigateur sans que rien n'échoue.
- */
+// Absolu : en relatif, l'adresse file:// est invalide et la capture photographie la page d'erreur.
 const output = path.resolve(process.argv[2] || path.join(here, "out"))
 fs.mkdirSync(output, { recursive: true })
 
-/* ------------------------------------------------------------------ */
-/* Chargement des modules du dépôt dans un contexte Scriptable simulé. */
-/* ------------------------------------------------------------------ */
-
 let deviceScreen = { width: 428, height: 926 }
 
-/*
- * FileManager minimal, adossé au dépôt : `Database/places.json` pointe sur
- * le vrai fichier, si bien que CTS Service.getPlaceLookup résout les
- * libellés exactement comme sur l'iPhone. Aucune écriture n'est possible.
- */
 function createFileManager() {
   const rootName = "CTS Dashboard"
   const resolve = target => {
@@ -93,14 +66,8 @@ const UTILS = runtime.loadModule("CTS Utils")
 const SERVICE = runtime.loadModule("CTS Service")
 
 function renderer() {
-  /* Rechargé à chaque scénario : getDensity lit Device.screenSize() une
-     fois par rendu, mais le thème et les densités sont sans état. */
   return runtime.loadModule("CTS Widget Renderer")
 }
-
-/* ------------------------------------------------------------------ */
-/* Jeux de données réalistes.                                          */
-/* ------------------------------------------------------------------ */
 
 function slice(overrides) {
   return {
@@ -124,42 +91,7 @@ function slice(overrides) {
   }
 }
 
-/*
- * Matrice complète : chaque état du widget croisé avec 1 à 4 tranches.
- *
- * Les services de la CTS en comptent une, deux ou trois — jamais quatre.
- * La quatrième vignette ne décrit donc aucun service réel, et c'est
- * exactement pourquoi elle est là : un PDF inhabituel, ou un parseur qui
- * se trompe, peut la faire apparaître un jour.
- *
- * Elle éprouvait auparavant un troisième palier de densité, plus serré,
- * réservé au-delà de trois tranches. Ce palier a été retiré, et la
- * mesure prise avant de le retirer explique pourquoi : il ne tenait pas
- * la promesse écrite ici.
- *
- * Les vingt-quatre vignettes à quatre tranches ont été rendues dans un
- * navigateur, puis leur contenu comparé à la hauteur du cadre.
- *
- *   avec le palier serré   14 vignettes sur 24 débordent, jusqu'à 43 pt
- *   sans le palier         22 vignettes sur 24 débordent, jusqu'à 87 pt
- *
- * Le resserrement gagnait donc une quarantaine de points, loin des
- * quatre-vingts qui manquaient. Il ne protégeait de rien : il rendait
- * seulement le débordement moins spectaculaire, et le dissimulait
- * derrière une densité que personne n'avait jamais regardée.
- *
- * La vignette reste, et son débordement avec elle. Le jour où un service
- * à quatre tranches apparaîtra, il faudra une réponse — replier une
- * tranche, ou monter d'une taille de widget — pas un demi-point de
- * marge en moins.
- *
- * Elle ouvre au passage un intervalle court entre les tranches 3 et 4, là
- * où les autres sont longs — de quoi juger « 42 min » à côté de
- * « 3 h 28 ».
- * Les horaires sont construits pour que l'heure d'observation tombe
- * exactement dans l'état voulu, et les coupures sont déclarées comme le
- * ferait le parseur, sans quoi computeState les traiterait en pause.
- */
+// Aucun service n'a quatre tranches : la quatrième vignette reste pour que son débordement se voie.
 const LINES = [
   { line: "C4", vehicle: "3", from: "Elmerforst", to: "Elmerforst", direction: "Illkirch Fort Uhrich" },
   { line: "L1", vehicle: "204", from: "UPE", to: "UPE", direction: "Espace Eur. Entr." },
@@ -199,7 +131,6 @@ function buildSlices(count) {
   })
 }
 
-/* Une coupure est déclarée entre deux tranches ; sinon c'est une pause. */
 function buildBreaks(count, cut) {
   if (!cut || count < 2) return []
   return [{ type: "cut", start: SLICE_TIMES[0].end, end: SLICE_TIMES[1].start }]
@@ -230,12 +161,6 @@ for (const count of [1, 2, 3, 4]) {
   }
 }
 
-/*
- * Une carte agent déposée pendant qu'un service est déjà affiché. Le
- * widget ne l'importe plus lui-même : il le signale sur une ligne, et la
- * lecture se fait dans l'application. Cette vignette existe pour juger
- * cette ligne sur un widget déjà bien rempli.
- */
 SCENARIOS["Carte agent en attente · 2 tranches"] = {
   service: "EA05",
   date: "2026-08-12",
@@ -276,11 +201,6 @@ function buildContext(name, screen) {
   }
 }
 
-/* Tailles réelles du widget « large ». */
-/*
- * Tailles des tuiles d'écran verrouillé, mesurées par Apple et
- * indépendantes du scénario. Elles ne servent que sous PREVIEW_FAMILY.
- */
 const ACCESSORY_SIZES = {
   accessoryRectangular: { width: 160, height: 72 },
   accessoryCircular: { width: 76, height: 76 },
@@ -327,7 +247,6 @@ function main() {
   if (process.env.PREVIEW_MODE === "widths") {
     let uneven = false
     for (const result of measureCardWidths(items, output)) {
-      /* Les ressorts fixes entre les cartes ont une largeur nulle. */
       const widths = result.cards.filter(value => value > 0)
       const gap = Math.max(...widths) - Math.min(...widths)
       if (gap > 4) uneven = true
@@ -393,17 +312,9 @@ function main() {
   console.log(`Capture : ${path.join(output, "preview.png")}  (${items.length} vignettes)`)
 }
 
-/*
- * Une image par vignette, pour le README.
- *
- * Une police absente ne s'annonce pas : Chromium dessinerait avec la police
- * par défaut, et l'image passerait pour fidèle. Elle est donc exigée avant
- * la première capture plutôt que constatée sur l'image.
- */
 function writeImages(items) {
   if (!CHROMIUM) throw new Error("Chromium introuvable : aucune image écrite")
 
-  /* Une famille par nom exact : « Interstate » ne doit pas passer pour Inter. */
   const installed = new Set(
     execFileSync("fc-list", [":", "family"], { encoding: "utf8" })
       .split(/[\n,]/)
@@ -412,10 +323,6 @@ function writeImages(items) {
   const missing = IMAGE_FONTS.filter(font => !installed.has(font))
   if (missing.length) throw new Error(`Police absente, aucune image écrite : ${missing.join(", ")}`)
 
-  /*
-   * Un nom de scénario mal recopié ne retient rien, et rien n'échouerait :
-   * les anciennes images resteraient en place, données pour refaites.
-   */
   if (!items.length) throw new Error("Aucun scénario ne correspond : aucune image écrite")
 
   for (const item of items) {

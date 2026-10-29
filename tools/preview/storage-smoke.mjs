@@ -1,27 +1,5 @@
-/*
- * Test de lecture des fichiers iCloud.
- *
- * Ce banc existe à cause d'un défaut arrivé jusqu'à l'écran d'un
- * conducteur : son service s'affichait parfaitement quand il lançait
- * CTS Dashboard depuis Scriptable, et son widget affichait « Analyse en
- * cours » à la même minute, sur le même téléphone.
- *
- * La cause n'était pas le service, ni le PDF, ni l'index : c'était la
- * lecture. isFileDownloaded répond « non » pour des fichiers pourtant
- * lisibles dès qu'iOS déprioritise iCloud — ce qu'il fait précisément
- * dans un widget, qui reçoit bien moins de temps que l'application.
- * L'index et le cache revenaient donc vides, sans le moindre message.
- *
- * On rejoue donc ici un disque où iCloud ne confirme jamais rien.
- */
-
 import { importFrom, isolatedModule, timerDouble } from "./sandbox.mjs"
 
-/*
- * Disque en mémoire. `confirmsDownloads` reproduit le comportement
- * d'iCloud : à false, aucun fichier n'est jamais déclaré disponible,
- * bien qu'il soit réellement là et parfaitement lisible.
- */
 function createFileManager({ confirmsDownloads, stalls = false, unreadable = false }) {
   const disk = new Map()
   const calls = { downloads: 0 }
@@ -35,17 +13,12 @@ function createFileManager({ confirmsDownloads, stalls = false, unreadable = fal
     fileExists: target => disk.has(target),
     createDirectory: () => {},
     isFileDownloaded: () => confirmsDownloads,
-    /*
-     * `stalls` reproduit iCloud en mauvais état : iOS n'impose aucune
-     * limite à cet appel, et la promesse ne se résout jamais.
-     */
     downloadFileFromiCloud: () => {
       calls.downloads++
       return stalls ? new Promise(() => {}) : Promise.resolve()
     },
     readString: target => {
       if (!disk.has(target)) throw new Error(`fichier absent : ${target}`)
-      /* Fichier présent mais pas encore matérialisé : la lecture échoue. */
       if (unreadable) throw new Error("fichier non disponible localement")
       return disk.get(target)
     },
@@ -61,10 +34,6 @@ function createFileManager({ confirmsDownloads, stalls = false, unreadable = fal
   }
 }
 
-/*
- * Le Timer rend la main aussitôt, et note chaque attente demandée : leur
- * somme est la patience que le code accorde, sans que le banc l'attende.
- */
 function loadStorage(fm, { runsInWidget = true, waits = [] } = {}) {
   const loaded = {}
 
@@ -85,11 +54,6 @@ function loadStorage(fm, { runsInWidget = true, waits = [] } = {}) {
 const failures = []
 const INDEX = { version: 2, services: [{ pdfFile: "EA06.pdf", cacheFile: "EA06.json" }] }
 
-/*
- * Le cas du conducteur : le fichier est là, iCloud ne le confirme pas.
- * Avant correction, readJson renvoyait null et le widget concluait
- * « aucun service » alors que tout était sur le disque.
- */
 {
   const fm = createFileManager({ confirmsDownloads: false })
   const STORAGE = loadStorage(fm)
@@ -106,10 +70,6 @@ const INDEX = { version: 2, services: [{ pdfFile: "EA06.pdf", cacheFile: "EA06.j
     )
   }
 
-  /*
-   * Le fichier est là : le réveiller coûte plus de cinq secondes à un
-   * widget. Un fichier présent ne doit rien coûter.
-   */
   if (fm.calls.downloads !== 0) {
     failures.push(
       `fichier présent : ${fm.calls.downloads} attente(s) iCloud alors qu'il était lisible`
@@ -117,7 +77,6 @@ const INDEX = { version: 2, services: [{ pdfFile: "EA06.pdf", cacheFile: "EA06.j
   }
 }
 
-/* Le chemin normal ne doit rien perdre au passage. */
 {
   const fm = createFileManager({ confirmsDownloads: true })
   const STORAGE = loadStorage(fm)
@@ -132,10 +91,6 @@ const INDEX = { version: 2, services: [{ pdfFile: "EA06.pdf", cacheFile: "EA06.j
   }
 }
 
-/*
- * Un fichier réellement absent doit continuer à rendre la valeur de
- * repli : la lecture de secours ne doit pas inventer de contenu.
- */
 for (const confirmsDownloads of [true, false]) {
   const fm = createFileManager({ confirmsDownloads })
   const STORAGE = loadStorage(fm)
@@ -150,7 +105,6 @@ for (const confirmsDownloads of [true, false]) {
   }
 }
 
-/* Un contenu illisible reste un contenu illisible, pas une exception. */
 {
   const fm = createFileManager({ confirmsDownloads: false })
   const STORAGE = loadStorage(fm)
@@ -165,13 +119,6 @@ for (const confirmsDownloads of [true, false]) {
   }
 }
 
-/*
- * Le cœur de l'affaire : iCloud ne répond jamais.
- *
- * Sans borne, readJson n'aurait jamais rendu la main. Un widget qui
- * l'attend ne dessine rien, et l'écran d'accueil garde son image
- * précédente — c'est « Analyse en cours » qui ne partait plus.
- */
 {
   const fm = createFileManager({ confirmsDownloads: false, stalls: true, unreadable: true })
   const STORAGE = loadStorage(fm)
@@ -193,15 +140,6 @@ for (const confirmsDownloads of [true, false]) {
   }
 }
 
-/*
- * La patience accordée à iCloud, fichier par fichier.
- *
- * Une seconde et demie rendait une erreur là où il n'y avait qu'un retard :
- * c'est le défaut que la décision du 18 septembre demandait de corriger.
- * Mais le widget attend fichier après fichier, et la patience de
- * l'application, sur la carte et les deux bibliothèques PDF.js, le
- * retiendrait plus de deux minutes. Le widget se tient donc entre les deux.
- */
 for (const [context, runsInWidget, floor, ceiling] of [
   ["widget", true, 4000, 6000],
   ["application", false, 40000, Infinity]
@@ -235,11 +173,6 @@ for (const [context, runsInWidget, floor, ceiling] of [
   }
 }
 
-/*
- * iCloud rend la main avant de déclarer le fichier disponible. Le moteur
- * PDF relisait cet état pendant une seconde avant de conclure ; l'attente
- * commune, qu'il emprunte désormais, le relit au second essai.
- */
 {
   const fm = createFileManager({ confirmsDownloads: false })
   const STORAGE = loadStorage(fm, { runsInWidget: true })
@@ -262,16 +195,6 @@ for (const [context, runsInWidget, floor, ceiling] of [
   }
 }
 
-/*
- * Écriture atomique JSON.
- *
- * Ce code vivait en double, recopié à l'identique dans le gestionnaire
- * de services et dans le nettoyeur, et aucune des deux copies n'était
- * éprouvée. Elles n'en font plus qu'une, ce qui rend ce contrôle
- * nécessaire : l'état du balayage et l'index des services passent par
- * là, et une écriture interrompue ne doit jamais laisser un fichier
- * tronqué derrière elle.
- */
 {
   const fm = createFileManager({ confirmsDownloads: true })
   const STORAGE = loadStorage(fm)
@@ -301,10 +224,6 @@ for (const [context, runsInWidget, floor, ceiling] of [
   }
 }
 
-/*
- * Le même, interrompu au moment de la bascule. L'ancien contenu doit
- * revenir intact : c'est toute la raison d'être du fichier de secours.
- */
 {
   const fm = createFileManager({ confirmsDownloads: true })
   const STORAGE = loadStorage(fm)
@@ -349,11 +268,6 @@ for (const [context, runsInWidget, floor, ceiling] of [
   }
 }
 
-/*
- * La bascule réussit mais pose un fichier incomplet. Sans relecture,
- * l'index des services aurait été déclaré écrit alors qu'il ne se relit
- * plus : seule la relecture le voit, et rend l'ancien contenu.
- */
 {
   const fm = createFileManager({ confirmsDownloads: true })
   const STORAGE = loadStorage(fm)
@@ -390,11 +304,6 @@ for (const [context, runsInWidget, floor, ceiling] of [
   }
 }
 
-/*
- * Journal d'import. Le Diagnostic le lit pour dire ce qui s'est passé :
- * borné, il ne grossit pas sans fin dans iCloud, mais il doit garder assez
- * d'histoire pour qu'un import raté d'hier s'y lise encore.
- */
 {
   const fm = createFileManager({ confirmsDownloads: true })
   const STORAGE = loadStorage(fm)
@@ -412,11 +321,6 @@ for (const [context, runsInWidget, floor, ceiling] of [
   }
 }
 
-/*
- * Nom d'archive. L'import qui remplace une carte et le nettoyage qui
- * range un service passé archivent dans le même dossier : un nom déjà
- * pris doit en donner un nouveau, jamais écraser l'ancien PDF.
- */
 {
   const fm = createFileManager({ confirmsDownloads: true })
   const STORAGE = loadStorage(fm)
@@ -437,12 +341,6 @@ for (const [context, runsInWidget, floor, ceiling] of [
   }
 }
 
-/*
- * Restes des anciennes écritures, avant que les noms ne portent un
- * jeton. Chaque écriture les balaie au passage — mais une copie de
- * sécurité dont le fichier d'origine manque peut être le dernier
- * exemplaire des données. Elle doit survivre à ce balayage.
- */
 {
   const fm = createFileManager({ confirmsDownloads: true })
   const STORAGE = loadStorage(fm)
@@ -471,14 +369,6 @@ for (const [context, runsInWidget, floor, ceiling] of [
   }
 }
 
-/*
- * Préférences d'affichage.
- *
- * Le widget les lit à chaque réveil et ne les écrit jamais. Un fichier
- * absent, vide, illisible ou farci de n'importe quoi doit donc rendre le
- * réglage par défaut sans bruit : une préférence corrompue ne peut pas
- * être une raison de ne pas afficher le service du jour.
- */
 {
   const target = "/documents/CTS Dashboard/Data/preferences.json"
 
@@ -510,7 +400,6 @@ for (const [context, runsInWidget, floor, ceiling] of [
     }
   }
 
-  /* Une échelle inconnue se ramène au réglage testé le plus proche. */
   const fm = createFileManager({ confirmsDownloads: true })
   const STORAGE = loadStorage(fm)
 
@@ -519,24 +408,9 @@ for (const [context, runsInWidget, floor, ceiling] of [
   }
 }
 
-/*
- * L'index des services, et la seule lecture qui en existe.
- *
- * Elle vivait en trois exemplaires : deux copies dans l'importeur et dans
- * son pipeline, et un troisième couple ici que rien n'appelait — et qui,
- * lui, rendait un index vide devant un fichier corrompu. Les trois n'en
- * font plus qu'une, ce qui rend ce contrôle nécessaire : aucun banc du
- * dépôt n'éprouvait le refus, et une lecture redevenue indulgente serait
- * passée au vert sans que rien ne le dise.
- *
- * Ce que ce refus protège : un index cassé lu comme une liste vide
- * devient « aucun service aujourd'hui » sur le widget du collègue, au lieu
- * d'un incident que l'administration voit.
- */
 {
   const target = "/documents/CTS Dashboard/Data/services-index.json"
 
-  /* Un index absent n'est pas une panne : rien n'a encore été importé. */
   {
     const fm = createFileManager({ confirmsDownloads: true })
     const STORAGE = loadStorage(fm)
@@ -547,7 +421,6 @@ for (const [context, runsInWidget, floor, ceiling] of [
     }
   }
 
-  /* Un index valide revient entier, débarrassé de ses entrées douteuses. */
   {
     const fm = createFileManager({ confirmsDownloads: true })
     const STORAGE = loadStorage(fm)
@@ -571,10 +444,6 @@ for (const [context, runsInWidget, floor, ceiling] of [
     }
   }
 
-  /*
-   * Le contrôle qui mord. Chacun de ces contenus est un fichier présent et
-   * inexploitable : la lecture doit lever, jamais rendre une liste vide.
-   */
   const corrupted = [
     ["JSON illisible", "{ ceci n'est pas du JSON"],
     ["tableau à la racine", "[]"],
@@ -615,12 +484,6 @@ for (const [context, runsInWidget, floor, ceiling] of [
     }
   }
 
-  /*
-   * Un index qu'iCloud n'a pas encore rendu n'est pas un index corrompu :
-   * le dire invalide envoyait chercher un fichier abîmé là où il n'y avait
-   * qu'une synchronisation à attendre. Seul l'index que l'iPhone détient et
-   * ne sait pas lire est invalide.
-   */
   for (const [label, confirmsDownloads, expected] of [
     ["pas encore téléchargé", false, "SERVICE_INDEX_ICLOUD_DOWNLOAD_FAILED"],
     ["téléchargé mais illisible", true, "SERVICE_INDEX_INVALID"]
@@ -647,15 +510,6 @@ for (const [context, runsInWidget, floor, ceiling] of [
   }
 }
 
-/*
- * Les verrous de l'appareil.
- *
- * Le balayage et l'entretien ont chacun le leur, rangé hors d'iCloud. Ce
- * qui se joue ici décide si une carte agent est lue ou
- * attend : un verrou actif bloque, un verrou périmé ou illisible ne
- * bloque rien — sans quoi un widget tué fermerait la porte pour toujours
- * — et personne ne libère le verrou d'un autre.
- */
 {
   const LOCK = "/library/CTS Dashboard/essai.lock"
   const options = { ttlMs: 60000, writeCode: "TEST_LOCK_WRITE_FAILED", stage: "test", label: "Le verrou" }
@@ -697,7 +551,6 @@ for (const [context, runsInWidget, floor, ceiling] of [
     fm.disk.delete(LOCK)
   }
 
-  /* Reprendre la main sur un widget n'est accordé qu'à qui le demande. */
   for (const [applicationTakesOverWidget, expected] of [[false, false], [true, true]]) {
     const application = loadStorage(fm, { runsInWidget: false })
 

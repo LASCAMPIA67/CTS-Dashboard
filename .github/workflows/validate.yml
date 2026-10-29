@@ -29,36 +29,21 @@ jobs:
       - name: Validate repository
         run: node .github/scripts/validate.mjs
 
-      # Une fonction manquante entre modules survit à la syntaxe et
-      # n'échoue que le matin où un conducteur regarde son widget.
       - name: Run module reference test
         run: node tools/preview/modules-smoke.mjs
 
-      # Une analyse statique ne voit pas une constante inaccessible à
-      # l'exécution : ces deux tests exécutent réellement les scripts,
-      # point d'entrée compris, sur des doublures hors ligne.
-      # Un verrou laissé par un widget tué ne doit pas empêcher
-      # l'application d'importer la carte agent.
       - name: Run services scan test
         run: node tools/preview/scan-smoke.mjs
 
-      # Un service terminé ne doit ni disparaître trop tôt, ni bloquer le
-      # suivant : la temporisation dépend de la présence d'une carte agent.
       - name: Run service handover test
         run: node tools/preview/selection-smoke.mjs
 
-      # La grille du bandeau horaires n'est symétrique que si elle entre
-      # dans la carte : sans jeu, l'alignement casse selon l'appareil.
       - name: Run layout geometry test
         run: node tools/preview/layout-smoke.mjs
 
-      # Le programme nomme l'intervalle entre deux tranches. La regle qui
-      # distingue pause et coupure sert aussi a la pastille : les deux
-      # doivent dire la meme chose du meme service.
       - name: Run interruption test
         run: node tools/preview/interruption-smoke.mjs
 
-      # withTimeout borne tout ce que le projet ne peut pas annuler.
       - name: Run shared primitives test
         run: node tools/preview/utils-smoke.mjs
 
@@ -71,62 +56,35 @@ jobs:
       - name: Run CTS Repair smoke test
         run: node tools/preview/repair-smoke.mjs
 
-      # Les bases peuvent être valides et pourtant nommer un lieu
-      # « Code ELSA_C » : seule une résolution réelle le montre.
       - name: Run database resolution test
         run: node tools/preview/database-smoke.mjs
 
-      # Le pied de page HASTUS se termine par une heure, la direction
-      # d'une relève en cours de ligne n'est pas écrite sur la carte, un
-      # code de relève inconnu des bases s'affichait « Code ANKARA », une
-      # tranche au code hors du motif disparaissait sans un mot, un
-      # arrêt dont PDF.js colle l'heure au nom était ignoré, et la
-      # seconde tranche d'une voiture prenait la direction de la première.
       - name: Run direction and place parsing test
         run: node tools/preview/parser-smoke.mjs
 
-      # Le Diagnostic lit les durées d'étape que l'import a écrites : une
-      # étape qui n'a pas tourné doit y arriver absente, jamais à zéro.
       - name: Run import timings test
         run: node tools/preview/import-smoke.mjs
 
-      # iCloud peut refuser de déclarer disponible un fichier pourtant
-      # lisible : le widget concluait alors « aucun service » en silence.
       - name: Run iCloud read test
         run: node tools/preview/storage-smoke.mjs
 
-      # Le vidage du cache et l'archivage suivent la fin du service d'une
-      # heure : seul un enchaînement rejoué le vérifie.
       - name: Run services cleanup test
         run: node tools/preview/cleanup-smoke.mjs
 
-      # Une copie de sécurité orpheline peut être le dernier exemplaire
-      # d'un fichier : le balayage doit la conserver, pas la ranger.
       - name: Run write residue test
         run: node tools/preview/residue-smoke.mjs
 
-      # Retirer un service ne doit emporter que ses fichiers, et jamais
-      # conclure à une suppression quand iCloud a simplement du retard.
       - name: Run service removal test
         run: node tools/preview/removal-smoke.mjs
 
-      # Un verrou se juge sur ses faux positifs : hors ligne, sans
-      # politique ou avec un plancher incohérent, le widget doit marcher.
       - name: Run version gate test
         run: node tools/preview/version-gate-smoke.mjs
 
-      # Le taux de succès de la flotte se lit sur le statut des exécutions.
-      # Un jour de repos ne doit pas y compter comme une panne.
       - name: Run telemetry status test
         run: node tools/preview/telemetry-smoke.mjs
 
-      # ensureReady précède toute lecture de carte agent. Un fichier que
-      # personne ne lit n'a pas à pouvoir empêcher un PDF d'être lu.
       - name: Run PDF engine test
         run: node tools/preview/pdf-engine-smoke.mjs
 
-      # Deux sous-systèmes butent sur la même panne dans la même
-      # exécution. La console doit en lire un fait, pas deux lignes, et
-      # un lieu inconnu des bases doit y arriver sans son code.
       - name: Run incident telemetry test
         run: node tools/preview/incident-smoke.mjs

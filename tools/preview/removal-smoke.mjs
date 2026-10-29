@@ -1,24 +1,3 @@
-/*
- * Test du retrait d'un service.
- *
- * Un service retiré doit disparaître du widget, et seulement lui. Deux
- * chemins y mènent : la demande explicite depuis CTS Installer, et la
- * réconciliation automatique quand le conducteur supprime la carte
- * agent depuis l'app Fichiers. Les deux passent par la même fonction de
- * suppression — c'est elle qu'il faut éprouver, sous ses deux
- * déclencheurs.
- *
- * Le banc ne s'arrête pas à l'index : il rejoue la vraie sélection de
- * CTS Services Manager après chaque retrait. C'est le seul contrôle qui
- * dise ce que le widget montrera, puisque la sélection ne lit ni le
- * dossier Services ni les PDF, mais l'index et les caches.
- *
- * Le risque à couvrir en priorité n'est pas la suppression qui échoue,
- * c'est celle qui réussit trop bien : emporter les fichiers d'un
- * service voisin, ou conclure à une suppression alors qu'iCloud n'avait
- * simplement pas fini de synchroniser.
- */
-
 import { importFrom, isolatedModule } from "./sandbox.mjs"
 
 const ROOT = "/docs/CTS Dashboard"
@@ -36,7 +15,6 @@ const DAY = 24 * HOUR
 const MISSING_GRACE_MS = HOUR
 const OBSERVATION_INTERVAL_MS = 5 * MINUTE
 
-/* 23 août 2026, 10 h locales : le service du jour est commencé. */
 const NOW = new Date(2026, 7, 23, 10, 0, 0)
 
 const TODAY = "2026-08-23"
@@ -47,7 +25,6 @@ function loadModule(name, sandboxExtra, loaded) {
     importModule: importFrom(loaded),
     globals: {
       setTimeout,
-      args: { plainTexts: [] },
       UUID: { string: () => Math.random().toString(36).slice(2) },
       ...sandboxExtra
     }
@@ -68,10 +45,6 @@ function filesOf(service) {
   }
 }
 
-/*
- * Un monde en mémoire. `world.files` est le disque : ce qu'on y trouve
- * après coup est la seule preuve qui compte.
- */
 function buildWorld(services) {
   const files = new Map()
   const state = { listContentsFails: false }
@@ -184,16 +157,11 @@ function buildWorld(services) {
     ensureDownloaded: async target => files.has(target),
     appendLog: async () => {},
     readCurrentIndex: async () => JSON.parse(files.get(INDEX_PATH)),
-    /* Le verrou réel est éprouvé par storage-smoke : ici, il est toujours libre. */
     acquireDeviceLock: () => ({ acquired: true, token: "verrou" }),
     releaseDeviceLock: () => {},
     writeJsonAtomically: async (target, value) => {
       files.set(target, JSON.stringify(value, null, 2))
     },
-    /*
-     * Aucune date de modification : le balayage des caches orphelins se
-     * retire de lui-même, et ce banc ne mesure que le retrait.
-     */
     safeModificationDate: () => null
   }
 
@@ -239,8 +207,6 @@ const SERVICE_B = { date: TOMORROW, number: "EB12", end: "14:00" }
 const A_ID = `${TODAY}_EA06`
 const B_ID = `${TOMORROW}_EB12`
 
-/* ------------------------------------------------ 1 · un seul service */
-
 {
   const world = buildWorld([SERVICE_A])
   const target = filesOf(SERVICE_A)
@@ -258,13 +224,10 @@ const B_ID = `${TOMORROW}_EB12`
   check(!world.has(target.text), "1 · le cache texte devrait être supprimé")
   check(world.indexIds().length === 0, "1 · l’index devrait être vide")
 
-  /* 9 · plus aucun service : la sélection doit répondre, pas planter. */
   const after = await world.MANAGER.resolveServiceForDate(NOW)
   check(after.found === false, "9 · aucun service ne devrait être trouvé")
   check(after.reason === "empty-index", "9 · la raison devrait être empty-index")
 }
-
-/* ------------------------- 2, 10, 11, 12 · plusieurs services présents */
 
 {
   const world = buildWorld([SERVICE_A, SERVICE_B])
@@ -284,19 +247,15 @@ const B_ID = `${TOMORROW}_EB12`
   check(world.has(b.text), "12 · le cache texte de B ne doit pas être touché")
   check(world.indexIds().join() === B_ID, "2 · seul B devrait rester à l’index")
 
-  /* 11 · ce que le widget montrera : B, jamais A. */
   const after = await world.MANAGER.resolveServiceForDate(NOW)
   check(after.found && after.entry.id === B_ID, "11 · B devrait prendre la place de A")
 
-  /* 14 · un tour d’entretien de plus ne doit rien casser. */
   const maintenance = await world.CLEANER.maintainServices(NOW)
   check(maintenance.success, "14 · l’entretien suivant devrait rester sans erreur")
 
   const later = await world.MANAGER.resolveServiceForDate(NOW)
   check(later.found && later.entry.id === B_ID, "14 · B devrait toujours être affiché au rafraîchissement suivant")
 }
-
-/* ---------------------------------- 4 · retrait d’un service non affiché */
 
 {
   const world = buildWorld([SERVICE_A, SERVICE_B])
@@ -311,8 +270,6 @@ const B_ID = `${TOMORROW}_EB12`
   const after = await world.MANAGER.resolveServiceForDate(NOW)
   check(after.found && after.entry.id === A_ID, "4 · A devrait rester le service affiché")
 }
-
-/* ------------------------------------ 5, 6 · fichiers déjà disparus */
 
 {
   const world = buildWorld([SERVICE_A, SERVICE_B])
@@ -341,8 +298,6 @@ const B_ID = `${TOMORROW}_EB12`
   check(!world.has(a.pdf), "6 · le PDF devrait être supprimé")
 }
 
-/* ------------------------------------------------- idempotence (point 6) */
-
 {
   const world = buildWorld([SERVICE_A])
 
@@ -363,8 +318,6 @@ const B_ID = `${TOMORROW}_EB12`
   check(world.indexIds().join() === A_ID, "inconnu · l’index ne doit pas bouger")
 }
 
-/* --------------------------- 7 · dossier Services momentanément illisible */
-
 {
   const world = buildWorld([SERVICE_A, SERVICE_B])
   const a = filesOf(SERVICE_A)
@@ -381,8 +334,6 @@ const B_ID = `${TOMORROW}_EB12`
   check(world.has(a.cache), "7 · le cache ne doit pas être supprimé sur un dossier illisible")
 }
 
-/* ------------------- 8 · PDF absent : délai de confirmation avant retrait */
-
 {
   const world = buildWorld([SERVICE_A, SERVICE_B])
   const a = filesOf(SERVICE_A)
@@ -396,13 +347,11 @@ const B_ID = `${TOMORROW}_EB12`
   check(world.has(a.cache), "8 · le cache doit survivre au premier constat")
   check(world.indexIds().length === 2, "8 · les deux entrées doivent rester au premier constat")
 
-  /* Un second constat, mais avant le délai : toujours rien. */
   const tooSoon = await world.CLEANER.maintainServices(new Date(NOW.getTime() + 10 * MINUTE))
 
   check(!tooSoon.removedServices.length, "8 · aucun retrait avant l’expiration du délai")
   check(world.indexIds().length === 2, "8 · les deux entrées doivent rester avant le délai")
 
-  /* Passé le délai, et après plusieurs constats espacés : retrait. */
   const confirmed = await world.CLEANER.maintainServices(
     new Date(NOW.getTime() + MISSING_GRACE_MS + MINUTE)
   )
@@ -419,8 +368,6 @@ const B_ID = `${TOMORROW}_EB12`
   check(after.found && after.entry.id === B_ID, "8 · le widget devrait passer à B")
 }
 
-/* ------------ 8 bis · le PDF revient avant le délai : aucun retrait */
-
 {
   const world = buildWorld([SERVICE_A])
   const a = filesOf(SERVICE_A)
@@ -429,7 +376,6 @@ const B_ID = `${TOMORROW}_EB12`
 
   await world.CLEANER.maintainServices(NOW)
 
-  /* iCloud finit par livrer le fichier. */
   world.files.set(a.pdf, "%PDF-1.7")
 
   const result = await world.CLEANER.maintainServices(
@@ -444,8 +390,6 @@ const B_ID = `${TOMORROW}_EB12`
   check(after.found && after.entry.id === A_ID, "8 bis · le service doit rester affiché")
 }
 
-/* --------------- 13 · état relu depuis le disque, comme après relance */
-
 {
   const world = buildWorld([SERVICE_A, SERVICE_B])
   const a = filesOf(SERVICE_A)
@@ -454,7 +398,6 @@ const B_ID = `${TOMORROW}_EB12`
 
   await world.CLEANER.maintainServices(NOW)
 
-  /* Scriptable est fermé puis relancé : les modules repartent de zéro. */
   const restarted = world.reload()
 
   const confirmed = await restarted.CLEANER.maintainServices(
@@ -471,13 +414,10 @@ const B_ID = `${TOMORROW}_EB12`
   check(after.found && after.entry.id === B_ID, "13 · la sélection devrait suivre après relance")
 }
 
-/* ------------- un service archivé n’est pas un service disparu */
-
 {
   const world = buildWorld([SERVICE_A])
   const a = filesOf(SERVICE_A)
 
-  /* Le projet a archivé le PDF lui-même : absence normale. */
   const index = JSON.parse(world.files.get(INDEX_PATH))
   index.services[0].archive = {
     fileName: `${stemOf(SERVICE_A)}.pdf`,
@@ -495,8 +435,6 @@ const B_ID = `${TOMORROW}_EB12`
   check(!result.removedServices.length, "archivé · un service archivé ne doit pas être pris pour un service supprimé")
   check(world.indexIds().join() === A_ID, "archivé · son entrée doit rester")
 }
-
-/* ------- l’archive est épargnée, et garde sa rétention de sept jours */
 
 {
   const world = buildWorld([SERVICE_A])
@@ -522,16 +460,11 @@ const B_ID = `${TOMORROW}_EB12`
   check(!world.has(a.cache), "archive · le cache devrait être supprimé")
   check(!world.has(a.text), "archive · le cache texte devrait être supprimé")
 
-  /*
-   * L'entrée reste, sinon l'archive perdrait la rétention qu'elle
-   * porte. Le widget ne peut plus la retenir pour autant.
-   */
   check(world.indexIds().join() === A_ID, "archive · l’entrée doit rester pour porter la rétention")
 
   const after = await world.MANAGER.resolveServiceForDate(NOW)
   check(after.found === false, "archive · le widget ne doit plus afficher le service retiré")
 
-  /* Sept jours plus tard, l'entretien mène la rétention à son terme. */
   const expired = await world.CLEANER.maintainServices(
     new Date(archivedAt.getTime() + 7 * DAY + MINUTE)
   )
@@ -539,8 +472,6 @@ const B_ID = `${TOMORROW}_EB12`
   check(expired.deleted.length === 1, "archive · l’archive devrait être supprimée à l’échéance")
   check(!world.has(archivePath), "archive · le PDF archivé devrait finir par partir")
 }
-
-/* ------------- le PDF ne peut pas être supprimé : le service est gardé */
 
 {
   const world = buildWorld([SERVICE_A, SERVICE_B])
@@ -562,14 +493,6 @@ const B_ID = `${TOMORROW}_EB12`
   check(world.has(b.pdf) && world.has(b.cache) && world.has(b.text), "verrou · B ne doit pas être touché")
 }
 
-/* ------ un import arrive pendant le retrait : il n'est pas effacé */
-
-/*
- * CTS Installer retire un service sous le verrou d'entretien, pendant que
- * le widget peut importer une carte sous celui du balayage. L'import écrit
- * l'index entre la lecture du retrait et son écriture : le retrait ne doit
- * emporter que l'entrée qu'il a désignée.
- */
 {
   const world = buildWorld([SERVICE_A])
   const a = filesOf(SERVICE_A)
@@ -602,8 +525,6 @@ const B_ID = `${TOMORROW}_EB12`
     `import pendant le retrait · l’index contient « ${world.indexIds().join(", ")} » au lieu du seul service importé`
   )
 }
-
-/* --------------------------------------------------------- résultat */
 
 if (failures.length) {
   console.error(`\n${failures.length} problème(s) :\n`)

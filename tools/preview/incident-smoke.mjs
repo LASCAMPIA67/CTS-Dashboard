@@ -1,21 +1,3 @@
-/*
- * Une cause, un incident.
- *
- * Deux sous-systèmes butent sur la même panne dans la même exécution :
- * iCloud injoignable arrête l'inspection de la carte agent et l'archivage
- * du même fichier, un index corrompu arrête la sélection du service et
- * l'entretien. Chacun a son code et son module, et le dédoublonnage
- * portait sur le module : la console d'administration recevait deux
- * lignes pour un fait unique, l'une rouge et l'autre orange, puisque
- * l'entretien ne coûte jamais l'affichage et que l'inspection si.
- *
- * Ce banc monte le vrai CTS Widget Engine sur des doublures qui
- * reproduisent ces deux paires, et lit la télémétrie qu'il rend à
- * CTS Dashboard : c'est elle qui part vers le serveur. Pour un index
- * qu'iCloud n'a pas encore rendu, il lit aussi l'écran : c'est la seule
- * panne de ce banc dont le titre a changé.
- */
-
 import { importFrom, isolatedModule } from "./sandbox.mjs"
 
 const ROOT = "/docs/CTS Dashboard"
@@ -28,12 +10,6 @@ function loadModule(name, loaded) {
   })
 }
 
-/*
- * Le moteur est monté avec des doublures pour tout ce qui n'est pas la
- * télémétrie : le balayage et l'entretien rendent exactement les erreurs
- * qu'on leur demande, de sorte que les incidents observés ne puissent
- * venir que de la façon dont le moteur les enregistre.
- */
 function buildEngine({
   detectionErrors = [],
   imported = [],
@@ -116,7 +92,6 @@ function buildEngine({
   return loadModule("CTS Widget Engine", loaded)
 }
 
-/* L'erreur telle que CTS Utils la fabrique, avec son code et son étape. */
 function telemetryError(code, stage, message) {
   const error = new Error(message)
 
@@ -143,13 +118,6 @@ function withCode(issues, code) {
   return issues.filter(issue => issue.errorCode === code)
 }
 
-/* ------------------------------------------------- iCloud injoignable */
-
-/*
- * La paire relevée sur le parc : PDF_ICLOUD_DOWNLOAD_FAILED à
- * l'inspection, ARCHIVE_ICLOUD_DOWNLOAD_FAILED à l'archivage, à la même
- * seconde, pour le même fichier resté dans le dossier Services.
- */
 {
   const issues = await issuesFor({
     detectionErrors: [
@@ -178,22 +146,12 @@ function withCode(issues, code) {
       "l'affichage qui doit nommer la panne, pas celui de l'entretien"
   )
 
-  /*
-   * Le collègue n'a pas vu son service : la gravité de l'entretien, qui
-   * ne coûte jamais l'affichage, ne doit pas adoucir celle-ci.
-   */
   check(
     iCloud[0]?.severity === "error",
     `la panne iCloud reste « ${iCloud[0]?.severity} » alors que le collègue n'a rien vu`
   )
 }
 
-/* ---------------------------------------------------- index corrompu */
-
-/*
- * Le même services-index.json illisible, lu par la sélection du service
- * et par l'entretien. Deux modules, un seul fichier corrompu.
- */
 {
   const issues = await issuesFor({
     selection: telemetryError("SERVICE_INDEX_INVALID", "index", "index illisible"),
@@ -220,14 +178,6 @@ function withCode(issues, code) {
   )
 }
 
-/* ------------------------------------ index qu'iCloud n'a pas rendu */
-
-/*
- * Le balayage, la sélection et l'entretien butent tous trois sur le même
- * index, que l'iPhone n'a pas encore reçu. La console doit en lire un seul
- * incident, rouge puisque le collègue n'a rien vu, et le collègue un écran
- * qui parle de synchronisation, et non d'une carte agent à mettre en cause.
- */
 {
   const awaiting = () =>
     telemetryError("SERVICE_INDEX_ICLOUD_DOWNLOAD_FAILED", "index", "index pas encore arrivé")
@@ -259,12 +209,6 @@ function withCode(issues, code) {
   )
 }
 
-/* --------------------------------- ce qui ne doit surtout pas fusionner */
-
-/*
- * Deux pannes distinctes restent deux incidents. Le dédoublonnage porte
- * sur la cause, et une lecture de PDF ratée n'est pas un index corrompu.
- */
 {
   const issues = await issuesFor({
     detectionErrors: [
@@ -286,25 +230,12 @@ function withCode(issues, code) {
       JSON.stringify(issues.map(issue => issue.errorCode))
   )
 
-  /* L'entretien seul garde sa gravité : il n'a pas coûté l'affichage. */
   check(
     withCode(issues, "REPLACED_ARCHIVE_DELETE_FAILED")[0]?.severity === "warning",
     "un échec d'entretien sans rapport a été aggravé par une autre panne"
   )
 }
 
-/*
- * La bibliothèque PDF.js et la carte agent ne fusionnent pas, bien que ce
- * soit le même iCloud qui refuse de rendre un fichier.
- *
- * Elles ne peuvent de toute façon pas décrire la même panne : la carte se
- * télécharge avant la bibliothèque, un iCloud muet arrête donc l'import
- * sur la carte, et ces codes-là ne sortent que lorsqu'elle est déjà
- * locale. Là où ils se rencontrent — deux PDF d'une même exécution — ce
- * sont deux gestes différents, une carte à redéposer et une installation à
- * refaire. Les fusionner ferait garder le premier code vu, et afficherait
- * parfois celui de la carte pour une bibliothèque absente.
- */
 for (const engineCode of [
   "PDF_ENGINE_LIBRARY_ICLOUD_FAILED",
   "PDF_ENGINE_WORKER_ICLOUD_FAILED"
@@ -324,14 +255,6 @@ for (const engineCode of [
   )
 }
 
-/* ------------------------------------------------------ lieu inconnu */
-
-/*
- * Un code de relève absent des bases prend le nom imprimé sur la carte :
- * le collègue voit son service, et seul un avertissement dit au mainteneur
- * que places.json doit apprendre ce lieu. L'incident ne porte que les
- * quatre champs de tout incident — jamais le code du lieu.
- */
 {
   const unknown = withCode(
     await issuesFor({ imported: [{ success: true, status: "imported", slicesWithUnknownPlace: 1 }] }),
@@ -356,8 +279,6 @@ for (const engineCode of [
 
   check(known.length === 0, "un import aux lieux tous connus a signalé un lieu inconnu")
 }
-
-/* --------------------------------------------------------- résultat */
 
 if (failures.length) {
   console.error(`\n${failures.length} problème(s) :\n`)

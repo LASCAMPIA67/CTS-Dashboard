@@ -1,21 +1,3 @@
-/*
- * Test de l'entretien automatique des services.
- *
- * Pendant l'heure qui suit la fin de son service, le conducteur voit
- * encore son écran « Service terminé » — et le widget le lit dans le
- * cache. Le vidage du cache et l'archivage du PDF tombent donc tous deux
- * une heure après la fin : effacer le cache plus tôt couperait cet
- * écran, ou ferait apparaître le service du lendemain en avance.
- *
- * L'archivage ne peut pas non plus dépendre du cache qu'il vient de
- * perdre. C'est un enchaînement de dates que seule une exécution réelle
- * vérifie, et dont l'échec serait silencieux — des PDF qui s'accumulent
- * dans Services sans que personne ne le remarque.
- *
- * Le nettoyeur est chargé avec un système de fichiers en mémoire, et
- * rejoué à des instants choisis autour de la fin du service.
- */
-
 import { importFrom, isolatedModule, readScript } from "./sandbox.mjs"
 
 const ROOT = "/docs/CTS Dashboard"
@@ -34,7 +16,6 @@ function loadModule(name, sandboxExtra = {}) {
     importModule: importFrom(loaded),
     globals: {
       setTimeout,
-      args: { plainTexts: [] },
       UUID: { string: () => Math.random().toString(36).slice(2) },
       ...sandboxExtra
     }
@@ -44,13 +25,6 @@ function loadModule(name, sandboxExtra = {}) {
 const loaded = {}
 loaded["CTS Utils"] = loadModule("CTS Utils")
 
-/*
- * Les deux délais viennent des fichiers du dépôt, jamais d'une copie :
- * le vidage du cache dans CTS Config, la durée d'affichage d'un service
- * terminé dans CTS Services Manager. Le premier ne doit jamais être plus
- * court que le second, sans quoi le widget perdrait la source de l'écran
- * qu'il est encore censé montrer.
- */
 const CACHE_GRACE_MS = loadModule("CTS Config", {
   FileManager: {
     iCloud: () => ({
@@ -159,22 +133,14 @@ function buildWorld({ lastEnd, serviceDate }) {
     },
     ensureDownloaded: async () => true,
     appendLog: async () => {},
-    /* Comme le vrai : un index absent se lit comme un index vide. */
     readCurrentIndex: async () => {
       const content = files.get(`${DATA}/services-index.json`)
 
       return content ? JSON.parse(content) : { version: 2, updatedAt: "", services: [] }
     },
-    /* Le nom unique réel est éprouvé par storage-smoke : ici, aucun doublon. */
     uniqueArchiveFileName: name => name,
-    /* Le verrou réel est éprouvé par storage-smoke : ici, il est toujours libre. */
     acquireDeviceLock: () => ({ acquired: true, token: "verrou" }),
     releaseDeviceLock: () => {},
-    /*
-     * L'écriture atomique réelle vit dans CTS Storage et c'est
-     * storage-smoke qui l'éprouve, bascule interrompue comprise. Ici on
-     * n'a besoin que de son effet : le fichier est remplacé, sans reste.
-     */
     writeJsonAtomically: async (target, value) => {
       files.set(target, JSON.stringify(value, null, 2))
     }
@@ -203,11 +169,6 @@ check(
     `l'écran « Service terminé » perdrait sa source avant l'heure`
 )
 
-/*
- * Service du 14 août terminé à 16:55. Chaque instant est joué sur un
- * monde neuf, sauf la séquence finale, qui rejoue le même monde pour
- * vérifier que l'enchaînement tient.
- */
 async function scenario(label, { lastEnd, serviceDate, endsAt }) {
   const world = buildWorld({ lastEnd, serviceDate })
   const { files, CLEANER, stem } = world
@@ -216,16 +177,11 @@ async function scenario(label, { lastEnd, serviceDate, endsAt }) {
   const textPath = `${TEXT_CACHE}/${stem}.txt`
   const pdfPath = `${SERVICES}/${stem}.pdf`
 
-  /* Une minute avant la fin : rien ne doit bouger. */
   await CLEANER.maintainServices(new Date(endsAt - MINUTE))
 
   check(files.has(cachePath), `${label} : le cache a été effacé avant la fin du service`)
   check(files.has(pdfPath), `${label} : le PDF a été archivé avant la fin du service`)
 
-  /*
-   * Cinquante-neuf minutes après la fin : le conducteur doit encore voir
-   * son écran « Service terminé », donc le cache doit encore exister.
-   */
   const during = await CLEANER.maintainServices(new Date(endsAt + 59 * MINUTE))
 
   check(
@@ -237,7 +193,6 @@ async function scenario(label, { lastEnd, serviceDate, endsAt }) {
     `${label} : le vidage du cache a lieu pendant l'heure d'affichage`
   )
 
-  /* Une heure et deux minutes après la fin : le cache part. */
   const afterEnd = await CLEANER.maintainServices(new Date(endsAt + HOUR + 2 * MINUTE))
 
   check(!files.has(cachePath), `${label} : le cache survit à l'heure d'affichage`)
@@ -248,12 +203,6 @@ async function scenario(label, { lastEnd, serviceDate, endsAt }) {
   )
   check(afterEnd.success, `${label} : l'entretien signale une erreur`)
 
-  /*
-   * Le vidage du cache et l'archivage partagent la même échéance : ils
-   * ont donc lieu au même passage, le vidage d'abord. C'est le moment
-   * où l'archivage casserait s'il cherchait encore l'heure de fin dans
-   * le cache qui vient de disparaître.
-   */
   check(
     afterEnd.archived.length === 1,
     `${label} : le PDF n'est pas archivé au passage qui vide le cache`
@@ -267,7 +216,6 @@ async function scenario(label, { lastEnd, serviceDate, endsAt }) {
     `${label} : le PDF archivé est introuvable`
   )
 
-  /* Repassage immédiat : aucune action, aucune erreur. */
   const again = await CLEANER.maintainServices(new Date(endsAt + HOUR + 3 * MINUTE))
 
   check(
@@ -276,7 +224,6 @@ async function scenario(label, { lastEnd, serviceDate, endsAt }) {
   )
   check(again.success, `${label} : le second passage signale une erreur`)
 
-  /* Deux heures après la fin : plus rien à faire, et aucune erreur. */
   const settled = await CLEANER.maintainServices(new Date(endsAt + 2 * HOUR))
 
   check(
@@ -285,7 +232,6 @@ async function scenario(label, { lastEnd, serviceDate, endsAt }) {
   )
   check(settled.success, `${label} : le passage à deux heures signale une erreur`)
 
-  /* Huit jours plus tard, l'archive est supprimée. */
   const removed = await CLEANER.maintainServices(new Date(endsAt + 8 * DAY))
 
   check(
@@ -304,28 +250,12 @@ await scenario("service ordinaire", {
   endsAt: new Date(2026, 7, 14, 16, 55).getTime()
 })
 
-/*
- * Un service peut se terminer après minuit : HASTUS écrit 24:48, et la
- * fin réelle tombe le lendemain à 00:48. Traiter cette heure comme une
- * heure ordinaire effacerait le cache seize heures trop tôt, en plein
- * service.
- */
 await scenario("service après minuit", {
   serviceDate: "2026-08-14",
   lastEnd: "24:48",
   endsAt: new Date(2026, 7, 15, 0, 48).getTime()
 })
 
-/*
- * L'application importe une carte pendant que le widget entretient.
- *
- * L'entretien lit l'index, puis range le PDF du service terminé : c'est à
- * cet instant que l'import écrit son service, sous un autre verrou que le
- * sien. Écrire ensuite la copie lue au début effaçait ce service-là. Une
- * carte réimportée sous le même identifiant, elle, n'est plus celle que
- * l'entretien a examinée : c'est elle qui doit rester, sans l'archivage
- * décidé pour l'ancienne.
- */
 for (const [label, imported] of [
   [
     "un autre service",
@@ -392,12 +322,6 @@ for (const [label, imported] of [
   }
 }
 
-/*
- * L'index est absent à l'instant où l'entretien le relit : un autre
- * écrivain l'a mis de côté et n'a pas encore posé le nouveau. Lu comme un
- * index vide, il aurait fait écrire un index sans aucun service, archives
- * comprises ; l'entretien doit repartir de ce qu'il avait lu.
- */
 {
   const { files, fm, CLEANER } = buildWorld({ lastEnd: "16:55", serviceDate: "2026-08-14" })
   const indexPath = `${DATA}/services-index.json`

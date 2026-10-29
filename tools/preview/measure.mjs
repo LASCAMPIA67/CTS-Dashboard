@@ -1,27 +1,9 @@
-/*
- * Mesure la hauteur réellement occupée par le contenu du widget, sans
- * cadre imposé. Sert à calibrer le banc sur une capture iPhone connue,
- * puis à contrôler qu'une modification ne fait pas déborder le widget.
- *
- * Chromium rend la page, un script écrit les mesures dans le DOM, et
- * --dump-dom nous les rend.
- */
 import fs from "node:fs"
 import path from "node:path"
 import { execFileSync } from "node:child_process"
 import { pathToFileURL } from "node:url"
 
-/*
- * Le navigateur des mesures et des captures, cherché ici pour tous les
- * outils du dossier.
- *
- * Chacun tenait sa liste, et toutes nommaient un dossier de version que
- * l'environnement a remplacé depuis : la mesure échouait, la capture
- * s'arrêtait sur « Chromium introuvable ». /opt/pw-browsers/chromium est
- * désormais un lien vers le binaire en place, quelle que soit sa version ;
- * il a été un dossier, d'où le chemin qui y entre et le contrôle du
- * fichier, un dossier n'étant pas un exécutable.
- */
+// Un fichier, pas seulement un chemin : /opt/pw-browsers/chromium a été un dossier.
 export const CHROMIUM = [
   "/opt/pw-browsers/chromium",
   "/opt/pw-browsers/chromium/chrome-linux/chrome",
@@ -64,12 +46,6 @@ export function measureBodies(items, workDirectory) {
   return readMetrics(file)
 }
 
-/*
- * Largeur de chaque carte de premier niveau. Sert à contrôler qu'elles
- * atteignent toutes le même bord droit : une pile qui ne réclame pas la
- * largeur disponible s'arrête sur son contenu, ce qui ne se voit qu'à
- * l'œil ou ici.
- */
 export function measureCardWidths(items, workDirectory) {
   fs.mkdirSync(workDirectory, { recursive: true })
 

@@ -1,36 +1,11 @@
-/*
- * Préparation du moteur PDF.
- *
- * ensureReady() est la première instruction de toute lecture de carte
- * agent. Ce qui échoue ici n'échoue pas dans un coin : le PDF n'est pas lu,
- * aucun service n'est affiché, et le widget reste muet.
- *
- * Ce banc existe à cause d'un défaut réel. engine.json, écrit là et lu par
- * personne — ni le widget, ni le Diagnostic, ni l'installateur — levait une
- * erreur quand il ne pouvait pas s'écrire. Un collègue dont ce seul fichier
- * résistait n'a jamais pu lire une seule carte agent : 132 tentatives, 132
- * échecs, pour un fichier que rien n'ouvre.
- *
- * Deux règles en découlent, et ce banc les tient : ce qui ne sert à
- * personne ne doit arrêter personne, et des métadonnées d'installation ne
- * s'écrivent qu'à l'installation — pas à chaque réveil du widget. La
- * troisième borne le reste : ce dont le moteur dépend vraiment continue,
- * lui, d'arrêter tout.
- */
-
 import { importFrom, isolatedModule } from "./sandbox.mjs"
 
 const DOCS = "/documents"
-/* Les bibliothèques vivent sur l'appareil, hors d'iCloud. */
 const ENGINE = "/library/CTS Dashboard/Libraries/PDF"
 const LIBRARY = `${ENGINE}/pdf.min.mjs`
 const WORKER = `${ENGINE}/pdf.worker.min.mjs`
 const METADATA = `${ENGINE}/engine.json`
 
-/*
- * Le moteur juge une bibliothèque sur sa taille : en deçà de 100 ko, il la
- * refuse. Les doublures raisonnent donc en kilo-octets, comme Scriptable.
- */
 const VALID_SIZE_KB = 400
 const TRUNCATED_SIZE_KB = 1
 
@@ -74,11 +49,6 @@ function buildWorld({
       disk.set(target, Math.max(1, Math.round(String(content).length / 1024)))
     },
     move: (from, to) => {
-      /*
-       * Le téléchargement était de bonne taille, le fichier posé ne l'est
-       * pas : iCloud n'a pas matérialisé ce qu'il a accepté. Seul un
-       * contrôle après la bascule le voit.
-       */
       disk.set(to, shrinkOnMove ? TRUNCATED_SIZE_KB : disk.get(from))
       disk.delete(from)
     },
@@ -92,11 +62,6 @@ function buildWorld({
       importModule: importFrom(loaded),
       globals: {
         config: { runsInWidget: true },
-        args: { plainTexts: [], shortcutParameter: null },
-        /*
-         * Le téléchargement rend un objet dont seule la taille compte ici :
-         * c'est ce que le moteur mesure après l'avoir écrit.
-         */
         Request: class {
           constructor(url) {
             this.url = url
@@ -131,10 +96,6 @@ async function attempt(world) {
   }
 }
 
-/*
- * Le cas du collègue : bibliothèques en place, engine.json impossible à
- * écrire. La lecture doit se préparer normalement.
- */
 {
   const world = buildWorld({ metadataWriteFails: true })
   const { result, error } = await attempt(world)
@@ -148,10 +109,6 @@ async function attempt(world) {
   }
 }
 
-/*
- * Et il n'est même pas tenté : rien n'a été installé, il n'y a donc rien à
- * documenter. C'est ce qui rend le cas précédent impossible à revivre.
- */
 {
   const world = buildWorld()
 
@@ -168,9 +125,6 @@ async function attempt(world) {
   }
 }
 
-/*
- * Installation neuve : là, il y a bien quelque chose à documenter.
- */
 {
   const world = buildWorld({ librariesPresent: false })
   const { error } = await attempt(world)
@@ -188,10 +142,6 @@ async function attempt(world) {
   }
 }
 
-/*
- * Installation neuve dont les métadonnées résistent : les bibliothèques
- * sont en place, c'est tout ce qui compte.
- */
 {
   const world = buildWorld({ librariesPresent: false, metadataWriteFails: true })
   const { result, error } = await attempt(world)
@@ -209,12 +159,6 @@ async function attempt(world) {
   }
 }
 
-/*
- * La contrepartie : ce dont le moteur dépend vraiment continue d'arrêter
- * tout. Une bibliothèque servie tronquée ne doit jamais passer pour
- * installée — sans quoi l'indulgence accordée aux métadonnées se serait
- * étendue à ce qui compte.
- */
 {
   const world = buildWorld({ librariesPresent: false, downloadSizeKb: TRUNCATED_SIZE_KB })
   const { error } = await attempt(world)
@@ -224,11 +168,6 @@ async function attempt(world) {
   }
 }
 
-/*
- * Et la même chose une bascule plus tard : la réponse était de bonne
- * taille, le fichier posé ne l'est pas. Le contrôle d'après l'écriture est
- * le seul à pouvoir le dire.
- */
 {
   const world = buildWorld({ librariesPresent: false, shrinkOnMove: true })
   const { error } = await attempt(world)
@@ -238,14 +177,6 @@ async function attempt(world) {
   }
 }
 
-/*
- * Les bibliothèques ne dépendent plus d'iCloud.
- *
- * Rangées dans iCloud, iOS pouvait les retirer de l'appareil faute de
- * place : le widget devait alors les attendre, ou les retélécharger, au
- * moment de lire une carte. Sur l'appareil, le moteur n'a plus rien à
- * demander à iCloud pour elles.
- */
 {
   const world = buildWorld()
   const { result, error } = await attempt(world)

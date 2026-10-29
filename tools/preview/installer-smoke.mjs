@@ -1,22 +1,3 @@
-/*
- * Test de fumée de CTS Installer : exécute le fichier ENTIER, `await main()`
- * compris, sur des doublures, et refuse toute erreur d'exécution.
- *
- * Ce test existe à cause d'un bug réel. Une constante de premier niveau
- * déclarée sous `await main()` reste dans sa zone morte temporelle pendant
- * toute l'exécution ; la fonction qui l'utilise lève « Cannot access … before
- * initialization ». Ni la vérification syntaxique ni le banc de mesure ne
- * pouvaient le voir : le banc neutralise `await main()` et évalue donc le
- * fichier de bout en bout avant d'appeler quoi que ce soit, ce qui initialise
- * tout. Il fallait exécuter le fichier comme l'iPhone l'exécute.
- *
- * Chaque action du menu est jouée. Le Diagnostic et le retrait d'un
- * service le sont aussi contre les vrais modules du Dashboard, auxquels
- * l'installateur emprunte des fonctions : sur l'iPhone, les modules changent
- * à chaque révision du dépôt et l'installateur seulement quand son numéro
- * monte.
- */
-
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -27,20 +8,11 @@ const installerPath = process.argv[2] || path.join(repository, "CTS Installer.js
 
 const SNAPSHOT = "6a3937ee112251d6093f6678710b6d80187f1085"
 
-/*
- * Version d'installateur volontairement hors d'atteinte : les scénarios
- * de mise à jour imposée doivent rester valides quand la version réelle
- * avance, sans quoi ils cesseraient silencieusement de rien éprouver le
- * jour où elle les rattrape.
- */
+// Hors d'atteinte : rattrapée par la version réelle, la mise à jour imposée cesserait d'être éprouvée.
 const FUTURE = "1.9.9"
 const manifest = JSON.parse(fs.readFileSync(path.join(repository, "version.json"), "utf8"))
 
-/*
- * Le service enregistré des scénarios joués contre les vrais modules.
- * L'installateur leur passe l'horloge réelle : une date lointaine garde ce
- * service à venir, quel que soit le jour où le banc tourne.
- */
+// Date lointaine : les vrais modules reçoivent l'horloge réelle, et ce service doit rester à venir.
 const INDEXED_SERVICE = { date: "2099-06-15", number: "EA06", end: "13:30" }
 
 function repositoryFile(name) {
@@ -48,10 +20,6 @@ function repositoryFile(name) {
   return fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null
 }
 
-/*
- * Chaque action du menu est jouée dans son propre système de fichiers, et
- * l'alerte répond toujours le même index — celui de l'action visée.
- */
 async function runAction(
   label,
   choice,
@@ -87,17 +55,11 @@ async function runAction(
     dashboard = false
   } = {}
 ) {
-  /*
-   * Nombre de refus servis avant la première réponse utile, pour rejouer
-   * une adresse mise de côté par GitHub : un 429 nu, ou la réponse de
-   * limite du scénario.
-   */
   let remainingThrottled = throttle
   let networkAttempts = 0
   const apiCalls = []
   const sandboxRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cts-smoke-"))
   const docs = path.join(sandboxRoot, "Documents")
-  /* La bibliothèque locale de Scriptable, où vivent les deux PDF.js. */
   const library = path.join(sandboxRoot, "Library")
   const PINNED = new Set(["pdf.min.mjs", "pdf.worker.min.mjs"])
   const pinnedTarget = item => path.join(library, "CTS Dashboard", item.destination)
@@ -105,11 +67,6 @@ async function runAction(
   fs.mkdirSync(docs, { recursive: true })
   fs.writeFileSync(path.join(docs, "CTS Installer.js"), fs.readFileSync(installerPath))
 
-  /*
-   * Scriptable exécute le fichier qui porte le nom du script. Renommé, ce
-   * n'est plus celui du manifeste — et c'est pourtant lui qui repartira à
-   * la relance.
-   */
   const runningInstaller = path.join(docs, `${scriptName}.js`)
 
   if (runningInstaller !== path.join(docs, "CTS Installer.js")) {
@@ -123,10 +80,6 @@ async function runAction(
       fs.writeFileSync(path.join(docs, name), repositoryFile(name))
     }
     for (const item of manifest.resources) {
-      /*
-       * Une installation d'avant la 1.0.32 : les bibliothèques sont encore
-       * dans iCloud, et rien n'est encore posé sur l'appareil.
-       */
       const target = PINNED.has(item.name) && !migration
         ? pinnedTarget(item)
         : path.join(root, item.destination)
@@ -143,11 +96,6 @@ async function runAction(
         files: { installed: [], updated: [], repaired: [], unchanged: [], failed: [] }
       })
     )
-    /*
-     * Trace laissée par le Dashboard à son dernier réveil. Le Diagnostic
-     * doit savoir la relire : c'est la seule fenêtre dont on dispose sur
-     * un widget qui ne s'affiche pas comme prévu.
-     */
     fs.writeFileSync(
       path.join(root, "Data", "last-run.json"),
       JSON.stringify({
@@ -203,24 +151,8 @@ async function runAction(
     }
   }
 
-  /*
-   * Restes d'écriture à la racine de Scriptable.
-   *
-   * writeText passe par « .download » puis met l'ancien fichier de côté
-   * en « .rollback ». Coupé entre les deux, le script disparaît de
-   * Scriptable et n'existe plus que sous son nom de secours. Les deux
-   * cas orphelins portent sur des scripts hors manifeste : la
-   * synchronisation ne les recrée pas, donc c'est bien le balayage qui
-   * décide de leur sort — remettre en place ce qui se relit, garder ce
-   * qui ne se relit pas.
-   */
   const legitimate = repositoryFile("CTS Utils.js")
 
-  /*
-   * Un fichier en retard sur GitHub. Il donne à l'opération une écriture
-   * réelle, ce qu'une installation déjà saine ne fournit pas : sans elle,
-   * un rapport ne peut pas porter à la fois une écriture et une erreur.
-   */
   if (stale) {
     fs.writeFileSync(
       path.join(docs, stale),
@@ -228,12 +160,6 @@ async function runAction(
     )
   }
 
-  /*
-   * Bibliothèque PDF.js posée incomplète : un iCloud coupé en pleine copie
-   * laisse un fichier lisible mais amputé. Aucun contrôle de forme ne le
-   * voit — ni le vide, ni la page d'erreur, ni la longueur minimale d'un
-   * script. Seul le plancher de taille le voit.
-   */
   if (truncated) {
     const resource = manifest.resources.find(item => item.name === truncated)
     const target = pinnedTarget(resource)
@@ -249,11 +175,6 @@ async function runAction(
     fs.writeFileSync(path.join(docs, "Mes Notes.js.rollback"), "à moi")
   }
 
-  /*
-   * Journal d'import. Le Diagnostic le relit par CTS Storage, et c'est de
-   * lui que sort le bloc des durées : sans entrée, ce bloc n'est jamais
-   * construit et rien ne l'éprouve.
-   */
   const logEntries = log
     ? [
         {
@@ -269,28 +190,11 @@ async function runAction(
   const shown = []
   const relaunched = []
 
-  /*
-   * L'erreur ne remonte pas à la console : main() la rattrape et l'affiche.
-   * On observe donc ce que le conducteur verrait — le texte des alertes et
-   * celui des lignes de table — puis on y cherche les signatures d'une
-   * erreur d'exécution ou d'une opération avortée.
-   */
   const RUNTIME_ERROR = /before initialization|is not defined|is not a function|undefined is not|Cannot read|null is not/i
   const ABORTED = /Opération impossible|Opération interrompue|Installation non validée|Mise à jour impossible/i
 
-  /*
-   * Le rapport technique n'est construit qu'au moment où le conducteur
-   * touche « Copier le rapport ». On retient donc ces lignes pour les
-   * déclencher après coup, sinon le rapport ne serait jamais éprouvé.
-   */
   const selectable = []
 
-  /*
-   * Chaque tableau retient son propre texte. Le crédit doit accompagner
-   * chaque écran de gestion, pas seulement apparaître une fois dans la
-   * course : c'est la différence entre « présent quelque part » et
-   * « présent partout où il doit l'être ».
-   */
   const tables = []
 
   const alerted = []
@@ -318,41 +222,11 @@ async function runAction(
       super.addRow(row)
     }
 
-    /*
-     * Le menu n'est plus une alerte système mais une UITable : on ne
-     * répond plus un index, on désigne une ligne. La sélection est
-     * consommée par la première table présentée — le menu — de sorte que
-     * les pages suivantes, progression et diagnostic, restent intactes.
-     */
     async present() {
       if (selections.length) {
         const actions = this.rows.filter(row => typeof row.onSelect === "function")
         const target = actions[selections[0]]
 
-        /*
-         * Le geste n'est consommé que s'il trouve une ligne. Un écran
-         * intermédiaire — le diagnostic ouvert depuis le menu, par
-         * exemple — n'a pas à avaler celui destiné à l'écran suivant,
-         * sans quoi aucun scénario ne pourrait enchaîner deux actions et
-         * le retour au menu resterait invérifiable.
-         */
-        /*
-         * L'action est attendue avant que l'écran soit rendu fermé. Une
-         * ligne qui redessine sa propre table travaille pendant que la
-         * personne la regarde ; résoudre la présentation avant elle
-         * simulerait un écran refermé au milieu de l'écriture, ce qu'aucun
-         * geste réel ne fait ici.
-         */
-        /*
-         * Une ligne qui referme l'écran le referme vraiment : sa
-         * présentation se résout aussitôt, et ce que le gestionnaire
-         * dessine ensuite ne s'affiche plus. Sans cela, le banc ne
-         * distinguerait pas un écran redessiné sous les yeux de la
-         * personne d'un écran disparu au moment de parler.
-         *
-         * Une ligne qui le garde ouvert travaille pendant qu'on la
-         * regarde : la fermeture vient après, et c'est elle qu'on attend.
-         */
         if (target) {
           selections.shift()
 
@@ -384,12 +258,6 @@ async function runAction(
     move: (from, to) => {
       fs.mkdirSync(path.dirname(to), { recursive: true })
 
-      /*
-       * L'écriture est atomique : temporaire, puis bascule. C'est donc la
-       * bascule qu'il faut abîmer pour rejouer un fichier posé incomplet —
-       * iCloud interrompu, écriture tronquée. Le contrôle de présence n'y
-       * voit rien ; seule une relecture du contenu le voit.
-       */
       if (runningWriteBroken && to === runningInstaller) {
         fs.writeFileSync(
           to,
@@ -424,7 +292,6 @@ async function runAction(
       error: message => failures.push(String(message))
     },
     setTimeout,
-    /* Les délais entre deux tentatives réseau sont réellement attendus. */
     Timer: timerDouble({ delay: milliseconds => milliseconds }),
     Color: ui.Color,
     Font: ui.Font,
@@ -434,11 +301,6 @@ async function runAction(
     Script: { name: () => scriptName, complete: () => {} },
     Device: { systemVersion: () => "26.6" },
     Pasteboard: { copyString: value => shown.push(String(value)) },
-    /*
-     * La relance ouvre une URL Scriptable. La doublure ne relance rien —
-     * elle enregistre l'intention, ce qui suffit à prouver qu'elle n'a
-     * lieu qu'après un remplacement réellement abouti.
-     */
     config: { runsInWidget: false },
     URLScheme: {
       forRunningScript: () =>
@@ -472,10 +334,6 @@ async function runAction(
       get message() {
         return this._message
       }
-      /*
-       * L'alerte d'erreur du script n'a qu'une action ; y répondre 0 est
-       * sans effet. Les menus, eux, reçoivent l'index visé.
-       */
       present() {
         return Promise.resolve(0)
       }
@@ -509,33 +367,15 @@ async function runAction(
         }
         const match = this.url.match(/\/([^/?]+)(?:\?|$)/)
         const name = match ? decodeURIComponent(match[1]) : ""
-        /*
-         * GitHub sert parfois une page d'erreur avec un code 200 : une
-         * panne de son côté, une redirection, un dépôt momentanément
-         * indisponible. C'est le cas qui compte, parce qu'il ne se
-         * signale par aucun code d'erreur.
-         */
         if (corrupt && name === corrupt) {
           return "<!doctype html><html><body>GitHub is having a bad day</body></html>"
         }
 
-        /*
-         * Le dépôt ne répond pas pour ce fichier. « Je n'ai pas pu
-         * vérifier » n'est pas « ce fichier diffère » : une panne de
-         * réseau ne doit pas envoyer réparer ce qui n'est pas cassé.
-         */
         if (unreachable && name === unreachable) {
           this.response = { statusCode: 500 }
           return "500: Internal Server Error"
         }
 
-        /*
-         * Le dépôt publie un installateur plus récent que celui posé sur
-         * l'appareil. Les deux doivent concorder : updateInstaller
-         * refuse un fichier dont la constante ne correspond pas au
-         * manifeste, et c'est ce refus qui empêche une version bancale
-         * de remplacer celle qui tourne.
-         */
         if (installerAvailable && name === "version.json") {
           return JSON.stringify({ ...manifest, installerVersion: installerAvailable })
         }
@@ -543,11 +383,6 @@ async function runAction(
         if (installerAvailable && name === "CTS Installer.js") {
           const source = fs.readFileSync(installerPath, "utf8")
 
-          /*
-           * Le dépôt annonce une version que le fichier servi ne porte
-           * pas : une publication à moitié faite. Rien ne doit être posé,
-           * et surtout rien ne doit être lancé.
-           */
           if (installerMismatched) return source
 
           return source.replace(
@@ -569,22 +404,10 @@ async function runAction(
     }
   }
 
-  /*
-   * Le code des modules vient du dépôt et non des copies posées dans le bac
-   * à sable : c'est la version publiée que l'installateur doit trouver. Les
-   * fichiers qu'ils lisent et écrivent sont, eux, ceux du bac à sable.
-   */
   const dashboardModules = dashboard ? moduleSpace(globals) : null
 
   const sandbox = scriptableGlobals({
     ...globals,
-    /*
-     * L'installateur importe CTS Storage à la demande : pour relire le
-     * journal d'import et l'index des services, et pour lire ou écrire les
-     * préférences d'affichage. Le doublon ne fournit ce module que dans le
-     * scénario qui l'exige, pour que les autres continuent d'éprouver le
-     * chemin où il manque — sauf là où les vrais modules répondent.
-     */
     importModule: name => {
       if (dashboardModules) return dashboardModules.load(name)
 
@@ -609,21 +432,13 @@ async function runAction(
     }
   })
 
-  /*
-   * Le fichier est exécuté tel quel. `await main()` est conservé : c'est
-   * précisément ce que ce test doit éprouver.
-   */
   try {
+    // `await main()` compris : une constante déclarée sous cet appel n'existe pas encore pendant main().
     await runScript("CTS Installer", sandbox, { source: fs.readFileSync(installerPath, "utf8") })
   } catch (error) {
     failures.push(`exception non rattrapée : ${error.message}`)
   }
 
-  /*
-   * Un abandon est normalement un échec du banc. Un scénario peut
-   * déclarer qu'il en attend un — c'est alors son absence qui devient le
-   * défaut, sans quoi un garde-fou retiré passerait pour un succès.
-   */
   let aborted = false
 
   for (const text of shown) {
@@ -652,12 +467,6 @@ async function runAction(
     }
   }
 
-  /*
-   * Le crédit doit être identifiable sur les écrans de gestion : menu,
-   * vérification, mise à jour, installation, diagnostic. Un refus de GitHub
-   * arrête l'installateur avant le premier d'entre eux : il n'a montré
-   * qu'une alerte.
-   */
   if (
     (tables.length || !(aborts && throttle)) &&
     !shown.some(text => /Créé et développé par Emilio IPPOLITO/.test(text))
@@ -665,10 +474,6 @@ async function runAction(
     failures.push("aucun crédit d'auteur affiché sur cet écran de gestion")
   }
 
-  /*
-   * « Données protégées » ferme chaque page de gestion : progression,
-   * résultat, diagnostic. Le crédit doit la suivre partout.
-   */
   for (const table of tables) {
     const text = table.recorded.join(" ")
 
@@ -679,14 +484,6 @@ async function runAction(
     }
   }
 
-  /*
-   * Une opération qui aboutit se raconte dans la nouvelle interface, et
-   * nulle part ailleurs. Les alertes qui doublaient l'écran — la
-   * confirmation avant contrôle, l'avis après remplacement de
-   * l'installateur — ont été retirées ; ce garde empêche qu'une
-   * équivalente revienne. Seules les erreurs et la désinstallation, qui
-   * exige un accord explicite, ont encore le droit d'interrompre.
-   */
   if (preferencesStore && Math.abs(preferencesStore.value.textScale - 1.25) > 0.01) {
     failures.push(
       `réglage non enregistré : textScale ${preferencesStore.value.textScale} au lieu de 1,25`
@@ -713,15 +510,10 @@ async function runAction(
     )
   }
 
-  /*
-   * Arrêté sur un refus, l'installateur n'a rien retenté après lui : la
-   * page de GitHub interdit de retenter avant l'heure de reprise.
-   */
   if (throttle && aborts && networkAttempts !== throttle) {
     failures.push(`${networkAttempts} appel(s) pour ${throttle} refus de GitHub servi(s)`)
   }
 
-  /* Le délai réellement attendu, à l'arrondi de l'horloge près. */
   if (retriedAfter && !(apiCalls.length > 1 && apiCalls[1] - apiCalls[0] >= retriedAfter - 50)) {
     failures.push(
       `pause demandée par GitHub non respectée : ${apiCalls.length} appel(s), ` +
@@ -759,11 +551,6 @@ async function runAction(
     }
   }
 
-  /*
-   * Le fichier en place valait mieux que ce que GitHub vient de servir :
-   * il doit être encore là, intact. Le refus doit par ailleurs être dit,
-   * sans quoi l'échec passerait pour une réussite.
-   */
   if (corrupt) {
     const target = path.join(docs, corrupt)
     const onDisk = fs.existsSync(target) ? fs.readFileSync(target, "utf8") : null
@@ -777,18 +564,6 @@ async function runAction(
     }
   }
 
-  /*
-   * La mise à jour de l'installateur est imposée. Ce qui compte n'est pas
-   * l'absence du bouton mais l'impossibilité de rendre la main sans
-   * mettre à jour : le menu ne doit être atteint par aucun chemin, et le
-   * fichier sur le disque doit refléter exactement ce qui a été choisi.
-   */
-  /*
-   * La relance se compte, partout et pour tous les scénarios. Un scénario
-   * qui ne l'attend pas doit en observer zéro : c'est la seule façon de
-   * voir une réouverture qui déborde sur une opération à laquelle elle
-   * n'appartient pas — une vérification sans écriture, une désinstallation.
-   */
   const expectedRelaunches = (reopens || installerOpened) && !relaunchUnavailable ? 1 : 0
 
   if (relaunched.length !== expectedRelaunches) {
@@ -797,12 +572,6 @@ async function runAction(
     )
   }
 
-  /*
-   * Une réouverture qui n'a pas été annoncée surprend : l'installateur
-   * semblerait redémarrer tout seul. Les deux chemins l'annoncent, chacun
-   * avec sa raison — le remplacement de l'installateur lui-même, ou la
-   * mise à jour des fichiers du Dashboard.
-   */
   if (reopens && !shown.some(text => /s’ouvrira à nouveau sur l’état mis à jour/.test(text))) {
     failures.push("la réouverture après mise à jour n’a pas été annoncée avant d’être faite")
   }
@@ -811,10 +580,6 @@ async function runAction(
     failures.push("une réouverture a été annoncée alors qu’elle n’aura pas lieu")
   }
 
-  /*
-   * Refusée, la relance ne laisse personne coincé : le message dit ce
-   * qu'il reste à faire, exactement comme avant qu'elle existe.
-   */
   if (
     reopens &&
     relaunchUnavailable &&
@@ -828,12 +593,6 @@ async function runAction(
       failures.push("la réouverture n’a pas été annoncée avant d’être faite")
     }
 
-    /*
-     * Un seul écran pour toute la mise à jour. Il ne se referme pas pour
-     * laisser la place à une page de résultat : il se redessine. Deux
-     * tables présentées signifieraient le retour de l'écran surgi de
-     * nulle part.
-     */
     if (installerUpdated) {
       if (tables.length !== 1) {
         failures.push(
@@ -852,11 +611,6 @@ async function runAction(
       }
     }
 
-    /*
-     * L'écran refermé pendant l'écriture. Elle va au bout — la couper
-     * laisserait un fichier à moitié posé — mais le délai que la page
-     * fabrique n'a pas eu lieu : rien n'est lancé, et c'est dit.
-     */
     if (closeDuringWrite) {
       const onDisk = fs.readFileSync(path.join(docs, "CTS Installer.js"), "utf8")
 
@@ -884,12 +638,6 @@ async function runAction(
     const onDisk = fs.readFileSync(path.join(docs, "CTS Installer.js"), "utf8")
     const replaced = onDisk.includes(`const INSTALLER_VERSION = "${installerAvailable}"`)
 
-    /*
-     * Le script renommé est celui que Scriptable exécute, donc celui qui
-     * repartira. Le laisser en arrière rouvrirait l'ancienne version en
-     * annonçant la nouvelle ; ne vérifier que celui du manifeste ne
-     * prouvait rien là où ça compte.
-     */
     if (installerUpdated && runningInstaller !== path.join(docs, "CTS Installer.js")) {
       const running = fs.readFileSync(runningInstaller, "utf8")
 
@@ -902,23 +650,11 @@ async function runAction(
       failures.push("l’installateur n’a pas été remplacé alors que la mise à jour a été acceptée")
     }
 
-    /*
-     * Une mise à jour refusée ne doit rien avoir écrit. Une mise à jour
-     * acceptée mais avortée, si : le fichier du manifeste part le premier,
-     * et c'est le second qui fait échouer la vérification. Ce qui compte
-     * alors n'est pas ce qui est sur le disque mais que rien ne parte.
-     */
     if (!installerUpdated && !aborts && replaced) {
       failures.push("l’installateur a été remplacé sans que la mise à jour ait été demandée")
     }
   }
 
-  /*
-   * Les bibliothèques quittent iCloud pour l'appareil. Les nouvelles
-   * copies doivent être en place, et les anciennes parties : garder les
-   * deux, c'est payer deux fois 1,8 Mo et laisser croire qu'iCloud sert
-   * encore.
-   */
   if (migration) {
     for (const item of manifest.resources.filter(entry => PINNED.has(entry.name))) {
       if (!fs.existsSync(pinnedTarget(item))) {
@@ -935,30 +671,15 @@ async function runAction(
   return [...new Set(failures)]
 }
 
-/*
- * GitHub rend son compte quarante secondes avant une minute ronde :
- * l'alerte doit annoncer cette minute-là, ni la précédente, déjà trop tôt,
- * ni une heure tirée d'ailleurs.
- */
+// GitHub rend son compte quarante secondes avant une minute ronde : l'alerte doit annoncer cette minute-là.
 const RATE_LIMIT_RESUME = new Date(Math.ceil(Date.now() / 60000 + 25) * 60000)
 const RATE_LIMIT_RESET_SECONDS = RATE_LIMIT_RESUME.getTime() / 1000 - 40
 const RATE_LIMIT_CLOCK =
   `${RATE_LIMIT_RESUME.getHours()} h ${String(RATE_LIMIT_RESUME.getMinutes()).padStart(2, "0")}`
 
-/*
- * Le diagnostic d'une installation saine ne doit accuser personne. Un
- * contrôle qui se déclare en erreur ne plante pas, ne s'affiche pas
- * comme une panne, et passait donc inaperçu : c'est ainsi qu'un appel à
- * verifyRepository() sans son argument a pu annoncer « manifeste
- * illisible » à un conducteur dont tout allait bien.
- */
+// choice désigne les lignes du menu par leur rang : un ajout au menu décale les suivantes.
 const scenarios = [
   { label: "vérification", choice: 0, silent: true },
-  /*
-   * Le balayage remet en place un script retrouvé sous son nom de
-   * secours : c'est une écriture réelle, portée au rapport comme une
-   * réparation. Elle rouvre donc, au même titre qu'une mise à jour.
-   */
   {
     label: "restes d’écriture à la racine",
     choice: 0,
@@ -972,13 +693,6 @@ const scenarios = [
     forbidden: /illisible|invalide|inaccessible|non résolu/i,
     expected: [/DERNIÈRE EXÉCUTION DU DASHBOARD/, /17\/17 scripts conformes au dépôt/]
   },
-  /*
-   * Un script resté en arrière passe tous les contrôles locaux : présent,
-   * non vide, pas une page d'erreur GitHub. C'est ainsi qu'une
-   * installation périmée a pu se déclarer « à jour » pendant des semaines
-   * pendant que le widget exécutait du code d'un autre mois. Le nom du
-   * fichier fautif est ce qui manquait pour savoir quoi réparer.
-   */
   {
     label: "script en retard nommé par le diagnostic",
     choice: 1,
@@ -988,10 +702,6 @@ const scenarios = [
       /CTS Parser\.js — diffère de la version publiée/
     ]
   },
-  /*
-   * Le dépôt injoignable pour un fichier rend la conformité inconnue, pas
-   * fausse. Confondre les deux ferait réinstaller sur une coupure réseau.
-   */
   {
     label: "dépôt injoignable : conformité inconnue, pas divergente",
     choice: 1,
@@ -999,24 +709,12 @@ const scenarios = [
     expected: [/conformité non vérifiée sur 1 script/, /CTS Parser\.js — non vérifié/],
     absent: /ne correspond pas au dépôt/
   },
-  /*
-   * Les deux bibliothèques PDF.js sont les seuls fichiers que la
-   * synchronisation ne recompare pas au dépôt : leur taille est tout ce
-   * qui les sépare d'un fichier tronqué. Le Diagnostic doit appliquer le
-   * même plancher, et dire qu'il ne juge que celui-là.
-   */
   {
     label: "bibliothèque PDF.js tronquée refusée par le diagnostic",
     choice: 1,
     truncated: "pdf.min.mjs",
     expected: [/4\/5 ressources valides/, /pdf\.min\.mjs/]
   },
-  /*
-   * Une étape qui n'a pas tourné n'a pas de durée. `Number(null)` valant
-   * zéro, les six étapes d'un import qui n'en avait commencé aucune se
-   * rapportaient « 0 ms » — six mesures instantanées là où il n'y en avait
-   * aucune.
-   */
   {
     label: "durée absente dite absente",
     choice: 1,
@@ -1026,11 +724,6 @@ const scenarios = [
     },
     expected: [/Inspection PDF : non terminée/, /Total : non terminée/]
   },
-  /*
-   * Et une étape qui a tourné garde sa mesure, dans le même rapport : ce
-   * qui s'était perdu n'est pas le zéro, c'est la distinction entre les
-   * deux.
-   */
   {
     label: "durée mesurée et durée absente distinguées",
     choice: 1,
@@ -1059,36 +752,12 @@ const scenarios = [
       /Total : 2140 ms/
     ]
   },
-  /*
-   * L'écran de réglage vit entre le diagnostic et la désinstallation :
-   * un ajout au menu déplace les suivants, et ce banc le voit.
-   */
   { label: "taille du texte", choice: [2, 1], preferences: true, silent: true, expected: /Grandes polices/ },
-  /*
-   * Les lignes du menu se désignent par leur rang : tout ajout décale
-   * les suivantes. « Retirer un service » s'est inséré en quatrième
-   * position, et la désinstallation a glissé d'un cran — un scénario qui
-   * garde l'ancien rang teste silencieusement la mauvaise action. Les
-   * deux portent donc désormais un motif qui prouve ce qu'elles ont
-   * réellement exécuté.
-   */
-  /*
-   * Ici les modules du Dashboard sont absents du bac à sable, et c'est
-   * l'intérêt : le retrait doit le dire et s'arrêter, jamais planter. La
-   * suppression elle-même est éprouvée par removal-smoke, qui monte le
-   * vrai nettoyeur.
-   */
   {
     label: "retrait d’un service sans le Dashboard installé",
     choice: 3,
     expected: /CTS Services Cleaner est absent/
   },
-  /*
-   * Les deux chemins qu'un relais retiré de CTS Importer a coupés le
-   * 23 septembre, sans qu'aucun banc ne le voie : celui-ci remplaçait
-   * chaque module par une absence. Joués ici contre les vrais modules, ils
-   * échouent dès qu'une fonction empruntée disparaît.
-   */
   {
     label: "index des services lu par le diagnostic",
     choice: 1,
@@ -1102,17 +771,7 @@ const scenarios = [
     expected: [/Service retiré/, /3 fichiers supprimés/]
   },
   { label: "désinstallation", choice: 4, expected: /Désinstallation (terminée|partielle)/ },
-  /*
-   * Une installation neuve écrit tout : elle rouvre donc. La réouverture
-   * ne suit plus le seul remplacement de l'installateur par lui-même —
-   * toute mise à jour qui a réellement écrit repart sur l'état obtenu.
-   */
   { label: "installation neuve", choice: 0, seed: false, silent: true, reopens: true },
-  /*
-   * Une installation d'avant la 1.0.32 garde ses bibliothèques dans iCloud.
-   * La vérification suivante les pose sur l'appareil, puis retire les
-   * anciennes : c'est une écriture réelle, qui rouvre.
-   */
   {
     label: "bibliothèques PDF.js déplacées d'iCloud vers l'appareil",
     choice: 0,
@@ -1120,17 +779,7 @@ const scenarios = [
     reopens: true,
     migration: true
   },
-  /*
-   * Rien n'a été écrit : rien à rouvrir. Sans cette borne, ouvrir
-   * l'installateur pour vérifier ses fichiers le relancerait à chaque
-   * passage, sans qu'aucune raison ne le justifie.
-   */
   { label: "aucune réouverture sans écriture", choice: 0, silent: true, reopens: false },
-  /*
-   * Un fichier en erreur interdit la réouverture. Repartir comme si de
-   * rien n'était ferait passer une installation incomplète pour une
-   * réussite : l'ouverture est la façon dont l'outil dit « c'est fait ».
-   */
   {
     label: "aucune réouverture si un fichier a échoué",
     choice: 0,
@@ -1139,11 +788,6 @@ const scenarios = [
     reopens: false,
     expected: /1 erreur/
   },
-  /*
-   * Le système refuse d'ouvrir l'URL. L'écran a promis une réouverture :
-   * la consigne doit prendre le relais, sans quoi la promesse reste en
-   * l'air.
-   */
   {
     label: "réouverture impossible : la consigne prend le relais",
     choice: 0,
@@ -1151,12 +795,6 @@ const scenarios = [
     reopens: true,
     relaunchUnavailable: true
   },
-  /*
-   * La nouvelle exécution reprend tout : l'ancienne doit s'arrêter là.
-   * Sans cela, deux instances vivraient en même temps et le menu de
-   * l'ancienne reviendrait par-dessus la nouvelle — ici, la seconde
-   * sélection ne doit jamais être atteinte.
-   */
   {
     label: "l’ancienne exécution s’arrête après la réouverture",
     choice: [0, 4],
@@ -1165,32 +803,13 @@ const scenarios = [
     reopens: true,
     absent: /Désinstallation/
   },
-  /*
-   * Une page d'erreur servie en 200 ne doit jamais atteindre le disque.
-   * Le contenu reçu n'est retenu qu'une fois validé : l'affecter avant le
-   * contrôle faisait sortir la boucle de reprise avec la page en main, et
-   * le bon fichier était écrasé par elle.
-   */
   {
     label: "page d’erreur GitHub refusée avant écriture",
     choice: 0,
     corrupt: "CTS Utils.js",
     expected: /Vérification terminée/
   },
-  /*
-   * Une seule réponse 429 suffisait à rendre CTS Installer inutilisable,
-   * alors que GitHub répond souvent correctement à la tentative
-   * suivante. L'outil de réparation ne doit jamais être la panne.
-   */
   { label: "reprise après un refus temporaire de GitHub", choice: 0, throttle: 1 },
-  /*
-   * Les collègues d'un même Wi-Fi se partagent les soixante appels par heure
-   * que GitHub accorde sans authentification. Le 403 qui dit la limite
-   * atteinte sortait en « réponse HTTP 403 », et l'alerte envoyait vérifier
-   * une connexion qui marchait. Les en-têtes portent ici des majuscules, que
-   * la page de GitHub n'écrit pas : la lecture ne doit pas dépendre de leur
-   * casse.
-   */
   {
     label: "limite horaire de GitHub dite comme telle",
     choice: 0,
@@ -1198,6 +817,7 @@ const scenarios = [
     rateLimit: {
       statusCode: 403,
       headers: {
+        // Majuscules voulues : la lecture des en-têtes ne doit pas dépendre de leur casse.
         "X-RateLimit-Remaining": "0",
         "X-RateLimit-Reset": String(RATE_LIMIT_RESET_SECONDS)
       }
@@ -1209,10 +829,6 @@ const scenarios = [
     ],
     absent: /Vérifiez votre connexion Internet/
   },
-  /*
-   * Une limite secondaire donne sa pause en secondes. Quelques secondes
-   * s'attendent sur place, jamais moins que demandé…
-   */
   {
     label: "courte pause demandée par GitHub respectée",
     choice: 0,
@@ -1220,10 +836,6 @@ const scenarios = [
     rateLimit: { statusCode: 429, headers: { "Retry-After": "2" } },
     retriedAfter: 2000
   },
-  /*
-   * … et des pauses qui se répètent finissent par arrêter l'installateur,
-   * sur un refus de GitHub et non sur une coupure réseau.
-   */
   {
     label: "pauses répétées de GitHub dites comme telles",
     choice: 0,
@@ -1233,7 +845,6 @@ const scenarios = [
     expected: /GitHub a temporairement mis votre connexion de côté/,
     absent: /Vérifiez votre connexion Internet/
   },
-  /* Au-delà de quelques secondes, l'alerte donne l'heure, sans parler de limite horaire. */
   {
     label: "longue pause demandée par GitHub dite comme telle",
     choice: 0,
@@ -1249,16 +860,6 @@ const scenarios = [
     ],
     absent: /par heure|Vérifiez votre connexion Internet/
   },
-  /*
-   * Second verrou : une installation en retard ne doit pas pouvoir
-   * atteindre le menu. C'est le seul contrôle qui rattrape les versions
-   * trop anciennes pour se surveiller elles-mêmes, puisque ce n'est plus
-   * leur code qui décide.
-   *
-   * Le Diagnostic reste joignable sans mettre à jour : il est la
-   * procédure d'assistance du projet, et l'exiger après la mise à jour
-   * couperait la ligne de secours au moment où elle sert.
-   */
   {
     label: "mise à jour imposée sur une version en retard",
     choice: 1,
@@ -1266,13 +867,6 @@ const scenarios = [
     expected: [/Version trop ancienne/, /DERNIÈRE EXÉCUTION DU DASHBOARD/],
     absent: /Désinstaller/
   },
-  /*
-   * Premier verrou, et le seul qui protège les versions trop anciennes
-   * pour se surveiller elles-mêmes : une fois l'installateur dépassé,
-   * aucun chemin ne rend la main. « Désinstaller » n'appartient qu'au
-   * menu ; l'y voir signifierait que le fonctionnement normal a été
-   * atteint sans mettre à jour.
-   */
   {
     label: "mise à jour de l’installateur acceptée",
     choice: 0,
@@ -1282,12 +876,6 @@ const scenarios = [
     expected: [/Mise à jour requise/, /Installer 1\.9\.9/],
     absent: /Désinstaller|Continuer avec/
   },
-  /*
-   * Publication à moitié faite : le manifeste annonce une version que le
-   * fichier servi ne porte pas. Le remplacement est refusé, et rien n'est
-   * lancé — ouvrir une version qui n'existe pas serait pire que ne rien
-   * faire.
-   */
   {
     label: "aucune relance si le remplacement échoue",
     choice: 0,
@@ -1296,11 +884,6 @@ const scenarios = [
     aborts: true,
     absent: /Désinstaller|Continuer avec/
   },
-  /*
-   * Le fichier reçu était bon, celui posé ne l'est pas. L'écriture dit
-   * avoir réussi, la relecture dit le contraire : c'est elle qui décide,
-   * et rien n'est lancé.
-   */
   {
     label: "aucune relance si le fichier posé est incomplet",
     choice: 0,
@@ -1309,10 +892,6 @@ const scenarios = [
     aborts: true,
     absent: /Désinstaller|Continuer avec/
   },
-  /*
-   * Le système refuse d'ouvrir l'URL. Le remplacement a bien eu lieu :
-   * l'utilisateur doit repartir avec la consigne, pas avec un écran muet.
-   */
   {
     label: "relance impossible : la consigne prend le relais",
     choice: 0,
@@ -1322,12 +901,6 @@ const scenarios = [
     relaunchUnavailable: true,
     absent: /Désinstaller|Continuer avec/
   },
-  /*
-   * L'écran est refermé pendant que le fichier s'écrit. Le remplacement
-   * va au bout, mais rien n'est lancé : le délai que la page fabrique n'a
-   * pas eu lieu, et Scriptable ne retrouverait pas encore le script par
-   * son nom. Ouvrir alors ne ferait rien, et sans rien dire.
-   */
   {
     label: "écran refermé pendant l’écriture",
     choice: 0,
@@ -1336,11 +909,6 @@ const scenarios = [
     closeDuringWrite: true,
     absent: /Désinstaller|Continuer avec/
   },
-  /*
-   * Le script a été renommé dans Scriptable : le fichier exécuté n'est
-   * plus celui du manifeste. Les deux doivent être remplacés, sans quoi la
-   * relance rouvrirait l'ancienne version en annonçant la nouvelle.
-   */
   {
     label: "script renommé : le fichier exécuté est remplacé aussi",
     choice: 0,
@@ -1350,10 +918,6 @@ const scenarios = [
     installerOpened: true,
     absent: /Désinstaller|Continuer avec/
   },
-  /*
-   * Et s'il est posé incomplet, rien ne part : vérifier le fichier du
-   * manifeste puis lancer l'autre ne prouvait rien.
-   */
   {
     label: "script renommé : le fichier exécuté posé incomplet arrête tout",
     choice: 0,
@@ -1369,11 +933,6 @@ const scenarios = [
     installerAvailable: FUTURE,
     absent: /Désinstaller|Continuer avec/
   },
-  /*
-   * Le Diagnostic n'ouvre aucune fonction et ramène à la porte : c'est la
-   * seule façon de signaler une panne quand c'est la mise à jour
-   * elle-même qui échoue.
-   */
   {
     label: "diagnostic joignable sans mettre à jour",
     choice: [1, 9, 9],
@@ -1381,21 +940,11 @@ const scenarios = [
     expected: [/Mise à jour requise/, /DERNIÈRE EXÉCUTION DU DASHBOARD/],
     absent: /Désinstaller|Continuer avec/
   },
-  /*
-   * Retour au menu. Deux actions différentes dans une seule exécution :
-   * la seconde n'est atteignable que si le menu est revenu après la
-   * première. Sans la boucle, seule la première s'exécuterait, et rien
-   * dans le rapport ne porterait la trace de la seconde.
-   */
   {
     label: "retour au menu après une action",
     choice: [1, 3],
     expected: [/DERNIÈRE EXÉCUTION DU DASHBOARD/, /CTS Services Cleaner est absent/]
   },
-  /*
-   * Fermer le menu principal ferme l'installateur : la boucle doit
-   * s'arrêter là, sans quoi elle tournerait sans fin.
-   */
   {
     label: "fermer le menu arrête l’installateur",
     choice: 9,

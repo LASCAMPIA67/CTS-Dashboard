@@ -1,18 +1,3 @@
-/*
- * Banc de mesure de CTS Installer.
- *
- * Rejoue une exécution complète — la même fonction `installOrUpdate` que
- * sur l'iPhone — dans un système de fichiers temporaire pré-rempli avec les
- * vrais fichiers du dépôt, et compte ce qui coûte : requêtes réseau, octets
- * transférés, lectures locales, redessins de la table et temps passé en
- * attente.
- *
- *   node tools/preview/installer-bench.mjs [chemin-de-CTS-Installer.js]
- *
- * Le chemin permet de mesurer une version antérieure extraite de git et de
- * comparer, ce qui est la seule façon honnête d'annoncer un gain.
- */
-
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -23,19 +8,8 @@ const installerPath = process.argv[2] || path.join(repository, "CTS Installer.js
 
 const SNAPSHOT = "a7b0d0da0dff222be4afcc9c006cd2e79417f98b"
 
-/*
- * Trois scénarios :
- *   verification — tout est déjà en place, snapshot inchangé
- *   stale        — tout est en place mais GitHub a bougé
- *   fresh        — rien n'est installé
- */
 const SCENARIO = process.env.BENCH_SCENARIO || "verification"
 
-/*
- * Latence appliquée à chaque requête, en millisecondes. Sans elle le banc
- * ne peut pas montrer ce que le parallélisme apporte, puisque le faux
- * GitHub répond instantanément.
- */
 const LATENCY = Number(process.env.BENCH_LATENCY) || 0
 const manifest = JSON.parse(fs.readFileSync(path.join(repository, "version.json"), "utf8"))
 
@@ -49,26 +23,17 @@ const metrics = {
   sleptMs: 0
 }
 
-/* Contenu servi par le faux GitHub : les vrais fichiers du dépôt. */
 function repositoryFile(name) {
   const file = path.join(repository, name)
   return fs.existsSync(file) ? fs.readFileSync(file, "utf8") : null
 }
 
-/* Système de fichiers temporaire, pré-rempli comme une installation saine. */
 const sandboxRoot = fs.mkdtempSync(path.join(os.tmpdir(), "cts-bench-"))
 const docs = path.join(sandboxRoot, "Documents")
-/* La bibliothèque locale de Scriptable, où vivent les deux PDF.js. */
 const library = path.join(sandboxRoot, "Library")
 const PINNED = new Set(["pdf.min.mjs", "pdf.worker.min.mjs"])
 fs.mkdirSync(docs, { recursive: true })
 
-/*
- * Les scripts vont à la racine des documents Scriptable, pour être
- * importables ; seules les ressources vivent sous « CTS Dashboard ».
- * Semer au mauvais endroit ferait mesurer une réinstallation complète
- * au lieu d'une vérification.
- */
 function seedInstallation() {
   const root = path.join(docs, "CTS Dashboard")
 
@@ -199,17 +164,11 @@ const source = fs
   .readFileSync(installerPath, "utf8")
   .replace(/^await main\(\)$/m, "")
   .replace(/^Script\.complete\(\)$/m, "")
-  /* Le sommeil réel fausserait la mesure ; on compte le temps demandé. */
   .replace(
     /function sleep\([\s\S]*?\n}/,
     "function sleep(ms) { __countSleep(ms); return Promise.resolve() }"
   )
-  /*
-   * `let` au sommet d'un script n'est pas exposé sur l'objet global du
-   * contexte : le banc ne pourrait pas fixer la révision résolue, et le
-   * contrôle du snapshot échouerait. `var` l'expose, sans rien changer à
-   * la sémantique du fichier.
-   */
+  // Un let de premier niveau n'est pas exposé sur l'objet global du contexte, un var l'est.
   .replace(
     "let repositoryRevision = REPO.branch",
     "var repositoryRevision = REPO.branch"

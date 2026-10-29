@@ -1,13 +1,7 @@
 version: 2
 
 updates:
-  # Les actions des workflows sont épinglées à un commit, que rien ne fait
-  # bouger seul : sans ce relevé, elles vieilliraient en silence, comme les
-  # v4 restées sur Node 20 après son retrait.
-  #
-  # Une fois par mois, et toutes en une seule pull request : chaque fusion
-  # fait bouger la révision que lit CTS Installer, et se fait depuis un
-  # iPhone.
+  # Une seule pull request par mois : chaque fusion fait bouger la révision que lit CTS Installer.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:

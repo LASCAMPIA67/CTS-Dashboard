@@ -1,9 +1,3 @@
-/*
- * Rendu HTML d'une UITable émulée, dans les deux schémas de couleurs.
- * L'objectif est de juger deux choses que le code seul ne montre pas :
- * l'équilibre visuel des lignes, et si la page tient sur un écran.
- */
-
 const SYMBOL_PATHS = {
   "arrow.down.circle.fill": "M12 3v12M7 11l5 5 5-5M4 20h16",
   "checkmark.seal.fill": "M12 3l2 2 3-1 1 3 3 1-1 3 1 3-3 1-1 3-3-1-2 2-2-2-3 1-1-3-3-1 1-3-1-3 3-1 1-3 3 1zM9 12l2 2 4-4",
@@ -90,11 +84,6 @@ export function renderTable(table, { scheme = "dark", width = 390, label = "" } 
   return { html: `<div class="table" style="width:${width}px">${rows}</div>`, height, label }
 }
 
-/*
- * Hauteur utile d'un écran iPhone pour une UITable présentée en plein
- * écran : hauteur du device moins la barre d'état, la barre de navigation
- * du présentateur Scriptable et l'indicateur d'accueil.
- */
 export const USABLE_HEIGHT = {
   "SE (375×667)": 667 - 20 - 56,
   "standard (390×844)": 844 - 59 - 56 - 34,

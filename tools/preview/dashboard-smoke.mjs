@@ -1,20 +1,3 @@
-/*
- * Exécution réelle de CTS Dashboard.js, le point d'entrée du widget.
- *
- * Ce banc existe parce qu'il manquait. La 1.0.22 a été publiée avec une
- * variable déclarée après `await main()` : inaccessible pendant toute
- * l'exécution, elle faisait échouer le widget entier sur « Cannot access
- * 'runTrace' before initialization ». La syntaxe était valable, les
- * modules se chargeaient, la CI était verte — parce que rien n'exécutait
- * jamais le point d'entrée.
- *
- * C'est exactement le défaut qui avait tué l'installateur 1.0.7, et il
- * avait alors reçu son banc. Le widget, lui, n'en avait pas.
- *
- * On rejoue donc le fichier tel quel, `await main()` compris, dans les
- * deux contextes où il tourne : le widget et l'application.
- */
-
 import * as shim from "./scriptable-shim.mjs"
 import { moduleSpace, runScript, timerDouble } from "./sandbox.mjs"
 const failures = []
@@ -23,7 +6,6 @@ function createFileManager(disk) {
   return {
     joinPath: (parent, child) => `${parent}/${child}`,
     documentsDirectory: () => "/documents",
-    /* Les verrous de l'appareil y vivent : sans elle, chaque balayage échouait. */
     libraryDirectory: () => "/library",
     fileExists: target => disk.has(target) || target.endsWith("/"),
     isFileDownloaded: () => true,
@@ -46,22 +28,9 @@ function createFileManager(disk) {
   }
 }
 
-/*
- * L'heure est figée.
- *
- * Le service semé va de 05:30 à 12:55. Tant que le banc lisait l'horloge
- * réelle, il éprouvait un service en cours le matin et un service terminé
- * l'après-midi — deux contextes différents, donc deux rendus différents,
- * pour le même code. Le banc passait ou échouait selon l'heure du commit,
- * ce qui est la pire forme d'échec : celle qu'on met sur le compte du
- * hasard.
- *
- * 09:00 heure locale place le service en pleine exploitation, le cas
- * nominal que ce banc doit couvrir. Les cas de bord horaires relèvent de
- * CTS Simulator, sur l'iPhone, pas d'ici.
- */
 const ACCESSORY = ["accessoryRectangular", "accessoryCircular", "accessoryInline"]
 
+// Heure figée : sur l'horloge réelle, le résultat dépendait de l'heure du commit.
 const FROZEN_NOW = new Date(2026, 7, 19, 9, 0, 0)
 
 class FrozenDate extends Date {
@@ -88,16 +57,6 @@ function collectText(node) {
   return own + children.map(collectText).join("")
 }
 
-/*
- * Un service réel, déposé là où le moteur va réellement le chercher :
- * une entrée dans Data/services-index.json et son cache dans
- * Cache/Services. C'est le seul chemin depuis que Data/service.json a
- * disparu — il n'était plus écrit par personne.
- *
- * Il permet d'éprouver le fonctionnement nominal — contexte valide,
- * grande carte — et donc le routage par famille, que la carte d'erreur
- * court-circuite.
- */
 function seedService(disk, today) {
   const iso = [
     today.getFullYear(),
@@ -168,7 +127,6 @@ async function run(
     Date: FrozenDate,
     Intl,
     config: { runsInWidget, widgetFamily: runsInWidget ? family : null },
-    args: { plainTexts: [], shortcutParameter: null },
     Device: { screenSize: () => new shim.Size(430, 932), systemVersion: () => "27.0" },
     Keychain: {
       contains: () => false,
@@ -200,7 +158,6 @@ async function run(
     }
   }
 
-  /* Les présentations ne doivent pas ouvrir d'interface hors widget. */
   for (const family of ["presentSmall", "presentMedium", "presentLarge"]) {
     sandbox.ListWidget.prototype[family] = function () {
       presented.push(family)
@@ -208,10 +165,6 @@ async function run(
     }
   }
 
-  /*
-   * Le fichier est exécuté tel quel, `await main()` compris : c'est
-   * précisément ce que ce banc doit éprouver.
-   */
   try {
     await runScript("CTS Dashboard", sandbox)
   } catch (error) {
@@ -223,14 +176,6 @@ async function run(
     failures.push(`${label} : Script.setWidget n'a jamais été appelé, rien ne serait affiché`)
   }
 
-  /*
-   * Une vignette validée mais vide est ce qu'un conducteur voit comme un
-   * écran noir : le fond du widget, et rien dessus.
-   *
-   * Le fond n'est exigé que sur l'écran d'accueil. Les tuiles d'écran
-   * verrouillé sont dessinées par iOS sur son propre fond : leur en
-   * imposer un les rendrait opaques au milieu du fond d'écran.
-   */
   for (const widget of widgetsSet) {
     if (!widget?.children?.length) {
       failures.push(`${label} : la vignette validée ne contient aucun élément`)
@@ -245,20 +190,10 @@ async function run(
       failures.push(`${label} : la vignette validée ne porte aucun texte`)
     }
 
-    /*
-     * Le crédit d'auteur vit dans CTS Installer. Rien de ce que dessine le
-     * widget ne doit le mentionner.
-     */
     if (/IPPOLITO|Cré[ée] et développé par/i.test(words)) {
       failures.push(`${label} : la vignette porte un crédit d'auteur`)
     }
 
-    /*
-     * Les tailles d'écran d'accueil autres que « large » reçoivent la
-     * carte qui le dit : la grande carte comprimée y serait illisible.
-     * C'est ce que la coercition de getWidgetFamily rendait impossible à
-     * distinguer.
-     */
     if (
       runsInWidget &&
       family !== "large" &&
@@ -271,12 +206,6 @@ async function run(
       )
     }
 
-    /*
-     * Une tuile d'écran verrouillé reçoit au contraire un rendu qui lui
-     * est propre : l'heure du prochain événement et son lieu. Elle ne
-     * doit ni réclamer un grand widget, ni recevoir le programme complet
-     * de la journée, qui n'y tiendrait pas.
-     */
     if (runsInWidget && ACCESSORY.includes(family)) {
       if (/Widget grand requis/.test(words)) {
         failures.push(`${label} : une tuile d'écran verrouillé réclame un grand widget`)
@@ -296,26 +225,6 @@ async function run(
     failures.push("application : aucun widget présenté")
   }
 
-  /*
-   * Le rythme de réveil demandé à iOS.
-   *
-   * Le widget réclamait un réveil par minute pendant tout le service. Or
-   * rien à l'écran ne change entre deux transitions : le temps restant et
-   * la progression sont calculés puis jamais dessinés. Soixante réveils
-   * par heure redessinaient donc la même image, en dépensant le budget
-   * qu'iOS accorde — et le seul réveil qui compte, celui du changement de
-   * tranche, risquait d'être celui qu'iOS refuse.
-   *
-   * Le service semé est en pleine exploitation à 09:00, donc en service :
-   * le rattrapage y vaut cinq minutes, choisi pour qu'une entrée en pause
-   * ne traîne pas sur l'écran d'accueil. Hors service il vaut un quart
-   * d'heure. Ce contrôle vérifie qu'on ne redescend pas sous ces cinq
-   * minutes — c'est la cadence à la minute qu'il empêche de revenir, pas
-   * le rattrapage lui-même.
-   *
-   * Il ne vaut que lorsqu'un service est semé : sans service, un réveil
-   * rapproché est le bon comportement.
-   */
   for (const widget of service ? widgetsSet : []) {
     const refreshAt = widget?.refreshAfterDate
 
@@ -330,7 +239,6 @@ async function run(
       )
     }
 
-    /* Plus tard, une entrée en pause resterait affichée comme du service. */
     if (!engineFails && minutes > 5.1) {
       failures.push(
         `${label} : réveil demandé dans ${minutes.toFixed(1)} min — ` +
@@ -339,12 +247,6 @@ async function run(
     }
   }
 
-  /*
-   * Un moteur en panne affiche la carte d'erreur, et doit se réessayer
-   * cinq minutes plus tard : plus tôt, il userait le budget de réveils
-   * qu'iOS accorde ; bien plus tard, une panne passagère resterait à
-   * l'écran pendant tout le service.
-   */
   for (const widget of engineFails ? widgetsSet : []) {
     const refreshAt = widget?.refreshAfterDate
     const minutes =
@@ -358,11 +260,6 @@ async function run(
     }
   }
 
-  /*
-   * La trace de la dernière exécution doit exister et porter committed,
-   * sans quoi le Diagnostic ne peut rien dire d'un widget qui n'affiche
-   * pas ce qu'on attend.
-   */
   const trace = disk.get("/documents/CTS Dashboard/Data/last-run.json")
 
   if (!trace) {
@@ -391,20 +288,10 @@ async function run(
 await run("widget")
 await run("application")
 
-/*
- * Familles autres que « large ».
- *
- * getWidgetFamily ramenait toute valeur inconnue à « large », si bien que
- * la grande carte était construite pour un widget d'écran verrouillé de
- * quelques millimètres — illisible, voire vide. Ces familles doivent
- * recevoir la carte « grand format uniquement », qui a un fond et du
- * texte.
- */
 for (const family of ["accessoryRectangular", "accessoryCircular", "accessoryInline", "extraLarge", "medium", "small"]) {
   await run("widget", { family, label: `widget ${family}`, service: true })
 }
 
-/* Fonctionnement nominal : un service réel doit produire la grande carte. */
 await run("widget", { label: "widget service", service: true })
 await run("application", { label: "application service", service: true })
 await run("widget", { label: "widget en panne", service: true, engineFails: true })
