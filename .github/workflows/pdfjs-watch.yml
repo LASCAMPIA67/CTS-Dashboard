@@ -1,7 +1,7 @@
 name: Veille PDF.js
 
 on:
-  # En UTC : 8 h 17 à Strasbourg en été, 7 h 17 en hiver.
+  # En UTC, pas à l'heure de Strasbourg : 8 h 17 en été, 7 h 17 en hiver.
   schedule:
     - cron: '17 6 * * 1'
 

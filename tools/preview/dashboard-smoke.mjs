@@ -30,7 +30,7 @@ function createFileManager(disk) {
 
 const ACCESSORY = ["accessoryRectangular", "accessoryCircular", "accessoryInline"]
 
-// Heure figée : sur l'horloge réelle, le résultat dépendait de l'heure du commit.
+// Heure figée : sur l'horloge réelle, le résultat dépendrait de l'heure du lancement.
 const FROZEN_NOW = new Date(2026, 7, 19, 9, 0, 0)
 
 class FrozenDate extends Date {

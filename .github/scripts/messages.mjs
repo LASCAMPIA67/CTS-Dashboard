@@ -4,7 +4,6 @@ import path from 'node:path'
 export const MESSAGES_DIRECTORY = 'messages'
 
 // Cherché dans tout le dossier : un installateur publié avec le Dashboard est annoncé par le message de celui-ci.
-// Une espace insécable copiée de WhatsApp ou d'un clavier français compte comme une espace.
 function announcement(button, ownName) {
   if (!fs.existsSync(MESSAGES_DIRECTORY)) return null
 
@@ -16,6 +15,7 @@ function announcement(button, ownName) {
     .map(name => path.join(MESSAGES_DIRECTORY, name))
     .find(file =>
       fs.existsSync(file) &&
+      // Une espace insécable copiée de WhatsApp ou d'un clavier français compte comme une espace.
       fs.readFileSync(file, 'utf8').replace(/[  ]/g, ' ').includes(`« ${button} »`)
     ) ?? null
 }

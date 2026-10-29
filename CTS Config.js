@@ -90,7 +90,7 @@ const requiredDirectories = Object.freeze([
   resolvedPaths.servicesTextCache
 ])
 
-// L'application et le widget partagent ce dossier local : mesuré sur iPhone le 23/09/2026, non documenté.
+// L'application et le widget partagent ce dossier : un constat sur iPhone que rien ne documente, voir l'annexe scriptable.md.
 const DEVICE_DIRECTORY = "CTS Dashboard"
 
 function devicePath(...parts) {

@@ -3,7 +3,7 @@ import path from "node:path"
 import { execFileSync } from "node:child_process"
 import { pathToFileURL } from "node:url"
 
-// Un fichier, pas seulement un chemin : /opt/pw-browsers/chromium a été un dossier.
+// Un fichier, pas seulement un chemin : un dossier du même nom n'est pas exécutable.
 export const CHROMIUM = [
   "/opt/pw-browsers/chromium",
   "/opt/pw-browsers/chromium/chrome-linux/chrome",
