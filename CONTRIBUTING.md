@@ -182,7 +182,14 @@ conservé, est reconstitué, et le dit en tête.
 Tout est rejoué par
 [le workflow de validation](.github/workflows/validate.yml) à chaque poussée
 et à chaque pull request : la validation statique, puis les vingt bancs
-d'essai. Les mêmes commandes tournent en local, avec Node 22.
+d'essai. Les mêmes commandes tournent en local, avec Node 26.
+
+Les actions de ces workflows sont épinglées à un commit, qui ne bouge
+jamais seul. Le premier de chaque mois, Dependabot propose de les relever,
+toutes dans une même pull request. La fusionner fait bouger la révision
+comme toute autre fusion : à sa prochaine opération, CTS Installer
+retélécharge chez chaque collègue les fichiers du manifeste, identiques à
+ceux qu'il a déjà. C'est pourquoi la relève n'a lieu qu'une fois par mois.
 
 ### La validation statique
 

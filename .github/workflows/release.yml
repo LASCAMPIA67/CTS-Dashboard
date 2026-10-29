@@ -20,8 +20,9 @@ on:
 concurrency:
   group: releases
 
-# Nommer une seule permission retire toutes les autres au jeton : il peut
-# publier une Release, et rien d'autre dans ce dépôt public.
+# Nommer une seule permission retire toutes les autres au jeton. Celle-ci
+# reste large — elle permet aussi de pousser des branches et des tags —,
+# mais aucune plus étroite ne permet de publier une Release.
 permissions:
   contents: write
 
@@ -34,14 +35,14 @@ jobs:
       # Tout l'historique et tous les tags : le commit où un numéro est
       # arrivé, et la Release précédente de la même famille, s'y lisent. Le
       # jeton ne reste pas dans le dépôt cloné : seul gh s'en sert.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 26
 
       - name: Publier les Releases dues
         env:

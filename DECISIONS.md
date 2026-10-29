@@ -483,3 +483,28 @@ décision lui est antérieure.
   réutiliser le nom, et fait respecter lui-même la règle du 4 septembre.
   Pas avant, parce qu'un tag posé de travers par un workflow encore jamais
   éprouvé serait perdu pour toujours.
+- 2026-10-29 — La CI des deux dépôts passe de Node 22 à Node 26, LTS
+  active depuis la veille. Node réserve la production aux branches LTS
+  active et de maintenance, et la 22 s'arrête le 30 avril 2027 ; la 26
+  l'emporte sur la 24, déjà en maintenance, parce qu'elle repousse le
+  passage suivant au 30 avril 2029. Les deux dépôts changent ensemble :
+  leurs bancs s'appuient sur la même annexe, et une version d'écart ferait
+  passer dans l'un ce qui casse dans l'autre.
+- 2026-10-29 — Les actions des workflows sont épinglées au commit de leur
+  version, et Dependabot propose de les relever une fois par mois, toutes
+  dans une même pull request. Un tag se déplace, un commit non : les
+  actions de la CI ne changent plus sans une pull request. GitHub recommande
+  d'abord un fichier de verrouillage, qui épinglerait aussi ce que chaque
+  action appelle ; il ne s'écrit qu'avec une extension de `gh` qui
+  interroge GitHub, à relancer à chaque `uses:` ajouté, et ni l'iPhone ni
+  une session de travail ne peuvent la faire tourner. Les deux actions
+  employées n'en appellent aucune autre, si bien que l'épingle couvre ici
+  tout ce que le fichier couvrirait ; une action qui en appellerait
+  d'autres rouvrirait la question. Une fois par mois parce que chaque
+  fusion fait bouger la révision que lit CTS Installer, et se fait depuis
+  un téléphone.
+- 2026-10-29 — Les workflows gardent `ubuntu-latest`, qui passe à
+  Ubuntu 26.04 en novembre. Ils n'emploient de la machine que Git et
+  `gh`, présents dans la nouvelle image, et Node vient de `setup-node` :
+  une version d'Ubuntu figée ne ferait que reporter le même passage à un
+  geste fait à la main.

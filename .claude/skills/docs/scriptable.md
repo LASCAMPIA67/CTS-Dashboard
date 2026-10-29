@@ -42,6 +42,19 @@ Conséquence pratique : basculer `fm` de `FileManager.iCloud()` à
 deviendraient des passe-plats. Ce n'est pas la technique qui s'y oppose,
 c'est le geste du collègue.
 
+## Un fichier d'iCloud pas encore téléchargé ne se lit pas
+
+> `readString` : « The function will error if the file does not exist or
+> if it exists in iCloud but has not been download. Use
+> fileExists(filePath) to check if a file exists and
+> downloadFileFromiCloud(filePath) to download the file. »
+
+`docs.scriptable.app/filemanager` · lu le 29/10/2026
+
+Un fichier qui existe mais ne se lit pas n'est donc pas forcément un
+fichier abîmé : il peut seulement ne pas être encore sur l'appareil. Les
+deux causes méritent deux messages.
+
 ## Les autres répertoires ne conviennent pas au stockage durable
 
 `libraryDirectory()` : durable, mais « cannot be accessed using the Files
@@ -101,6 +114,32 @@ Conséquence : toute durée que le widget s'accorde — patience iCloud,
 budget du moteur PDF — est un choix du projet, à juger sur la
 télémétrie, et jamais une limite documentée. Voir l'entrée du 23
 septembre dans `DECISIONS.md`.
+
+## Le rythme des réveils appartient à iOS
+
+> `refreshAfterDate` : « Earliest date to refresh the widget. […] It is
+> not guaranteed that the widget will refresh at exactly the specified
+> date. The refresh rate of a widget is partly up to iOS/iPadOS. »
+
+`docs.scriptable.app/listwidget` · lu le 29/10/2026
+
+> « For a widget the user frequently views, a daily budget typically
+> includes from 40 to 70 refreshes. This rate roughly translates to
+> widget reloads every 15 to 60 minutes, but it's common for these
+> intervals to vary due to the many factors involved. »
+
+> « To reduce this performance impact and maintain all-day battery
+> life, limit the frequency and number of updates you request to what's
+> necessary. »
+
+`developer.apple.com/documentation/widgetkit/keeping-a-widget-up-to-date`
+· lu le 29/10/2026, par sa version JSON
+(`developer.apple.com/tutorials/data/documentation/widgetkit/keeping-a-widget-up-to-date.json`),
+la page elle-même ne s'affichant qu'avec JavaScript
+
+Le widget peut donc demander un réveil toutes les cinq minutes ; il n'en
+reçoit que ce que le budget d'iOS accorde, et rien ne dit lesquels. Ce
+qu'il reçoit vraiment se mesure dans la télémétrie, pas dans le code.
 
 ## `importModule` ne dit rien d'un cache
 
