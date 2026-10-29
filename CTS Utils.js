@@ -135,6 +135,51 @@ function normalizeKey(value) {
     .toUpperCase()
 }
 
+function isPlainObject(value) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value))
+}
+
+function buildLookupIndex(collection) {
+  const index = Object.create(null)
+  if (!isPlainObject(collection)) return index
+
+  for (const [key, rawEntry] of Object.entries(collection)) {
+    const entry = normalizeEntry(rawEntry)
+    if (!entry) continue
+    addIndexEntry(index, key, rawEntry)
+    for (const alias of normalizeAliases(entry)) addIndexEntry(index, alias, rawEntry)
+  }
+  return index
+}
+
+function addIndexEntry(index, value, rawEntry) {
+  const key = normalizeKey(value)
+  if (key && !Object.prototype.hasOwnProperty.call(index, key)) index[key] = rawEntry
+}
+
+function resolveIndexedEntry(index, value) {
+  const key = normalizeKey(value)
+  if (!key || !index || !Object.prototype.hasOwnProperty.call(index, key)) return null
+  return normalizeEntry(index[key])
+}
+
+function normalizeEntry(entry) {
+  if (typeof entry === "string") return { name: entry }
+  return isPlainObject(entry) ? entry : null
+}
+
+function normalizeAliases(entry) {
+  if (!entry) return []
+  if (typeof entry.aliases === "string") return [entry.aliases]
+  return Array.isArray(entry.aliases)
+    ? entry.aliases.filter(value => typeof value === "string")
+    : []
+}
+
+function getEntryName(entry) {
+  return entry && typeof entry.name === "string" ? entry.name.trim() : ""
+}
+
 function finiteOrNull(value) {
   if (value === null || value === undefined || value === "") {
     return null
@@ -242,62 +287,6 @@ function runsInApplication() {
   }
 }
 
-function hasPlainTextInput() {
-  return Array.isArray(args.plainTexts) && args.plainTexts.length > 0
-}
-
-function isShortcutExecution() {
-  const parameter = args.shortcutParameter
-  return Boolean(
-    config.runsWithSiri ||
-    (parameter !== null && parameter !== undefined) ||
-    hasPlainTextInput()
-  )
-}
-
-function getShortcutInput() {
-  const parameter = args.shortcutParameter
-  if (typeof parameter === "string") return parameter
-  if (Array.isArray(parameter)) return parameter.join("\n")
-  if (hasPlainTextInput()) return args.plainTexts.join("\n")
-
-  if (parameter && typeof parameter === "object") {
-    if (typeof parameter.text === "string") return parameter.text
-    if (typeof parameter.value === "string") return parameter.value
-    if (Array.isArray(parameter.texts)) return parameter.texts.join("\n")
-  }
-  return ""
-}
-
-async function finishWithResult({ success, title, message, output = {} }) {
-  const result = {
-    success: Boolean(success),
-    title: String(title || ""),
-    message: String(message || ""),
-    ...output
-  }
-
-  if (isShortcutExecution()) {
-    Script.setShortcutOutput(result)
-    return result
-  }
-
-  const alert = new Alert()
-  alert.title = result.title
-  alert.message = result.message
-  alert.addAction("OK")
-  await alert.present()
-  return result
-}
-
-async function finishSuccess(title, message, output = {}) {
-  return finishWithResult({ success: true, title, message, output })
-}
-
-async function finishError(title, message, output = {}) {
-  return finishWithResult({ success: false, title, message, output })
-}
-
 function fileNameFromPath(path) {
   return String(path || "")
     .split(/[\\/]/)
@@ -358,15 +347,17 @@ module.exports = {
   parseDate,
   isValidDate,
   isUsableDate,
-  finiteOrNull,
   normalizeImportTimings,
-  startOfDay,
   dayDifference,
   formatDateLong,
   formatDateFull,
   normalizeCode,
   isTramLineCode,
   normalizeKey,
+  isPlainObject,
+  buildLookupIndex,
+  resolveIndexedEntry,
+  getEntryName,
   errorMessage,
   normalizeTelemetryCode,
   normalizeTelemetryStage,
@@ -376,14 +367,8 @@ module.exports = {
   sleep,
   withTimeout,
   runsInApplication,
-  isShortcutExecution,
-  getShortcutInput,
-  finishWithResult,
-  finishSuccess,
-  finishError,
   safeError,
   fileNameFromPath,
   buildFingerprint,
-  parseVersion,
   compareVersions
 }

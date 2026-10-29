@@ -43,24 +43,12 @@ function createOpaqueId() {
   return (UUID.string() + UUID.string()).replace(/-/g, "")
 }
 
-function createInstallationId() {
-  return createOpaqueId()
-}
-
-function createTelemetryRunId() {
-  return createOpaqueId()
-}
-
-function createTelemetryIssueId() {
-  return createOpaqueId()
-}
-
 function getInstallationId() {
   if (Keychain.contains(KEYS.installationId)) {
     return Keychain.get(KEYS.installationId)
   }
 
-  const value = createInstallationId()
+  const value = createOpaqueId()
 
   Keychain.set(KEYS.installationId, value)
 
@@ -220,7 +208,7 @@ function createTelemetryRun({ executionContext = "widget" } = {}) {
   }
 
   return {
-    runId: createTelemetryRunId(),
+    runId: createOpaqueId(),
     startedAt: Date.now(),
     executionContext: context,
     status: "success",
@@ -309,7 +297,7 @@ function addTelemetryIssue(run, { severity = "error", errorCode, module, stage =
       : normalizeTelemetryLabel(stage, "stage")
 
   const issue = {
-    issueId: createTelemetryIssueId(),
+    issueId: createOpaqueId(),
     severity: normalizedSeverity,
     errorCode: normalizedCode,
     module: normalizedModule,
@@ -676,21 +664,16 @@ async function sendRequest({
 }
 
 module.exports = {
-  getInstallationId,
-  getIOSMajorVersion,
   saveAdminApiKey,
   hasAdminApiKey,
   removeAdminApiKey,
   hasClientToken,
-  removeClientToken,
   registerInstallation,
-  registerActivity,
   registerDailyActivity,
   createTelemetryRun,
   setTelemetryStage,
   setTelemetryDriver,
   addTelemetryIssue,
   finishTelemetryRun,
-  registerTelemetry,
   registerTelemetrySafely
 }

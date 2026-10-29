@@ -494,7 +494,6 @@ module.exports = {
   appendLog,
   loadLog,
   removeFileQuietly,
-  buildUniqueToken,
   uniqueArchiveFileName,
   safeModificationDate
 }

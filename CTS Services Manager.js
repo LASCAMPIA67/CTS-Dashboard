@@ -716,19 +716,12 @@ async function resolveServiceForDate(currentDate = new Date()) {
     return emptyServiceSelection("empty-index")
   }
 
-  const findSuccessorOfYesterday = successorFinder(entries, localDateKey(new Date(
-    currentDate.getFullYear(),
-    currentDate.getMonth(),
-    currentDate.getDate() - 1
-  )))
   const todayKey = localDateKey(currentDate)
-  const yesterdayDate = new Date(
-    currentDate.getFullYear(),
-    currentDate.getMonth(),
-    currentDate.getDate() - 1
+  const yesterdayKey = localDateKey(
+    new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() - 1)
   )
-  const yesterdayKey = localDateKey(yesterdayDate)
-  const findSuccessorOfToday = successorFinder(entries, localDateKey(currentDate))
+  const findSuccessorOfYesterday = successorFinder(entries, yesterdayKey)
+  const findSuccessorOfToday = successorFinder(entries, todayKey)
   let expiredCandidate = null
   const previousDayEntries = entries
     .filter(entry => entry.date === yesterdayKey)

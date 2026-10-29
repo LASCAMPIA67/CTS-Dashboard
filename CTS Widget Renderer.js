@@ -1227,7 +1227,6 @@ function fillMessageWidget(widget, { title, message, symbol, symbolColor, messag
 
 module.exports = {
   isRenderedWidget,
-  isAccessoryFamily,
   getDensity,
   estimateWidgetWidth,
   gridGutter,

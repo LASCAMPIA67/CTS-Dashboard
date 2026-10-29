@@ -1078,7 +1078,5 @@ function failure(title, message, currentDate = new Date(), telemetry = null) {
 
 module.exports = {
   loadContext,
-  computeNextRefreshDate,
-  dateForServiceTime,
   getWidgetFamily
 }
