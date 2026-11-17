@@ -186,6 +186,15 @@ for (const { held, runsInWidget, expected, label } of CASES) {
     )
   }
 
+  const nextWakeResult = await widget.manager.scanServices({})
+
+  if (nextWakeResult.remaining !== 1) {
+    failures.push(
+      `réveil suivant, avant le délai de reprise : ${nextWakeResult.remaining} carte(s) ` +
+        `en attente au lieu de 1 — le widget la dirait inexploitable`
+    )
+  }
+
   const appDisk = newDisk()
   const application = loadManager(appDisk, { runsInWidget: false, importOutcome: timeout })
   const appResult = await application.manager.scanServices({})
@@ -478,4 +487,4 @@ console.log("ok     balayage des services (verrou : 4 combinaisons, nature, hors
   "enregistrement perdu ; refus de validation tenu sous sa version, relu une fois sous une plus récente ; " +
   `carte importée relue une fois quand une voiture y revient (${REREAD_CASES.length} cas) ; ` +
   "aucune écriture inutile ; " +
-  "une carte par réveil ; budget dépassé)")
+  "une carte par réveil ; budget dépassé, carte attendue jusqu'à sa reprise)")

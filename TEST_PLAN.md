@@ -72,6 +72,7 @@ Valider avec le simulateur ou des services réels :
 | Fin de service, dossier Services vide | message d’information invitant à déposer la carte suivante, sans allure d’erreur |
 | Service de demain | service suivant sélectionné au moment prévu |
 | Horaires après minuit | continuité correcte jusqu’à 47:59 |
+| Carte agent déjà en cours de lecture (application ouverte, ou passage du widget interrompu il y a moins de deux minutes), ou lecture interrompue qui attend sa reprise | `Lecture en attente`, sans allure d’erreur, et jamais la promesse d’une mise à jour « dans un instant » |
 | Aucun PDF | message explicite sans crash |
 | PDF invalide | erreur contrôlée et diagnostic exploitable |
 

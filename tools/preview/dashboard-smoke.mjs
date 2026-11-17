@@ -112,7 +112,13 @@ function seedService(disk, today) {
 
 async function run(
   surface,
-  { family = "large", label = surface, service = false, engineFails = false } = {}
+  {
+    family = "large",
+    label = surface,
+    service = false,
+    engineFails = false,
+    scanLockedByWidget = false
+  } = {}
 ) {
   const disk = new Map()
   const fileManager = createFileManager(disk)
@@ -121,6 +127,14 @@ async function run(
   const runsInWidget = surface === "widget"
 
   if (service) seedService(disk, FROZEN_NOW)
+
+  if (scanLockedByWidget) {
+    disk.set("/library/CTS Dashboard/services-scan.lock", JSON.stringify({
+      token: "passage-tue",
+      createdAt: new Date(FROZEN_NOW.getTime() - 30 * 1000).toISOString(),
+      surface: "widget"
+    }))
+  }
 
   const globals = {
     FileManager: { iCloud: () => fileManager, local: () => fileManager },
@@ -260,6 +274,28 @@ async function run(
     }
   }
 
+  for (const widget of scanLockedByWidget ? widgetsSet : []) {
+    const words = collectText(widget)
+    const refreshAt = widget?.refreshAfterDate
+    const minutes =
+      refreshAt instanceof Date ? (refreshAt.getTime() - FROZEN_NOW.getTime()) / 60000 : NaN
+
+    if (!service && !/Lecture en attente/.test(words)) {
+      failures.push(`${label} : la carte en cours de lecture n'affiche pas « Lecture en attente »`)
+    }
+
+    if (/dans un instant/.test(words)) {
+      failures.push(`${label} : le widget promet une mise à jour qu'iOS ne garantit pas`)
+    }
+
+    if (!(minutes >= 4.9 && minutes <= 5.1)) {
+      failures.push(
+        `${label} : verrou d'analyse trouvé, réveil demandé dans ${minutes.toFixed(1)} min ` +
+          `au lieu de cinq — avant que le verrou d'un passage tué n'expire`
+      )
+    }
+  }
+
   const trace = disk.get("/documents/CTS Dashboard/Data/last-run.json")
 
   if (!trace) {
@@ -295,6 +331,12 @@ for (const family of ["accessoryRectangular", "accessoryCircular", "accessoryInl
 await run("widget", { label: "widget service", service: true })
 await run("application", { label: "application service", service: true })
 await run("widget", { label: "widget en panne", service: true, engineFails: true })
+await run("widget", { label: "widget verrou d'analyse", scanLockedByWidget: true })
+await run("widget", {
+  label: "widget service verrou d'analyse",
+  service: true,
+  scanLockedByWidget: true
+})
 
 if (failures.length) {
   console.log("ÉCHEC  exécution de CTS Dashboard")
@@ -304,5 +346,6 @@ if (failures.length) {
 
 console.log(
   "ok     exécution de CTS Dashboard " +
-  "(widget, application, 6 familles, rendu validé, jamais vide, réveils bornés)"
+  "(widget, application, 6 familles, rendu validé, jamais vide, réveils bornés, " +
+  "verrou d'analyse)"
 )
