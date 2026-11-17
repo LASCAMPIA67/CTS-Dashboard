@@ -67,7 +67,10 @@ diagnostic.
 ### `version` — le Dashboard
 
 C'est le numéro qui parle : il s'affiche dans le Diagnostic, voyage avec la
-télémétrie, et le serveur le sert comme dernière version publiée.
+télémétrie, et le serveur le lit dans ce fichier pour le servir comme
+dernière version publiée et comme plancher. **Le publier bloque** : au plus
+tard le lendemain, le widget de quiconque ne l'a pas installé affiche
+« Mise à jour requise » à la place du service.
 
 **Le correctif est le cas normal.** Une correction, un plantage, une
 lenteur, une mise en page reprise, un libellé faux, une information de plus
@@ -82,9 +85,10 @@ lenteur, une mise en page reprise, un libellé faux, une information de plus
 | ce qui sort du téléphone change de nature | 1.4.0, le nom et le matricule partent avec la télémétrie |
 | un verrou écrit auparavant atteint les téléphones | 1.3.0, un contrôle n'existe que dans la version qui le porte |
 
-**Le majeur n'a jamais bougé.** C'est la version dont la publication éteint
-des installations en service : celle qu'accompagne un `minimumDashboard`
-relevé au-dessus de ce que des collègues utilisent encore.
+**Le majeur n'a jamais bougé.** Il désignait la version dont la publication
+éteint des installations en service. Depuis que le plancher suit la
+dernière version publiée, toute publication le fait, et ce critère ne le
+distingue plus.
 
 La taille du changement ne décide de rien. Trois publications d'affilée ont
 repris le bloc du bas du widget sans quitter le correctif. Nommer
@@ -107,13 +111,13 @@ deux dans le même commit.
 
 ### Les planchers
 
-`minimumDashboard` et `minimumInstaller` ne suivent pas le rythme des
-versions, et ne bougent jamais dans le commit qui en publie une.
+Le plancher du Dashboard est la dernière `version` publiée : le serveur la
+lit ici, et `minimumDashboard` n'est plus lu par personne.
 
-Le premier ne monte que pour éteindre, donc avec une majeure. Le second
-monte quand une version d'installateur devient incapable de faire son
-travail — une seule fois jusqu'ici, à 1.0.23, le jour où la mise à jour est
-devenue obligatoire.
+`minimumInstaller` ne suit pas le rythme des versions, et ne bouge jamais
+dans le commit qui en publie une. Il monte quand une version d'installateur
+devient incapable de faire son travail — une seule fois jusqu'ici, à
+1.0.23, le jour où la mise à jour est devenue obligatoire.
 
 ### Qui décide, et quand le numéro s'écrit
 
