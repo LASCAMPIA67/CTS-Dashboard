@@ -555,3 +555,17 @@ décision lui est antérieure.
   vieillissaient sans que rien ne les vérifie, et le mainteneur ne veut
   plus de texte dans le code. Le pourquoi se lit ici, dans les bancs et
   dans l'historique Git.
+- 2026-11-17 — Le widget ne promet jamais une mise à jour qu'iOS ne
+  garantit pas. Quand il trouve une carte déjà en cours de lecture, il
+  affiche « Lecture en attente » et le geste qui la montre sans attendre,
+  là où « Analyse en cours » annonçait une mise à jour « dans un
+  instant » : une collègue est restée sur cet écran, puisque c'est iOS qui
+  décide des réveils, et que rien ne permet à l'application de redessiner
+  le widget de l'écran d'accueil. Le réveil qu'il demande alors passe
+  d'une à cinq minutes, au-delà des deux minutes du verrou d'analyse : un
+  réveil plus tôt retrouvait le verrou laissé par un passage qu'iOS avait
+  tué, et Apple ne rapproche de toute façon pas deux réveils de moins de
+  cinq minutes environ. De même, une carte dont la lecture a été
+  interrompue compte comme en attente jusqu'à ce qu'il la reprenne : il la
+  disait jusqu'ici inexploitable, en rouge, pendant le quart d'heure qui
+  précède. Accord du mainteneur sur ce changement d'écran.

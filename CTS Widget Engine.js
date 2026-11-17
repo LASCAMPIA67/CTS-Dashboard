@@ -16,7 +16,7 @@ const isValidDate = UTILS.isUsableDate
 const SERVICES_SCAN_REFRESH_MS = 15 * 60 * 1000
 const ON_DUTY_SCAN_REFRESH_MS = 5 * 60 * 1000
 const ON_DUTY_STATES = ["WORK", "PAUSE", "CUT"]
-const PENDING_SCAN_REFRESH_MS = 60 * 1000
+const PENDING_SCAN_REFRESH_MS = 5 * 60 * 1000
 const FAILED_SCAN_REFRESH_MS = 5 * 60 * 1000
 const MAX_TELEMETRY_ISSUES = 12
 const INDEX_AWAITING_ICLOUD_CODE = "SERVICE_INDEX_ICLOUD_DOWNLOAD_FAILED"
@@ -437,12 +437,12 @@ function buildMissingServiceContext(resolution, cleanup, currentDate) {
       stage: "scan_lock"
     })
 
-    const locked = failure(
-      "Analyse en cours",
+    const locked = information(
+      "Lecture en attente",
       [
-        "Ta carte agent est en cours de lecture.",
+        "Ta carte agent est déjà en cours de lecture.",
         "",
-        "Le widget se met à jour tout seul dans un instant."
+        "Elle s’affichera au prochain réveil du widget. Touche ce widget pour ne pas attendre."
       ].join("\n"),
       currentDate,
       telemetry
@@ -450,7 +450,7 @@ function buildMissingServiceContext(resolution, cleanup, currentDate) {
 
     return {
       ...locked,
-      refreshAfterDate: new Date(currentDate.getTime() + CONFIG.refresh.activeMs)
+      refreshAfterDate: new Date(currentDate.getTime() + PENDING_SCAN_REFRESH_MS)
     }
   }
 

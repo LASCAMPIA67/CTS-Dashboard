@@ -1,0 +1,18 @@
+*CTS DASHBOARD 1.4.10*
+
+Le widget ne vous promet plus une mise à jour qu'il ne peut pas tenir.
+
+• *Lecture en attente* — Quand votre carte agent est déjà en cours de lecture, le widget le dit et vous invite à le toucher pour la voir tout de suite, au lieu de rester sur « Analyse en cours ».
+
+• *Optimisations* — Le widget ménage ses mises à jour sur l'écran d'accueil.
+
+*METTRE À JOUR*
+1. Ouvrez *Scriptable*
+2. Lancez *CTS Installer*
+3. _« Mettre à jour vers 1.4.10 »_
+4. Attendez _« 22/22 fichiers valides »_
+
+Vos cartes agent et vos archives sont conservées.
+
+*Version actuelle : CTS Dashboard 1.4.10*
+*CTS Installer : 1.0.34*

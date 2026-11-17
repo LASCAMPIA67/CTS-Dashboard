@@ -74,9 +74,13 @@ async function performScan(options) {
   const detectionErrors = listing.detectionErrors
   const now = new Date()
   const candidates = []
+  let awaitingRetry = 0
 
   for (const file of servicePdfs) {
-    if (await shouldProcessPdf(file, index, state, now)) candidates.push(file)
+    const decision = await processingDecision(file, index, state, now)
+
+    if (decision === "process") candidates.push(file)
+    if (decision === "retry-later") awaitingRetry++
   }
 
   candidates.sort(compareCandidates)
@@ -141,7 +145,10 @@ async function performScan(options) {
     failed,
     knownFailures,
     detectionErrors,
-    remaining: Math.max(0, candidates.length - selectedCandidates.length + deferred.length)
+    remaining: Math.max(
+      0,
+      candidates.length - selectedCandidates.length + deferred.length + awaitingRetry
+    )
   }
 }
 
@@ -342,40 +349,42 @@ async function inspectPdf(path) {
   }
 }
 
-async function shouldProcessPdf(file, index, state, now) {
+async function processingDecision(file, index, state, now) {
   if (isIndexedAndCurrent(file, index) && !(await readBeforeSameVehicleFix(file, index))) {
-    return false
+    return "skip"
   }
 
   const previous = state.files[file.fileName]
 
   if (!previous) {
-    return true
+    return "process"
   }
 
   if (previous.fingerprint !== file.fingerprint) {
-    return true
+    return "process"
   }
 
   switch (previous.status) {
     case "imported":
     case "indexed":
-      return true
+      return "process"
 
     case "validation-error":
-      return (
-        refusedByEarlierVersion(previous) &&
+      return refusedByEarlierVersion(previous) &&
         !supersededSince(index, previous.date, previous.lastAttemptAt)
-      )
+        ? "process"
+        : "skip"
 
     case "exception":
-      return retryDelayElapsed(previous.lastAttemptAt, now)
+      return retryDelayElapsed(previous.lastAttemptAt, now) ? "process" : "skip"
 
     case "interrupted":
       return runsInApplication() || retryDelayElapsed(previous.lastAttemptAt, now)
+        ? "process"
+        : "retry-later"
 
     default:
-      return true
+      return "process"
   }
 }
 
