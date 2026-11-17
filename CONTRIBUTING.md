@@ -85,10 +85,11 @@ lenteur, une mise en page reprise, un libellé faux, une information de plus
 | ce qui sort du téléphone change de nature | 1.4.0, le nom et le matricule partent avec la télémétrie |
 | un verrou écrit auparavant atteint les téléphones | 1.3.0, un contrôle n'existe que dans la version qui le porte |
 
-**Le majeur n'a jamais bougé.** Il désignait la version dont la publication
-éteint des installations en service. Depuis que le plancher suit la
-dernière version publiée, toute publication le fait, et ce critère ne le
-distingue plus.
+**Le majeur n'a jamais bougé.** Il monte quand le widget change
+complètement d'apparence : le conducteur ne reconnaît plus l'écran qu'il
+avait. Il désignait jusqu'au 17 novembre 2026 la version dont la
+publication éteint des installations en service, ce que toute publication
+fait depuis que le plancher suit la dernière version publiée.
 
 La taille du changement ne décide de rien. Trois publications d'affilée ont
 repris le bloc du bas du widget sans quitter le correctif. Nommer

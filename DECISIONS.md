@@ -582,3 +582,10 @@ décision lui est antérieure.
   bloque », et ôte son critère à la majeure définie le 4 septembre : toute
   publication éteint désormais des installations en service. Rien ne change
   dans le code des iPhone, qui appliquait déjà le plancher reçu.
+- 2026-11-17 — La version majeure monte quand le widget change
+  complètement d'apparence. Choix du mainteneur parmi trois proposés — une
+  mise à jour qui demande un geste à la main, comme dans le dépôt admin, ou
+  ne plus s'en servir : c'est ce que le conducteur voit qui mérite le
+  premier chiffre. Remplace la définition du 4 septembre, qui la réservait à
+  la publication qui éteint des installations en service, et qui ne
+  distinguait plus rien depuis que toute publication le fait.
