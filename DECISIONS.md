@@ -569,3 +569,16 @@ décision lui est antérieure.
   interrompue compte comme en attente jusqu'à ce qu'il la reprenne : il la
   disait jusqu'ici inexploitable, en rouge, pendant le quart d'heure qui
   précède. Accord du mainteneur sur ce changement d'écran.
+- 2026-11-17 — Le widget bloque toute version antérieure à la dernière
+  publiée : le serveur lit `version` dans `version.json` et la sert comme
+  plancher, si bien qu'une publication met « Mise à jour requise » sur le
+  widget de chacun resté en arrière, au plus tard le lendemain.
+  `minimumDashboard` n'est plus lu. Choix du mainteneur, pour que personne
+  ne garde un service affiché par une version dépassée. Un délai de quelques
+  jours, annoncé sur le widget avant de bloquer, a été proposé et écarté ;
+  le prix accepté est qu'un collègue soit bloqué au moment de prendre son
+  service, et qu'une version fautive devienne obligatoire pour tout le parc.
+  Remplace la décision du 24 août, « seul le plancher `minimumDashboard`
+  bloque », et ôte son critère à la majeure définie le 4 septembre : toute
+  publication éteint désormais des installations en service. Rien ne change
+  dans le code des iPhone, qui appliquait déjà le plancher reçu.

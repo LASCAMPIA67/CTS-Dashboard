@@ -256,12 +256,11 @@ propose **Mettre à jour vers**, suivi de son numéro ; sinon, **Vérifier les
 fichiers** compare les 22 fichiers distribués à ceux que publie GitHub. Dans
 les deux cas, les PDF, les archives et les données protégées sont conservés.
 
-#### Deux règles, volontairement différentes
+#### La mise à jour est obligatoire
 
-Deux mécanismes encadrent les versions, et ils ne suivent pas la même
-logique.
+Deux mécanismes l'imposent, chacun à sa place.
 
-**Dans CTS Installer, la mise à jour est obligatoire.** Si une version plus
+**Dans CTS Installer.** Si une version plus
 récente existe, l'installateur la propose avant tout le reste et le menu
 n'est pas accessible tant qu'elle n'est pas faite.
 
@@ -269,11 +268,10 @@ Le **Diagnostic** reste joignable sans mettre à jour : c'est la procédure
 d'assistance du projet, et elle doit rester utilisable même quand c'est la
 mise à jour qui échoue.
 
-**Dans le widget, seul un plancher bloque.** `minimumDashboard`, dans
-[`version.json`](version.json), fixe la version en dessous de laquelle le
-widget cesse d'afficher un service et affiche « Mise à jour requise ». Une
-version simplement en retard continue de fonctionner : couper un conducteur
-en service parce qu'une correction vient de paraître n'aurait pas de sens.
+**Dans le widget.** Dès qu'une version paraît, le widget d'une version
+antérieure cesse d'afficher le service et affiche « Mise à jour requise »,
+jusqu'à ce que la mise à jour soit faite. Il l'apprend par l'appel
+d'activité quotidien, donc au plus tard le lendemain de la publication.
 
 Le widget ne consulte jamais le réseau pour en décider. Il lit une politique
 déposée par l'appel d'activité quotidien, et **l'absence de réponse ne
@@ -309,7 +307,7 @@ l'ancien installateur en place si l'écriture échoue.
 | Le widget affiche « Lecture en attente », ou l'icône de plateau | rien n'est perdu : la carte sera lue au réveil suivant, ou tout de suite en touchant le widget |
 | Le widget affiche « Synchronisation iCloud » | rien à faire : la liste des services n'est pas encore arrivée sur cet iPhone, et le widget réessaie tout seul |
 | Le widget affiche « Aucun service exploitable » | la carte déposée n'a pas été reconnue : vérifier que c'est bien une carte d'agent PDF, puis lancer **Diagnostic** |
-| Le widget affiche « Mise à jour requise » | lancer CTS Installer et accepter la mise à jour : la version installée est passée sous le plancher |
+| Le widget affiche « Mise à jour requise » | lancer CTS Installer et accepter la mise à jour : une version plus récente a été publiée |
 | CTS Installer s'arrête sur « Opération impossible » et dit que votre installation n'est pas en cause | rien n'est en panne : relancer CTS Installer plus tard, à l'heure indiquée s'il en donne une, ou tout de suite en passant du Wi-Fi aux données mobiles |
 | CTS Installer refuse de se lancer, ou s'arrête sur « Opération impossible » pour une autre raison | [réparer un installateur bloqué](#réparer-un-installateur-bloqué) |
 | Un service retiré réapparaît | la carte est encore dans `Services` : la supprimer, ou passer par **Retirer un service** |
