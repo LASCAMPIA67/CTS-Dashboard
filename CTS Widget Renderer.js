@@ -346,7 +346,7 @@ function formatClock(date) {
 function withUpdatedAt(text, date) {
   const clock = formatClock(date)
 
-  return clock ? `${text} · mis à jour ${clock}` : text
+  return clock ? `${text} · actualisé à ${clock}` : text
 }
 
 function addTimingCard(parent, focus, state, density) {
@@ -1244,7 +1244,7 @@ function fillMessageWidget(
 
   if (clock) {
     widget.addSpacer(8)
-    addText(widget, `Mis à jour à ${clock}`, Font.mediumSystemFont(9), secondary(), 1, 0.8)
+    addText(widget, `Actualisé à ${clock}`, Font.mediumSystemFont(9), secondary(), 1, 0.8)
   }
 
   return markRendered(widget)
