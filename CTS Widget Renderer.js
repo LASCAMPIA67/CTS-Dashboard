@@ -325,7 +325,7 @@ function addHeader(parent, service, state, density, context) {
   identity.addSpacer(1)
   addText(
     identity,
-    UTILS.formatDateLong(service.dateObject),
+    withUpdatedAt(UTILS.formatDateLong(service.dateObject), context?.currentDate),
     Font.mediumSystemFont(density.dateSize),
     secondary(),
     1,
@@ -335,6 +335,18 @@ function addHeader(parent, service, state, density, context) {
   row.addSpacer()
   addPendingBadge(row, context, state, density)
   addStatusPill(row, state, density)
+}
+
+function formatClock(date) {
+  if (!UTILS.isUsableDate(date)) return ""
+
+  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`
+}
+
+function withUpdatedAt(text, date) {
+  const clock = formatClock(date)
+
+  return clock ? `${text} · mis à jour ${clock}` : text
 }
 
 function addTimingCard(parent, focus, state, density) {
@@ -1171,7 +1183,7 @@ function validateContext(context) {
   return { valid: true, error: "" }
 }
 
-function createErrorWidget(title, message, family) {
+function createErrorWidget(title, message, family, updatedAt) {
   if (isAccessoryFamily(family)) return createAccessoryMessage(family, title, message)
 
   const widget = new ListWidget()
@@ -1182,11 +1194,12 @@ function createErrorWidget(title, message, family) {
     message,
     symbol: "exclamationmark.triangle.fill",
     symbolColor: THEME.getPrimaryTextColor(),
-    messageLines: 4
+    messageLines: 4,
+    updatedAt
   })
 }
 
-function createInfoWidget(title, message, family) {
+function createInfoWidget(title, message, family, updatedAt) {
   if (isAccessoryFamily(family)) return createAccessoryMessage(family, title, message)
 
   return fillMessageWidget(THEME.createBaseWidget("NEXT"), {
@@ -1194,11 +1207,15 @@ function createInfoWidget(title, message, family) {
     message,
     symbol: "tray.and.arrow.down.fill",
     symbolColor: THEME.getAccentColor("NEXT"),
-    messageLines: 6
+    messageLines: 6,
+    updatedAt
   })
 }
 
-function fillMessageWidget(widget, { title, message, symbol, symbolColor, messageLines }) {
+function fillMessageWidget(
+  widget,
+  { title, message, symbol, symbolColor, messageLines, updatedAt }
+) {
   widget.setPadding(18, 18, 18, 18)
 
   const header = widget.addStack()
@@ -1222,6 +1239,14 @@ function fillMessageWidget(widget, { title, message, symbol, symbolColor, messag
     borderAlpha: 0.07
   })
   addText(card, message, Font.mediumSystemFont(11), secondary(), messageLines, 0.72)
+
+  const clock = formatClock(updatedAt)
+
+  if (clock) {
+    widget.addSpacer(8)
+    addText(widget, `Mis à jour à ${clock}`, Font.mediumSystemFont(9), secondary(), 1, 0.8)
+  }
+
   return markRendered(widget)
 }
 
