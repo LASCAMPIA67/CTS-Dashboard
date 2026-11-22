@@ -45,6 +45,7 @@ async function main() {
       valid: false,
       errorTitle: ERROR_TITLE,
       errorMessage: UTILS.errorMessage(error),
+      currentDate: new Date(),
       refreshAfterDate: new Date(Date.now() + ERROR_REFRESH_MS)
     }
   }
@@ -58,12 +59,14 @@ async function main() {
         ? RENDERER.createInfoWidget(
             context.errorTitle || "Information",
             context.errorMessage || "",
-            family
+            family,
+            context.currentDate
           )
         : RENDERER.createErrorWidget(
             context.errorTitle || "Erreur",
             context.errorMessage || ERROR_MESSAGE,
-            family
+            family,
+            context.currentDate
           )
     setTelemetryStageSafely(analytics, telemetryRun, "render", "success")
   } catch (error) {
@@ -75,7 +78,7 @@ async function main() {
       module: "Dashboard",
       stage: "render"
     })
-    widget = RENDERER.createErrorWidget(ERROR_TITLE, ERROR_MESSAGE, family)
+    widget = RENDERER.createErrorWidget(ERROR_TITLE, ERROR_MESSAGE, family, new Date())
   }
 
   widget = ensureRenderedWidget(widget)
@@ -121,7 +124,8 @@ function ensureRenderedWidget(widget) {
       "",
       "Ouvre Scriptable puis lance CTS Dashboard pour voir le détail."
     ].join("\n"),
-    family
+    family,
+    new Date()
   )
 }
 
@@ -134,7 +138,8 @@ async function deliverLastResort() {
         "",
         "Ouvre Scriptable puis lance CTS Dashboard."
       ].join("\n"),
-      family
+      family,
+      new Date()
     )
 
     if (config.runsInWidget) {

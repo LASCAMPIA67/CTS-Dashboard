@@ -197,6 +197,7 @@ function buildContext(name, screen) {
     stats: SERVICE.computeStats(normalized.service),
     displaySlice: SERVICE.getDisplaySlice(normalized.service, state),
     pendingImports: base.pendingImports || 0,
+    currentDate: at,
     preferences: { textScale: Number(process.env.PREVIEW_TEXT_SCALE) || 1 }
   }
 }

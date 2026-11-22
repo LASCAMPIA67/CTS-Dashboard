@@ -208,6 +208,10 @@ async function run(
       failures.push(`${label} : la vignette porte un crédit d'auteur`)
     }
 
+    if (runsInWidget && family === "large" && !/[Aa]ctualisé à \d{2}:\d{2}/.test(words)) {
+      failures.push(`${label} : la vignette ne dit pas à quelle heure elle a été calculée`)
+    }
+
     if (
       runsInWidget &&
       family !== "large" &&
@@ -347,5 +351,5 @@ if (failures.length) {
 console.log(
   "ok     exécution de CTS Dashboard " +
   "(widget, application, 6 familles, rendu validé, jamais vide, réveils bornés, " +
-  "verrou d'analyse)"
+  "verrou d'analyse, heure du calcul)"
 )
