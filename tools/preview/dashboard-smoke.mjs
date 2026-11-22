@@ -118,7 +118,8 @@ async function run(
     service = false,
     engineFails = false,
     scanLockedByWidget = false,
-    serverPolicy = null
+    serverPolicy = null,
+    serverDelayMs = 0
   } = {}
 ) {
   const disk = new Map()
@@ -154,6 +155,7 @@ async function run(
       async loadString() { throw new Error("réseau indisponible") }
       async loadJSON() {
         if (!serverPolicy) throw new Error("réseau indisponible")
+        if (serverDelayMs) await new Promise(resolve => setTimeout(resolve, serverDelayMs))
         this.response = { statusCode: 201 }
         return this.url.endsWith("/telemetry")
           ? { ok: true, event: "telemetry_registered", versionPolicy: serverPolicy }
@@ -161,7 +163,9 @@ async function run(
       }
       async load() { throw new Error("réseau indisponible") }
     },
-    Timer: timerDouble({ delay: milliseconds => Math.min(milliseconds, 5) }),
+    Timer: timerDouble({
+      delay: milliseconds => (serverDelayMs ? milliseconds : Math.min(milliseconds, 5))
+    }),
     UUID: { string: () => "0123456789abcdef0123456789abcdef".replace(/./g, () => "abcdef0123456789"[Math.floor(Math.random() * 16)]) },
     Script: {
       name: () => "CTS Dashboard",
@@ -359,6 +363,12 @@ await run("application", {
   label: "application, version reçue avec la télémétrie",
   service: true,
   serverPolicy: { latestVersion: "9.9.9", minimumVersion: "9.9.9" }
+})
+await run("widget", {
+  label: "widget, version reçue en 300 ms",
+  service: true,
+  serverPolicy: { latestVersion: "9.9.9", minimumVersion: "9.9.9" },
+  serverDelayMs: 300
 })
 await run("widget", {
   label: "widget service verrou d'analyse",
