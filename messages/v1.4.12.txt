@@ -1,0 +1,16 @@
+*CTS DASHBOARD 1.4.12*
+
+Le widget vous prévient plus vite quand une nouvelle version est disponible.
+
+• *Mise à jour signalée plus tôt* — Quand une nouvelle version paraît, le widget vous demande de la faire dans les minutes qui suivent, au lieu du lendemain.
+
+*METTRE À JOUR*
+1. Ouvrez *Scriptable*
+2. Lancez *CTS Installer*
+3. _« Mettre à jour vers 1.4.12 »_
+4. Attendez _« 22/22 fichiers valides »_
+
+Vos cartes agent et vos archives sont conservées.
+
+*Version actuelle : CTS Dashboard 1.4.12*
+*CTS Installer : 1.0.34*

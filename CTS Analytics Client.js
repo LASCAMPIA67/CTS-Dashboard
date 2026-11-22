@@ -331,17 +331,19 @@ async function registerTelemetry({ dashboardVersion, run }) {
   const version = normalizeVersion(dashboardVersion)
   const telemetryRun = normalizeTelemetryRunForSend(finishTelemetryRun(run))
 
-  return sendRequest({
-    path: "/telemetry",
-    method: "POST",
-    apiKey: readRequiredSecret(KEYS.clientToken, "client_token_missing"),
-    body: {
-      ...devicePayload(version),
-      ...telemetryDriverPayload(run),
-      run: telemetryRun
-    },
-    timeoutSeconds: TELEMETRY_TIMEOUT_SECONDS
-  })
+  return withVersionPolicy(
+    await sendRequest({
+      path: "/telemetry",
+      method: "POST",
+      apiKey: readRequiredSecret(KEYS.clientToken, "client_token_missing"),
+      body: {
+        ...devicePayload(version),
+        ...telemetryDriverPayload(run),
+        run: telemetryRun
+      },
+      timeoutSeconds: TELEMETRY_TIMEOUT_SECONDS
+    })
+  )
 }
 
 async function registerTelemetrySafely({ dashboardVersion, run }) {

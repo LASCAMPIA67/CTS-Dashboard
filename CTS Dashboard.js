@@ -297,9 +297,13 @@ async function sendTelemetrySafely(client, run) {
   }
 
   try {
+    // La politique s'écrit avant que la course ne rende la main : sinon le widget s'arrête avant de la garder.
     const requestPromise = client.registerTelemetrySafely({
       dashboardVersion: CONFIG.dashboardVersion,
       run
+    }).then(async result => {
+      await storeVersionPolicySafely(result?.versionPolicy)
+      return result
     })
 
     const result = config.runsInWidget
