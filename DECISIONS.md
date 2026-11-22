@@ -589,3 +589,20 @@ décision lui est antérieure.
   premier chiffre. Remplace la définition du 4 septembre, qui la réservait à
   la publication qui éteint des installations en service, et qui ne
   distinguait plus rien depuis que toute publication le fait.
+- 2026-11-22 — Le grand widget de l'écran d'accueil affiche l'heure à
+  laquelle il a été calculé, sur l'écran du service comme sur chaque écran
+  de message. Choix du
+  mainteneur, après l'écran figé d'une collègue : le widget avait recalculé
+  son service une centaine de fois dans la nuit, mais l'écran d'accueil
+  gardait « Aucun PDF », et rien ne permettait de voir qu'il datait de la
+  veille. iOS décide seul de redessiner l'écran d'accueil ; le widget ne
+  peut que rendre ce retard visible. Les tuiles de l'écran verrouillé n'en
+  ont pas : leur place tient à peine l'heure de la tranche.
+- 2026-11-22 — Le blocage « Mise à jour requise » émet son propre incident,
+  `VERSION_UPDATE_REQUIRED`, et garde les étapes auxquelles la console
+  reconnaît les versions déjà installées. Il n'en émettait aucun : la
+  console d'administration prenait chaque collègue bloqué pour une panne
+  sans cause.
+- 2026-11-22 — « Aucun service exploitable » est une erreur et non plus un
+  avertissement : l'écran est rouge et ne montre aucun service, et la règle
+  de gravité veut qu'un avertissement laisse le service affiché.

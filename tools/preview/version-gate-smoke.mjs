@@ -146,6 +146,20 @@ function isBlocked(context) {
   )
   check(context.service === null, "un contexte bloqué ne doit porter aucun service")
   check(context.displaySlice === null, "un contexte bloqué ne doit porter aucune tranche")
+
+  const telemetry = context.telemetry || {}
+  const issue = (telemetry.issues || [])[0] || {}
+
+  check(
+    issue.errorCode === "VERSION_UPDATE_REQUIRED" && issue.severity === "error",
+    "le blocage de version n'émet pas son incident : la console le prendrait pour une panne sans cause"
+  )
+
+  check(
+    telemetry.pdfStatus === "not_checked" && telemetry.serviceStatus === "error" &&
+      telemetry.archiveStatus === "not_run",
+    "le blocage de version a perdu la signature à laquelle la console reconnaît les versions déjà installées"
+  )
 }
 
 {

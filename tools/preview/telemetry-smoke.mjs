@@ -88,11 +88,11 @@ function expect(label, run, expected) {
   const run = finished({
     stages: { pdf: "found", service: "not_found" },
     issues: [
-      { severity: "warning", errorCode: "SERVICE_NOT_FOUND", module: "WidgetEngine", stage: "service" }
+      { severity: "error", errorCode: "SERVICE_NOT_FOUND", module: "WidgetEngine", stage: "service" }
     ]
   })
 
-  expect("PDF détecté sans service exploitable", run, "warning")
+  expect("PDF détecté sans service exploitable : rien n'est affiché", run, "error")
 }
 
 {

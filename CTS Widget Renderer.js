@@ -228,7 +228,7 @@ function createLargeWidget(context) {
   widget.addSpacer(density.sectionGap)
   addTimingCard(widget, focus, state, density)
   widget.addSpacer(density.sectionGap)
-  addProgram(widget, service, state, density)
+  addProgram(widget, service, state, density, context?.currentDate)
   widget.addSpacer(density.sectionGap)
   addStats(widget, stats, density)
   return markRendered(widget)
@@ -325,7 +325,7 @@ function addHeader(parent, service, state, density, context) {
   identity.addSpacer(1)
   addText(
     identity,
-    withUpdatedAt(UTILS.formatDateLong(service.dateObject), context?.currentDate),
+    UTILS.formatDateLong(service.dateObject),
     Font.mediumSystemFont(density.dateSize),
     secondary(),
     1,
@@ -513,7 +513,7 @@ function addDetailBlock(parent, label, value, state, density, options = {}) {
   )
 }
 
-function addProgram(parent, service, state, density) {
+function addProgram(parent, service, state, density, updatedAt) {
   const card = addSurface(parent, {
     padding: [
       density.programPaddingVertical,
@@ -530,7 +530,10 @@ function addProgram(parent, service, state, density) {
   addSectionHeader(
     card,
     "PROGRAMME",
-    `${service.slices.length} tranche${service.slices.length > 1 ? "s" : ""}`,
+    withUpdatedAt(
+      `${service.slices.length} tranche${service.slices.length > 1 ? "s" : ""}`,
+      updatedAt
+    ),
     density.sectionHeaderSize
   )
   card.addSpacer(density.programHeaderGap)

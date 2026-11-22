@@ -74,6 +74,8 @@ Valider avec le simulateur ou des services réels :
 | Horaires après minuit | continuité correcte jusqu’à 47:59 |
 | Carte agent déjà en cours de lecture (application ouverte, ou passage du widget interrompu il y a moins de deux minutes), ou lecture interrompue qui attend sa reprise | `Lecture en attente`, sans allure d’erreur, et jamais la promesse d’une mise à jour « dans un instant » |
 | Aucun PDF | message explicite sans crash |
+| Tout écran du grand widget, service ou message | l’heure du dernier calcul est affichée (« actualisé à HH:MM ») et suit l’horloge de l’iPhone ; un écran figé se reconnaît à une heure ancienne |
+| Version antérieure à la dernière publiée | `Mise à jour requise`, et la console d’administration nomme ce blocage au lieu d’une panne sans cause |
 | PDF invalide | erreur contrôlée et diagnostic exploitable |
 
 Vérifier également les règles d’archivage : +1 h après la fin du service puis rétention de 7 jours avant suppression.

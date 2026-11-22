@@ -497,7 +497,7 @@ function buildMissingServiceContext(resolution, cleanup, currentDate) {
     telemetry.serviceStatus = "not_found"
 
     addDiagnosticIssue(telemetry, {
-      severity: "warning",
+      severity: "error",
       errorCode: "SERVICE_NOT_FOUND",
       module: "WidgetEngine",
       stage: "service"
@@ -1029,11 +1029,30 @@ async function resolveVersionBlock(currentDate) {
         "",
         "Ouvrez Scriptable, puis lancez CTS Installer pour la mettre à jour."
       ].join("\n"),
-      currentDate
+      currentDate,
+      versionBlockTelemetry()
     ),
     versionBlocked: true,
     installedVersion: installed,
     minimumVersion: policy.minimumVersion
+  }
+}
+
+function versionBlockTelemetry() {
+  return {
+    pdfStatus: "not_checked",
+    parserStatus: "not_run",
+    serviceStatus: "error",
+    archiveStatus: "not_run",
+    issues: [
+      {
+        severity: "error",
+        errorCode: "VERSION_UPDATE_REQUIRED",
+        module: "WidgetEngine",
+        stage: "version"
+      }
+    ],
+    timings: null
   }
 }
 
