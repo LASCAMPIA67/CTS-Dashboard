@@ -217,10 +217,12 @@ function createLargeWidget(context) {
   const density = getDensity(service.slices.length, context?.preferences?.textScale)
   const widget = THEME.createBaseWidget(state.type)
 
+  const clock = formatClock(context?.currentDate)
+
   widget.setPadding(
     density.paddingTop,
     density.paddingHorizontal,
-    density.paddingBottom,
+    clock ? density.clockPaddingBottom : density.paddingBottom,
     density.paddingHorizontal
   )
 
@@ -228,10 +230,22 @@ function createLargeWidget(context) {
   widget.addSpacer(density.sectionGap)
   addTimingCard(widget, focus, state, density)
   widget.addSpacer(density.sectionGap)
-  addProgram(widget, service, state, density, context?.currentDate)
+  addProgram(widget, service, state, density)
   widget.addSpacer(density.sectionGap)
   addStats(widget, stats, density)
+
+  if (clock) {
+    widget.addSpacer(density.clockGap)
+    addCornerClock(widget, clock, density.clockSize)
+  }
+
   return markRendered(widget)
+}
+
+function addCornerClock(parent, clock, size) {
+  const row = parent.addStack()
+  row.addSpacer()
+  addText(row, `Actualisé à ${clock}`, Font.mediumSystemFont(size), secondary(), 1, 0.8)
 }
 
 function addPendingBadge(parent, context, state, density) {
@@ -341,12 +355,6 @@ function formatClock(date) {
   if (!UTILS.isUsableDate(date)) return ""
 
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`
-}
-
-function withUpdatedAt(text, date) {
-  const clock = formatClock(date)
-
-  return clock ? `${text} · actualisé à ${clock}` : text
 }
 
 function addTimingCard(parent, focus, state, density) {
@@ -513,7 +521,7 @@ function addDetailBlock(parent, label, value, state, density, options = {}) {
   )
 }
 
-function addProgram(parent, service, state, density, updatedAt) {
+function addProgram(parent, service, state, density) {
   const card = addSurface(parent, {
     padding: [
       density.programPaddingVertical,
@@ -530,10 +538,7 @@ function addProgram(parent, service, state, density, updatedAt) {
   addSectionHeader(
     card,
     "PROGRAMME",
-    withUpdatedAt(
-      `${service.slices.length} tranche${service.slices.length > 1 ? "s" : ""}`,
-      updatedAt
-    ),
+    `${service.slices.length} tranche${service.slices.length > 1 ? "s" : ""}`,
     density.sectionHeaderSize
   )
   card.addSpacer(density.programHeaderGap)
@@ -1032,6 +1037,9 @@ function densityComfortable() {
   return {
     paddingTop: 17,
     paddingBottom: 14,
+    clockPaddingBottom: 4,
+    clockGap: 1,
+    clockSize: 7.5,
     paddingHorizontal: 18,
     sectionGap: 7,
     iconSize: 38,
@@ -1108,6 +1116,7 @@ function densityStandard() {
     ...densityComfortable(),
     paddingTop: 15,
     paddingBottom: 12,
+    clockPaddingBottom: 2,
     paddingHorizontal: 16,
     sectionGap: 4,
     iconSize: 34,
@@ -1219,7 +1228,11 @@ function fillMessageWidget(
   widget,
   { title, message, symbol, symbolColor, messageLines, updatedAt }
 ) {
-  widget.setPadding(18, 18, 18, 18)
+  const clock = formatClock(updatedAt)
+
+  widget.setPadding(18, 18, clock ? 10 : 18, 18)
+
+  if (clock) widget.addSpacer()
 
   const header = widget.addStack()
   header.centerAlignContent()
@@ -1243,11 +1256,9 @@ function fillMessageWidget(
   })
   addText(card, message, Font.mediumSystemFont(11), secondary(), messageLines, 0.72)
 
-  const clock = formatClock(updatedAt)
-
   if (clock) {
-    widget.addSpacer(8)
-    addText(widget, `Actualisé à ${clock}`, Font.mediumSystemFont(9), secondary(), 1, 0.8)
+    widget.addSpacer()
+    addCornerClock(widget, clock, 8)
   }
 
   return markRendered(widget)
