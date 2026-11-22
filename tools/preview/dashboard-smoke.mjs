@@ -117,7 +117,9 @@ async function run(
     label = surface,
     service = false,
     engineFails = false,
-    scanLockedByWidget = false
+    scanLockedByWidget = false,
+    serverPolicy = null,
+    serverDelayMs = 0
   } = {}
 ) {
   const disk = new Map()
@@ -143,18 +145,28 @@ async function run(
     config: { runsInWidget, widgetFamily: runsInWidget ? family : null },
     Device: { screenSize: () => new shim.Size(430, 932), systemVersion: () => "27.0" },
     Keychain: {
-      contains: () => false,
-      get: () => "",
+      contains: () => Boolean(serverPolicy),
+      get: () => (serverPolicy ? "jeton-client-de-test" : ""),
       set: () => {},
       remove: () => {}
     },
     Request: class {
       constructor(url) { this.url = String(url); this.headers = {} }
       async loadString() { throw new Error("réseau indisponible") }
-      async loadJSON() { throw new Error("réseau indisponible") }
+      async loadJSON() {
+        if (!serverPolicy) throw new Error("réseau indisponible")
+        if (serverDelayMs) await new Promise(resolve => setTimeout(resolve, serverDelayMs))
+        this.response = { statusCode: 201 }
+        return this.url.endsWith("/telemetry")
+          ? { ok: true, event: "telemetry_registered", versionPolicy: serverPolicy }
+          : { ok: true, event: "activity_registered" }
+      }
       async load() { throw new Error("réseau indisponible") }
     },
-    Timer: timerDouble({ delay: milliseconds => Math.min(milliseconds, 5) }),
+    Timer: timerDouble({
+      delay: milliseconds => (serverDelayMs ? milliseconds : Math.min(milliseconds, 5))
+    }),
+    UUID: { string: () => "0123456789abcdef0123456789abcdef".replace(/./g, () => "abcdef0123456789"[Math.floor(Math.random() * 16)]) },
     Script: {
       name: () => "CTS Dashboard",
       setWidget: widget => widgetsSet.push(widget),
@@ -300,6 +312,17 @@ async function run(
     }
   }
 
+  if (serverPolicy) {
+    const stored = JSON.parse(disk.get("/documents/CTS Dashboard/Data/version-policy.json") || "{}")
+
+    if (stored.minimumVersion !== serverPolicy.minimumVersion) {
+      failures.push(
+        `${label} : la version reçue avec la télémétrie n'est pas gardée — ` +
+          "le widget ne bloquerait qu'au lendemain d'une publication"
+      )
+    }
+  }
+
   const trace = disk.get("/documents/CTS Dashboard/Data/last-run.json")
 
   if (!trace) {
@@ -336,6 +359,17 @@ await run("widget", { label: "widget service", service: true })
 await run("application", { label: "application service", service: true })
 await run("widget", { label: "widget en panne", service: true, engineFails: true })
 await run("widget", { label: "widget verrou d'analyse", scanLockedByWidget: true })
+await run("application", {
+  label: "application, version reçue avec la télémétrie",
+  service: true,
+  serverPolicy: { latestVersion: "9.9.9", minimumVersion: "9.9.9" }
+})
+await run("widget", {
+  label: "widget, version reçue en 300 ms",
+  service: true,
+  serverPolicy: { latestVersion: "9.9.9", minimumVersion: "9.9.9" },
+  serverDelayMs: 300
+})
 await run("widget", {
   label: "widget service verrou d'analyse",
   service: true,
@@ -351,5 +385,5 @@ if (failures.length) {
 console.log(
   "ok     exécution de CTS Dashboard " +
   "(widget, application, 6 familles, rendu validé, jamais vide, réveils bornés, " +
-  "verrou d'analyse, heure du calcul)"
+  "verrou d'analyse, heure du calcul, version reçue avec la télémétrie)"
 )

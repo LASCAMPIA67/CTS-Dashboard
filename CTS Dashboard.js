@@ -300,6 +300,9 @@ async function sendTelemetrySafely(client, run) {
     const requestPromise = client.registerTelemetrySafely({
       dashboardVersion: CONFIG.dashboardVersion,
       run
+    }).then(async result => {
+      await storeVersionPolicySafely(result?.versionPolicy)
+      return result
     })
 
     const result = config.runsInWidget
@@ -331,7 +334,7 @@ async function displayWidget(widget, widgetFamily, telemetryPromise) {
   if (config.runsInWidget) {
     Script.setWidget(widget)
 
-    await Promise.race([telemetryPromise, UTILS.sleep(WIDGET_COMMIT_YIELD_MS)])
+    await Promise.all([telemetryPromise, UTILS.sleep(WIDGET_COMMIT_YIELD_MS)])
 
     return
   }

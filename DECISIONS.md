@@ -606,3 +606,12 @@ décision lui est antérieure.
 - 2026-11-22 — « Aucun service exploitable » est une erreur et non plus un
   avertissement : l'écran est rouge et ne montre aucun service, et la règle
   de gravité veut qu'un avertissement laisse le service affiché.
+- 2026-11-22 — Le widget garde la version publiée que le Worker joint à
+  chaque réponse à la télémétrie, et plus seulement celle de l'appel
+  d'activité quotidien. Choix du mainteneur : un collègue en retard est
+  bloqué au réveil qui suit celui où son widget l'a reçue, quelques minutes
+  après une publication, et non plus le lendemain. Le widget ne décide
+  toujours que sur ce qu'il a déjà gardé, au début de son réveil : attendre
+  le réseau pour bloquer dans le même réveil le ralentirait à chaque fois,
+  et le figerait dès que le réseau manque. Complète la décision du
+  24 août, qui ne le faisait juger sa version que sur l'appel quotidien.
