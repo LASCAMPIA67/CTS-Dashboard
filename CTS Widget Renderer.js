@@ -234,9 +234,9 @@ function createLargeWidget(context, density) {
   widget.addSpacer(density.sectionGap)
   addTimingCard(widget, focus, state, density)
   widget.addSpacer(density.sectionGap)
-  addProgram(widget, service, state, density)
+  addProgram(widget, service, state, focus, density)
   widget.addSpacer(density.sectionGap)
-  addStats(widget, service, stats, density)
+  addStats(widget, stats, density)
 
   return markRendered(widget)
 }
@@ -489,10 +489,18 @@ function addTimingSide(parent, label, time, place, density) {
   )
 }
 
-function addDepotRow(parent, slice, state, density) {
+function depotRowKind(slice, state) {
   const running = state?.type === "DONE" || state?.type === "WORK"
 
-  if (running && slice.depotReturnAt) {
+  if (running && slice.depotReturnAt) return "return"
+  if (hasDepotTiming(slice)) return "exit"
+  return ""
+}
+
+function addDepotRow(parent, slice, state, density) {
+  const kind = depotRowKind(slice, state)
+
+  if (kind === "return") {
     const row = addGridRow(parent)
     addDetailBlock(row, "RENTRÉE DÉPÔT", slice.depotReturnAt, state, density, { time: true })
     row.addSpacer(gridGutter(density))
@@ -501,7 +509,7 @@ function addDepotRow(parent, slice, state, density) {
     return true
   }
 
-  if (!hasDepotTiming(slice)) return false
+  if (kind !== "exit") return false
 
   const row = addGridRow(parent)
   addDetailBlock(row, "PRISE DE SERVICE", slice.dutyStart, state, density, { time: true })
@@ -574,7 +582,7 @@ function addDetailBlock(parent, label, value, state, density, options = {}) {
   )
 }
 
-function addProgram(parent, service, state, density) {
+function addProgram(parent, service, state, focus, density) {
   const card = addSurface(parent, {
     padding: [
       density.programPaddingVertical,
@@ -601,23 +609,21 @@ function addProgram(parent, service, state, density) {
     : []
 
   service.slices.forEach((slice, index) => {
-    addSliceRow(card, slice, state, density)
+    addSliceRow(card, slice, state, density, slice.index === focus?.index)
 
-    const next = service.slices[index + 1]
-
-    if (!next) return
+    if (index >= service.slices.length - 1) return
 
     const interruption = interruptions.find(item => item.afterIndex === index)
 
     if (interruption && !isAnnouncedByPill(interruption, state)) {
-      addInterruption(card, interruption, density, `${slice.end} – ${next.start}`)
+      addInterruption(card, interruption, density)
     } else {
       card.addSpacer(density.rowGap)
     }
   })
 }
 
-function addInterruption(parent, interruption, density, span) {
+function addInterruption(parent, interruption, density) {
   parent.addSpacer(density.interruptionGap)
 
   const row = parent.addStack()
@@ -625,7 +631,7 @@ function addInterruption(parent, interruption, density, span) {
   row.addSpacer()
 
   const parts = [interruption.label]
-  if (density.interruptionTimes) parts.push(span)
+  if (density.interruptionTimes) parts.push(`${interruption.start} – ${interruption.end}`)
   parts.push(UTILS.formatDuration(interruption.duration))
   const value = parts.join(" · ")
 
@@ -652,7 +658,7 @@ function isAnnouncedByPill(interruption, state) {
   )
 }
 
-function addSliceRow(parent, slice, state, density) {
+function addSliceRow(parent, slice, state, density, isFocus) {
   const active = isSliceActive(slice, state)
   const row = parent.addStack()
   row.setPadding(
@@ -666,7 +672,12 @@ function addSliceRow(parent, slice, state, density) {
   row.borderWidth = 0.5
   row.borderColor = active ? accentAlpha(state, 0.34) : THEME.translucentWhite(0.04)
 
-  const details = density.sliceDetails ? sliceDetailItems(slice) : []
+  const shownAbove = isFocus && !density.hidesOperationalDetails
+  const details = density.sliceDetails
+    ? sliceDetailItems(slice).filter(
+        item => !shownAbove || (item.group !== "line" && item.group !== depotRowKind(slice, state))
+      )
+    : []
 
   if (!details.length) {
     row.centerAlignContent()
@@ -686,19 +697,24 @@ function sliceDetailItems(slice) {
   const items = []
 
   if (hasDepotTiming(slice)) {
-    items.push({ label: "PRISE DE SERVICE", value: slice.dutyStart, time: true })
-    items.push({ label: "SORTIE DÉPÔT", value: slice.depotExitAt, time: true })
+    items.push({ group: "exit", label: "PRISE DE SERVICE", value: slice.dutyStart, time: true })
+    items.push({ group: "exit", label: "SORTIE DÉPÔT", value: slice.depotExitAt, time: true })
   }
 
   if (slice.lineUpAt) {
-    items.push({ label: getOperationStartLabel(slice), value: slice.lineUpAt, emphasized: true })
+    items.push({
+      group: "line",
+      label: getOperationStartLabel(slice),
+      value: slice.lineUpAt,
+      emphasized: true
+    })
   }
 
-  if (slice.direction) items.push({ label: "DIRECTION", value: slice.direction })
+  if (slice.direction) items.push({ group: "line", label: "DIRECTION", value: slice.direction })
 
   if (slice.depotReturnAt) {
-    items.push({ label: "RENTRÉE DÉPÔT", value: slice.depotReturnAt, time: true })
-    items.push({ label: "FIN DE SERVICE", value: slice.dutyEnd, time: true })
+    items.push({ group: "return", label: "RENTRÉE DÉPÔT", value: slice.depotReturnAt, time: true })
+    items.push({ group: "return", label: "FIN DE SERVICE", value: slice.dutyEnd, time: true })
   }
 
   return items
@@ -833,7 +849,7 @@ function addSliceNumber(parent, slice, active, state, density) {
   badge.addSpacer()
 }
 
-function addStats(parent, service, stats, density) {
+function addStats(parent, stats, density) {
   const card = addSurface(parent, {
     padding: [density.statPaddingVertical, 0, density.statPaddingVertical, 0],
     radius: density.statRadius,
@@ -843,14 +859,14 @@ function addStats(parent, service, stats, density) {
   card.centerAlignContent()
 
   card.addSpacer()
-  statItems(service, stats, density).forEach((item, index) => {
+  statItems(stats, density).forEach((item, index) => {
     if (index) addStatSeparator(card, density)
     addStatBlock(card, item.value, item.label, density)
   })
   card.addSpacer()
 }
 
-function statItems(service, stats, density) {
+function statItems(stats, density) {
   const durations = [
     { value: UTILS.formatDuration(stats.work), label: "Travail" },
     { value: UTILS.formatDuration(stats.amplitude), label: "Amplitude" }
@@ -858,12 +874,10 @@ function statItems(service, stats, density) {
 
   if (density.statColumns !== 4) return durations
 
-  const last = service.slices[service.slices.length - 1]
-
   return [
-    { value: service.slices[0].dutyStart, label: "Prise de service" },
+    { value: stats.start, label: "Prise de service" },
     ...durations,
-    { value: last.dutyEnd, label: "Fin de service" }
+    { value: stats.end, label: "Fin de service" }
   ]
 }
 

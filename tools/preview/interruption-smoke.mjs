@@ -391,6 +391,57 @@ for (const [lineCode, line, symbol, other, label] of [
   check(widgetBody(widget).includes(label), `ligne ${line} : le libellé « ${label} » manque`)
 }
 
+{
+  const service = build([
+    { ...slice(1, "05:00", "05:12", "09:30"), lineCode: "80", line: "A", dutyEnd: "09:45" }
+  ])
+  const stats = SERVICE.computeStats(service)
+
+  check(stats.end === "09:45", `fin de journée ${stats.end} au lieu de la fin de service 09:45`)
+  check(
+    stats.amplitude === 285,
+    `amplitude ${stats.amplitude} min au lieu de 285 : elle va de la prise à la fin de service`
+  )
+}
+
+function renderPortrait(service, at, textScale = 1) {
+  const state = SERVICE.computeState(service, at)
+
+  return widgetBody(
+    RENDERER.createWidget("extraLargePortrait", {
+      valid: true,
+      service,
+      state,
+      stats: SERVICE.computeStats(service),
+      displaySlice: SERVICE.getDisplaySlice(service, state),
+      pendingImports: 0,
+      currentDate: at,
+      preferences: { textScale }
+    })
+  )
+}
+
+const occurrences = (html, text) => html.split(text).length - 1
+
+{
+  const service = build([
+    { ...slice(1, "04:56", "05:06", "07:39"), depotExitAt: "05:00", lineUpAt: "Gare Centrale", direction: "Hoenheim Gare" },
+    { ...slice(2, "08:39", "08:39", "12:50"), direction: "Illkirch Lixenbuhl", depotReturnAt: "12:58", dutyEnd: "13:05" }
+  ])
+  const inService = renderPortrait(service, new Date(2026, 7, 27, 6, 0))
+
+  check(inService.includes("07:39 – 08:39"), "Portrait XL : la pause n'affiche pas ses heures")
+  check(occurrences(inService, "Gare Centrale") === 1, "Portrait XL : la mise en ligne de la tranche affichée en haut est répétée dans le programme")
+  check(occurrences(inService, "Hoenheim Gare") === 1, "Portrait XL : la direction de la tranche affichée en haut est répétée dans le programme")
+  check(occurrences(inService, "Illkirch Lixenbuhl") === 1, "Portrait XL : la direction d'une autre tranche manque au programme")
+  check(occurrences(inService, "SORTIE DÉPÔT") === 1, "Portrait XL : la sortie dépôt est absente ou répétée")
+  check(occurrences(inService, "RENTRÉE DÉPÔT") === 1, "Portrait XL : la rentrée dépôt d'une autre tranche est absente ou répétée")
+
+  const enlarged = renderPortrait(service, new Date(2026, 7, 27, 6, 0), 1.25)
+
+  check(occurrences(enlarged, "Hoenheim Gare") === 1, "Portrait XL, texte agrandi : la direction masquée en haut doit rester au programme")
+}
+
 if (failures.length) {
   for (const failure of failures) console.error(`  ✗ ${failure}`)
   console.error(`\n${failures.length} contrôle(s) en échec.`)
@@ -399,5 +450,6 @@ if (failures.length) {
 
 console.log(
   "Intervalles entre tranches : pause et coupure nommées, accordées avec la " +
-    "pastille, et jamais répétées pendant qu'elle les annonce ; service après minuit ; tram et bus distingués."
+    "pastille, et jamais répétées pendant qu'elle les annonce ; service après minuit ; tram et bus distingués ; " +
+    "amplitude jusqu'à la fin de service ; Portrait XL sans détail répété."
 )

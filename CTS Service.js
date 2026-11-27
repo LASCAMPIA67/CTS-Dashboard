@@ -295,9 +295,9 @@ function computeStats(service) {
   return {
     count: slices.length,
     work,
-    amplitude: UTILS.durationMinutes(firstSlice.dutyStart, lastSlice.end),
+    amplitude: UTILS.durationMinutes(firstSlice.dutyStart, lastSlice.dutyEnd),
     start: firstSlice.dutyStart,
-    end: lastSlice.end
+    end: lastSlice.dutyEnd
   }
 }
 
