@@ -101,6 +101,13 @@ Les hauteurs des autres écrans sont déduites par analogie, en gardant le
 même rapport de 1,535 : elles ne sont pas mesurées, et un débordement
 qu'elles annoncent n'est qu'une alerte à vérifier sur un téléphone.
 
+Ses tailles agrandies sont réservées à cet écran de 440 points, le seul
+mesuré. Dessinées le 27 novembre avec Inter, elles débordaient en largeur
+dès 428 points : pastille d'état tronquée quand une carte attend, titre de
+tranche sur ses horaires. En dessous, le Portrait XL garde les tailles du
+grand widget, qui tiennent jusqu'au SE, et n'y ajoute que ses informations
+en plus. Le banc de géométrie tient ce partage.
+
 ## Ce qui reste à confirmer sur iPhone
 
 Tout ce qui touche à la métrique fine du texte : longueur exacte à laquelle

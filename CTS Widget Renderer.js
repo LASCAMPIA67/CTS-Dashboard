@@ -761,7 +761,9 @@ function addSliceDetail(parent, item, active, state, density) {
     item.value,
     item.time
       ? Font.boldMonospacedSystemFont(density.sliceDetailValueSize)
-      : Font.semiboldSystemFont(density.sliceDetailValueSize),
+      : Font.semiboldSystemFont(
+          fitFont(density.sliceDetailValueSize, item.value, density.sliceDetailSoftLimit)
+        ),
     item.emphasized && active ? accent(state) : THEME.getPrimaryTextColor(),
     0.7
   )
@@ -1144,10 +1146,17 @@ function getDensity(sliceCountValue, textScale = 1) {
 }
 
 function getPortraitDensity(sliceCountValue, textScale = 1) {
-  return fitDensity(
-    isCrowded(sliceCountValue) ? densityPortraitStandard() : densityPortraitComfortable(),
-    textScale
-  )
+  const crowded = isCrowded(sliceCountValue)
+
+  // Les tailles du plein écran ne tiennent que sur un grand écran : ailleurs, il n'y garde que ses informations en plus.
+  if (getDeviceSize().width < WIDE_SCREEN_WIDTH) {
+    return fitDensity(
+      { ...(crowded ? densityStandard() : densityComfortable()), ...PORTRAIT_INFORMATION },
+      textScale
+    )
+  }
+
+  return fitDensity(crowded ? densityPortraitStandard() : densityPortraitComfortable(), textScale)
 }
 
 function isCrowded(sliceCountValue) {
@@ -1181,6 +1190,15 @@ function estimateWidgetWidth(screen) {
 }
 
 const COLUMN_SAFETY_MARGIN = 18
+const AVERAGE_GLYPH_EM = 0.6
+const NARROW_SCREEN_WIDTH = 375
+const WIDE_SCREEN_WIDTH = 440
+
+const PORTRAIT_INFORMATION = Object.freeze({
+  sliceDetails: true,
+  interruptionTimes: true,
+  dayBounds: true
+})
 
 function statColumnWidth(density, screen, columns) {
   const card =
@@ -1201,17 +1219,22 @@ function withColumnWidth(density, screen) {
   const available = inner - gridGutter(density)
   const rowInner = inner - 2 * density.rowPaddingHorizontal
   const statColumns = density.dayBounds ? 4 : 2
+  const sliceDetailWidth = Math.max(0, Math.floor(rowInner / SLICE_DETAIL_COLUMNS))
   return {
     ...density,
     columnWidth: Math.max(density.columnWidth, Math.floor(available / 2)),
     statColumns,
     statColumnWidth: statColumnWidth(density, screen, statColumns),
-    sliceDetailWidth: Math.max(0, Math.floor(rowInner / SLICE_DETAIL_COLUMNS))
+    sliceDetailWidth,
+    sliceDetailSoftLimit: Math.max(
+      1,
+      Math.floor(sliceDetailWidth / (density.sliceDetailValueSize * AVERAGE_GLYPH_EM))
+    )
   }
 }
 
 function adaptDensity(base, width) {
-  if (width > 375) return base
+  if (width > NARROW_SCREEN_WIDTH) return base
   return {
     ...base,
     paddingHorizontal: Math.max(13, base.paddingHorizontal - 2),
@@ -1397,9 +1420,7 @@ function densityStandard() {
 function densityPortraitComfortable() {
   return {
     ...densityComfortable(),
-    sliceDetails: true,
-    interruptionTimes: true,
-    dayBounds: true,
+    ...PORTRAIT_INFORMATION,
     paddingTop: 20,
     paddingBottom: 18,
     sectionGap: 10,

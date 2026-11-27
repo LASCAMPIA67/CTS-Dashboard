@@ -93,6 +93,38 @@ for (const format of FORMATS) {
   }
 }
 
+const TEXT_SIZES = ["serviceSize", "badgeSize", "refreshButtonSize", "timeSize", "sliceTitleSize"]
+
+for (const screen of SCREENS) {
+  SCREEN = screen
+
+  for (const slices of [1, 3]) {
+    const large = RENDERER.getDensity(slices)
+    const portrait = RENDERER.getPortraitDensity(slices)
+    const sameSizes = TEXT_SIZES.every(key => portrait[key] === large[key])
+    const wide = screen.width >= 440
+    const label = `Portrait XL · ${screen.label} · ${slices} tranche(s)`
+
+    if (!portrait.sliceDetails || !portrait.interruptionTimes || !portrait.dayBounds) {
+      failures.push(`${label} : le plein écran a perdu ses informations en plus`)
+    }
+
+    if (wide && sameSizes) {
+      failures.push(`${label} : le plein écran a perdu ses tailles agrandies`)
+    }
+
+    if (!wide && !sameSizes) {
+      failures.push(`${label} : les tailles agrandies, qui débordent sous 440 pt, y sont gardées`)
+    }
+
+    if (!(portrait.sliceDetailSoftLimit >= 8)) {
+      failures.push(
+        `${label} : une colonne du détail ne tient que ${portrait.sliceDetailSoftLimit} caractères`
+      )
+    }
+  }
+}
+
 for (const screen of SCREENS) {
   SCREEN = screen
   const widget = RENDERER.estimateWidgetWidth(screen)
@@ -110,5 +142,6 @@ if (failures.length) {
 
 console.log(
   `ok     géométrie de la grille et des colonnes du bas ` +
-    `(grand et Portrait XL, ${SCREENS.length} écrans × 4 découpages, jeu ≥ ${MINIMUM_SLACK} pt)`
+    `(grand et Portrait XL, ${SCREENS.length} écrans × 4 découpages, jeu ≥ ${MINIMUM_SLACK} pt ; ` +
+    `tailles agrandies du plein écran réservées aux écrans de 440 pt)`
 )
