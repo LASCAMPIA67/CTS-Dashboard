@@ -626,10 +626,13 @@ décision lui est antérieure.
 - 2026-11-27 — Un bouton « Actualiser » se tient dans l'en-tête, entre la
   date et la pastille, avec l'heure du dernier calcul sous lui. Choix du
   mainteneur, plutôt qu'en bas à droite : la place est là, et le bouton y
-  est plus grand. Le toucher lance un réveil d'action que le script laisse
-  passer sans rien faire, parce qu'un rendu ordinaire le suit et refait
-  tout : travailler dans les deux lirait iCloud deux fois pour un seul
-  écran. Précise la décision du 22 novembre, qui ne plaçait pas l'heure.
+  est plus grand. Un toucher ne calcule le service qu'une fois : le
+  calculer aussi au moment du toucher lirait iCloud deux fois pour un seul
+  écran. En « Grandes polices », le bouton ne garde que son symbole : son
+  libellé agrandi ôtait sa place à la pastille d'état. Il n'existe que sur
+  le grand widget et le plein écran : une petite tuile n'a pas la place de
+  l'accueillir, et garde l'heure dans son coin. Précise la décision du
+  22 novembre, qui ne plaçait pas l'heure.
 - 2026-11-27 — L'amplitude va de la prise à la fin de service, et non plus
   jusqu'à la fin de la dernière tranche. Correction du mainteneur : la fin
   de service peut suivre la fin de tranche, et c'est elle qui borne la
@@ -642,12 +645,11 @@ décision lui est antérieure.
 - 2026-11-27 — Le fichier de suivi `last-run.json` quitte iCloud pour la
   bibliothèque locale de Scriptable, comme les verrous : chaque réveil
   l'écrivait deux fois dans un dossier synchronisé, pour un suivi qui
-  n'apprend rien à un autre appareil. CTS Installer 1.0.35 le lit là, et
-  relit encore l'ancien fichier tant que le nouveau manque. Remplace la
-  réserve du 23 septembre, qui l'y gardait faute de publier l'installateur.
+  n'apprend rien à un autre appareil. Remplace la réserve du 23 septembre,
+  qui l'y gardait faute de publier l'installateur.
 - 2026-11-27 — Un réveil ne vérifie plus qu'une fois le dossier Services
-  et ne lit qu'une fois l'index : le balayage les passe à la sélection et à
-  l'entretien. Chaque lecture d'iCloud allonge un réveil qu'iOS borne.
+  et ne lit qu'une fois l'index : chaque lecture d'iCloud allonge un réveil
+  qu'iOS borne.
 - 2026-11-27 — La refonte de la qualité du code des deux dépôts paraît avec
   le bouton et le plein écran, sous un seul numéro de chaque côté et un
   seul message à la communauté. Choix du mainteneur : une mise à jour à

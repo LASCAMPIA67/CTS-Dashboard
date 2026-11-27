@@ -236,6 +236,8 @@ function createLargeWidget(context, density) {
 }
 
 const REFRESH_ACTION_ID = "refresh"
+const REFRESH_FAMILIES = Object.freeze(["large", "extralargeportrait"])
+const SYMBOL_ONLY_REFRESH_WIDTH = 70
 
 const MESSAGE_REFRESH = Object.freeze({
   refreshWidth: 86,
@@ -268,6 +270,12 @@ function addRefreshBlock(parent, clock, color, metrics) {
   )
 }
 
+function addCornerClock(parent, clock, size) {
+  const row = parent.addStack()
+  row.addSpacer()
+  addText(row, `Actualisé à ${clock}`, Font.mediumSystemFont(size), secondary(), 1, 0.8)
+}
+
 function addRefreshButton(parent, color, metrics) {
   const button = parent.addStack()
   button.centerAlignContent()
@@ -282,8 +290,12 @@ function addRefreshButton(parent, color, metrics) {
   button.borderWidth = 0.5
   button.borderColor = THEME.translucentWhite(0.14)
   addSymbol(button, "arrow.clockwise", metrics.refreshButtonSize, color)
-  button.addSpacer(4)
-  addText(button, "Actualiser", Font.semiboldSystemFont(metrics.refreshButtonSize), color, 1, 0.8)
+
+  if (metrics.refreshLabel !== false) {
+    button.addSpacer(4)
+    addText(button, "Actualiser", Font.semiboldSystemFont(metrics.refreshButtonSize), color, 1, 0.8)
+  }
+
   button.setAction("Actualiser", { id: REFRESH_ACTION_ID })
 }
 
@@ -609,15 +621,17 @@ function addProgram(parent, service, state, focus, density) {
 
     const interruption = interruptions.find(item => item.afterIndex === index)
 
-    if (interruption && !isAnnouncedByPill(interruption, state)) {
-      addInterruption(card, interruption, density)
+    const announced = Boolean(interruption) && isAnnouncedByPill(interruption, state)
+
+    if (interruption && (!announced || density.interruptionTimes)) {
+      addInterruption(card, interruption, density, announced)
     } else {
       card.addSpacer(density.rowGap)
     }
   })
 }
 
-function addInterruption(parent, interruption, density) {
+function addInterruption(parent, interruption, density, announced) {
   parent.addSpacer(density.interruptionGap)
 
   const row = parent.addStack()
@@ -626,7 +640,7 @@ function addInterruption(parent, interruption, density) {
 
   const parts = [interruption.label]
   if (density.interruptionTimes) parts.push(`${interruption.start} – ${interruption.end}`)
-  parts.push(UTILS.formatDuration(interruption.duration))
+  if (!announced) parts.push(UTILS.formatDuration(interruption.duration))
   const value = parts.join(" · ")
 
   addText(
@@ -1109,8 +1123,6 @@ const TEXT_KEYS = Object.freeze([
   "placeMinimumSize",
   "placeSize",
   "rangeSize",
-  "refreshButtonSize",
-  "refreshClockSize",
   "routeMinimumSize",
   "sectionHeaderSize",
   "serviceSize",
@@ -1130,7 +1142,12 @@ function withTextScale(density, scaleValue) {
 
   if (!Number.isFinite(scale) || scale <= 1) return density
 
-  const scaled = { ...density, hidesOperationalDetails: true }
+  const scaled = {
+    ...density,
+    hidesOperationalDetails: true,
+    refreshLabel: false,
+    refreshWidth: Math.min(density.refreshWidth, SYMBOL_ONLY_REFRESH_WIDTH)
+  }
 
   for (const key of TEXT_KEYS) {
     if (typeof scaled[key] === "number") {
@@ -1148,7 +1165,6 @@ function getDensity(sliceCountValue, textScale = 1) {
 function getPortraitDensity(sliceCountValue, textScale = 1) {
   const crowded = isCrowded(sliceCountValue)
 
-  // Les tailles du plein écran ne tiennent que sur un grand écran : ailleurs, il n'y garde que ses informations en plus.
   if (getDeviceSize().width < WIDE_SCREEN_WIDTH) {
     return fitDensity(
       { ...(crowded ? densityStandard() : densityComfortable()), ...PORTRAIT_INFORMATION },
@@ -1534,6 +1550,7 @@ function createErrorWidget(title, message, family, updatedAt) {
   widget.backgroundColor = THEME.getErrorBackgroundColor()
 
   return fillMessageWidget(widget, {
+    family,
     title,
     message,
     symbol: "exclamationmark.triangle.fill",
@@ -1547,6 +1564,7 @@ function createInfoWidget(title, message, family, updatedAt) {
   if (isAccessoryFamily(family)) return createAccessoryMessage(family, title, message)
 
   return fillMessageWidget(THEME.createBaseWidget("NEXT"), {
+    family,
     title,
     message,
     symbol: "tray.and.arrow.down.fill",
@@ -1558,11 +1576,15 @@ function createInfoWidget(title, message, family, updatedAt) {
 
 function fillMessageWidget(
   widget,
-  { title, message, symbol, symbolColor, messageLines, updatedAt }
+  { family, title, message, symbol, symbolColor, messageLines, updatedAt }
 ) {
   const clock = formatClock(updatedAt)
+  const refreshInHeader = Boolean(clock) && REFRESH_FAMILIES.includes(normalizeFamily(family))
+  const clockInCorner = Boolean(clock) && !refreshInHeader
 
-  widget.setPadding(18, 18, 18, 18)
+  widget.setPadding(18, 18, clockInCorner ? 10 : 18, 18)
+
+  if (clockInCorner) widget.addSpacer()
 
   const header = widget.addStack()
   header.centerAlignContent()
@@ -1577,7 +1599,7 @@ function fillMessageWidget(
   header.addSpacer(10)
   addText(header, title, Font.boldSystemFont(17), THEME.getPrimaryTextColor(), 1, 0.72)
 
-  if (clock) {
+  if (refreshInHeader) {
     header.addSpacer()
     addRefreshBlock(header, clock, symbolColor, MESSAGE_REFRESH)
   }
@@ -1590,6 +1612,11 @@ function fillMessageWidget(
     borderAlpha: 0.07
   })
   addText(card, message, Font.mediumSystemFont(11), secondary(), messageLines, 0.72)
+
+  if (clockInCorner) {
+    widget.addSpacer()
+    addCornerClock(widget, clock, 8)
+  }
 
   return markRendered(widget)
 }

@@ -447,6 +447,11 @@ const occurrences = (html, text) => html.split(text).length - 1
   check(occurrences(lastSlice, "PRISE DE SERVICE") === 0, "Portrait XL : la prise de service de la première tranche répète le bas du widget")
   check(occurrences(lastSlice, "SORTIE DÉPÔT") === 1, "Portrait XL : la sortie dépôt de la première tranche manque")
 
+  const pausing = renderPortrait(service, new Date(2026, 7, 27, 8, 0))
+
+  check(pausing.includes("07:39 – 08:39"), "Portrait XL : la pause en cours n'affiche ses heures nulle part")
+  check(!pausing.includes("08:39 · 1 h"), "Portrait XL : la pause en cours répète la durée que dit la pastille")
+
   const enlarged = renderPortrait(service, new Date(2026, 7, 27, 6, 0), 1.25)
 
   check(occurrences(enlarged, "Hoenheim Gare") === 1, "Portrait XL, texte agrandi : la direction masquée en haut doit rester au programme")

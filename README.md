@@ -73,7 +73,7 @@ iPhone, le texte y est aussi plus grand.
 
 <p align="center">
   <img src="docs/images/pause-2-tranches-pro-max-440-extralargeportrait.png" width="300"
-       alt="Le widget plein écran en orange, pastille « Pause 3 h 28 » : la tranche suivante en bandeau, puis le programme avec, sous chaque tranche, la sortie et la rentrée au dépôt, la mise en ligne, la direction et la fin de service, et en bas la prise de service, le travail, l'amplitude et la fin de service.">
+       alt="Le widget plein écran en orange, pastille « Pause 3 h 28 » : la tranche suivante en bandeau, puis le programme avec les horaires de la pause en cours et, sous chaque tranche, la sortie et la rentrée au dépôt, la mise en ligne, la direction et la fin de service, et en bas la prise de service, le travail, l'amplitude et la fin de service.">
 </p>
 
 Les images sont dessinées hors iPhone, par le code même qui dessine le
@@ -245,7 +245,7 @@ Dans **CTS Installer → Taille du texte**, deux réglages :
 | Réglage | Ce qu'il change |
 |---|---|
 | **Standard** | toutes les informations, texte de taille habituelle |
-| **Grandes polices** | texte 25 % plus grand ; les détails du dépôt et de la direction sont masqués pour faire la place |
+| **Grandes polices** | texte 25 % plus grand ; les détails du dépôt et de la direction sont masqués, et le bouton Actualiser ne garde que son symbole, pour faire la place |
 
 #### Structure créée automatiquement
 

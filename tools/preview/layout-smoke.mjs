@@ -70,6 +70,22 @@ for (const format of FORMATS) {
   for (const screen of SCREENS) {
     SCREEN = screen
 
+    for (const slices of [1, 4]) {
+      const plain = format.density(slices)
+      const enlarged = format.density(slices, 1.25)
+
+      if (
+        enlarged.refreshButtonSize !== plain.refreshButtonSize ||
+        enlarged.refreshLabel !== false ||
+        enlarged.refreshWidth > plain.refreshWidth
+      ) {
+        failures.push(
+          `${format.label} · ${screen.label} · ${slices} tranche(s) : en « Grandes polices », le ` +
+            "bouton Actualiser grandit ou garde son libellé, et prend la place de la pastille"
+        )
+      }
+    }
+
     for (const slices of [1, 2, 3, 4]) {
       for (const textScale of [1, 1.25]) {
         const density = format.density(slices, textScale)

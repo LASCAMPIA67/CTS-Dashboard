@@ -2,9 +2,9 @@
 
 Votre widget s'actualise d'un geste, et le widget plein écran d'iOS 27 montre tout votre service.
 
-• *Bouton Actualiser* — En haut du widget, à côté de son état, un bouton recalcule votre service sur-le-champ, avec l'heure du dernier calcul juste en dessous.
+• *Bouton Actualiser* — En haut du widget, à côté de son état, un bouton recalcule votre service sur-le-champ.
 
-• *Widget plein écran* — Sur iOS 27, le widget qui occupe tout l'écran d'accueil affiche le détail de chaque tranche, les horaires des pauses et des coupures, la prise et la fin de service, le tout en plus grand.
+• *Widget plein écran* — Sur iOS 27, le widget qui occupe tout l'écran d'accueil affiche le détail de chaque tranche, les horaires des pauses et des coupures, la prise et la fin de service, en plus grand sur les plus grands iPhone.
 
 • *Corrections et optimisations* — L'amplitude va désormais de la prise à la fin de service, et le widget travaille moins à chaque actualisation.
 

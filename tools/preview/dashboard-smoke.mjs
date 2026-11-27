@@ -320,8 +320,15 @@ async function run(
       failures.push(`${label} : la tuile ${family} n'affiche pas le service du jour`)
     }
 
-    if (runsInWidget && servesHomeScreen && !/[Aa]ctualisé à \d{2}:\d{2}/.test(words)) {
+    const showsMessage = !service || engineFails
+    const dated = /[Aa]ctualisé à \d{2}:\d{2}/.test(words)
+
+    if (runsInWidget && servesHomeScreen && !dated) {
       failures.push(`${label} : la vignette ne dit pas à quelle heure elle a été calculée`)
+    }
+
+    if (runsInWidget && showsMessage && !servesHomeScreen && !ACCESSORY.includes(family) && !dated) {
+      failures.push(`${label} : le message de la tuile ${family} ne dit plus à quelle heure il a été calculé`)
     }
 
     const actions = collectActions(widget)
@@ -345,6 +352,7 @@ async function run(
 
     if (
       runsInWidget &&
+      !showsMessage &&
       !servesHomeScreen &&
       !ACCESSORY.includes(family) &&
       !/Widget grand requis/.test(words)
@@ -480,6 +488,11 @@ for (const family of [
   "small"
 ]) {
   await run("widget", { family, label: `widget ${family}`, service: true })
+}
+
+for (const family of ["medium", "small"]) {
+  await run("widget", { family, label: `widget ${family} sans carte` })
+  await run("widget", { family, label: `widget ${family} en panne`, service: true, engineFails: true })
 }
 
 await run("widget", { label: "widget service", service: true })
