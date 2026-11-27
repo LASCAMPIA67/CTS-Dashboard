@@ -25,7 +25,7 @@ Préconditions : Scriptable à jour, iCloud Drive activé, aucun dossier CTS Das
 4. Vérifier la création de l’arborescence CTS Dashboard.
 5. Vérifier la présence des 17 scripts et 5 ressources distribués.
 6. Vérifier que CTS Installer termine sur `22/22 fichiers valides` et `0 erreur`.
-7. Ajouter un widget Scriptable grand format et sélectionner `CTS Dashboard`.
+7. Ajouter un widget Scriptable grand format — ou, sur iOS 27, plein écran — et sélectionner `CTS Dashboard`.
 8. Régler l’interaction sur `Run Script`.
 
 Résultat attendu : installation sans intervention manuelle dans les dossiers techniques et widget fonctionnel.
@@ -55,6 +55,7 @@ Pour chaque navigateur :
 4. Relance du Dashboard après dépôt.
 5. Carte de journée de type C, dont le numéro porte un suffixe après les chiffres — `P2` : importée comme les autres, le numéro affiché en entier dans l’en-tête du widget. Une telle carte refusée par une version antérieure (`PDF HASTUS non reconnu`) est relue après la mise à jour, sans être redéposée.
 6. Carte déposée avant la 1.4.8, dont deux tranches partagent la même voiture : relue une fois après la mise à jour, sans être redéposée, et sa seconde tranche affiche alors sa propre direction. Une carte dont les tranches sont sur des voitures différentes n’est pas relue.
+7. À partir de la 1.5.0, avec PDF.js 6.5.438 : une vraie carte agent se lit sur l’iPhone comme avant. Aucun banc ne joue la WebView de l’iPhone.
 
 Résultat attendu : détection, extraction, import, renommage/indexation et sélection du bon service sans manipulation technique supplémentaire.
 
@@ -75,6 +76,8 @@ Valider avec le simulateur ou des services réels :
 | Carte agent déjà en cours de lecture (application ouverte, ou passage du widget interrompu il y a moins de deux minutes), ou lecture interrompue qui attend sa reprise | `Lecture en attente`, sans allure d’erreur, et jamais la promesse d’une mise à jour « dans un instant » |
 | Aucun PDF | message explicite sans crash |
 | Tout écran du grand widget, service ou message | l’heure du dernier calcul est affichée (« actualisé à HH:MM ») et suit l’horloge de l’iPhone ; un écran figé se reconnaît à une heure ancienne |
+| Bouton `Actualiser`, dans l’en-tête du grand widget et du plein écran | le toucher recalcule le service et l’heure sous le bouton change ; en « Grandes polices », le bouton ne montre que son symbole ; une petite ou moyenne tuile n’a pas de bouton et garde l’heure dans son coin |
+| Fin de service après la fin de la dernière tranche | l’amplitude court de la prise à la fin de service, pas jusqu’à la fin de la tranche |
 | Version antérieure à la dernière publiée | `Mise à jour requise`, dans les minutes qui suivent la publication à partir de la 1.4.12 — au réveil qui suit celui où le widget a reçu la version —, et la console d’administration nomme ce blocage au lieu d’une panne sans cause |
 | PDF invalide | erreur contrôlée et diagnostic exploitable |
 
@@ -113,6 +116,14 @@ Contrôler sur chaque profil d’écran :
 - couleurs BEFORE / WORK / PAUSE / CUT / DONE cohérentes ;
 - icône bus ou tram correcte selon le service.
 
+Sur iOS 27, contrôler aussi le widget plein écran :
+
+- sous chaque tranche, sortie et rentrée au dépôt, mise en ligne, direction et fin de service, sans jamais répéter ce que le bandeau affiche, ni la prise de service de la première tranche ni la fin de service de la dernière ;
+- chaque pause ou coupure avec ses horaires, y compris celle en cours, dont la durée reste dans la pastille ;
+- en bas, la prise de service, le travail, l’amplitude et la fin de service ;
+- le texte agrandi sur l’écran de 440 points seulement, le seul mesuré ; ailleurs, les tailles du grand widget ;
+- un service de trois tranches ou plus entier, jusqu’en bas.
+
 ## 7. Résilience iCloud et réseau
 
 1. PDF présent dans iCloud mais non encore téléchargé : CTS doit attendre/réessayer avant lecture.
@@ -136,9 +147,10 @@ Contrôler sur chaque profil d’écran :
 7. Passer en mode Avion une fois le menu atteint, puis lancer le `Diagnostic` : la conformité doit être annoncée non vérifiée, et jamais divergente.
 8. Tronquer `pdf.min.mjs` dans la bibliothèque locale de Scriptable (`CTS Dashboard/Libraries/PDF`) : **Ressources** doit le refuser, alors que le fichier reste lisible.
 9. Après un import interrompu, les étapes qui n’ont pas eu lieu doivent s’écrire `non terminée` dans le rapport, et jamais `0 ms`.
-10. Sur un iPhone installé avant CTS Installer 1.0.32, lancer une vérification : le dossier `CTS Dashboard/Libraries` doit disparaître d’iCloud Drive, puis importer une carte agent — elle doit se lire normalement, le moteur trouvant PDF.js sur l’appareil.
-11. Avec au moins un service enregistré, **Index des services** doit être validé et annoncer le nombre de services indexés — jamais qu’un module « ne fournit pas » une fonction.
-12. À l’import d’une carte agent dont un point de relève manque à `places.json`, le widget affiche le service avec le nom imprimé sur la carte, et la console d’administration montre pour ce poste un avertissement « Un lieu de relève de la carte agent manque à places.json » — une seule fois, à l’import, et sans le code du lieu.
+10. Après la mise à jour vers CTS Installer 1.0.35 et un réveil du widget, le rapport porte le dernier passage du widget, et `CTS Dashboard/Data/last-run.json` a disparu d’iCloud Drive.
+11. Sur un iPhone installé avant CTS Installer 1.0.32, lancer une vérification : le dossier `CTS Dashboard/Libraries` doit disparaître d’iCloud Drive, puis importer une carte agent — elle doit se lire normalement, le moteur trouvant PDF.js sur l’appareil.
+12. Avec au moins un service enregistré, **Index des services** doit être validé et annoncer le nombre de services indexés — jamais qu’un module « ne fournit pas » une fonction.
+13. À l’import d’une carte agent dont un point de relève manque à `places.json`, le widget affiche le service avec le nom imprimé sur la carte, et la console d’administration montre pour ce poste un avertissement « Un lieu de relève de la carte agent manque à places.json » — une seule fois, à l’import, et sans le code du lieu.
 
 ## 9. Critères de diffusion
 
