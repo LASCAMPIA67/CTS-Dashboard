@@ -36,6 +36,10 @@ const failures = []
 
 const MINIMUM_SLACK = 10
 
+function refreshButtonWidth(density) {
+  return density.refreshSymbolSize + 2 * density.badgePaddingHorizontal
+}
+
 const FORMATS = [
   { label: "grand", density: RENDERER.getDensity },
   { label: "Portrait XL", density: RENDERER.getPortraitDensity }
@@ -74,10 +78,7 @@ for (const format of FORMATS) {
       const plain = format.density(slices)
       const enlarged = format.density(slices, 1.25)
 
-      if (
-        enlarged.refreshButtonSize !== plain.refreshButtonSize ||
-        enlarged.refreshWidth !== plain.refreshWidth
-      ) {
+      if (refreshButtonWidth(enlarged) !== refreshButtonWidth(plain)) {
         failures.push(
           `${format.label} · ${screen.label} · ${slices} tranche(s) : en « Grandes polices », le ` +
             "bouton d'actualisation grandit et prend la place de la pastille"
@@ -108,7 +109,7 @@ for (const format of FORMATS) {
   }
 }
 
-const TEXT_SIZES = ["serviceSize", "badgeSize", "refreshButtonSize", "timeSize", "sliceTitleSize"]
+const TEXT_SIZES = ["serviceSize", "badgeSize", "refreshSymbolSize", "timeSize", "sliceTitleSize"]
 
 for (const screen of SCREENS) {
   SCREEN = screen

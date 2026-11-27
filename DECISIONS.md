@@ -635,6 +635,12 @@ décision lui est antérieure.
   le grand widget et le plein écran : une petite tuile n'a pas la place de
   l'accueillir, et garde l'heure dans son coin. Précise la décision du
   22 novembre, qui ne plaçait pas l'heure.
+- 2026-11-27 — Le bouton ↻ rejoint la pastille d'état en haut à droite, à
+  sa hauteur, et l'heure du dernier calcul retourne dans le coin en bas à
+  droite, où la 1.4.12 la plaçait. Choix du mainteneur après l'essai sur
+  son iPhone : entre la date et la pastille, le bouton et l'heure ne
+  s'alignaient sur rien. Remplace l'emplacement fixé par l'entrée
+  précédente ; le reste de celle-ci tient.
 - 2026-11-27 — L'amplitude va de la prise à la fin de service, et non plus
   jusqu'à la fin de la dernière tranche. Correction du mainteneur : la fin
   de service peut suivre la fin de tranche, et c'est elle qui borne la

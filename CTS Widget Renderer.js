@@ -217,10 +217,12 @@ function createLargeWidget(context, density) {
   const { service, state, stats, displaySlice: focus } = context
   const widget = THEME.createBaseWidget(state.type)
 
+  const clock = formatClock(context?.currentDate)
+
   widget.setPadding(
     density.paddingTop,
     density.paddingHorizontal,
-    density.paddingBottom,
+    clock ? density.clockPaddingBottom : density.paddingBottom,
     density.paddingHorizontal
   )
 
@@ -232,41 +234,12 @@ function createLargeWidget(context, density) {
   widget.addSpacer(density.sectionGap)
   addStats(widget, stats, density)
 
-  return markRendered(widget)
-}
-
-const REFRESH_ACTION_ID = "refresh"
-const REFRESH_FAMILIES = Object.freeze(["large", "extralargeportrait"])
-
-const MESSAGE_REFRESH = Object.freeze({
-  refreshWidth: 72,
-  refreshButtonSize: 13,
-  refreshPaddingVertical: 5,
-  refreshPaddingHorizontal: 12,
-  refreshClockSize: 8,
-  refreshGap: 3
-})
-
-function addRefreshBlock(parent, clock, color, metrics) {
-  const block = parent.addStack()
-  block.layoutVertically()
-  block.size = new Size(metrics.refreshWidth, 0)
-
-  if (typeof block.setAction === "function") {
-    const row = block.addStack()
-    row.addSpacer()
-    addRefreshButton(row, color, metrics)
-    row.addSpacer()
-    block.addSpacer(metrics.refreshGap)
+  if (clock) {
+    widget.addSpacer(density.clockGap)
+    addCornerClock(widget, clock, density.clockSize)
   }
 
-  addCenteredLine(
-    block,
-    `Actualisé à ${clock}`,
-    Font.mediumSystemFont(metrics.refreshClockSize),
-    secondary(),
-    0.8
-  )
+  return markRendered(widget)
 }
 
 function addCornerClock(parent, clock, size) {
@@ -275,20 +248,45 @@ function addCornerClock(parent, clock, size) {
   addText(row, `Actualisé à ${clock}`, Font.mediumSystemFont(size), secondary(), 1, 0.8)
 }
 
+const REFRESH_ACTION_ID = "refresh"
+const REFRESH_FAMILIES = Object.freeze(["large", "extralargeportrait"])
+
+const MESSAGE_BADGE = Object.freeze({
+  badgeSize: 10,
+  badgePaddingVertical: 5,
+  badgePaddingHorizontal: 8,
+  refreshSymbolSize: 12
+})
+
+// La hauteur fixe doit couvrir une ligne de texte entière : la réduire rognerait l'état de la pastille.
+const BADGE_LINE_HEIGHT = 1.2
+
+function addBadge(parent, metrics, paddingHorizontal, fill, border) {
+  const height = Math.ceil(metrics.badgeSize * BADGE_LINE_HEIGHT + 2 * metrics.badgePaddingVertical)
+  const badge = parent.addStack()
+  badge.size = new Size(0, height)
+  badge.centerAlignContent()
+  badge.setPadding(0, paddingHorizontal, 0, paddingHorizontal)
+  badge.cornerRadius = 10
+  badge.backgroundColor = fill
+  badge.borderWidth = 0.5
+  badge.borderColor = border
+  return badge
+}
+
+function canRefresh(stack) {
+  return typeof stack.setAction === "function"
+}
+
 function addRefreshButton(parent, color, metrics) {
-  const button = parent.addStack()
-  button.centerAlignContent()
-  button.setPadding(
-    metrics.refreshPaddingVertical,
-    metrics.refreshPaddingHorizontal,
-    metrics.refreshPaddingVertical,
-    metrics.refreshPaddingHorizontal
+  const button = addBadge(
+    parent,
+    metrics,
+    metrics.badgePaddingHorizontal,
+    THEME.translucentWhite(0.08),
+    THEME.translucentWhite(0.14)
   )
-  button.cornerRadius = 10
-  button.backgroundColor = THEME.translucentWhite(0.08)
-  button.borderWidth = 0.5
-  button.borderColor = THEME.translucentWhite(0.14)
-  addSymbol(button, "arrow.clockwise", metrics.refreshButtonSize, color)
+  addSymbol(button, "arrow.clockwise", metrics.refreshSymbolSize, color)
   button.setAction("Actualiser", { id: REFRESH_ACTION_ID })
 }
 
@@ -297,18 +295,13 @@ function addPendingBadge(parent, context, state, density) {
 
   if (!waiting) return
 
-  const badge = parent.addStack()
-  badge.centerAlignContent()
-  badge.setPadding(
-    density.badgePaddingVertical,
+  const badge = addBadge(
+    parent,
+    density,
     density.pendingPaddingHorizontal,
-    density.badgePaddingVertical,
-    density.pendingPaddingHorizontal
+    accentAlpha(state, 0.1),
+    accentAlpha(state, 0.22)
   )
-  badge.cornerRadius = 10
-  badge.backgroundColor = accentAlpha(state, 0.1)
-  badge.borderWidth = 0.5
-  badge.borderColor = accentAlpha(state, 0.22)
 
   addSymbol(badge, "tray.and.arrow.down.fill", density.pendingSymbolSize, accent(state))
 
@@ -324,7 +317,7 @@ function addPendingBadge(parent, context, state, density) {
     )
   }
 
-  parent.addSpacer(density.pendingSymbolGap)
+  parent.addSpacer(density.badgeGap)
 }
 
 function createLargeOnlyWidget() {
@@ -391,15 +384,13 @@ function addHeader(parent, service, state, density, context) {
   )
 
   row.addSpacer()
+  addPendingBadge(row, context, state, density)
 
-  const clock = formatClock(context?.currentDate)
-
-  if (clock) {
-    addRefreshBlock(row, clock, accent(state), density)
-    row.addSpacer()
+  if (canRefresh(row)) {
+    addRefreshButton(row, accent(state), density)
+    row.addSpacer(density.badgeGap)
   }
 
-  addPendingBadge(row, context, state, density)
   addStatusPill(row, state, density)
 }
 
@@ -931,17 +922,13 @@ function addStatSeparator(parent, density) {
 }
 
 function addStatusPill(parent, state, density) {
-  const pill = parent.addStack()
-  pill.setPadding(
-    density.badgePaddingVertical,
+  const pill = addBadge(
+    parent,
+    density,
     density.badgePaddingHorizontal,
-    density.badgePaddingVertical,
-    density.badgePaddingHorizontal
+    accentAlpha(state, 0.1),
+    accentAlpha(state, 0.22)
   )
-  pill.cornerRadius = 10
-  pill.backgroundColor = accentAlpha(state, 0.1)
-  pill.borderWidth = 0.5
-  pill.borderColor = accentAlpha(state, 0.22)
   addText(
     pill,
     getStatusLabel(state),
@@ -1244,9 +1231,6 @@ function adaptDensity(base, width) {
     paddingHorizontal: Math.max(13, base.paddingHorizontal - 2),
     iconGap: Math.max(7, base.iconGap - 1),
     badgePaddingHorizontal: Math.max(6, base.badgePaddingHorizontal - 1),
-    refreshWidth: Math.max(64, base.refreshWidth - 6),
-    refreshButtonSize: Math.min(12, base.refreshButtonSize),
-    refreshPaddingHorizontal: Math.max(10, base.refreshPaddingHorizontal - 2),
     cardPaddingHorizontal: Math.max(9, base.cardPaddingHorizontal - 1),
     timingArrowGap: Math.max(5, base.timingArrowGap - 1),
     arrowSize: Math.max(20, base.arrowSize - 2),
@@ -1267,6 +1251,9 @@ function densityComfortable() {
     dayBounds: false,
     paddingTop: 17,
     paddingBottom: 14,
+    clockPaddingBottom: 4,
+    clockGap: 1,
+    clockSize: 7.5,
     paddingHorizontal: 18,
     sectionGap: 7,
     iconSize: 38,
@@ -1277,12 +1264,8 @@ function densityComfortable() {
     badgeSize: 10,
     badgePaddingVertical: 5,
     badgePaddingHorizontal: 8,
-    refreshWidth: 72,
-    refreshButtonSize: 13,
-    refreshPaddingVertical: 5,
-    refreshPaddingHorizontal: 12,
-    refreshClockSize: 7.5,
-    refreshGap: 2,
+    badgeGap: 5,
+    refreshSymbolSize: 12,
     surfaceRadius: 17,
     timingPaddingVertical: 8,
     cardPaddingHorizontal: 12,
@@ -1352,6 +1335,7 @@ function densityStandard() {
     ...densityComfortable(),
     paddingTop: 15,
     paddingBottom: 12,
+    clockPaddingBottom: 2,
     paddingHorizontal: 16,
     sectionGap: 4,
     iconSize: 34,
@@ -1362,10 +1346,8 @@ function densityStandard() {
     badgeSize: 10,
     badgePaddingVertical: 4,
     badgePaddingHorizontal: 7,
-    refreshWidth: 72,
-    refreshButtonSize: 12,
-    refreshPaddingVertical: 4,
-    refreshPaddingHorizontal: 11,
+    badgeGap: 4,
+    refreshSymbolSize: 11,
     surfaceRadius: 16,
     timingPaddingVertical: 6,
     cardPaddingHorizontal: 11,
@@ -1427,6 +1409,8 @@ function densityPortraitComfortable() {
     ...PORTRAIT_INFORMATION,
     paddingTop: 20,
     paddingBottom: 18,
+    clockPaddingBottom: 6,
+    clockSize: 8.5,
     sectionGap: 10,
     iconSize: 44,
     iconSymbolSize: 20,
@@ -1436,12 +1420,8 @@ function densityPortraitComfortable() {
     badgeSize: 11.5,
     badgePaddingVertical: 6,
     badgePaddingHorizontal: 10,
-    refreshWidth: 78,
-    refreshButtonSize: 15,
-    refreshPaddingVertical: 5,
-    refreshPaddingHorizontal: 13,
-    refreshClockSize: 8.5,
-    refreshGap: 3,
+    badgeGap: 6,
+    refreshSymbolSize: 13.5,
     timingPaddingVertical: 11,
     timingLabelSize: 9,
     timingLabelGap: 4,
@@ -1488,6 +1468,7 @@ function densityPortraitStandard() {
     ...densityPortraitComfortable(),
     paddingTop: 17,
     paddingBottom: 15,
+    clockPaddingBottom: 3,
     sectionGap: 7,
     iconSize: 40,
     iconSymbolSize: 18,
@@ -1567,12 +1548,10 @@ function fillMessageWidget(
   { family, title, message, symbol, symbolColor, messageLines, updatedAt }
 ) {
   const clock = formatClock(updatedAt)
-  const refreshInHeader = Boolean(clock) && REFRESH_FAMILIES.includes(normalizeFamily(family))
-  const clockInCorner = Boolean(clock) && !refreshInHeader
 
-  widget.setPadding(18, 18, clockInCorner ? 10 : 18, 18)
+  widget.setPadding(18, 18, clock ? 10 : 18, 18)
 
-  if (clockInCorner) widget.addSpacer()
+  if (clock) widget.addSpacer()
 
   const header = widget.addStack()
   header.centerAlignContent()
@@ -1587,9 +1566,9 @@ function fillMessageWidget(
   header.addSpacer(10)
   addText(header, title, Font.boldSystemFont(17), THEME.getPrimaryTextColor(), 1, 0.72)
 
-  if (refreshInHeader) {
+  if (REFRESH_FAMILIES.includes(normalizeFamily(family)) && canRefresh(header)) {
     header.addSpacer()
-    addRefreshBlock(header, clock, symbolColor, MESSAGE_REFRESH)
+    addRefreshButton(header, symbolColor, MESSAGE_BADGE)
   }
 
   widget.addSpacer(10)
@@ -1601,7 +1580,7 @@ function fillMessageWidget(
   })
   addText(card, message, Font.mediumSystemFont(11), secondary(), messageLines, 0.72)
 
-  if (clockInCorner) {
+  if (clock) {
     widget.addSpacer()
     addCornerClock(widget, clock, 8)
   }

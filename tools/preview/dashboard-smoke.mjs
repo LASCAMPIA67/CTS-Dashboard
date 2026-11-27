@@ -335,7 +335,25 @@ async function run(
     const expectsControl = runsInWidget && servesHomeScreen && !legacyScriptable
 
     if (expectsControl && actions.length !== 1) {
-      failures.push(`${label} : ${actions.length} bouton(s) Actualiser au lieu d'un, à côté de l'heure`)
+      failures.push(`${label} : ${actions.length} bouton(s) Actualiser au lieu d'un`)
+    }
+
+    const rows = widget.children.filter(child => child.kind === "stack")
+
+    if (expectsControl && !collectActions(rows[0]).length) {
+      failures.push(`${label} : le bouton Actualiser a quitté l'en-tête`)
+    }
+
+    if (dated && !/[Aa]ctualisé à/.test(collectText(rows.at(-1)))) {
+      failures.push(`${label} : l'heure du calcul a quitté le coin bas du widget`)
+    }
+
+    if (expectsControl && !showsMessage) {
+      const [button, pill] = rows[0].children.filter(child => child.kind === "stack").slice(-2)
+
+      if (!button?.action || rows[0].children.at(-1) !== pill) {
+        failures.push(`${label} : le bouton Actualiser n'est plus juste à gauche de la pastille d'état`)
+      }
     }
 
     if (/Actualiser/.test(words)) {
