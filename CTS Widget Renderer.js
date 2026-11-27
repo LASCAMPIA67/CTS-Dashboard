@@ -82,38 +82,39 @@ function accessoryStart(focus) {
 function createAccessoryWidget(family, context) {
   const normalized = normalizeFamily(family)
   const focus = accessoryFocus(context)
+
+  if (normalized === "accessoryinline") return createInlineAccessory(focus, context.service)
+  if (normalized === "accessorycircular") return createCircularAccessory(focus)
+
+  return createRectangularAccessory(focus, context)
+}
+
+function createInlineAccessory(focus, service) {
+  const widget = createAccessoryBase()
+  const label = sentenceCase(focus.label)
+  const parts = [service.number, focus.time ? `${label} ${focus.time}` : label]
+
+  if (focus.place) parts.push(focus.place)
+
+  widget.addText(parts.join(" · "))
+  return markRendered(widget)
+}
+
+function createCircularAccessory(focus) {
+  const widget = createAccessoryBase()
+  const column = widget.addStack()
+  column.layoutVertically()
+  column.centerAlignContent()
+  column.addSpacer()
+  addCenteredLine(column, focus.label, Font.boldSystemFont(9), Color.white(), 0.6)
+  column.addSpacer(1)
+  addCenteredLine(column, focus.time || "—", Font.boldMonospacedSystemFont(15), Color.white(), 0.5)
+  column.addSpacer()
+  return markRendered(widget)
+}
+
+function createRectangularAccessory(focus, context) {
   const service = context.service
-
-  if (normalized === "accessoryinline") {
-    const widget = createAccessoryBase()
-    const label = sentenceCase(focus.label)
-    const parts = [service.number, focus.time ? `${label} ${focus.time}` : label]
-
-    if (focus.place) parts.push(focus.place)
-
-    widget.addText(parts.join(" · "))
-    return markRendered(widget)
-  }
-
-  if (normalized === "accessorycircular") {
-    const widget = createAccessoryBase()
-    const column = widget.addStack()
-    column.layoutVertically()
-    column.centerAlignContent()
-    column.addSpacer()
-    addCenteredLine(column, focus.label, Font.boldSystemFont(9), Color.white(), 0.6)
-    column.addSpacer(1)
-    addCenteredLine(
-      column,
-      focus.time || "—",
-      Font.boldMonospacedSystemFont(15),
-      Color.white(),
-      0.5
-    )
-    column.addSpacer()
-    return markRendered(widget)
-  }
-
   const widget = createAccessoryBase()
   const column = widget.addStack()
   column.layoutVertically()

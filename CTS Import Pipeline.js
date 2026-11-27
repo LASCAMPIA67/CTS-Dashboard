@@ -77,52 +77,60 @@ async function importPdf(pdfPath) {
 
     timings.totalMs = elapsedMs(startedAtMs)
 
-    const result = {
-      success: true,
-      status: "imported",
-      telemetryCode: "",
-      telemetryStage: "",
-      startedAt,
-      completedAt: new Date().toISOString(),
-      service: service.service,
-      date: service.date,
-      slices: service.slices.length,
-      warnings: [...service.validation.warnings],
-      slicesWithUnknownPlace: service.validation.slicesWithUnknownPlace,
-      sourceFileName: sourceInfo.fileName,
-      pdfFileName: registration.pdfFileName,
-      cacheFileName: registration.cacheFileName,
-      textFileName: registration.textFileName,
-      indexEntry: registration.indexEntry,
-      extraction: extractionSummary(extraction),
-      timings: normalizeImportTimings(timings)
-    }
+    const result = importSuccess(startedAt, service, sourceInfo, extraction, registration, timings)
 
     await STORAGE.appendLog("success", "Service PDF importé", result)
 
     return result
   } catch (error) {
-    const telemetry = telemetryFromError(error, "SERVICE_IMPORT_FAILED", "import")
-    const safeError = UTILS.safeError(error)
-
     timings.totalMs = elapsedMs(startedAtMs)
 
-    const result = {
-      success: false,
-      status: "exception",
-      telemetryCode: telemetry.code,
-      telemetryStage: telemetry.stage,
-      startedAt,
-      completedAt: new Date().toISOString(),
-      sourceFileName: sourceInfo?.fileName || "",
-      error: safeError.message,
-      details: safeError,
-      timings: normalizeImportTimings(timings)
-    }
+    const result = importException(error, startedAt, sourceInfo, timings)
 
     await STORAGE.appendLog("exception", "Erreur pendant l’importation locale d’un PDF", result)
 
     return result
+  }
+}
+
+function importSuccess(startedAt, service, sourceInfo, extraction, registration, timings) {
+  return {
+    success: true,
+    status: "imported",
+    telemetryCode: "",
+    telemetryStage: "",
+    startedAt,
+    completedAt: new Date().toISOString(),
+    service: service.service,
+    date: service.date,
+    slices: service.slices.length,
+    warnings: [...service.validation.warnings],
+    slicesWithUnknownPlace: service.validation.slicesWithUnknownPlace,
+    sourceFileName: sourceInfo.fileName,
+    pdfFileName: registration.pdfFileName,
+    cacheFileName: registration.cacheFileName,
+    textFileName: registration.textFileName,
+    indexEntry: registration.indexEntry,
+    extraction: extractionSummary(extraction),
+    timings: normalizeImportTimings(timings)
+  }
+}
+
+function importException(error, startedAt, sourceInfo, timings) {
+  const telemetry = telemetryFromError(error, "SERVICE_IMPORT_FAILED", "import")
+  const safeError = UTILS.safeError(error)
+
+  return {
+    success: false,
+    status: "exception",
+    telemetryCode: telemetry.code,
+    telemetryStage: telemetry.stage,
+    startedAt,
+    completedAt: new Date().toISOString(),
+    sourceFileName: sourceInfo?.fileName || "",
+    error: safeError.message,
+    details: safeError,
+    timings: normalizeImportTimings(timings)
   }
 }
 

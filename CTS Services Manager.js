@@ -71,45 +71,9 @@ async function performScan(options) {
   const servicePdfs = listing.files
   const detectionErrors = listing.detectionErrors
   const now = new Date()
-  const candidates = []
-  let awaitingRetry = 0
-
-  for (const file of servicePdfs) {
-    const decision = await processingDecision(file, index, state, now)
-
-    if (decision === "process") candidates.push(file)
-    if (decision === "retry-later") awaitingRetry++
-  }
-
-  candidates.sort(compareCandidates)
-
-  const maximumFiles = resolveMaximumFiles(options.maximumFiles)
-  const selectedCandidates = candidates.slice(0, maximumFiles)
-  const imported = []
-  const failed = []
-  const deferred = []
-
-  for (const candidate of selectedCandidates) {
-    recordAttemptedImport(state, candidate)
-    state.updatedAt = new Date().toISOString()
-    await saveScanState(state)
-
-    const result = await importCandidate(candidate)
-
-    if (result.success) {
-      imported.push(result)
-      await recordSuccessfulImport(state, candidate, result)
-    } else if (ranOutOfWidgetBudget(result)) {
-      deferred.push(result)
-    } else {
-      failed.push(result)
-      recordFailedImport(state, candidate, result)
-    }
-
-    state.updatedAt = new Date().toISOString()
-    await saveScanState(state)
-  }
-
+  const { candidates, awaitingRetry } = await collectCandidates(servicePdfs, index, state, now)
+  const selectedCandidates = candidates.slice(0, resolveMaximumFiles(options.maximumFiles))
+  const { imported, failed, deferred } = await importCandidates(selectedCandidates, state)
   const knownFailures = collectKnownFailures(servicePdfs, state, failed)
 
   state.updatedAt = new Date().toISOString()
@@ -149,6 +113,47 @@ async function performScan(options) {
     ),
     index: selectedCandidates.length ? null : index
   }
+}
+
+async function collectCandidates(servicePdfs, index, state, now) {
+  const candidates = []
+  let awaitingRetry = 0
+
+  for (const file of servicePdfs) {
+    const decision = await processingDecision(file, index, state, now)
+
+    if (decision === "process") candidates.push(file)
+    if (decision === "retry-later") awaitingRetry++
+  }
+
+  return { candidates: candidates.sort(compareCandidates), awaitingRetry }
+}
+
+async function importCandidates(candidates, state) {
+  const outcome = { imported: [], failed: [], deferred: [] }
+
+  for (const candidate of candidates) {
+    recordAttemptedImport(state, candidate)
+    state.updatedAt = new Date().toISOString()
+    await saveScanState(state)
+
+    const result = await importCandidate(candidate)
+
+    if (result.success) {
+      outcome.imported.push(result)
+      await recordSuccessfulImport(state, candidate, result)
+    } else if (ranOutOfWidgetBudget(result)) {
+      outcome.deferred.push(result)
+    } else {
+      outcome.failed.push(result)
+      recordFailedImport(state, candidate, result)
+    }
+
+    state.updatedAt = new Date().toISOString()
+    await saveScanState(state)
+  }
+
+  return outcome
 }
 
 function ranOutOfWidgetBudget(result) {
@@ -724,47 +729,28 @@ async function resolveServiceForDate(currentDate = new Date(), knownIndex = null
   const yesterdayKey = localDateKey(
     new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate() - 1)
   )
-  const findSuccessorOfYesterday = successorFinder(entries, yesterdayKey)
-  const findSuccessorOfToday = successorFinder(entries, todayKey)
-  let expiredCandidate = null
-  const previousDayEntries = entries
-    .filter(entry => entry.date === yesterdayKey)
-    .sort(compareEntriesByNewest)
+  let anyExpired = false
 
-  for (const entry of previousDayEntries) {
-    const source = await loadIndexedService(entry)
+  for (const [dateKey, reason] of [
+    [yesterdayKey, "overnight"],
+    [todayKey, "today"]
+  ]) {
+    const findSuccessor = successorFinder(entries, dateKey)
+    const dayEntries = entries.filter(entry => entry.date === dateKey).sort(compareEntriesByNewest)
 
-    if (!source) {
-      continue
+    for (const entry of dayEntries) {
+      const source = await loadIndexedService(entry)
+
+      if (!source) continue
+
+      const timing = await resolveDisplayTiming(source, currentDate, findSuccessor)
+
+      if (!timing.switchAfterDate || currentDate < timing.switchAfterDate) {
+        return buildServiceSelection(entry, source, reason, timing)
+      }
+
+      anyExpired = true
     }
-
-    const timing = await resolveDisplayTiming(source, currentDate, findSuccessorOfYesterday)
-
-    if (!timing.switchAfterDate || currentDate < timing.switchAfterDate) {
-      return buildServiceSelection(entry, source, "overnight", timing)
-    }
-
-    expiredCandidate = expiredCandidate || { entry, source, timing }
-  }
-
-  const todayEntries = entries
-    .filter(entry => entry.date === todayKey)
-    .sort(compareEntriesByNewest)
-
-  for (const entry of todayEntries) {
-    const source = await loadIndexedService(entry)
-
-    if (!source) {
-      continue
-    }
-
-    const timing = await resolveDisplayTiming(source, currentDate, findSuccessorOfToday)
-
-    if (!timing.switchAfterDate || currentDate < timing.switchAfterDate) {
-      return buildServiceSelection(entry, source, "today", timing)
-    }
-
-    expiredCandidate = { entry, source, timing }
   }
 
   const futureEntries = entries
@@ -784,11 +770,7 @@ async function resolveServiceForDate(currentDate = new Date(), knownIndex = null
     }
   }
 
-  if (expiredCandidate) {
-    return emptyServiceSelection("service-finished")
-  }
-
-  return emptyServiceSelection("no-usable-service")
+  return emptyServiceSelection(anyExpired ? "service-finished" : "no-usable-service")
 }
 
 async function loadIndexedService(entry) {
