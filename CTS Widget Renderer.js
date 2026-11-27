@@ -236,16 +236,38 @@ function createLargeWidget(context) {
 
   if (clock) {
     widget.addSpacer(density.clockGap)
-    addCornerClock(widget, clock, density.clockSize)
+    addCornerClock(widget, clock, density.clockSize, accent(state))
   }
 
   return markRendered(widget)
 }
 
-function addCornerClock(parent, clock, size) {
+const REFRESH_ACTION_ID = "refresh"
+
+function addCornerClock(parent, clock, size, controlColor) {
   const row = parent.addStack()
+  row.centerAlignContent()
   row.addSpacer()
   addText(row, `Actualisé à ${clock}`, Font.mediumSystemFont(size), secondary(), 1, 0.8)
+  addRefreshControl(row, size, controlColor)
+}
+
+function addRefreshControl(row, size, color) {
+  if (typeof row.setAction !== "function") return
+
+  row.addSpacer(6)
+
+  const control = row.addStack()
+  control.centerAlignContent()
+  control.setPadding(1, 6, 1, 6)
+  control.cornerRadius = 7
+  control.backgroundColor = THEME.translucentWhite(0.08)
+  control.borderWidth = 0.5
+  control.borderColor = THEME.translucentWhite(0.14)
+  addSymbol(control, "arrow.clockwise", size, color)
+  control.addSpacer(3)
+  addText(control, "Actualiser", Font.semiboldSystemFont(size), color, 1, 0.8)
+  control.setAction("Actualiser", { id: REFRESH_ACTION_ID })
 }
 
 function addPendingBadge(parent, context, state, density) {
@@ -1258,7 +1280,7 @@ function fillMessageWidget(
 
   if (clock) {
     widget.addSpacer()
-    addCornerClock(widget, clock, 8)
+    addCornerClock(widget, clock, 8, symbolColor)
   }
 
   return markRendered(widget)

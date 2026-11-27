@@ -18,7 +18,7 @@ const family = WIDGET_ENGINE.getWidgetFamily()
 const analytics = loadAnalyticsClient()
 const telemetryRun = createTelemetryRunSafely(analytics)
 
-await main()
+if (!args.widgetAction) await main()
 Script.complete()
 
 async function main() {
