@@ -628,8 +628,10 @@ décision lui est antérieure.
   mainteneur, plutôt qu'en bas à droite : la place est là, et le bouton y
   est plus grand. Un toucher ne calcule le service qu'une fois : le
   calculer aussi au moment du toucher lirait iCloud deux fois pour un seul
-  écran. En « Grandes polices », le bouton ne garde que son symbole : son
-  libellé agrandi ôtait sa place à la pastille d'état. Il n'existe que sur
+  écran. Le bouton ne porte que son symbole ↻ : au premier essai sur
+  l'iPhone le plus large, son libellé « Actualiser » s'est coupé, et il
+  ôtait sa place à la pastille d'état. Choix du mainteneur, plutôt que de
+  garder le mot sur ce seul écran. Il n'existe que sur
   le grand widget et le plein écran : une petite tuile n'a pas la place de
   l'accueillir, et garde l'heure dans son coin. Précise la décision du
   22 novembre, qui ne plaçait pas l'heure.

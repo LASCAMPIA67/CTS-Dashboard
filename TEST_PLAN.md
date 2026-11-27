@@ -76,7 +76,7 @@ Valider avec le simulateur ou des services réels :
 | Carte agent déjà en cours de lecture (application ouverte, ou passage du widget interrompu il y a moins de deux minutes), ou lecture interrompue qui attend sa reprise | `Lecture en attente`, sans allure d’erreur, et jamais la promesse d’une mise à jour « dans un instant » |
 | Aucun PDF | message explicite sans crash |
 | Tout écran du grand widget, service ou message | l’heure du dernier calcul est affichée (« actualisé à HH:MM ») et suit l’horloge de l’iPhone ; un écran figé se reconnaît à une heure ancienne |
-| Bouton `Actualiser`, dans l’en-tête du grand widget et du plein écran | le toucher recalcule le service et l’heure sous le bouton change ; en « Grandes polices », le bouton ne montre que son symbole ; une petite ou moyenne tuile n’a pas de bouton et garde l’heure dans son coin |
+| Bouton ↻ d’actualisation, dans l’en-tête du grand widget et du plein écran | le toucher recalcule le service et l’heure sous le bouton change, sans ouvrir Scriptable ; le bouton ne porte que son symbole, jamais un libellé coupé ; une petite ou moyenne tuile n’a pas de bouton et garde l’heure dans son coin |
 | Fin de service après la fin de la dernière tranche | l’amplitude court de la prise à la fin de service, pas jusqu’à la fin de la tranche |
 | Version antérieure à la dernière publiée | `Mise à jour requise`, dans les minutes qui suivent la publication à partir de la 1.4.12 — au réveil qui suit celui où le widget a reçu la version —, et la console d’administration nomme ce blocage au lieu d’une panne sans cause |
 | PDF invalide | erreur contrôlée et diagnostic exploitable |

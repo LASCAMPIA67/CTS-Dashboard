@@ -237,13 +237,12 @@ function createLargeWidget(context, density) {
 
 const REFRESH_ACTION_ID = "refresh"
 const REFRESH_FAMILIES = Object.freeze(["large", "extralargeportrait"])
-const SYMBOL_ONLY_REFRESH_WIDTH = 70
 
 const MESSAGE_REFRESH = Object.freeze({
-  refreshWidth: 86,
-  refreshButtonSize: 10,
-  refreshPaddingVertical: 4,
-  refreshPaddingHorizontal: 8,
+  refreshWidth: 72,
+  refreshButtonSize: 13,
+  refreshPaddingVertical: 5,
+  refreshPaddingHorizontal: 12,
   refreshClockSize: 8,
   refreshGap: 3
 })
@@ -290,12 +289,6 @@ function addRefreshButton(parent, color, metrics) {
   button.borderWidth = 0.5
   button.borderColor = THEME.translucentWhite(0.14)
   addSymbol(button, "arrow.clockwise", metrics.refreshButtonSize, color)
-
-  if (metrics.refreshLabel !== false) {
-    button.addSpacer(4)
-    addText(button, "Actualiser", Font.semiboldSystemFont(metrics.refreshButtonSize), color, 1, 0.8)
-  }
-
   button.setAction("Actualiser", { id: REFRESH_ACTION_ID })
 }
 
@@ -1142,12 +1135,7 @@ function withTextScale(density, scaleValue) {
 
   if (!Number.isFinite(scale) || scale <= 1) return density
 
-  const scaled = {
-    ...density,
-    hidesOperationalDetails: true,
-    refreshLabel: false,
-    refreshWidth: Math.min(density.refreshWidth, SYMBOL_ONLY_REFRESH_WIDTH)
-  }
+  const scaled = { ...density, hidesOperationalDetails: true }
 
   for (const key of TEXT_KEYS) {
     if (typeof scaled[key] === "number") {
@@ -1256,9 +1244,9 @@ function adaptDensity(base, width) {
     paddingHorizontal: Math.max(13, base.paddingHorizontal - 2),
     iconGap: Math.max(7, base.iconGap - 1),
     badgePaddingHorizontal: Math.max(6, base.badgePaddingHorizontal - 1),
-    refreshWidth: Math.max(70, base.refreshWidth - 12),
-    refreshButtonSize: Math.min(9, base.refreshButtonSize),
-    refreshPaddingHorizontal: Math.max(6, base.refreshPaddingHorizontal - 1),
+    refreshWidth: Math.max(64, base.refreshWidth - 6),
+    refreshButtonSize: Math.min(12, base.refreshButtonSize),
+    refreshPaddingHorizontal: Math.max(10, base.refreshPaddingHorizontal - 2),
     cardPaddingHorizontal: Math.max(9, base.cardPaddingHorizontal - 1),
     timingArrowGap: Math.max(5, base.timingArrowGap - 1),
     arrowSize: Math.max(20, base.arrowSize - 2),
@@ -1289,10 +1277,10 @@ function densityComfortable() {
     badgeSize: 10,
     badgePaddingVertical: 5,
     badgePaddingHorizontal: 8,
-    refreshWidth: 86,
-    refreshButtonSize: 10,
-    refreshPaddingVertical: 4,
-    refreshPaddingHorizontal: 8,
+    refreshWidth: 72,
+    refreshButtonSize: 13,
+    refreshPaddingVertical: 5,
+    refreshPaddingHorizontal: 12,
     refreshClockSize: 7.5,
     refreshGap: 2,
     surfaceRadius: 17,
@@ -1374,10 +1362,10 @@ function densityStandard() {
     badgeSize: 10,
     badgePaddingVertical: 4,
     badgePaddingHorizontal: 7,
-    refreshWidth: 80,
-    refreshButtonSize: 9.5,
-    refreshPaddingVertical: 3,
-    refreshPaddingHorizontal: 7,
+    refreshWidth: 72,
+    refreshButtonSize: 12,
+    refreshPaddingVertical: 4,
+    refreshPaddingHorizontal: 11,
     surfaceRadius: 16,
     timingPaddingVertical: 6,
     cardPaddingHorizontal: 11,
@@ -1448,10 +1436,10 @@ function densityPortraitComfortable() {
     badgeSize: 11.5,
     badgePaddingVertical: 6,
     badgePaddingHorizontal: 10,
-    refreshWidth: 98,
-    refreshButtonSize: 11.5,
+    refreshWidth: 78,
+    refreshButtonSize: 15,
     refreshPaddingVertical: 5,
-    refreshPaddingHorizontal: 10,
+    refreshPaddingHorizontal: 13,
     refreshClockSize: 8.5,
     refreshGap: 3,
     timingPaddingVertical: 11,

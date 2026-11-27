@@ -108,6 +108,13 @@ tranche sur ses horaires. En dessous, le Portrait XL garde les tailles du
 grand widget, qui tiennent jusqu'au SE, et n'y ajoute que ses informations
 en plus. Le banc de géométrie tient ce partage.
 
+## Une largeur que l'aperçu a sous-estimée
+
+Le 27 novembre, sur l'écran de 440 points, le libellé « Actualiser » d'un
+bouton large de 86 points s'est coupé en « Actuali… », quand l'aperçu le
+montrait entier. Pour un texte court qui doit tenir dans une largeur fixe,
+l'aperçu ne suffit pas : il faut une marge, ou une capture de l'iPhone.
+
 ## Ce qui reste à confirmer sur iPhone
 
 Tout ce qui touche à la métrique fine du texte : longueur exacte à laquelle

@@ -76,12 +76,11 @@ for (const format of FORMATS) {
 
       if (
         enlarged.refreshButtonSize !== plain.refreshButtonSize ||
-        enlarged.refreshLabel !== false ||
-        enlarged.refreshWidth > plain.refreshWidth
+        enlarged.refreshWidth !== plain.refreshWidth
       ) {
         failures.push(
           `${format.label} · ${screen.label} · ${slices} tranche(s) : en « Grandes polices », le ` +
-            "bouton Actualiser grandit ou garde son libellé, et prend la place de la pastille"
+            "bouton d'actualisation grandit et prend la place de la pastille"
         )
       }
     }

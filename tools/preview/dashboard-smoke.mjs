@@ -338,6 +338,10 @@ async function run(
       failures.push(`${label} : ${actions.length} bouton(s) Actualiser au lieu d'un, à côté de l'heure`)
     }
 
+    if (/Actualiser/.test(words)) {
+      failures.push(`${label} : le bouton affiche un libellé, coupé sur l'iPhone le plus large`)
+    }
+
     if (actions.some(action => typeof action.id !== "string" || !action.id)) {
       failures.push(`${label} : un bouton Actualiser sans identifiant, que Scriptable refuse`)
     }

@@ -40,7 +40,7 @@ et affiche sur l'écran d'accueil ce qu'il reste à faire.
 | **Programme détaillé** | tranches, lignes, voitures, directions, dépôts, mises en ligne, durées |
 | **Retrait d'un service** | depuis le dossier `Services`, ou depuis CTS Installer |
 | **Archivage** | une heure après la fin du service, archives gardées sept jours |
-| **Actualisation** | un bouton dans l'en-tête recalcule le service sur-le-champ, avec l'heure du dernier calcul juste en dessous |
+| **Actualisation** | le bouton ↻ de l'en-tête recalcule le service sur-le-champ, avec l'heure du dernier calcul juste en dessous |
 | **Widget plein écran** | sur iOS 27, le format qui occupe tout l'écran d'accueil ajoute le détail de chaque tranche, les horaires des pauses et coupures, la prise et la fin de service |
 | **Taille du texte** | un réglage « Grandes polices », 25 % plus grand |
 | **Résilience iCloud** | récupération des fichiers non encore synchronisés, avec nouvelles tentatives |
@@ -86,7 +86,7 @@ couleurs sont celles du widget.
 
 | Bloc | Ce qu'il montre |
 |---|---|
-| **En-tête** | le numéro de service, sa date, le bouton **Actualiser** avec l'heure du dernier calcul, et une pastille qui dit l'état du moment |
+| **En-tête** | le numéro de service, sa date, le bouton ↻ d'actualisation avec l'heure du dernier calcul, et une pastille qui dit l'état du moment |
 | **Bandeau** | la tranche qui compte maintenant — à venir, en cours ou la dernière —, son début, sa fin et leurs lieux ; selon le moment, la prise de service et la sortie du dépôt, ou la rentrée au dépôt et la fin de service ; puis la mise en ligne et la direction |
 | **Programme** | chaque tranche avec sa ligne, sa voiture, ses lieux, ses horaires et sa durée, la tranche active mise en avant, et entre deux tranches la pause ou la coupure qui les sépare |
 | **Bas du widget** | **Travail**, la somme des tranches, et **Amplitude**, de la prise à la fin de service — qui peut suivre la fin de la dernière tranche ; en plein écran, la prise et la fin de service en plus |
@@ -245,7 +245,7 @@ Dans **CTS Installer → Taille du texte**, deux réglages :
 | Réglage | Ce qu'il change |
 |---|---|
 | **Standard** | toutes les informations, texte de taille habituelle |
-| **Grandes polices** | texte 25 % plus grand ; les détails du dépôt et de la direction sont masqués, et le bouton Actualiser ne garde que son symbole, pour faire la place |
+| **Grandes polices** | texte 25 % plus grand ; les détails du dépôt et de la direction sont masqués pour faire la place |
 
 #### Structure créée automatiquement
 
