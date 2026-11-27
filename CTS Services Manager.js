@@ -37,8 +37,6 @@ const BUDGET_TIMEOUT_CODES = Object.freeze([
 ])
 
 async function scanServices(options = {}) {
-  CONFIG.ensureDirectories()
-
   const lock = acquireScanLock()
 
   if (!lock.acquired) {
@@ -148,7 +146,8 @@ async function performScan(options) {
     remaining: Math.max(
       0,
       candidates.length - selectedCandidates.length + deferred.length + awaitingRetry
-    )
+    ),
+    index: selectedCandidates.length ? null : index
   }
 }
 
@@ -185,8 +184,6 @@ async function importCandidate(candidate) {
 }
 
 async function inspectServicesDirectory() {
-  CONFIG.ensureDirectories()
-
   let fileNames
 
   try {
@@ -666,8 +663,6 @@ async function saveScanStateIfUseful(state, signatureBefore, previousWriteAt, no
 }
 
 async function saveScanState(state) {
-  CONFIG.ensureDirectories()
-
   const value = {
     version: SCAN_STATE_VERSION,
     updatedAt: state.updatedAt || new Date().toISOString(),
@@ -711,12 +706,12 @@ function releaseScanLock(lock) {
   STORAGE.releaseDeviceLock(SCAN_LOCK_NAME, lock)
 }
 
-async function resolveServiceForDate(currentDate = new Date()) {
+async function resolveServiceForDate(currentDate = new Date(), knownIndex = null) {
   if (!isUsableDate(currentDate)) {
     return emptyServiceSelection("invalid-date")
   }
 
-  const index = await STORAGE.readCurrentIndex()
+  const index = knownIndex || (await STORAGE.readCurrentIndex())
   const entries = Array.isArray(index?.services)
     ? index.services.filter(isUsableServiceEntry)
     : []

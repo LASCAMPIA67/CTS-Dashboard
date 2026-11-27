@@ -29,6 +29,9 @@ function createFileManager(disk) {
 }
 
 const ACCESSORY = ["accessoryRectangular", "accessoryCircular", "accessoryInline"]
+const DAY_MS = 24 * 60 * 60 * 1000
+const INDEX_PATH = "/documents/CTS Dashboard/Data/services-index.json"
+const VERSION_POLICY_PATH = "/documents/CTS Dashboard/Data/version-policy.json"
 const HOME_SCREEN_SERVICE = ["large", "extraLargePortrait"]
 
 // Heure figée : sur l'horloge réelle, le résultat dépendrait de l'heure du lancement.
@@ -78,7 +81,7 @@ function seedService(disk, today) {
 
   const stem = `Service_${iso}_EA05`
 
-  disk.set("/documents/CTS Dashboard/Data/services-index.json", JSON.stringify({
+  disk.set(INDEX_PATH, JSON.stringify({
     version: 2,
     updatedAt: new Date().toISOString(),
     services: [{
@@ -133,7 +136,8 @@ async function run(
     serverPolicy = null,
     serverDelayMs = 0,
     widgetAction = null,
-    legacyScriptable = false
+    legacyScriptable = false,
+    policyAlreadyKept = false
   } = {}
 ) {
   const disk = new Map()
@@ -141,9 +145,30 @@ async function run(
   const widgetsSet = []
   const presented = []
   const requests = []
+  const reads = new Map()
+  const writes = []
   const runsInWidget = surface === "widget"
+  const readString = fileManager.readString
+  const writeString = fileManager.writeString
+
+  fileManager.readString = target => {
+    reads.set(target, (reads.get(target) || 0) + 1)
+    return readString(target)
+  }
+  fileManager.writeString = (target, value) => {
+    writes.push(target)
+    return writeString(target, value)
+  }
 
   if (service) seedService(disk, FROZEN_NOW)
+
+  if (policyAlreadyKept) {
+    disk.set(VERSION_POLICY_PATH, JSON.stringify({
+      version: 1,
+      receivedAt: new Date(FROZEN_NOW.getTime() - DAY_MS).toISOString(),
+      ...serverPolicy
+    }))
+  }
 
   if (scanLockedByWidget) {
     disk.set("/library/CTS Dashboard/services-scan.lock", JSON.stringify({
@@ -193,6 +218,14 @@ async function run(
   shim.installGlobals(globals)
 
   const { sandbox, load } = moduleSpace(globals)
+  const configModule = load("CTS Config")
+  const ensureDirectories = configModule.ensureDirectories
+  let directoryChecks = 0
+
+  configModule.ensureDirectories = () => {
+    directoryChecks++
+    return ensureDirectories()
+  }
 
   if (engineFails) {
     load("CTS Widget Engine").loadContext = async () => {
@@ -234,6 +267,24 @@ async function run(
     }
 
     return
+  }
+
+  if (directoryChecks !== 1) {
+    failures.push(`${label} : le réveil vérifie ses dossiers ${directoryChecks} fois au lieu d'une`)
+  }
+
+  const indexReads = reads.get(INDEX_PATH) || 0
+
+  const expectedIndexReads = scanLockedByWidget ? 2 : 1
+
+  if (service && !engineFails && indexReads !== expectedIndexReads) {
+    failures.push(
+      `${label} : l'index des services est lu ${indexReads} fois au lieu de ${expectedIndexReads}`
+    )
+  }
+
+  if (policyAlreadyKept && writes.some(target => target.startsWith(VERSION_POLICY_PATH))) {
+    failures.push(`${label} : la politique de version est réécrite alors qu'elle n'a pas changé`)
   }
 
   if (runsInWidget && !widgetsSet.length) {
@@ -376,7 +427,7 @@ async function run(
   }
 
   if (serverPolicy) {
-    const stored = JSON.parse(disk.get("/documents/CTS Dashboard/Data/version-policy.json") || "{}")
+    const stored = JSON.parse(disk.get(VERSION_POLICY_PATH) || "{}")
 
     if (stored.minimumVersion !== serverPolicy.minimumVersion) {
       failures.push(
@@ -453,6 +504,12 @@ await run("widget", {
   widgetAction: { id: "refresh" }
 })
 await run("widget", { label: "widget, Scriptable sans setAction", service: true, legacyScriptable: true })
+await run("widget", {
+  label: "widget, version déjà gardée",
+  service: true,
+  serverPolicy: { latestVersion: "1.0.0", minimumVersion: "1.0.0" },
+  policyAlreadyKept: true
+})
 
 if (failures.length) {
   console.log("ÉCHEC  exécution de CTS Dashboard")
@@ -464,5 +521,6 @@ console.log(
   "ok     exécution de CTS Dashboard " +
   "(widget, application, 7 familles, rendu validé, jamais vide, réveils bornés, " +
   "verrou d'analyse, heure du calcul, version reçue avec la télémétrie, " +
-  "bouton Actualiser et son action)"
+  "bouton Actualiser et son action, une vérification des dossiers et une lecture de l'index " +
+  "par réveil, politique de version inchangée jamais réécrite)"
 )

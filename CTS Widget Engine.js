@@ -36,14 +36,12 @@ const TELEMETRY_SEVERITY_WEIGHTS = {
 }
 
 async function loadContext(currentDate = new Date()) {
-  CONFIG.ensureDirectories()
-
   const blocked = await resolveVersionBlock(currentDate)
 
   if (blocked) return blocked
 
   const resolution = await resolveServiceSource(currentDate)
-  const cleanup = await runServicesCleanup(currentDate)
+  const cleanup = await runServicesCleanup(currentDate, resolution.scanResult)
   const source = resolution.source
 
   if (!source) {
@@ -157,7 +155,7 @@ async function loadContext(currentDate = new Date()) {
 
 async function resolveServiceSource(currentDate) {
   const scan = await runServicesScan()
-  const selection = await resolveIndexedService(currentDate)
+  const selection = await resolveIndexedService(currentDate, scan.result?.index)
 
   if (selection.result?.found && selection.result.source) {
     return {
@@ -215,9 +213,9 @@ async function runServicesScan() {
   }
 }
 
-async function resolveIndexedService(currentDate) {
+async function resolveIndexedService(currentDate, knownIndex) {
   try {
-    const result = await SERVICES_MANAGER.resolveServiceForDate(currentDate)
+    const result = await SERVICES_MANAGER.resolveServiceForDate(currentDate, knownIndex)
 
     return {
       result,
@@ -238,9 +236,9 @@ async function resolveIndexedService(currentDate) {
   }
 }
 
-async function runServicesCleanup(currentDate) {
+async function runServicesCleanup(currentDate, scanResult) {
   try {
-    const result = await SERVICES_CLEANER.maintainServices(currentDate)
+    const result = await SERVICES_CLEANER.maintainServices(currentDate, scanSnapshot(scanResult))
     const cleanupError = extractCleanupError(result)
     const telemetryIssues = extractCleanupTelemetryIssues(result)
     const primaryTelemetry = telemetryIssues[0] || null
@@ -271,6 +269,12 @@ async function runServicesCleanup(currentDate) {
       ]
     }
   }
+}
+
+function scanSnapshot(scanResult) {
+  if (!scanResult || scanResult.status === "locked") return {}
+
+  return { servicesListed: true, index: scanResult.index || null }
 }
 
 function extractCleanupError(result) {
