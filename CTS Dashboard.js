@@ -193,9 +193,12 @@ function markRunCommitted() {
 
 function writeRunTrace() {
   try {
-    const fm = CONFIG.fm
+    const local = FileManager.local()
+    const directory = CONFIG.devicePath()
 
-    fm.writeString(fm.joinPath(CONFIG.paths.data, "last-run.json"), JSON.stringify(runTrace))
+    if (!local.fileExists(directory)) local.createDirectory(directory, true)
+
+    local.writeString(CONFIG.devicePath("last-run.json"), JSON.stringify(runTrace))
   } catch (error) {
     console.warn("[Dashboard]", UTILS.errorMessage(error))
   }

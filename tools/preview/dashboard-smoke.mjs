@@ -32,6 +32,7 @@ const ACCESSORY = ["accessoryRectangular", "accessoryCircular", "accessoryInline
 const DAY_MS = 24 * 60 * 60 * 1000
 const INDEX_PATH = "/documents/CTS Dashboard/Data/services-index.json"
 const VERSION_POLICY_PATH = "/documents/CTS Dashboard/Data/version-policy.json"
+const RUN_TRACE_PATH = "/library/CTS Dashboard/last-run.json"
 const HOME_SCREEN_SERVICE = ["large", "extraLargePortrait"]
 
 // Heure figée : sur l'horloge réelle, le résultat dépendrait de l'heure du lancement.
@@ -262,7 +263,7 @@ async function run(
       failures.push(`${label} : l'action contacte le serveur, chaque toucher compterait deux fois`)
     }
 
-    if (disk.has("/documents/CTS Dashboard/Data/last-run.json")) {
+    if (disk.has(RUN_TRACE_PATH)) {
       failures.push(`${label} : l'action écrit une trace d'exécution que le Diagnostic prendrait pour un rendu`)
     }
 
@@ -281,6 +282,10 @@ async function run(
     failures.push(
       `${label} : l'index des services est lu ${indexReads} fois au lieu de ${expectedIndexReads}`
     )
+  }
+
+  if (writes.some(target => target.startsWith("/documents/") && target.endsWith("last-run.json"))) {
+    failures.push(`${label} : la trace d'exécution s'écrit encore dans iCloud`)
   }
 
   if (policyAlreadyKept && writes.some(target => target.startsWith(VERSION_POLICY_PATH))) {
@@ -437,7 +442,7 @@ async function run(
     }
   }
 
-  const trace = disk.get("/documents/CTS Dashboard/Data/last-run.json")
+  const trace = disk.get(RUN_TRACE_PATH)
 
   if (!trace) {
     failures.push(`${surface} : aucune trace d'exécution écrite`)

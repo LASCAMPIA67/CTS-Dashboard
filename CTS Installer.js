@@ -71,6 +71,7 @@ const SCRIPT_RESIDUE = /^(CTS .+\.js)\.(download|rollback)$/
 const localFm = FileManager.local()
 const deviceRoot = localFm.joinPath(localFm.libraryDirectory(), "CTS Dashboard")
 const legacyLibraries = join(root, "Libraries")
+const legacyRunTrace = join(root, "Data/last-run.json")
 
 function devicePath(relative) {
   return relativeParts(relative).reduce((path, part) => localFm.joinPath(path, part), deviceRoot)
@@ -600,7 +601,6 @@ async function installOrUpdate(manifest, previous) {
 
   let outcome = null
 
-  const failures = []
   const startedAt = Date.now()
   const metadata = await readMetadata()
   const snapshotUnchanged =
@@ -629,99 +629,9 @@ async function installOrUpdate(manifest, previous) {
 
     await progress.system("directories", "success", "Arborescence prête")
 
-    let completed = 0
+    const failures = await syncEntries(entries, progress, summary, snapshotUnchanged)
 
-    for (let start = 0; start < entries.length; start += CONCURRENCY) {
-      const wave = entries.slice(start, start + CONCURRENCY).map((entry, offset) => ({
-        entry,
-        index: start + offset
-      }))
-
-      for (const item of wave) {
-        await progress.entry(item.index, "running", `Contrôle de ${item.entry.name}`)
-      }
-
-      const results = await Promise.all(
-        wave.map(async item => {
-          try {
-            return {
-              ...item,
-              status: await syncFile(item.entry, {
-                snapshotUnchanged
-              })
-            }
-          } catch (error) {
-            return {
-              ...item,
-              reason: messageOf(error)
-            }
-          }
-        })
-      )
-
-      for (const result of results) {
-        if (result.status) {
-          summary[result.status].push(result.entry.name)
-
-          await progress.entry(result.index, result.status, statusLabel(result.status))
-        } else {
-          failures.push({
-            index: result.index,
-            entry: result.entry,
-            reason: result.reason
-          })
-
-          await progress.entry(result.index, "retry", "Nouvelle tentative programmée")
-        }
-
-        completed++
-      }
-
-      await progress.advance(completed, entries.length)
-    }
-
-    if (failures.length) {
-      await progress.system(
-        "retry",
-        "running",
-        `${plural(failures.length, "nouvelle tentative", "nouvelles tentatives")}…`
-      )
-
-      for (const failure of failures) {
-        await progress.entry(
-          failure.index,
-          "running",
-          `Nouvelle tentative : ${failure.entry.name}`
-        )
-
-        try {
-          const status = await syncFile(failure.entry, { force: true })
-
-          summary[status].push(failure.entry.name)
-
-          failure.resolved = true
-
-          await progress.entry(failure.index, status, statusLabel(status))
-        } catch (error) {
-          failure.reason = messageOf(error)
-          summary.failed.push(failure.entry.name)
-
-          await progress.entry(failure.index, "error", failure.reason)
-        }
-      }
-
-      const unresolved = failures.filter(item => !item.resolved)
-
-      await progress.system(
-        "retry",
-        unresolved.length ? "error" : "success",
-        unresolved.length
-          ? `${plural(unresolved.length, "fichier")} encore en erreur`
-          : "Toutes les nouvelles tentatives ont réussi"
-      )
-    } else {
-      await progress.system("retry", "success", "Aucune nouvelle tentative nécessaire")
-    }
+    await retryFailures(failures, progress, summary)
 
     await progress.system("verification", "running", "Validation finale…")
 
@@ -766,6 +676,7 @@ async function installOrUpdate(manifest, previous) {
     await writeMetadata(manifest, summary)
 
     removeQuietly(legacyLibraries)
+    removeQuietly(legacyRunTrace)
 
     await preserveInstaller()
 
@@ -821,6 +732,91 @@ async function installOrUpdate(manifest, previous) {
   )
 
   return false
+}
+
+async function syncEntries(entries, progress, summary, snapshotUnchanged) {
+  const failures = []
+  let completed = 0
+
+  for (let start = 0; start < entries.length; start += CONCURRENCY) {
+    const wave = entries.slice(start, start + CONCURRENCY).map((entry, offset) => ({
+      entry,
+      index: start + offset
+    }))
+
+    for (const item of wave) {
+      await progress.entry(item.index, "running", `Contrôle de ${item.entry.name}`)
+    }
+
+    const results = await Promise.all(
+      wave.map(async item => {
+        try {
+          return { ...item, status: await syncFile(item.entry, { snapshotUnchanged }) }
+        } catch (error) {
+          return { ...item, reason: messageOf(error) }
+        }
+      })
+    )
+
+    for (const result of results) {
+      if (result.status) {
+        summary[result.status].push(result.entry.name)
+
+        await progress.entry(result.index, result.status, statusLabel(result.status))
+      } else {
+        failures.push({ index: result.index, entry: result.entry, reason: result.reason })
+
+        await progress.entry(result.index, "retry", "Nouvelle tentative programmée")
+      }
+
+      completed++
+    }
+
+    await progress.advance(completed, entries.length)
+  }
+
+  return failures
+}
+
+async function retryFailures(failures, progress, summary) {
+  if (!failures.length) {
+    await progress.system("retry", "success", "Aucune nouvelle tentative nécessaire")
+    return
+  }
+
+  await progress.system(
+    "retry",
+    "running",
+    `${plural(failures.length, "nouvelle tentative", "nouvelles tentatives")}…`
+  )
+
+  for (const failure of failures) {
+    await progress.entry(failure.index, "running", `Nouvelle tentative : ${failure.entry.name}`)
+
+    try {
+      const status = await syncFile(failure.entry, { force: true })
+
+      summary[status].push(failure.entry.name)
+      failure.resolved = true
+
+      await progress.entry(failure.index, status, statusLabel(status))
+    } catch (error) {
+      failure.reason = messageOf(error)
+      summary.failed.push(failure.entry.name)
+
+      await progress.entry(failure.index, "error", failure.reason)
+    }
+  }
+
+  const unresolved = failures.filter(item => !item.resolved)
+
+  await progress.system(
+    "retry",
+    unresolved.length ? "error" : "success",
+    unresolved.length
+      ? `${plural(unresolved.length, "fichier")} encore en erreur`
+      : "Toutes les nouvelles tentatives ont réussi"
+  )
 }
 
 function shouldReopen(result) {
@@ -2128,12 +2124,14 @@ function diagnosticVisual(status) {
 }
 
 function readLastRunTrace() {
+  return readRunTrace(localFm, devicePath("last-run.json")) || readRunTrace(fm, legacyRunTrace)
+}
+
+function readRunTrace(manager, target) {
   try {
-    const target = join(paths.data, "last-run.json")
+    if (!manager.fileExists(target)) return null
 
-    if (!fm.fileExists(target)) return null
-
-    const value = JSON.parse(fm.readString(target))
+    const value = JSON.parse(manager.readString(target))
 
     return isRecord(value) ? value : null
   } catch (_) {
@@ -2184,64 +2182,13 @@ function buildDiagnosticReport(diagnostic) {
   }
 
   if (diagnostic.lastFailure) {
-    const failure = diagnostic.lastFailure
-
-    lines.push(
-      "",
-      "DERNIÈRE ERREUR D’IMPORT",
-      "------------------------",
-      `Date : ${failure.timestamp || "?"}`,
-      `Type : ${failure.type || "?"}`,
-      `Code : ${failure.code || "?"}`,
-      `Étape : ${failure.stage || "?"}`
-    )
-
-    if (failure.error) lines.push(`Erreur : ${failure.error}`)
-    if (failure.name) lines.push(`Type JS : ${failure.name}`)
-
-    lines.push(
-      "",
-      "TEMPS DES ÉTAPES",
-      "----------------",
-      `Inspection PDF : ${formatDiagnosticMs(failure.timings.sourceInspectionMs)}`,
-      `Extraction PDF : ${formatDiagnosticMs(failure.timings.pdfExtractionMs)}`,
-      `Base CTS : ${formatDiagnosticMs(failure.timings.databaseReloadMs)}`,
-      `Parser : ${formatDiagnosticMs(failure.timings.parserMs)}`,
-      `Enregistrement : ${formatDiagnosticMs(failure.timings.registrationMs)}`,
-      `Total : ${formatDiagnosticMs(failure.timings.totalMs)}`
-    )
-
-    if (failure.stack) {
-      lines.push("", "STACK JAVASCRIPT", "----------------", failure.stack)
-    }
+    lines.push(...failureReportLines(diagnostic.lastFailure))
   }
 
   const run = readLastRunTrace()
 
   if (run) {
-    lines.push(
-      "",
-      "DERNIÈRE EXÉCUTION DU DASHBOARD",
-      "-------------------------------",
-      `Date : ${run.at || "?"}`,
-      `Version : ${run.version || "?"}`,
-      `Lancé depuis : ${run.surface || "?"}`,
-      `Format : ${run.family || "?"}`,
-      `Durée : ${formatDiagnosticMs(run.elapsedMs)}`,
-      `Affiché : ${run.displayed || "?"}`,
-      `Source du service : ${run.source || "?"}`,
-      `Analyse : ${run.scan || "?"}`,
-      `Rendu validé : ${run.committed ? "oui" : "non"}`,
-      `PDF détectés : ${Number.isFinite(Number(run.detected)) ? run.detected : "?"}`
-    )
-
-    if (run.committed && run.surface === "widget") {
-      lines.push(
-        "",
-        "Affichage livré. Une tuile vide, blanche ou noire et sans texte,",
-        "n’exécute pas CTS Dashboard : vérifier le champ Script du widget."
-      )
-    }
+    lines.push(...runTraceReportLines(run))
   }
 
   lines.push(
@@ -2254,6 +2201,67 @@ function buildDiagnosticReport(diagnostic) {
   )
 
   return lines.join("\n")
+}
+
+function failureReportLines(failure) {
+  const lines = [
+    "",
+    "DERNIÈRE ERREUR D’IMPORT",
+    "------------------------",
+    `Date : ${failure.timestamp || "?"}`,
+    `Type : ${failure.type || "?"}`,
+    `Code : ${failure.code || "?"}`,
+    `Étape : ${failure.stage || "?"}`
+  ]
+
+  if (failure.error) lines.push(`Erreur : ${failure.error}`)
+  if (failure.name) lines.push(`Type JS : ${failure.name}`)
+
+  lines.push(
+    "",
+    "TEMPS DES ÉTAPES",
+    "----------------",
+    `Inspection PDF : ${formatDiagnosticMs(failure.timings.sourceInspectionMs)}`,
+    `Extraction PDF : ${formatDiagnosticMs(failure.timings.pdfExtractionMs)}`,
+    `Base CTS : ${formatDiagnosticMs(failure.timings.databaseReloadMs)}`,
+    `Parser : ${formatDiagnosticMs(failure.timings.parserMs)}`,
+    `Enregistrement : ${formatDiagnosticMs(failure.timings.registrationMs)}`,
+    `Total : ${formatDiagnosticMs(failure.timings.totalMs)}`
+  )
+
+  if (failure.stack) {
+    lines.push("", "STACK JAVASCRIPT", "----------------", failure.stack)
+  }
+
+  return lines
+}
+
+function runTraceReportLines(run) {
+  const lines = [
+    "",
+    "DERNIÈRE EXÉCUTION DU DASHBOARD",
+    "-------------------------------",
+    `Date : ${run.at || "?"}`,
+    `Version : ${run.version || "?"}`,
+    `Lancé depuis : ${run.surface || "?"}`,
+    `Format : ${run.family || "?"}`,
+    `Durée : ${formatDiagnosticMs(run.elapsedMs)}`,
+    `Affiché : ${run.displayed || "?"}`,
+    `Source du service : ${run.source || "?"}`,
+    `Analyse : ${run.scan || "?"}`,
+    `Rendu validé : ${run.committed ? "oui" : "non"}`,
+    `PDF détectés : ${Number.isFinite(Number(run.detected)) ? run.detected : "?"}`
+  ]
+
+  if (run.committed && run.surface === "widget") {
+    lines.push(
+      "",
+      "Affichage livré. Une tuile vide, blanche ou noire et sans texte,",
+      "n’exécute pas CTS Dashboard : vérifier le champ Script du widget."
+    )
+  }
+
+  return lines
 }
 
 function diagnosticReportStatus(status) {
@@ -2319,35 +2327,7 @@ async function uninstall(manifest) {
 
   await preserveInstaller()
 
-  const scriptEntries = manifest.scripts
-    .filter(
-      name =>
-        name !== INSTALLER_FILE &&
-        join(docs, name) !== canonicalInstaller &&
-        join(docs, name) !== currentInstaller
-    )
-    .map(name => ({
-      name,
-      type: "Script",
-      destination: join(docs, name)
-    }))
-
-  const projectEntries = fm.fileExists(root)
-    ? fm
-        .listContents(root)
-        .filter(name => name !== "Services")
-        .map(name => ({
-          name,
-          type: "Dossier",
-          destination: join(root, name)
-        }))
-    : []
-
-  const deviceEntries = localFm.fileExists(deviceRoot)
-    ? [{ name: "Fichiers de l’appareil", type: "Dossier", destination: deviceRoot }]
-    : []
-
-  const entries = [...scriptEntries, ...projectEntries, ...deviceEntries]
+  const entries = uninstallEntries(manifest)
 
   const progress = progressTable({
     title: "Désinstaller CTS Dashboard",
@@ -2407,6 +2387,38 @@ async function uninstall(manifest) {
   })
 
   await progress.closed()
+}
+
+function uninstallEntries(manifest) {
+  const scriptEntries = manifest.scripts
+    .filter(
+      name =>
+        name !== INSTALLER_FILE &&
+        join(docs, name) !== canonicalInstaller &&
+        join(docs, name) !== currentInstaller
+    )
+    .map(name => ({
+      name,
+      type: "Script",
+      destination: join(docs, name)
+    }))
+
+  const projectEntries = fm.fileExists(root)
+    ? fm
+        .listContents(root)
+        .filter(name => name !== "Services")
+        .map(name => ({
+          name,
+          type: "Dossier",
+          destination: join(root, name)
+        }))
+    : []
+
+  const deviceEntries = localFm.fileExists(deviceRoot)
+    ? [{ name: "Fichiers de l’appareil", type: "Dossier", destination: deviceRoot }]
+    : []
+
+  return [...scriptEntries, ...projectEntries, ...deviceEntries]
 }
 
 function progressTable({ title, version, entries, operation }) {
@@ -2551,7 +2563,7 @@ function renderProgressPage(table, state, uninstalling) {
 function renderFinalPage(table, state, uninstalling) {
   const result = state.result
 
-  addResultHero(table, result, state.version, state.operation)
+  addResultHero(table, result, state.version)
 
   addResultMetrics(table, result, uninstalling)
 
@@ -2705,7 +2717,7 @@ function addProjectSummaryRow(table, state, uninstalling) {
   table.addRow(row)
 }
 
-function addResultHero(table, result, version, operation) {
+function addResultHero(table, result, version) {
   const row = new UITableRow()
   row.height = 88
   row.isHeader = true
