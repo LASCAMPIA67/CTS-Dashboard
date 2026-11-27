@@ -427,6 +427,5 @@ module.exports = {
   computeState,
   computeStats,
   getDisplaySlice,
-  getInterruptions,
-  isCutBetween
+  getInterruptions
 }

@@ -1180,7 +1180,6 @@ function removeFileQuietly(manager, path) {
 
 module.exports = {
   budgets,
-  PDFJS_VERSION,
   ensureReady,
   extractText
 }

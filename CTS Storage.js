@@ -478,7 +478,6 @@ function sanitizeDetails(value) {
 module.exports = {
   ensureDownloaded,
   ensureReadable,
-  readText,
   readJson,
   writeTextSafely,
   writeJsonSafely,
@@ -493,7 +492,6 @@ module.exports = {
   readCurrentIndex,
   appendLog,
   loadLog,
-  removeFileQuietly,
   uniqueArchiveFileName,
   safeModificationDate
 }

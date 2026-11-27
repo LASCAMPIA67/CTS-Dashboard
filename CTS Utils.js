@@ -245,11 +245,7 @@ function createTelemetryError(code, stage, message, cause = null) {
   const error = new Error(String(message || code || "Erreur inconnue."))
   error.telemetryCode = normalizeTelemetryCode(code)
   error.telemetryStage = normalizeTelemetryStage(stage)
-  if (cause) {
-    try {
-      error.cause = cause
-    } catch (_) {}
-  }
+  if (cause) error.cause = cause
   return error
 }
 

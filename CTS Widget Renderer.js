@@ -7,19 +7,12 @@ const THEME = importModule("CTS Widget Theme")
 const rendered = new WeakSet()
 
 function markRendered(widget) {
-  try {
-    rendered.add(widget)
-  } catch (_) {}
-
+  rendered.add(widget)
   return widget
 }
 
 function isRenderedWidget(widget) {
-  try {
-    return rendered.has(widget)
-  } catch (_) {
-    return false
-  }
+  return rendered.has(widget)
 }
 
 function createWidget(family, context) {

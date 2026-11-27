@@ -100,4 +100,4 @@ function rawUrl(name) {
   )
 }
 
-module.exports = { RESOURCES_VERSION, ensureInstalled }
+module.exports = { ensureInstalled }
