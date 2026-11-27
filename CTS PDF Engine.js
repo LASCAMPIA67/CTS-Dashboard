@@ -7,7 +7,7 @@ const UTILS = importModule("CTS Utils")
 const STORAGE = importModule("CTS Storage")
 const { fm, pdf } = CONFIG
 const errorMessage = UTILS.errorMessage
-const PDFJS_VERSION = "6.3.289"
+const PDFJS_VERSION = "6.5.438"
 
 const PDFJS_BASE_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/legacy/build`
 
@@ -614,11 +614,7 @@ async function evaluateExtraction(webView, pdfBase64) {
   }
 }
 
-function buildRuntimeHtml(libraryBase64, workerBase64) {
-  const encodedLibrary = JSON.stringify(libraryBase64)
-  const encodedWorker = JSON.stringify(workerBase64)
-
-  const streamAsyncIterationPolyfill = String.raw`
+const STREAM_ASYNC_ITERATION_POLYFILL = String.raw`
 ;(function () {
   try {
     if (
@@ -688,20 +684,7 @@ function buildRuntimeHtml(libraryBase64, workerBase64) {
 })();
 `
 
-  return String.raw`<!doctype html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CTS PDF Engine</title>
-</head>
-
-<body>
-<script>${streamAsyncIterationPolyfill}</script>
-<script>
-  const __ctsStreamPolyfillSource = ${JSON.stringify(streamAsyncIterationPolyfill)}
-</script>
-<script>
+const RUNTIME_HELPERS = String.raw`
   window.__ctsPdfReady = false
   window.__ctsPdfBootError = ""
   window.__ctsPdfLib = null
@@ -825,6 +808,115 @@ function buildRuntimeHtml(libraryBase64, workerBase64) {
     storeBootError(event.reason)
   })
 
+  function createExtractor(pdfjsLib) {
+    return async pdfBase64 => {
+      let document = null
+
+      try {
+        let bytes
+
+        try {
+          bytes = bytesFromBase64(pdfBase64)
+        } catch (error) {
+          return {
+            ok: false,
+            text: "",
+            pageCount: 0,
+            code: error?.ctsCode || "PDF_BASE64_DECODE_FAILED",
+            error: errorText(error)
+          }
+        }
+
+        let loadingTask
+
+        try {
+          loadingTask = pdfjsLib.getDocument({ data: bytes, isEvalSupported: false })
+          document = await loadingTask.promise
+        } catch (error) {
+          return {
+            ok: false,
+            text: "",
+            pageCount: 0,
+            code: "PDF_DOCUMENT_OPEN_FAILED",
+            error: errorText(error)
+          }
+        }
+
+        const pages = []
+
+        for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
+          try {
+            const page = await document.getPage(pageNumber)
+            const content = await page.getTextContent()
+
+            pages.push(textFromContent(content))
+
+            page.cleanup()
+          } catch (error) {
+            return {
+              ok: false,
+              text: "",
+              pageCount: document.numPages,
+              code: "PDF_PAGE_TEXT_EXTRACTION_FAILED",
+              error: errorText(error),
+              details: failureDetails(error, { pageNumber, totalPages: document.numPages })
+            }
+          }
+        }
+
+        const text = pages
+          .join("\n")
+          .replace(/[ \t]+/g, " ")
+          .replace(/ *\n */g, "\n")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim()
+
+        return {
+          ok: true,
+          text,
+          pageCount: document.numPages,
+          code: "",
+          error: ""
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          text: "",
+          pageCount: 0,
+          code: "PDF_EXTRACTION_FAILED",
+          error: errorText(error),
+          details: failureDetails(error)
+        }
+      } finally {
+        if (document && typeof document.destroy === "function") {
+          try {
+            await document.destroy()
+          } catch (_) {}
+        }
+      }
+    }
+  }
+`
+
+function buildRuntimeHtml(libraryBase64, workerBase64) {
+  const encodedLibrary = JSON.stringify(libraryBase64)
+  const encodedWorker = JSON.stringify(workerBase64)
+
+  return String.raw`<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CTS PDF Engine</title>
+</head>
+
+<body>
+<script>${STREAM_ASYNC_ITERATION_POLYFILL}</script>
+<script>
+  const __ctsStreamPolyfillSource = ${JSON.stringify(STREAM_ASYNC_ITERATION_POLYFILL)}
+</script>
+<script>
+${RUNTIME_HELPERS}
   ;(async () => {
     try {
       window.__ctsLibraryUrl = moduleUrlFromBase64(${encodedLibrary})
@@ -856,92 +948,7 @@ function buildRuntimeHtml(libraryBase64, workerBase64) {
 
       window.__ctsPdfLib = pdfjsLib
 
-      window.__ctsExtractPdfText = async pdfBase64 => {
-        let document = null
-
-        try {
-          let bytes
-
-          try {
-            bytes = bytesFromBase64(pdfBase64)
-          } catch (error) {
-            return {
-              ok: false,
-              text: "",
-              pageCount: 0,
-              code: error?.ctsCode || "PDF_BASE64_DECODE_FAILED",
-              error: errorText(error)
-            }
-          }
-
-          let loadingTask
-
-          try {
-            loadingTask = pdfjsLib.getDocument({ data: bytes, isEvalSupported: false })
-            document = await loadingTask.promise
-          } catch (error) {
-            return {
-              ok: false,
-              text: "",
-              pageCount: 0,
-              code: "PDF_DOCUMENT_OPEN_FAILED",
-              error: errorText(error)
-            }
-          }
-
-          const pages = []
-
-          for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
-            try {
-              const page = await document.getPage(pageNumber)
-              const content = await page.getTextContent()
-
-              pages.push(textFromContent(content))
-
-              page.cleanup()
-            } catch (error) {
-              return {
-                ok: false,
-                text: "",
-                pageCount: document.numPages,
-                code: "PDF_PAGE_TEXT_EXTRACTION_FAILED",
-                error: errorText(error),
-                details: failureDetails(error, { pageNumber, totalPages: document.numPages })
-              }
-            }
-          }
-
-          const text = pages
-            .join("\n")
-            .replace(/[ \t]+/g, " ")
-            .replace(/ *\n */g, "\n")
-            .replace(/\n{3,}/g, "\n\n")
-            .trim()
-
-          return {
-            ok: true,
-            text,
-            pageCount: document.numPages,
-            code: "",
-            error: ""
-          }
-        } catch (error) {
-          return {
-            ok: false,
-            text: "",
-            pageCount: 0,
-            code: "PDF_EXTRACTION_FAILED",
-            error: errorText(error),
-            details: failureDetails(error)
-          }
-        } finally {
-          if (document && typeof document.destroy === "function") {
-            try {
-              await document.destroy()
-            } catch (_) {}
-          }
-        }
-      }
+      window.__ctsExtractPdfText = createExtractor(pdfjsLib)
 
       window.__ctsPdfReady = true
     } catch (error) {
