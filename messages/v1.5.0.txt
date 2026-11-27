@@ -1,0 +1,21 @@
+*CTS DASHBOARD 1.5.0*
+
+Votre widget s'actualise d'un geste, et le widget plein écran d'iOS 27 montre tout votre service.
+
+• *Bouton Actualiser* — En haut du widget, à côté de son état, un bouton recalcule votre service sur-le-champ, avec l'heure du dernier calcul juste en dessous.
+
+• *Widget plein écran* — Sur iOS 27, le widget qui occupe tout l'écran d'accueil affiche le détail de chaque tranche, les horaires des pauses et des coupures, la prise et la fin de service, le tout en plus grand.
+
+• *Corrections et optimisations* — L'amplitude va désormais de la prise à la fin de service, et le widget travaille moins à chaque actualisation.
+
+*METTRE À JOUR*
+1. Ouvrez *Scriptable*
+2. Lancez *CTS Installer*
+3. S'il propose _« Installer 1.0.35 »_, acceptez, puis fermez l'écran : il se rouvre seul
+4. _« Mettre à jour vers 1.5.0 »_
+5. Attendez _« 22/22 fichiers valides »_
+
+Vos cartes agent et vos archives sont conservées.
+
+*Version actuelle : CTS Dashboard 1.5.0*
+*CTS Installer : 1.0.35*

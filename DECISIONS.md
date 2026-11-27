@@ -615,3 +615,40 @@ décision lui est antérieure.
   le réseau pour bloquer dans le même réveil le ralentirait à chaque fois,
   et le figerait dès que le réseau manque. Complète la décision du
   24 août, qui ne le faisait juger sa version que sur l'appel quotidien.
+- 2026-11-27 — Le widget vise aussi le format plein écran d'iOS 27, qui
+  occupe tout l'écran d'accueil. Choix du mainteneur, qui l'a vu sur son
+  iPhone : la place en plus sert au détail de chaque tranche, aux horaires
+  des pauses et des coupures, à la prise et à la fin de service. Apple ne
+  publie aucune de ses tailles ; la seule relevée l'a été sur un écran de
+  440 points, et ses tailles de texte agrandies y sont réservées : dessinées
+  plus bas, elles débordaient dès 428 points. Ailleurs, il garde les tailles
+  du grand widget et n'ajoute que ses informations.
+- 2026-11-27 — Un bouton « Actualiser » se tient dans l'en-tête, entre la
+  date et la pastille, avec l'heure du dernier calcul sous lui. Choix du
+  mainteneur, plutôt qu'en bas à droite : la place est là, et le bouton y
+  est plus grand. Le toucher lance un réveil d'action que le script laisse
+  passer sans rien faire, parce qu'un rendu ordinaire le suit et refait
+  tout : travailler dans les deux lirait iCloud deux fois pour un seul
+  écran. Précise la décision du 22 novembre, qui ne plaçait pas l'heure.
+- 2026-11-27 — L'amplitude va de la prise à la fin de service, et non plus
+  jusqu'à la fin de la dernière tranche. Correction du mainteneur : la fin
+  de service peut suivre la fin de tranche, et c'est elle qui borne la
+  journée.
+- 2026-11-27 — Le détail d'une tranche ne répète jamais ce que le bandeau
+  affiche déjà, ni la prise de service de la première tranche ni la fin de
+  service de la dernière, que portent les totaux du bas. Choix du
+  mainteneur : une information lue deux fois fait douter de celle qui
+  compte.
+- 2026-11-27 — Le fichier de suivi `last-run.json` quitte iCloud pour la
+  bibliothèque locale de Scriptable, comme les verrous : chaque réveil
+  l'écrivait deux fois dans un dossier synchronisé, pour un suivi qui
+  n'apprend rien à un autre appareil. CTS Installer 1.0.35 le lit là, et
+  relit encore l'ancien fichier tant que le nouveau manque. Remplace la
+  réserve du 23 septembre, qui l'y gardait faute de publier l'installateur.
+- 2026-11-27 — Un réveil ne vérifie plus qu'une fois le dossier Services
+  et ne lit qu'une fois l'index : le balayage les passe à la sélection et à
+  l'entretien. Chaque lecture d'iCloud allonge un réveil qu'iOS borne.
+- 2026-11-27 — La refonte de la qualité du code des deux dépôts paraît avec
+  le bouton et le plein écran, sous un seul numéro de chaque côté et un
+  seul message à la communauté. Choix du mainteneur : une mise à jour à
+  faire, et non trois.
