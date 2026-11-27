@@ -29,7 +29,14 @@ function createWidget(family, context) {
     return createErrorWidget("Service invalide", validation.error, family)
   }
 
-  if (normalizeFamily(family) === "large") return createLargeWidget(context)
+  const sliceCount = context.service.slices.length
+  const textScale = context?.preferences?.textScale
+  const normalized = normalizeFamily(family)
+
+  if (normalized === "large") return createLargeWidget(context, getDensity(sliceCount, textScale))
+  if (normalized === "extralargeportrait") {
+    return createLargeWidget(context, getPortraitDensity(sliceCount, textScale))
+  }
   if (isAccessoryFamily(family)) return createAccessoryWidget(family, context)
 
   return createLargeOnlyWidget()
@@ -212,17 +219,14 @@ function firstLine(value) {
     .filter(Boolean)[0] || ""
 }
 
-function createLargeWidget(context) {
+function createLargeWidget(context, density) {
   const { service, state, stats, displaySlice: focus } = context
-  const density = getDensity(service.slices.length, context?.preferences?.textScale)
   const widget = THEME.createBaseWidget(state.type)
-
-  const clock = formatClock(context?.currentDate)
 
   widget.setPadding(
     density.paddingTop,
     density.paddingHorizontal,
-    clock ? density.clockPaddingBottom : density.paddingBottom,
+    density.paddingBottom,
     density.paddingHorizontal
   )
 
@@ -232,42 +236,61 @@ function createLargeWidget(context) {
   widget.addSpacer(density.sectionGap)
   addProgram(widget, service, state, density)
   widget.addSpacer(density.sectionGap)
-  addStats(widget, stats, density)
-
-  if (clock) {
-    widget.addSpacer(density.clockGap)
-    addCornerClock(widget, clock, density.clockSize, accent(state))
-  }
+  addStats(widget, service, stats, density)
 
   return markRendered(widget)
 }
 
 const REFRESH_ACTION_ID = "refresh"
 
-function addCornerClock(parent, clock, size, controlColor) {
-  const row = parent.addStack()
-  row.centerAlignContent()
-  row.addSpacer()
-  addText(row, `Actualisé à ${clock}`, Font.mediumSystemFont(size), secondary(), 1, 0.8)
-  addRefreshControl(row, size, controlColor)
+const MESSAGE_REFRESH = Object.freeze({
+  refreshWidth: 86,
+  refreshButtonSize: 10,
+  refreshPaddingVertical: 4,
+  refreshPaddingHorizontal: 8,
+  refreshClockSize: 8,
+  refreshGap: 3
+})
+
+function addRefreshBlock(parent, clock, color, metrics) {
+  const block = parent.addStack()
+  block.layoutVertically()
+  block.size = new Size(metrics.refreshWidth, 0)
+
+  if (typeof block.setAction === "function") {
+    const row = block.addStack()
+    row.addSpacer()
+    addRefreshButton(row, color, metrics)
+    row.addSpacer()
+    block.addSpacer(metrics.refreshGap)
+  }
+
+  addCenteredLine(
+    block,
+    `Actualisé à ${clock}`,
+    Font.mediumSystemFont(metrics.refreshClockSize),
+    secondary(),
+    0.8
+  )
 }
 
-function addRefreshControl(row, size, color) {
-  if (typeof row.setAction !== "function") return
-
-  row.addSpacer(6)
-
-  const control = row.addStack()
-  control.centerAlignContent()
-  control.setPadding(1, 6, 1, 6)
-  control.cornerRadius = 7
-  control.backgroundColor = THEME.translucentWhite(0.08)
-  control.borderWidth = 0.5
-  control.borderColor = THEME.translucentWhite(0.14)
-  addSymbol(control, "arrow.clockwise", size, color)
-  control.addSpacer(3)
-  addText(control, "Actualiser", Font.semiboldSystemFont(size), color, 1, 0.8)
-  control.setAction("Actualiser", { id: REFRESH_ACTION_ID })
+function addRefreshButton(parent, color, metrics) {
+  const button = parent.addStack()
+  button.centerAlignContent()
+  button.setPadding(
+    metrics.refreshPaddingVertical,
+    metrics.refreshPaddingHorizontal,
+    metrics.refreshPaddingVertical,
+    metrics.refreshPaddingHorizontal
+  )
+  button.cornerRadius = 10
+  button.backgroundColor = THEME.translucentWhite(0.08)
+  button.borderWidth = 0.5
+  button.borderColor = THEME.translucentWhite(0.14)
+  addSymbol(button, "arrow.clockwise", metrics.refreshButtonSize, color)
+  button.addSpacer(4)
+  addText(button, "Actualiser", Font.semiboldSystemFont(metrics.refreshButtonSize), color, 1, 0.8)
+  button.setAction("Actualiser", { id: REFRESH_ACTION_ID })
 }
 
 function addPendingBadge(parent, context, state, density) {
@@ -369,6 +392,14 @@ function addHeader(parent, service, state, density, context) {
   )
 
   row.addSpacer()
+
+  const clock = formatClock(context?.currentDate)
+
+  if (clock) {
+    addRefreshBlock(row, clock, accent(state), density)
+    row.addSpacer()
+  }
+
   addPendingBadge(row, context, state, density)
   addStatusPill(row, state, density)
 }
@@ -572,26 +603,31 @@ function addProgram(parent, service, state, density) {
   service.slices.forEach((slice, index) => {
     addSliceRow(card, slice, state, density)
 
-    if (index >= service.slices.length - 1) return
+    const next = service.slices[index + 1]
+
+    if (!next) return
 
     const interruption = interruptions.find(item => item.afterIndex === index)
 
     if (interruption && !isAnnouncedByPill(interruption, state)) {
-      addInterruption(card, interruption, density)
+      addInterruption(card, interruption, density, `${slice.end} – ${next.start}`)
     } else {
       card.addSpacer(density.rowGap)
     }
   })
 }
 
-function addInterruption(parent, interruption, density) {
+function addInterruption(parent, interruption, density, span) {
   parent.addSpacer(density.interruptionGap)
 
   const row = parent.addStack()
   row.centerAlignContent()
   row.addSpacer()
 
-  const value = `${interruption.label} · ${UTILS.formatDuration(interruption.duration)}`
+  const parts = [interruption.label]
+  if (density.interruptionTimes) parts.push(span)
+  parts.push(UTILS.formatDuration(interruption.duration))
+  const value = parts.join(" · ")
 
   addText(
     row,
@@ -618,9 +654,7 @@ function isAnnouncedByPill(interruption, state) {
 
 function addSliceRow(parent, slice, state, density) {
   const active = isSliceActive(slice, state)
-  const duration = UTILS.durationMinutes(slice.start, slice.end)
   const row = parent.addStack()
-  row.centerAlignContent()
   row.setPadding(
     density.rowPaddingVertical,
     density.rowPaddingHorizontal,
@@ -632,6 +666,84 @@ function addSliceRow(parent, slice, state, density) {
   row.borderWidth = 0.5
   row.borderColor = active ? accentAlpha(state, 0.34) : THEME.translucentWhite(0.04)
 
+  const details = density.sliceDetails ? sliceDetailItems(slice) : []
+
+  if (!details.length) {
+    row.centerAlignContent()
+    addSliceSummary(row, slice, active, state, density)
+    return
+  }
+
+  row.layoutVertically()
+  const summary = row.addStack()
+  summary.centerAlignContent()
+  addSliceSummary(summary, slice, active, state, density)
+  row.addSpacer(density.sliceDetailsGap)
+  addSliceDetails(row, details, active, state, density)
+}
+
+function sliceDetailItems(slice) {
+  const items = []
+
+  if (hasDepotTiming(slice)) {
+    items.push({ label: "PRISE DE SERVICE", value: slice.dutyStart, time: true })
+    items.push({ label: "SORTIE DÉPÔT", value: slice.depotExitAt, time: true })
+  }
+
+  if (slice.lineUpAt) {
+    items.push({ label: getOperationStartLabel(slice), value: slice.lineUpAt, emphasized: true })
+  }
+
+  if (slice.direction) items.push({ label: "DIRECTION", value: slice.direction })
+
+  if (slice.depotReturnAt) {
+    items.push({ label: "RENTRÉE DÉPÔT", value: slice.depotReturnAt, time: true })
+    items.push({ label: "FIN DE SERVICE", value: slice.dutyEnd, time: true })
+  }
+
+  return items
+}
+
+const SLICE_DETAIL_COLUMNS = 3
+
+function addSliceDetails(parent, items, active, state, density) {
+  for (let start = 0; start < items.length; start += SLICE_DETAIL_COLUMNS) {
+    if (start) parent.addSpacer(density.sliceDetailsGap)
+
+    const line = parent.addStack()
+
+    for (const item of items.slice(start, start + SLICE_DETAIL_COLUMNS)) {
+      addSliceDetail(line, item, active, state, density)
+    }
+  }
+}
+
+function addSliceDetail(parent, item, active, state, density) {
+  const cell = parent.addStack()
+  cell.layoutVertically()
+  cell.size = new Size(density.sliceDetailWidth, 0)
+
+  addCenteredLine(
+    cell,
+    item.label,
+    Font.semiboldSystemFont(density.sliceDetailLabelSize),
+    secondary(),
+    0.7
+  )
+  cell.addSpacer(1)
+  addCenteredLine(
+    cell,
+    item.value,
+    item.time
+      ? Font.boldMonospacedSystemFont(density.sliceDetailValueSize)
+      : Font.semiboldSystemFont(density.sliceDetailValueSize),
+    item.emphasized && active ? accent(state) : THEME.getPrimaryTextColor(),
+    0.7
+  )
+}
+
+function addSliceSummary(row, slice, active, state, density) {
+  const duration = UTILS.durationMinutes(slice.start, slice.end)
   const rail = row.addStack()
   rail.size = new Size(density.railWidth, density.railHeight)
   rail.cornerRadius = density.railWidth / 2
@@ -721,7 +833,7 @@ function addSliceNumber(parent, slice, active, state, density) {
   badge.addSpacer()
 }
 
-function addStats(parent, stats, density) {
+function addStats(parent, service, stats, density) {
   const card = addSurface(parent, {
     padding: [density.statPaddingVertical, 0, density.statPaddingVertical, 0],
     radius: density.statRadius,
@@ -731,10 +843,28 @@ function addStats(parent, stats, density) {
   card.centerAlignContent()
 
   card.addSpacer()
-  addStatBlock(card, UTILS.formatDuration(stats.work), "Travail", density)
-  addStatSeparator(card, density)
-  addStatBlock(card, UTILS.formatDuration(stats.amplitude), "Amplitude", density)
+  statItems(service, stats, density).forEach((item, index) => {
+    if (index) addStatSeparator(card, density)
+    addStatBlock(card, item.value, item.label, density)
+  })
   card.addSpacer()
+}
+
+function statItems(service, stats, density) {
+  const durations = [
+    { value: UTILS.formatDuration(stats.work), label: "Travail" },
+    { value: UTILS.formatDuration(stats.amplitude), label: "Amplitude" }
+  ]
+
+  if (density.statColumns !== 4) return durations
+
+  const last = service.slices[service.slices.length - 1]
+
+  return [
+    { value: service.slices[0].dutyStart, label: "Prise de service" },
+    ...durations,
+    { value: last.dutyEnd, label: "Fin de service" }
+  ]
 }
 
 // Des ressorts souples, pas centerAlignContent() : sur iPhone, il ne centre pas une pile verticale.
@@ -954,10 +1084,14 @@ const TEXT_KEYS = Object.freeze([
   "placeMinimumSize",
   "placeSize",
   "rangeSize",
+  "refreshButtonSize",
+  "refreshClockSize",
   "routeMinimumSize",
   "sectionHeaderSize",
   "serviceSize",
+  "sliceDetailLabelSize",
   "sliceDetailSize",
+  "sliceDetailValueSize",
   "sliceTitleSize",
   "statLabelSize",
   "statValueSize",
@@ -983,8 +1117,21 @@ function withTextScale(density, scaleValue) {
 }
 
 function getDensity(sliceCountValue, textScale = 1) {
-  const count = Math.max(1, Number(sliceCountValue) || 1)
-  const base = count >= 3 ? densityStandard() : densityComfortable()
+  return fitDensity(isCrowded(sliceCountValue) ? densityStandard() : densityComfortable(), textScale)
+}
+
+function getPortraitDensity(sliceCountValue, textScale = 1) {
+  return fitDensity(
+    isCrowded(sliceCountValue) ? densityPortraitStandard() : densityPortraitComfortable(),
+    textScale
+  )
+}
+
+function isCrowded(sliceCountValue) {
+  return Math.max(1, Number(sliceCountValue) || 1) >= 3
+}
+
+function fitDensity(base, textScale) {
   const screen = getDeviceSize()
   return withColumnWidth(withTextScale(adaptDensity(base, screen.width), textScale), screen)
 }
@@ -1017,8 +1164,9 @@ function statColumnWidth(density, screen) {
     estimateWidgetWidth(screen) -
     2 * density.paddingHorizontal -
     COLUMN_SAFETY_MARGIN
+  const separators = (density.statColumns - 1) * STAT_SEPARATOR_WIDTH
 
-  return Math.max(0, Math.floor((card - STAT_SEPARATOR_WIDTH) / 2))
+  return Math.max(0, Math.floor((card - separators) / density.statColumns))
 }
 
 function withColumnWidth(density, screen) {
@@ -1028,10 +1176,12 @@ function withColumnWidth(density, screen) {
     2 * density.cardPaddingHorizontal -
     COLUMN_SAFETY_MARGIN
   const available = inner - gridGutter(density)
+  const rowInner = inner - 2 * density.rowPaddingHorizontal
   return {
     ...density,
     columnWidth: Math.max(density.columnWidth, Math.floor(available / 2)),
-    statColumnWidth: statColumnWidth(density, screen)
+    statColumnWidth: statColumnWidth(density, screen),
+    sliceDetailWidth: Math.max(0, Math.floor(rowInner / SLICE_DETAIL_COLUMNS))
   }
 }
 
@@ -1042,6 +1192,9 @@ function adaptDensity(base, width) {
     paddingHorizontal: Math.max(13, base.paddingHorizontal - 2),
     iconGap: Math.max(7, base.iconGap - 1),
     badgePaddingHorizontal: Math.max(6, base.badgePaddingHorizontal - 1),
+    refreshWidth: Math.max(70, base.refreshWidth - 12),
+    refreshButtonSize: Math.min(9, base.refreshButtonSize),
+    refreshPaddingHorizontal: Math.max(6, base.refreshPaddingHorizontal - 1),
     cardPaddingHorizontal: Math.max(9, base.cardPaddingHorizontal - 1),
     timingArrowGap: Math.max(5, base.timingArrowGap - 1),
     arrowSize: Math.max(20, base.arrowSize - 2),
@@ -1057,11 +1210,11 @@ function adaptDensity(base, width) {
 
 function densityComfortable() {
   return {
+    sliceDetails: false,
+    interruptionTimes: false,
+    statColumns: 2,
     paddingTop: 17,
     paddingBottom: 14,
-    clockPaddingBottom: 4,
-    clockGap: 1,
-    clockSize: 7.5,
     paddingHorizontal: 18,
     sectionGap: 7,
     iconSize: 38,
@@ -1072,6 +1225,12 @@ function densityComfortable() {
     badgeSize: 10,
     badgePaddingVertical: 5,
     badgePaddingHorizontal: 8,
+    refreshWidth: 86,
+    refreshButtonSize: 10,
+    refreshPaddingVertical: 4,
+    refreshPaddingHorizontal: 8,
+    refreshClockSize: 7.5,
+    refreshGap: 2,
     surfaceRadius: 17,
     timingPaddingVertical: 8,
     cardPaddingHorizontal: 12,
@@ -1129,7 +1288,10 @@ function densityComfortable() {
     statRadius: 12,
     statValueSize: 14,
     statLabelSize: 7.5,
-    statSeparatorHeight: 26
+    statSeparatorHeight: 26,
+    sliceDetailsGap: 4,
+    sliceDetailLabelSize: 7,
+    sliceDetailValueSize: 9.5
   }
 }
 
@@ -1138,7 +1300,6 @@ function densityStandard() {
     ...densityComfortable(),
     paddingTop: 15,
     paddingBottom: 12,
-    clockPaddingBottom: 2,
     paddingHorizontal: 16,
     sectionGap: 4,
     iconSize: 34,
@@ -1149,6 +1310,10 @@ function densityStandard() {
     badgeSize: 10,
     badgePaddingVertical: 4,
     badgePaddingHorizontal: 7,
+    refreshWidth: 80,
+    refreshButtonSize: 9.5,
+    refreshPaddingVertical: 3,
+    refreshPaddingHorizontal: 7,
     surfaceRadius: 16,
     timingPaddingVertical: 6,
     cardPaddingHorizontal: 11,
@@ -1204,6 +1369,105 @@ function densityStandard() {
   }
 }
 
+function densityPortraitComfortable() {
+  return {
+    ...densityComfortable(),
+    sliceDetails: true,
+    interruptionTimes: true,
+    statColumns: 4,
+    paddingTop: 20,
+    paddingBottom: 18,
+    sectionGap: 10,
+    iconSize: 44,
+    iconSymbolSize: 20,
+    iconGap: 12,
+    serviceSize: 25,
+    dateSize: 11.5,
+    badgeSize: 11.5,
+    badgePaddingVertical: 6,
+    badgePaddingHorizontal: 10,
+    refreshWidth: 98,
+    refreshButtonSize: 11.5,
+    refreshPaddingVertical: 5,
+    refreshPaddingHorizontal: 10,
+    refreshClockSize: 8.5,
+    refreshGap: 3,
+    timingPaddingVertical: 11,
+    timingLabelSize: 9,
+    timingLabelGap: 4,
+    timeSize: 32,
+    arrowSize: 32,
+    placeGap: 4,
+    placeSize: 12,
+    placeMinimumSize: 8.5,
+    detailsSectionGap: 6,
+    detailGroupGap: 6,
+    detailValueGap: 2,
+    detailLabelSize: 8.5,
+    detailValueSize: 11.5,
+    emphasizedValueSize: 12,
+    detailTimeSize: 12.5,
+    detailMinimumSize: 8.5,
+    programPaddingVertical: 11,
+    sectionHeaderSize: 9,
+    programHeaderGap: 8,
+    rowGap: 7,
+    interruptionGap: 3,
+    interruptionSize: 9,
+    rowPaddingVertical: 7,
+    railHeight: 28,
+    numberSize: 28,
+    numberFont: 12,
+    sliceTitleSize: 13.5,
+    sliceDetailSize: 10.5,
+    rangeSize: 12,
+    durationSize: 10,
+    sliceMetricsWidth: 104,
+    statPaddingVertical: 8,
+    statValueSize: 15,
+    statLabelSize: 8,
+    statSeparatorHeight: 30,
+    sliceDetailsGap: 6,
+    sliceDetailLabelSize: 7.5,
+    sliceDetailValueSize: 10.5
+  }
+}
+
+function densityPortraitStandard() {
+  return {
+    ...densityPortraitComfortable(),
+    paddingTop: 17,
+    paddingBottom: 15,
+    sectionGap: 7,
+    iconSize: 40,
+    iconSymbolSize: 18,
+    serviceSize: 23,
+    dateSize: 10.5,
+    timingPaddingVertical: 8,
+    timeSize: 28,
+    arrowSize: 28,
+    detailsSectionGap: 4,
+    detailGroupGap: 4,
+    programPaddingVertical: 8,
+    programHeaderGap: 6,
+    rowGap: 5,
+    interruptionGap: 2,
+    rowPaddingVertical: 5,
+    railHeight: 24,
+    numberSize: 25,
+    numberFont: 11,
+    sliceTitleSize: 12.5,
+    sliceDetailSize: 9.5,
+    rangeSize: 11,
+    durationSize: 9.5,
+    statPaddingVertical: 6,
+    statValueSize: 14,
+    statSeparatorHeight: 26,
+    sliceDetailsGap: 4,
+    sliceDetailValueSize: 10
+  }
+}
+
 function validateContext(context) {
   if (!context || typeof context !== "object") {
     return { valid: false, error: "Le contexte du widget est absent." }
@@ -1252,9 +1516,7 @@ function fillMessageWidget(
 ) {
   const clock = formatClock(updatedAt)
 
-  widget.setPadding(18, 18, clock ? 10 : 18, 18)
-
-  if (clock) widget.addSpacer()
+  widget.setPadding(18, 18, 18, 18)
 
   const header = widget.addStack()
   header.centerAlignContent()
@@ -1269,6 +1531,11 @@ function fillMessageWidget(
   header.addSpacer(10)
   addText(header, title, Font.boldSystemFont(17), THEME.getPrimaryTextColor(), 1, 0.72)
 
+  if (clock) {
+    header.addSpacer()
+    addRefreshBlock(header, clock, symbolColor, MESSAGE_REFRESH)
+  }
+
   widget.addSpacer(10)
   const card = addSurface(widget, {
     padding: [11, 12, 11, 12],
@@ -1278,17 +1545,13 @@ function fillMessageWidget(
   })
   addText(card, message, Font.mediumSystemFont(11), secondary(), messageLines, 0.72)
 
-  if (clock) {
-    widget.addSpacer()
-    addCornerClock(widget, clock, 8, symbolColor)
-  }
-
   return markRendered(widget)
 }
 
 module.exports = {
   isRenderedWidget,
   getDensity,
+  getPortraitDensity,
   estimateWidgetWidth,
   gridGutter,
   statSeparatorWidth: () => STAT_SEPARATOR_WIDTH,

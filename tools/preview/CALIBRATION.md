@@ -89,6 +89,18 @@ dessinées pour le banc, les symboles SF n'existant pas hors iOS. Ce mode
 ne mesure rien : une hauteur qui tient dans une image ne dit pas qu'elle
 tient sur un petit écran.
 
+## Le Portrait XL
+
+`PREVIEW_FAMILY=extraLargePortrait` dessine le très grand widget d'iOS 27.
+Apple ne publie aucune de ses tailles sur iPhone ; une seule est relevée,
+sur une capture de l'iPhone du mainteneur (écran 440 × 956) : 390 × 594 pt,
+la même largeur que le grand widget, mesuré 390 × 387 pt sur la même
+capture. C'est l'écran « Pro Max 440 ».
+
+Les hauteurs des autres écrans sont déduites par analogie, en gardant le
+même rapport de 1,535 : elles ne sont pas mesurées, et un débordement
+qu'elles annoncent n'est qu'une alerte à vérifier sur un téléphone.
+
 ## Ce qui reste à confirmer sur iPhone
 
 Tout ce qui touche à la métrique fine du texte : longueur exacte à laquelle

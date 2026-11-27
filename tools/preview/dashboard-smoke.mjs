@@ -29,6 +29,7 @@ function createFileManager(disk) {
 }
 
 const ACCESSORY = ["accessoryRectangular", "accessoryCircular", "accessoryInline"]
+const HOME_SCREEN_SERVICE = ["large", "extraLargePortrait"]
 
 // Heure figée : sur l'horloge réelle, le résultat dépendrait de l'heure du lancement.
 const FROZEN_NOW = new Date(2026, 7, 19, 9, 0, 0)
@@ -257,12 +258,18 @@ async function run(
       failures.push(`${label} : la vignette porte un crédit d'auteur`)
     }
 
-    if (runsInWidget && family === "large" && !/[Aa]ctualisé à \d{2}:\d{2}/.test(words)) {
+    const servesHomeScreen = HOME_SCREEN_SERVICE.includes(family)
+
+    if (runsInWidget && servesHomeScreen && service && !engineFails && !/PROGRAMME/.test(words)) {
+      failures.push(`${label} : la tuile ${family} n'affiche pas le service du jour`)
+    }
+
+    if (runsInWidget && servesHomeScreen && !/[Aa]ctualisé à \d{2}:\d{2}/.test(words)) {
       failures.push(`${label} : la vignette ne dit pas à quelle heure elle a été calculée`)
     }
 
     const actions = collectActions(widget)
-    const expectsControl = runsInWidget && family === "large" && !legacyScriptable
+    const expectsControl = runsInWidget && servesHomeScreen && !legacyScriptable
 
     if (expectsControl && actions.length !== 1) {
       failures.push(`${label} : ${actions.length} bouton(s) Actualiser au lieu d'un, à côté de l'heure`)
@@ -282,7 +289,7 @@ async function run(
 
     if (
       runsInWidget &&
-      family !== "large" &&
+      !servesHomeScreen &&
       !ACCESSORY.includes(family) &&
       !/Widget grand requis/.test(words)
     ) {
@@ -407,7 +414,15 @@ async function run(
 await run("widget")
 await run("application")
 
-for (const family of ["accessoryRectangular", "accessoryCircular", "accessoryInline", "extraLarge", "medium", "small"]) {
+for (const family of [
+  "accessoryRectangular",
+  "accessoryCircular",
+  "accessoryInline",
+  "extraLarge",
+  "extraLargePortrait",
+  "medium",
+  "small"
+]) {
   await run("widget", { family, label: `widget ${family}`, service: true })
 }
 
@@ -447,7 +462,7 @@ if (failures.length) {
 
 console.log(
   "ok     exécution de CTS Dashboard " +
-  "(widget, application, 6 familles, rendu validé, jamais vide, réveils bornés, " +
+  "(widget, application, 7 familles, rendu validé, jamais vide, réveils bornés, " +
   "verrou d'analyse, heure du calcul, version reçue avec la télémétrie, " +
   "bouton Actualiser et son action)"
 )

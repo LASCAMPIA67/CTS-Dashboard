@@ -209,11 +209,14 @@ const ACCESSORY_SIZES = {
 }
 
 const SCREENS = [
-  { name: "Pro Max", screen: 428, screenHeight: 926, width: 364, height: 382 },
-  { name: "standard", screen: 390, screenHeight: 844, width: 338, height: 354 },
-  { name: "mini", screen: 375, screenHeight: 812, width: 329, height: 345 },
-  { name: "SE", screen: 375, screenHeight: 667, width: 321, height: 324 }
+  { name: "Pro Max 440", screen: 440, screenHeight: 956, width: 390, height: 387, portraitHeight: 594 },
+  { name: "Pro Max", screen: 428, screenHeight: 926, width: 364, height: 382, portraitHeight: 586 },
+  { name: "standard", screen: 390, screenHeight: 844, width: 338, height: 354, portraitHeight: 543 },
+  { name: "mini", screen: 375, screenHeight: 812, width: 329, height: 345, portraitHeight: 530 },
+  { name: "SE", screen: 375, screenHeight: 667, width: 321, height: 324, portraitHeight: 497 }
 ]
+
+const PORTRAIT = "extraLargePortrait"
 
 export function collectItems() {
   const only = process.env.PREVIEW_SCENARIOS?.split("|").filter(Boolean)
@@ -233,7 +236,9 @@ export function collectItems() {
         screen: screen.name,
         label: `${name} — ${screen.name} — ${context.state.label}`,
         width: ACCESSORY_SIZES[requested]?.width || screen.width,
-        height: ACCESSORY_SIZES[requested]?.height || screen.height,
+        height:
+          ACCESSORY_SIZES[requested]?.height ||
+          (requested === PORTRAIT ? screen.portraitHeight : screen.height),
         body: widgetBody(widget)
       })
     }
