@@ -234,6 +234,7 @@ export function collectItems() {
       items.push({
         scenario: name,
         screen: screen.name,
+        family: requested,
         label: `${name} — ${screen.name} — ${context.state.label}`,
         width: ACCESSORY_SIZES[requested]?.width || screen.width,
         height:
@@ -332,7 +333,8 @@ function writeImages(items) {
   if (!items.length) throw new Error("Aucun scénario ne correspond : aucune image écrite")
 
   for (const item of items) {
-    const name = fileName(`${item.scenario} ${item.screen}`)
+    const format = item.family === "large" ? "" : ` ${item.family}`
+    const name = fileName(`${item.scenario} ${item.screen}${format}`)
     const htmlPath = path.join(output, `${name}.html`)
     const imagePath = path.join(output, `${name}.png`)
 
