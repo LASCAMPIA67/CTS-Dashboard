@@ -437,6 +437,16 @@ const occurrences = (html, text) => html.split(text).length - 1
   check(occurrences(inService, "SORTIE DÉPÔT") === 1, "Portrait XL : la sortie dépôt est absente ou répétée")
   check(occurrences(inService, "RENTRÉE DÉPÔT") === 1, "Portrait XL : la rentrée dépôt d'une autre tranche est absente ou répétée")
 
+  const beforeService = renderPortrait(service, new Date(2026, 7, 27, 4, 30))
+
+  check(occurrences(beforeService, "FIN DE SERVICE") === 0, "Portrait XL : la fin de service de la dernière tranche répète le bas du widget")
+  check(occurrences(beforeService, "RENTRÉE DÉPÔT") === 1, "Portrait XL : la rentrée dépôt de la dernière tranche manque")
+
+  const lastSlice = renderPortrait(service, new Date(2026, 7, 27, 10, 0))
+
+  check(occurrences(lastSlice, "PRISE DE SERVICE") === 0, "Portrait XL : la prise de service de la première tranche répète le bas du widget")
+  check(occurrences(lastSlice, "SORTIE DÉPÔT") === 1, "Portrait XL : la sortie dépôt de la première tranche manque")
+
   const enlarged = renderPortrait(service, new Date(2026, 7, 27, 6, 0), 1.25)
 
   check(occurrences(enlarged, "Hoenheim Gare") === 1, "Portrait XL, texte agrandi : la direction masquée en haut doit rester au programme")

@@ -609,7 +609,7 @@ function addProgram(parent, service, state, focus, density) {
     : []
 
   service.slices.forEach((slice, index) => {
-    addSliceRow(card, slice, state, density, slice.index === focus?.index)
+    addSliceRow(card, slice, state, density, programDetails(service, slice, state, focus, density))
 
     if (index >= service.slices.length - 1) return
 
@@ -658,7 +658,26 @@ function isAnnouncedByPill(interruption, state) {
   )
 }
 
-function addSliceRow(parent, slice, state, density, isFocus) {
+function programDetails(service, slice, state, focus, density) {
+  if (!density.sliceDetails) return []
+
+  const shownAbove = slice.index === focus?.index && !density.hidesOperationalDetails
+  const first = service.slices[0]
+  const last = service.slices[service.slices.length - 1]
+
+  return sliceDetailItems(slice).filter(item => {
+    if (shownAbove && (item.group === "line" || item.group === depotRowKind(slice, state))) {
+      return false
+    }
+
+    if (density.dayBounds && item.key === "dutyStart" && slice.index === first.index) return false
+    if (density.dayBounds && item.key === "dutyEnd" && slice.index === last.index) return false
+
+    return true
+  })
+}
+
+function addSliceRow(parent, slice, state, density, details) {
   const active = isSliceActive(slice, state)
   const row = parent.addStack()
   row.setPadding(
@@ -671,13 +690,6 @@ function addSliceRow(parent, slice, state, density, isFocus) {
   row.backgroundColor = active ? accentAlpha(state, 0.055) : THEME.translucentWhite(0.018)
   row.borderWidth = 0.5
   row.borderColor = active ? accentAlpha(state, 0.34) : THEME.translucentWhite(0.04)
-
-  const shownAbove = isFocus && !density.hidesOperationalDetails
-  const details = density.sliceDetails
-    ? sliceDetailItems(slice).filter(
-        item => !shownAbove || (item.group !== "line" && item.group !== depotRowKind(slice, state))
-      )
-    : []
 
   if (!details.length) {
     row.centerAlignContent()
@@ -697,12 +709,13 @@ function sliceDetailItems(slice) {
   const items = []
 
   if (hasDepotTiming(slice)) {
-    items.push({ group: "exit", label: "PRISE DE SERVICE", value: slice.dutyStart, time: true })
-    items.push({ group: "exit", label: "SORTIE DÉPÔT", value: slice.depotExitAt, time: true })
+    items.push({ key: "dutyStart", group: "exit", label: "PRISE DE SERVICE", value: slice.dutyStart, time: true })
+    items.push({ key: "depotExit", group: "exit", label: "SORTIE DÉPÔT", value: slice.depotExitAt, time: true })
   }
 
   if (slice.lineUpAt) {
     items.push({
+      key: "lineUp",
       group: "line",
       label: getOperationStartLabel(slice),
       value: slice.lineUpAt,
@@ -710,11 +723,13 @@ function sliceDetailItems(slice) {
     })
   }
 
-  if (slice.direction) items.push({ group: "line", label: "DIRECTION", value: slice.direction })
+  if (slice.direction) {
+    items.push({ key: "direction", group: "line", label: "DIRECTION", value: slice.direction })
+  }
 
   if (slice.depotReturnAt) {
-    items.push({ group: "return", label: "RENTRÉE DÉPÔT", value: slice.depotReturnAt, time: true })
-    items.push({ group: "return", label: "FIN DE SERVICE", value: slice.dutyEnd, time: true })
+    items.push({ key: "depotReturn", group: "return", label: "RENTRÉE DÉPÔT", value: slice.depotReturnAt, time: true })
+    items.push({ key: "dutyEnd", group: "return", label: "FIN DE SERVICE", value: slice.dutyEnd, time: true })
   }
 
   return items
@@ -872,7 +887,7 @@ function statItems(stats, density) {
     { value: UTILS.formatDuration(stats.amplitude), label: "Amplitude" }
   ]
 
-  if (density.statColumns !== 4) return durations
+  if (!density.dayBounds) return durations
 
   return [
     { value: stats.start, label: "Prise de service" },
@@ -1173,14 +1188,14 @@ function estimateWidgetWidth(screen) {
 
 const COLUMN_SAFETY_MARGIN = 18
 
-function statColumnWidth(density, screen) {
+function statColumnWidth(density, screen, columns) {
   const card =
     estimateWidgetWidth(screen) -
     2 * density.paddingHorizontal -
     COLUMN_SAFETY_MARGIN
-  const separators = (density.statColumns - 1) * STAT_SEPARATOR_WIDTH
+  const separators = (columns - 1) * STAT_SEPARATOR_WIDTH
 
-  return Math.max(0, Math.floor((card - separators) / density.statColumns))
+  return Math.max(0, Math.floor((card - separators) / columns))
 }
 
 function withColumnWidth(density, screen) {
@@ -1191,10 +1206,12 @@ function withColumnWidth(density, screen) {
     COLUMN_SAFETY_MARGIN
   const available = inner - gridGutter(density)
   const rowInner = inner - 2 * density.rowPaddingHorizontal
+  const statColumns = density.dayBounds ? 4 : 2
   return {
     ...density,
     columnWidth: Math.max(density.columnWidth, Math.floor(available / 2)),
-    statColumnWidth: statColumnWidth(density, screen),
+    statColumns,
+    statColumnWidth: statColumnWidth(density, screen, statColumns),
     sliceDetailWidth: Math.max(0, Math.floor(rowInner / SLICE_DETAIL_COLUMNS))
   }
 }
@@ -1226,7 +1243,7 @@ function densityComfortable() {
   return {
     sliceDetails: false,
     interruptionTimes: false,
-    statColumns: 2,
+    dayBounds: false,
     paddingTop: 17,
     paddingBottom: 14,
     paddingHorizontal: 18,
@@ -1388,7 +1405,7 @@ function densityPortraitComfortable() {
     ...densityComfortable(),
     sliceDetails: true,
     interruptionTimes: true,
-    statColumns: 4,
+    dayBounds: true,
     paddingTop: 20,
     paddingBottom: 18,
     sectionGap: 10,
