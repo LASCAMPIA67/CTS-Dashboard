@@ -1,10 +1,10 @@
 {
   "name": "CTS Dashboard",
-  "version": "1.4.12",
-  "installerVersion": "1.0.34",
+  "version": "1.5.0",
+  "installerVersion": "1.0.35",
   "minimumInstaller": "1.0.23",
   "minimumDashboard": "1.2.0",
-  "lastUpdate": "2026-11-22",
+  "lastUpdate": "2026-11-27",
   "author": "Emilio IPPOLITO",
   "repository": {
     "owner": "LASCAMPIA67",

@@ -7,13 +7,12 @@ const UTILS = importModule("CTS Utils")
 const STORAGE = importModule("CTS Storage")
 const { fm, pdf } = CONFIG
 const errorMessage = UTILS.errorMessage
-const PDFJS_VERSION = "6.3.289"
+const PDFJS_VERSION = "6.5.438"
 
 const PDFJS_BASE_URL = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/legacy/build`
 
 const PDFJS_URLS = {
   library: `${PDFJS_BASE_URL}/pdf.min.mjs`,
-
   worker: `${PDFJS_BASE_URL}/pdf.worker.min.mjs`
 }
 
@@ -23,6 +22,7 @@ const MINIMUM_LIBRARY_SIZE_KB = 100
 const FILE_READ_ATTEMPTS = 4
 const FILE_READ_RETRY_MS = 250
 const WEBVIEW_LOAD_TIMEOUT_MS = 15000
+const WEBVIEW_CALL_MARGIN_MS = 5000
 
 function widgetBudget(key, fallback) {
   if (UTILS.runsInApplication()) return fallback
@@ -58,7 +58,6 @@ function extractionTimeout() {
     Math.max(1000, Number(pdf.extractionTimeoutMs) || 25000)
   )
 }
-const WEBVIEW_CALL_MARGIN_MS = 5000
 
 function libraryFiles() {
   return {
@@ -99,11 +98,8 @@ async function ensureReady() {
 
   return {
     ready: true,
-
     version: PDFJS_VERSION,
-
     libraryPath: libraries.library,
-
     workerPath: libraries.worker
   }
 }
@@ -118,9 +114,7 @@ async function ensureLibraryFile(local, destinationPath, remoteUrl, label, compo
   if (!isValidLibraryFile(local, destinationPath)) {
     throw createTelemetryError(
       component === "worker" ? "PDF_ENGINE_WORKER_INVALID" : "PDF_ENGINE_LIBRARY_INVALID",
-
       "engine_install",
-
       `${label} téléchargé, mais le fichier obtenu est invalide.`
     )
   }
@@ -158,11 +152,8 @@ async function downloadLibraryFile(local, destinationPath, remoteUrl, label, com
       component === "worker"
         ? "PDF_ENGINE_WORKER_DOWNLOAD_FAILED"
         : "PDF_ENGINE_LIBRARY_DOWNLOAD_FAILED",
-
       "engine_install",
-
       `${label} impossible à télécharger : ${errorMessage(error)}`,
-
       error
     )
   }
@@ -172,9 +163,7 @@ async function downloadLibraryFile(local, destinationPath, remoteUrl, label, com
   if (Number.isFinite(statusCode) && (statusCode < 200 || statusCode >= 300)) {
     throw createTelemetryError(
       component === "worker" ? "PDF_ENGINE_WORKER_HTTP_ERROR" : "PDF_ENGINE_LIBRARY_HTTP_ERROR",
-
       "engine_install",
-
       `${label} impossible à télécharger : réponse HTTP ${statusCode}.`
     )
   }
@@ -184,9 +173,7 @@ async function downloadLibraryFile(local, destinationPath, remoteUrl, label, com
       component === "worker"
         ? "PDF_ENGINE_WORKER_EMPTY_DOWNLOAD"
         : "PDF_ENGINE_LIBRARY_EMPTY_DOWNLOAD",
-
       "engine_install",
-
       `${label} impossible à télécharger : réponse vide.`
     )
   }
@@ -213,11 +200,8 @@ async function downloadLibraryFile(local, destinationPath, remoteUrl, label, com
       component === "worker"
         ? "PDF_ENGINE_WORKER_WRITE_FAILED"
         : "PDF_ENGINE_LIBRARY_WRITE_FAILED",
-
       "engine_install",
-
       `${label} impossible à enregistrer : ${errorMessage(error)}`,
-
       error
     )
   }
@@ -226,16 +210,11 @@ async function downloadLibraryFile(local, destinationPath, remoteUrl, label, com
 function writeEngineMetadata(local, path) {
   const metadata = {
     engine: "PDF.js",
-
     version: PDFJS_VERSION,
-
     installedAt: new Date().toISOString(),
-
     loadingMode: "local-blob-module",
-
     files: {
       library: "pdf.min.mjs",
-
       worker: "pdf.worker.min.mjs"
     }
   }
@@ -262,24 +241,45 @@ async function extractText(pdfPath) {
     base64Code: "PDF_ENGINE_WORKER_BASE64_FAILED"
   })
 
-  const pdfBase64 = await readFileAsBase64(
-    pdfPath,
+  const pdfBase64 = await readFileAsBase64(pdfPath, "Le PDF", {
+    missingCode: "PDF_SOURCE_NOT_FOUND",
+    downloadCode: "PDF_ICLOUD_DOWNLOAD_FAILED",
+    readCode: "PDF_READ_FAILED",
+    base64Code: "PDF_BASE64_FAILED",
+    stage: "source"
+  })
 
-    "Le PDF",
+  const webView = await openEngine(libraryBase64, workerBase64)
+  const result = normalizeWebResult(await evaluateExtraction(webView, pdfBase64))
 
-    {
-      missingCode: "PDF_SOURCE_NOT_FOUND",
+  if (!result.ok) {
+    throw createTelemetryError(
+      result.code || "PDF_EXTRACTION_FAILED",
+      "extraction",
+      describeExtractionFailure(result)
+    )
+  }
 
-      downloadCode: "PDF_ICLOUD_DOWNLOAD_FAILED",
+  const text = normalizeExtractedText(result.text)
 
-      readCode: "PDF_READ_FAILED",
+  if (text.length < pdf.minimumTextLength) {
+    throw createTelemetryError(
+      "PDF_TEXT_INSUFFICIENT",
+      "extraction",
+      "Le PDF ne contient pas assez de texte exploitable."
+    )
+  }
 
-      base64Code: "PDF_BASE64_FAILED",
+  return {
+    text,
+    pageCount: Number(result.pageCount) || 0,
+    characterCount: text.length,
+    engine: "PDF.js",
+    engineVersion: PDFJS_VERSION
+  }
+}
 
-      stage: "source"
-    }
-  )
-
+async function openEngine(libraryBase64, workerBase64) {
   let webView
 
   try {
@@ -293,11 +293,9 @@ async function extractText(pdfPath) {
     )
   }
 
-  const runtimeHtml = buildRuntimeHtml(libraryBase64, workerBase64)
-
   try {
     const loaded = await UTILS.withTimeout(
-      webView.loadHTML(runtimeHtml).then(() => "loaded"),
+      webView.loadHTML(buildRuntimeHtml(libraryBase64, workerBase64)).then(() => "loaded"),
       loadTimeout()
     )
 
@@ -318,47 +316,12 @@ async function extractText(pdfPath) {
   if (!readiness.ok) {
     throw createTelemetryError(
       readiness.code || "PDF_ENGINE_INIT_FAILED",
-
       "engine",
-
       readiness.error || "Le moteur PDF ne s’est pas initialisé."
     )
   }
 
-  const rawResult = await evaluateExtraction(webView, pdfBase64)
-  const result = normalizeWebResult(rawResult)
-
-  if (!result.ok) {
-    throw createTelemetryError(
-      result.code || "PDF_EXTRACTION_FAILED",
-
-      "extraction",
-
-      describeExtractionFailure(result)
-    )
-  }
-
-  const text = normalizeExtractedText(result.text)
-
-  if (text.length < pdf.minimumTextLength) {
-    throw createTelemetryError(
-      "PDF_TEXT_INSUFFICIENT",
-      "extraction",
-      "Le PDF ne contient pas assez de texte exploitable."
-    )
-  }
-
-  return {
-    text,
-
-    pageCount: Number(result.pageCount) || 0,
-
-    characterCount: text.length,
-
-    engine: "PDF.js",
-
-    engineVersion: PDFJS_VERSION
-  }
+  return webView
 }
 
 async function validatePdfPath(path) {
@@ -388,83 +351,35 @@ async function validatePdfPath(path) {
 
   await ensureDownloaded(path, {
     missingCode: "PDF_SOURCE_NOT_FOUND",
-
     downloadCode: "PDF_ICLOUD_DOWNLOAD_FAILED",
-
     stage: "source"
   })
 
   const fileSizeKilobytes = await readFileSizeWithRetry(path, {
     code: "PDF_METADATA_READ_FAILED",
-
     stage: "source",
-
     label: "La taille du fichier PDF"
   })
 
-  if (!Number.isFinite(fileSizeKilobytes) || fileSizeKilobytes <= 0) {
-    throw createTelemetryError(
-      "PDF_EMPTY_OR_INACCESSIBLE",
-      "source",
-      "Le fichier PDF reste vide ou inaccessible après plusieurs tentatives."
-    )
-  }
+  const maximumFileSizeBytes = Math.max(1, Number(pdf.maximumFileSizeBytes) || 20 * 1024 * 1024)
 
-  const maximumFileSizeBytes = Math.max(
-    1,
-
-    Number(pdf.maximumFileSizeBytes) || 20 * 1024 * 1024
-  )
-
-  const maximumFileSizeKilobytes = maximumFileSizeBytes / 1024
-
-  if (fileSizeKilobytes > maximumFileSizeKilobytes) {
+  if (fileSizeKilobytes > maximumFileSizeBytes / 1024) {
     const maximumMb = Math.round(maximumFileSizeBytes / 1024 / 1024)
 
     throw createTelemetryError(
       "PDF_TOO_LARGE",
       "source",
-
       `Le PDF dépasse la limite autorisée de ${maximumMb} Mo.`
     )
   }
 }
 
 async function readFileAsBase64(path, label, codes) {
-  await ensureDownloaded(path, {
-    missingCode: codes.missingCode,
-
-    downloadCode: codes.downloadCode,
-
-    stage: codes.stage
-  })
+  await ensureDownloaded(path, codes)
 
   const data = await readFileDataWithRetry(path, label, codes)
-  let base64
 
-  try {
-    base64 = data.toBase64String()
-  } catch (error) {
-    throw createTelemetryError(
-      codes.base64Code,
-      codes.stage,
-
-      `${label} ne peut pas être converti en Base64.`,
-
-      error
-    )
-  }
-
-  if (!base64) {
-    throw createTelemetryError(
-      codes.base64Code,
-      codes.stage,
-
-      `${label} ne peut pas être converti en Base64.`
-    )
-  }
-
-  return base64
+  return toBase64(data, label, codes.base64Code, codes.stage)
 }
 
 function readLibraryAsBase64(path, label, { missingCode, readCode, base64Code }) {
@@ -482,93 +397,83 @@ function readLibraryAsBase64(path, label, { missingCode, readCode, base64Code })
     throw createTelemetryError(readCode, "engine", `${label} ne peut pas être lu.`, error)
   }
 
+  return toBase64(data, label, base64Code, "engine")
+}
+
+function toBase64(data, label, code, stage) {
   let base64
 
   try {
     base64 = data ? data.toBase64String() : ""
   } catch (error) {
-    throw createTelemetryError(
-      base64Code,
-      "engine",
-      `${label} ne peut pas être converti en Base64.`,
-      error
-    )
+    throw createTelemetryError(code, stage, `${label} ne peut pas être converti en Base64.`, error)
   }
 
   if (!base64) {
-    throw createTelemetryError(base64Code, "engine", `${label} ne peut pas être converti en Base64.`)
+    throw createTelemetryError(code, stage, `${label} ne peut pas être converti en Base64.`)
   }
 
   return base64
 }
 
 async function readFileDataWithRetry(path, label, codes) {
-  let lastError = null
-
-  for (let attempt = 1; attempt <= FILE_READ_ATTEMPTS; attempt++) {
-    try {
+  const { value, lastError } = await readWithRetries(
+    async () => {
       if (!fm.fileExists(path)) {
         throw createTelemetryError(codes.missingCode, codes.stage, `${label} est introuvable.`)
       }
 
       if (!fm.isFileDownloaded(path)) {
-        await ensureDownloaded(path, {
-          missingCode: codes.missingCode,
-
-          downloadCode: codes.downloadCode,
-
-          stage: codes.stage
-        })
+        await ensureDownloaded(path, codes)
       }
 
-      const data = fm.read(path)
+      return fm.read(path)
+    },
+    label,
+    error =>
+      error?.telemetryCode === codes.missingCode || error?.telemetryCode === codes.downloadCode
+  )
 
-      if (data) {
-        return data
-      }
-
-      lastError = new Error(`${label} est momentanément indisponible.`)
-    } catch (error) {
-      if (
-        error?.telemetryCode === codes.missingCode ||
-        error?.telemetryCode === codes.downloadCode
-      ) {
-        throw error
-      }
-
-      lastError = error
-    }
-
-    if (attempt < FILE_READ_ATTEMPTS) {
-      await UTILS.sleep(FILE_READ_RETRY_MS * attempt)
-    }
-  }
+  if (value) return value
 
   throw createTelemetryError(
     codes.readCode,
     codes.stage,
-
-    lastError
-      ? `${label} ne peut pas être lu après ${FILE_READ_ATTEMPTS} tentatives : ${errorMessage(lastError)}`
-      : `${label} reste vide ou inaccessible après ${FILE_READ_ATTEMPTS} tentatives.`,
-
+    `${label} ne peut pas être lu après ${FILE_READ_ATTEMPTS} tentatives : ${errorMessage(lastError)}`,
     lastError
   )
 }
 
 async function readFileSizeWithRetry(path, { code, stage, label }) {
+  const { value, lastError } = await readWithRetries(() => {
+    const size = fm.fileSize(path)
+
+    return Number.isFinite(size) && size > 0 ? size : null
+  }, label)
+
+  if (value) return value
+
+  throw createTelemetryError(
+    code,
+    stage,
+    `${label} ne peut pas être lue après plusieurs tentatives : ${errorMessage(lastError)}`,
+    lastError
+  )
+}
+
+async function readWithRetries(read, label, isFatal = () => false) {
   let lastError = null
 
   for (let attempt = 1; attempt <= FILE_READ_ATTEMPTS; attempt++) {
     try {
-      const value = fm.fileSize(path)
+      const value = await read()
 
-      if (Number.isFinite(value) && value > 0) {
-        return value
-      }
+      if (value) return { value, lastError: null }
 
       lastError = new Error(`${label} est momentanément indisponible.`)
     } catch (error) {
+      if (isFatal(error)) throw error
+
       lastError = error
     }
 
@@ -577,16 +482,7 @@ async function readFileSizeWithRetry(path, { code, stage, label }) {
     }
   }
 
-  if (lastError) {
-    throw createTelemetryError(
-      code,
-      stage,
-      `${label} ne peut pas être lue après plusieurs tentatives : ${errorMessage(lastError)}`,
-      lastError
-    )
-  }
-
-  return 0
+  return { value: null, lastError }
 }
 
 async function waitForEngine(webView) {
@@ -649,9 +545,7 @@ async function waitForEngine(webView) {
   } catch (error) {
     return {
       ok: false,
-
       code: "PDF_ENGINE_INIT_FAILED",
-
       error: `Initialisation PDF.js impossible : ${errorMessage(error)}`
     }
   }
@@ -714,19 +608,13 @@ async function evaluateExtraction(webView, pdfBase64) {
   } catch (error) {
     return {
       ok: false,
-
       code: "PDF_EXTRACTION_BRIDGE_FAILED",
-
       error: `Extraction PDF impossible : ${errorMessage(error)}`
     }
   }
 }
 
-function buildRuntimeHtml(libraryBase64, workerBase64) {
-  const encodedLibrary = JSON.stringify(libraryBase64)
-  const encodedWorker = JSON.stringify(workerBase64)
-
-  const streamAsyncIterationPolyfill = String.raw`
+const STREAM_ASYNC_ITERATION_POLYFILL = String.raw`
 ;(function () {
   try {
     if (
@@ -796,20 +684,7 @@ function buildRuntimeHtml(libraryBase64, workerBase64) {
 })();
 `
 
-  return String.raw`<!doctype html>
-<html lang="fr">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>CTS PDF Engine</title>
-</head>
-
-<body>
-<script>${streamAsyncIterationPolyfill}</script>
-<script>
-  const __ctsStreamPolyfillSource = ${JSON.stringify(streamAsyncIterationPolyfill)}
-</script>
-<script>
+const RUNTIME_HELPERS = String.raw`
   window.__ctsPdfReady = false
   window.__ctsPdfBootError = ""
   window.__ctsPdfLib = null
@@ -933,6 +808,115 @@ function buildRuntimeHtml(libraryBase64, workerBase64) {
     storeBootError(event.reason)
   })
 
+  function createExtractor(pdfjsLib) {
+    return async pdfBase64 => {
+      let document = null
+
+      try {
+        let bytes
+
+        try {
+          bytes = bytesFromBase64(pdfBase64)
+        } catch (error) {
+          return {
+            ok: false,
+            text: "",
+            pageCount: 0,
+            code: error?.ctsCode || "PDF_BASE64_DECODE_FAILED",
+            error: errorText(error)
+          }
+        }
+
+        let loadingTask
+
+        try {
+          loadingTask = pdfjsLib.getDocument({ data: bytes, isEvalSupported: false })
+          document = await loadingTask.promise
+        } catch (error) {
+          return {
+            ok: false,
+            text: "",
+            pageCount: 0,
+            code: "PDF_DOCUMENT_OPEN_FAILED",
+            error: errorText(error)
+          }
+        }
+
+        const pages = []
+
+        for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
+          try {
+            const page = await document.getPage(pageNumber)
+            const content = await page.getTextContent()
+
+            pages.push(textFromContent(content))
+
+            page.cleanup()
+          } catch (error) {
+            return {
+              ok: false,
+              text: "",
+              pageCount: document.numPages,
+              code: "PDF_PAGE_TEXT_EXTRACTION_FAILED",
+              error: errorText(error),
+              details: failureDetails(error, { pageNumber, totalPages: document.numPages })
+            }
+          }
+        }
+
+        const text = pages
+          .join("\n")
+          .replace(/[ \t]+/g, " ")
+          .replace(/ *\n */g, "\n")
+          .replace(/\n{3,}/g, "\n\n")
+          .trim()
+
+        return {
+          ok: true,
+          text,
+          pageCount: document.numPages,
+          code: "",
+          error: ""
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          text: "",
+          pageCount: 0,
+          code: "PDF_EXTRACTION_FAILED",
+          error: errorText(error),
+          details: failureDetails(error)
+        }
+      } finally {
+        if (document && typeof document.destroy === "function") {
+          try {
+            await document.destroy()
+          } catch (_) {}
+        }
+      }
+    }
+  }
+`
+
+function buildRuntimeHtml(libraryBase64, workerBase64) {
+  const encodedLibrary = JSON.stringify(libraryBase64)
+  const encodedWorker = JSON.stringify(workerBase64)
+
+  return String.raw`<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CTS PDF Engine</title>
+</head>
+
+<body>
+<script>${STREAM_ASYNC_ITERATION_POLYFILL}</script>
+<script>
+  const __ctsStreamPolyfillSource = ${JSON.stringify(STREAM_ASYNC_ITERATION_POLYFILL)}
+</script>
+<script>
+${RUNTIME_HELPERS}
   ;(async () => {
     try {
       window.__ctsLibraryUrl = moduleUrlFromBase64(${encodedLibrary})
@@ -964,92 +948,7 @@ function buildRuntimeHtml(libraryBase64, workerBase64) {
 
       window.__ctsPdfLib = pdfjsLib
 
-      window.__ctsExtractPdfText = async pdfBase64 => {
-        let document = null
-
-        try {
-          let bytes
-
-          try {
-            bytes = bytesFromBase64(pdfBase64)
-          } catch (error) {
-            return {
-              ok: false,
-              text: "",
-              pageCount: 0,
-              code: error?.ctsCode || "PDF_BASE64_DECODE_FAILED",
-              error: errorText(error)
-            }
-          }
-
-          let loadingTask
-
-          try {
-            loadingTask = pdfjsLib.getDocument({ data: bytes, isEvalSupported: false })
-            document = await loadingTask.promise
-          } catch (error) {
-            return {
-              ok: false,
-              text: "",
-              pageCount: 0,
-              code: "PDF_DOCUMENT_OPEN_FAILED",
-              error: errorText(error)
-            }
-          }
-
-          const pages = []
-
-          for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
-            try {
-              const page = await document.getPage(pageNumber)
-              const content = await page.getTextContent()
-
-              pages.push(textFromContent(content))
-
-              page.cleanup()
-            } catch (error) {
-              return {
-                ok: false,
-                text: "",
-                pageCount: document.numPages,
-                code: "PDF_PAGE_TEXT_EXTRACTION_FAILED",
-                error: errorText(error),
-                details: failureDetails(error, { pageNumber, totalPages: document.numPages })
-              }
-            }
-          }
-
-          const text = pages
-            .join("\n")
-            .replace(/[ \t]+/g, " ")
-            .replace(/ *\n */g, "\n")
-            .replace(/\n{3,}/g, "\n\n")
-            .trim()
-
-          return {
-            ok: true,
-            text,
-            pageCount: document.numPages,
-            code: "",
-            error: ""
-          }
-        } catch (error) {
-          return {
-            ok: false,
-            text: "",
-            pageCount: 0,
-            code: "PDF_EXTRACTION_FAILED",
-            error: errorText(error),
-            details: failureDetails(error)
-          }
-        } finally {
-          if (document && typeof document.destroy === "function") {
-            try {
-              await document.destroy()
-            } catch (_) {}
-          }
-        }
-      }
+      window.__ctsExtractPdfText = createExtractor(pdfjsLib)
 
       window.__ctsPdfReady = true
     } catch (error) {
@@ -1078,9 +977,7 @@ async function ensureDownloaded(
   path,
   {
     missingCode = "FILE_NOT_FOUND",
-
     downloadCode = "ICLOUD_DOWNLOAD_FAILED",
-
     stage = "file"
   } = {}
 ) {
@@ -1092,9 +989,7 @@ async function ensureDownloaded(
     throw createTelemetryError(
       downloadCode,
       stage,
-
       `Le fichier n’a pas pu être téléchargé depuis iCloud : ${errorMessage(error)}`,
-
       error
     )
   }
@@ -1152,9 +1047,7 @@ function normalizeWebResult(value) {
 
   return {
     ok: false,
-
     code: "PDF_ENGINE_INVALID_RESULT",
-
     error: "Le moteur PDF a renvoyé un résultat invalide."
   }
 }
@@ -1180,7 +1073,6 @@ function removeFileQuietly(manager, path) {
 
 module.exports = {
   budgets,
-  PDFJS_VERSION,
   ensureReady,
   extractText
 }

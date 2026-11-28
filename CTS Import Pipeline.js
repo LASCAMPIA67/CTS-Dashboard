@@ -16,8 +16,6 @@ const normalizeImportTimings = UTILS.normalizeImportTimings
 const INDEX_VERSION = CONFIG.servicesIndexVersion
 
 async function importPdf(pdfPath) {
-  CONFIG.ensureDirectories()
-
   const startedAt = new Date().toISOString()
   const startedAtMs = Date.now()
   const timings = {
@@ -32,59 +30,36 @@ async function importPdf(pdfPath) {
   let sourceInfo = null
 
   try {
-    let stageStartedAt = Date.now()
+    sourceInfo = await timed(timings, "sourceInspectionMs", () => inspectSourcePdf(pdfPath))
 
-    sourceInfo = await inspectSourcePdf(pdfPath)
-    timings.sourceInspectionMs = elapsedMs(stageStartedAt)
-
-    stageStartedAt = Date.now()
-
-    const extraction = await withTelemetryError(
-      () => PDF_ENGINE.extractText(sourceInfo.path),
-      "PDF_EXTRACTION_FAILED",
-      "extraction",
-      "L’extraction du texte du PDF a échoué."
-    )
-
-    timings.pdfExtractionMs = elapsedMs(stageStartedAt)
-
-    stageStartedAt = Date.now()
-
-    await withTelemetryError(
-      () => DATABASE.reload(),
-      "DATABASE_RELOAD_FAILED",
-      "database",
-      "La base de données CTS n’a pas pu être rechargée."
-    )
-
-    timings.databaseReloadMs = elapsedMs(stageStartedAt)
-
-    stageStartedAt = Date.now()
-
-    const service = await withTelemetryError(
-      () => PARSER.parseService(extraction.text),
-      "PARSER_EXECUTION_FAILED",
-      "parser",
-      "Le Parser CTS n’a pas pu analyser le texte HASTUS."
-    )
-
-    timings.parserMs = elapsedMs(stageStartedAt)
-
-    if (!service || typeof service !== "object" || Array.isArray(service)) {
-      throw createTelemetryError(
-        "PARSER_INVALID_RESULT",
-        "parser",
-        "Le Parser CTS a renvoyé un résultat invalide."
+    const extraction = await timed(timings, "pdfExtractionMs", () =>
+      withTelemetryError(
+        () => PDF_ENGINE.extractText(sourceInfo.path),
+        "PDF_EXTRACTION_FAILED",
+        "extraction",
+        "L’extraction du texte du PDF a échoué."
       )
-    }
+    )
 
-    if (!service.validation || typeof service.validation !== "object") {
-      throw createTelemetryError(
-        "PARSER_VALIDATION_MISSING",
-        "parser",
-        "Le Parser CTS n’a pas fourni de résultat de validation."
+    await timed(timings, "databaseReloadMs", () =>
+      withTelemetryError(
+        () => DATABASE.reload(),
+        "DATABASE_RELOAD_FAILED",
+        "database",
+        "La base de données CTS n’a pas pu être rechargée."
       )
-    }
+    )
+
+    const service = await timed(timings, "parserMs", () =>
+      withTelemetryError(
+        () => PARSER.parseService(extraction.text),
+        "PARSER_EXECUTION_FAILED",
+        "parser",
+        "Le Parser CTS n’a pas pu analyser le texte HASTUS."
+      )
+    )
+
+    assertParserResult(service)
 
     if (!service.validation.valid) {
       timings.totalMs = elapsedMs(startedAtMs)
@@ -96,60 +71,21 @@ async function importPdf(pdfPath) {
       return result
     }
 
-    stageStartedAt = Date.now()
+    const registration = await timed(timings, "registrationMs", () =>
+      registerImportedService(service, extraction, sourceInfo)
+    )
 
-    const registration = await registerImportedService(service, extraction, sourceInfo)
-
-    timings.registrationMs = elapsedMs(stageStartedAt)
     timings.totalMs = elapsedMs(startedAtMs)
 
-    const result = {
-      success: true,
-      status: "imported",
-      telemetryCode: "",
-      telemetryStage: "",
-      startedAt,
-      completedAt: new Date().toISOString(),
-      service: service.service,
-      date: service.date,
-      slices: service.slices.length,
-      warnings: [...service.validation.warnings],
-      slicesWithUnknownPlace: service.validation.slicesWithUnknownPlace,
-      sourceFileName: sourceInfo.fileName,
-      pdfFileName: registration.pdfFileName,
-      cacheFileName: registration.cacheFileName,
-      textFileName: registration.textFileName,
-      indexEntry: registration.indexEntry,
-      extraction: {
-        engine: extraction.engine,
-        engineVersion: extraction.engineVersion,
-        pageCount: extraction.pageCount,
-        characterCount: extraction.characterCount
-      },
-      timings: normalizeImportTimings(timings)
-    }
+    const result = importSuccess(startedAt, service, sourceInfo, extraction, registration, timings)
 
     await STORAGE.appendLog("success", "Service PDF importé", result)
 
     return result
   } catch (error) {
-    const telemetry = telemetryFromError(error, "SERVICE_IMPORT_FAILED", "import")
-    const safeError = UTILS.safeError(error)
-
     timings.totalMs = elapsedMs(startedAtMs)
 
-    const result = {
-      success: false,
-      status: "exception",
-      telemetryCode: telemetry.code,
-      telemetryStage: telemetry.stage,
-      startedAt,
-      completedAt: new Date().toISOString(),
-      sourceFileName: sourceInfo?.fileName || "",
-      error: safeError.message,
-      details: safeError,
-      timings: normalizeImportTimings(timings)
-    }
+    const result = importException(error, startedAt, sourceInfo, timings)
 
     await STORAGE.appendLog("exception", "Erreur pendant l’importation locale d’un PDF", result)
 
@@ -157,10 +93,108 @@ async function importPdf(pdfPath) {
   }
 }
 
-async function inspectSourcePdf(pdfPath) {
-  const normalizedPath = String(pdfPath || "").trim()
+function importSuccess(startedAt, service, sourceInfo, extraction, registration, timings) {
+  return {
+    success: true,
+    status: "imported",
+    telemetryCode: "",
+    telemetryStage: "",
+    startedAt,
+    completedAt: new Date().toISOString(),
+    service: service.service,
+    date: service.date,
+    slices: service.slices.length,
+    warnings: [...service.validation.warnings],
+    slicesWithUnknownPlace: service.validation.slicesWithUnknownPlace,
+    sourceFileName: sourceInfo.fileName,
+    pdfFileName: registration.pdfFileName,
+    cacheFileName: registration.cacheFileName,
+    textFileName: registration.textFileName,
+    indexEntry: registration.indexEntry,
+    extraction: extractionSummary(extraction),
+    timings: normalizeImportTimings(timings)
+  }
+}
 
-  if (!normalizedPath) {
+function importException(error, startedAt, sourceInfo, timings) {
+  const telemetry = telemetryFromError(error, "SERVICE_IMPORT_FAILED", "import")
+  const safeError = UTILS.safeError(error)
+
+  return {
+    success: false,
+    status: "exception",
+    telemetryCode: telemetry.code,
+    telemetryStage: telemetry.stage,
+    startedAt,
+    completedAt: new Date().toISOString(),
+    sourceFileName: sourceInfo?.fileName || "",
+    error: safeError.message,
+    details: safeError,
+    timings: normalizeImportTimings(timings)
+  }
+}
+
+async function timed(timings, key, operation) {
+  const startedAt = Date.now()
+  const value = await operation()
+
+  timings[key] = elapsedMs(startedAt)
+
+  return value
+}
+
+function assertParserResult(service) {
+  if (!service || typeof service !== "object" || Array.isArray(service)) {
+    throw createTelemetryError(
+      "PARSER_INVALID_RESULT",
+      "parser",
+      "Le Parser CTS a renvoyé un résultat invalide."
+    )
+  }
+
+  if (!service.validation || typeof service.validation !== "object") {
+    throw createTelemetryError(
+      "PARSER_VALIDATION_MISSING",
+      "parser",
+      "Le Parser CTS n’a pas fourni de résultat de validation."
+    )
+  }
+}
+
+function extractionSummary(extraction) {
+  return {
+    engine: extraction.engine,
+    engineVersion: extraction.engineVersion,
+    pageCount: extraction.pageCount,
+    characterCount: extraction.characterCount
+  }
+}
+
+async function inspectSourcePdf(pdfPath) {
+  const path = String(pdfPath || "").trim()
+  const fileName = requireSourcePdf(path)
+
+  await downloadSourcePdf(path)
+
+  const sizeKilobytes = readSourceSize(path)
+  const modificationDate = STORAGE.safeModificationDate(path)
+  const modifiedAt = modificationDate ? modificationDate.toISOString() : ""
+
+  return {
+    path,
+    fileName,
+    sizeKilobytes,
+    modifiedAt,
+    fingerprint: UTILS.buildFingerprint({
+      fileName,
+      sizeKilobytes,
+      modifiedAt
+    })
+  }
+}
+
+function requireSourcePdf(path) {
+  if (!path) {
     throw createTelemetryError(
       "PDF_PATH_MISSING",
       "source",
@@ -168,7 +202,7 @@ async function inspectSourcePdf(pdfPath) {
     )
   }
 
-  if (!fm.fileExists(normalizedPath)) {
+  if (!fm.fileExists(path)) {
     throw createTelemetryError(
       "PDF_SOURCE_NOT_FOUND",
       "source",
@@ -179,7 +213,7 @@ async function inspectSourcePdf(pdfPath) {
   let isDirectory
 
   try {
-    isDirectory = fm.isDirectory(normalizedPath)
+    isDirectory = fm.isDirectory(path)
   } catch (error) {
     throw createTelemetryError(
       "PDF_METADATA_READ_FAILED",
@@ -197,7 +231,7 @@ async function inspectSourcePdf(pdfPath) {
     )
   }
 
-  const fileName = UTILS.fileNameFromPath(normalizedPath)
+  const fileName = UTILS.fileNameFromPath(path)
 
   if (!/\.pdf$/i.test(fileName)) {
     throw createTelemetryError(
@@ -207,8 +241,12 @@ async function inspectSourcePdf(pdfPath) {
     )
   }
 
+  return fileName
+}
+
+async function downloadSourcePdf(path) {
   try {
-    if (!(await STORAGE.ensureDownloaded(normalizedPath))) {
+    if (!(await STORAGE.ensureDownloaded(path))) {
       throw createTelemetryError(
         "PDF_SOURCE_NOT_FOUND",
         "source",
@@ -227,11 +265,13 @@ async function inspectSourcePdf(pdfPath) {
       error
     )
   }
+}
 
+function readSourceSize(path) {
   let sizeKilobytes
 
   try {
-    sizeKilobytes = fm.fileSize(normalizedPath)
+    sizeKilobytes = fm.fileSize(path)
   } catch (error) {
     throw createTelemetryError(
       "PDF_METADATA_READ_FAILED",
@@ -259,20 +299,7 @@ async function inspectSourcePdf(pdfPath) {
     )
   }
 
-  const modificationDate = STORAGE.safeModificationDate(normalizedPath)
-  const modifiedAt = modificationDate ? modificationDate.toISOString() : ""
-
-  return {
-    path: normalizedPath,
-    fileName,
-    sizeKilobytes,
-    modifiedAt,
-    fingerprint: UTILS.buildFingerprint({
-      fileName,
-      sizeKilobytes,
-      modifiedAt
-    })
-  }
+  return sizeKilobytes
 }
 
 async function registerImportedService(service, extraction, sourceInfo) {
@@ -500,12 +527,7 @@ async function buildUpdatedIndex(plan, service, extraction, sourceInfo, pdfFileN
       modifiedAt: sourceInfo.modifiedAt,
       fingerprint: sourceInfo.fingerprint
     },
-    extraction: {
-      engine: extraction.engine,
-      engineVersion: extraction.engineVersion,
-      pageCount: extraction.pageCount,
-      characterCount: extraction.characterCount
-    }
+    extraction: extractionSummary(extraction)
   }
 
   const services = current.services
@@ -544,12 +566,7 @@ function buildValidationFailure(sourceInfo, extraction, service, timings) {
     warnings: Array.isArray(service.validation.warnings)
       ? [...service.validation.warnings]
       : [],
-    extraction: {
-      engine: extraction.engine,
-      engineVersion: extraction.engineVersion,
-      pageCount: extraction.pageCount,
-      characterCount: extraction.characterCount
-    },
+    extraction: extractionSummary(extraction),
     timings: normalizeImportTimings(timings)
   }
 }

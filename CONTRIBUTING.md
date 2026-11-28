@@ -273,6 +273,10 @@ changé :
 PREVIEW_MODE=images PREVIEW_SCREENS="Pro Max" \
 PREVIEW_SCENARIOS="En service · 2 tranches|Avant le service · 2 tranches|Pause · 2 tranches|Coupure · 2 tranches|Service terminé · 2 tranches|Service dans 3 jours · 2 tranches|Carte agent en attente · 2 tranches" \
 node tools/preview/preview.mjs docs/images
+
+PREVIEW_MODE=images PREVIEW_FAMILY=extraLargePortrait PREVIEW_SCREENS="Pro Max 440" \
+PREVIEW_SCENARIOS="Pause · 2 tranches" \
+node tools/preview/preview.mjs docs/images
 ```
 
 Ce mode exige Chromium et les polices Inter et JetBrains Mono, et refuse

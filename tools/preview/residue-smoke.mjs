@@ -91,7 +91,6 @@ function loadCleaner(disk, { readableDates = true } = {}) {
   }
 
   loaded["CTS Storage"] = {
-    removeFileQuietly: target => disk.files.delete(target),
     readJson: async (target, fallback = null) => {
       const entry = disk.files.get(target)
       if (!entry) return fallback

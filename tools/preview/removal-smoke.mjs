@@ -142,9 +142,6 @@ function buildWorld(services) {
   }
 
   loaded["CTS Storage"] = {
-    removeFileQuietly: target => {
-      if (files.has(target)) files.delete(target)
-    },
     readJson: async (target, fallback = null) => {
       const content = files.get(target)
       if (!content) return fallback

@@ -36,50 +36,107 @@ const failures = []
 
 const MINIMUM_SLACK = 10
 
-for (const screen of SCREENS) {
-  SCREEN = screen
+function refreshButtonWidth(density) {
+  return density.refreshSymbolSize + 2 * density.badgePaddingHorizontal
+}
 
-  for (const slices of [1, 2, 3, 4]) {
-    const density = RENDERER.getDensity(slices)
-    const widget = RENDERER.estimateWidgetWidth(screen)
+const FORMATS = [
+  { label: "grand", density: RENDERER.getDensity },
+  { label: "Portrait XL", density: RENDERER.getPortraitDensity }
+]
 
-    const inner = widget - 2 * density.paddingHorizontal - 2 * density.cardPaddingHorizontal
-    const demanded = 2 * density.columnWidth + RENDERER.gridGutter(density)
-    const slack = inner - demanded
+for (const format of FORMATS) {
+  for (const screen of SCREENS) {
+    SCREEN = screen
 
-    if (slack < 0) {
-      failures.push(
-        `${screen.label} · ${slices} tranche(s) : la grille demande ${demanded} pt ` +
-        `pour ${inner} pt disponibles — la symétrie casse`
-      )
-    } else if (slack < MINIMUM_SLACK) {
-      failures.push(
-        `${screen.label} · ${slices} tranche(s) : seulement ${slack} pt de jeu, ` +
-        `il en faut ${MINIMUM_SLACK}`
-      )
+    for (const slices of [1, 2, 3, 4]) {
+      const density = format.density(slices)
+      const widget = RENDERER.estimateWidgetWidth(screen)
+
+      const inner = widget - 2 * density.paddingHorizontal - 2 * density.cardPaddingHorizontal
+      const demanded = 2 * density.columnWidth + RENDERER.gridGutter(density)
+      const slack = inner - demanded
+
+      if (slack < 0) {
+        failures.push(
+          `${format.label} · ${screen.label} · ${slices} tranche(s) : la grille demande ` +
+          `${demanded} pt pour ${inner} pt disponibles — la symétrie casse`
+        )
+      } else if (slack < MINIMUM_SLACK) {
+        failures.push(
+          `${format.label} · ${screen.label} · ${slices} tranche(s) : seulement ${slack} pt ` +
+          `de jeu, il en faut ${MINIMUM_SLACK}`
+        )
+      }
+    }
+  }
+
+  for (const screen of SCREENS) {
+    SCREEN = screen
+
+    for (const slices of [1, 4]) {
+      const plain = format.density(slices)
+      const enlarged = format.density(slices, 1.25)
+
+      if (refreshButtonWidth(enlarged) !== refreshButtonWidth(plain)) {
+        failures.push(
+          `${format.label} · ${screen.label} · ${slices} tranche(s) : en « Grandes polices », le ` +
+            "bouton d'actualisation grandit et prend la place de la pastille"
+        )
+      }
+    }
+
+    for (const slices of [1, 2, 3, 4]) {
+      for (const textScale of [1, 1.25]) {
+        const density = format.density(slices, textScale)
+        const columns = density.statColumns
+
+        const card = RENDERER.estimateWidgetWidth(screen) - 2 * density.paddingHorizontal
+        const demanded =
+          columns * density.statColumnWidth + (columns - 1) * RENDERER.statSeparatorWidth()
+        const slack = card - demanded
+
+        // Le même jeu que le bandeau : des colonnes rigides ne se compriment pas, c'est la carte qui cède.
+        if (slack < MINIMUM_SLACK) {
+          failures.push(
+            `${format.label} · ${screen.label} · ${slices} tranche(s) · texte ×${textScale} : ` +
+            `les ${columns} colonnes demandent ${demanded} pt pour ${card} pt de carte, soit ` +
+            `${slack} pt de jeu au lieu de ${MINIMUM_SLACK} — la carte s'élargirait au-delà des autres`
+          )
+        }
+      }
     }
   }
 }
 
+const TEXT_SIZES = ["serviceSize", "badgeSize", "refreshSymbolSize", "timeSize", "sliceTitleSize"]
+
 for (const screen of SCREENS) {
   SCREEN = screen
 
-  for (const slices of [1, 2, 3, 4]) {
-    for (const textScale of [1, 1.25]) {
-      const density = RENDERER.getDensity(slices, textScale)
+  for (const slices of [1, 3]) {
+    const large = RENDERER.getDensity(slices)
+    const portrait = RENDERER.getPortraitDensity(slices)
+    const sameSizes = TEXT_SIZES.every(key => portrait[key] === large[key])
+    const wide = screen.width >= 440
+    const label = `Portrait XL · ${screen.label} · ${slices} tranche(s)`
 
-      const card = RENDERER.estimateWidgetWidth(screen) - 2 * density.paddingHorizontal
-      const demanded = 2 * density.statColumnWidth + RENDERER.statSeparatorWidth()
-      const slack = card - demanded
+    if (!portrait.sliceDetails || !portrait.interruptionTimes || !portrait.dayBounds) {
+      failures.push(`${label} : le plein écran a perdu ses informations en plus`)
+    }
 
-      // Le même jeu que le bandeau : des colonnes rigides ne se compriment pas, c'est la carte qui cède.
-      if (slack < MINIMUM_SLACK) {
-        failures.push(
-          `${screen.label} · ${slices} tranche(s) · texte ×${textScale} : les deux ` +
-          `colonnes demandent ${demanded} pt pour ${card} pt de carte, soit ${slack} pt ` +
-          `de jeu au lieu de ${MINIMUM_SLACK} — la carte s'élargirait au-delà des autres`
-        )
-      }
+    if (wide && sameSizes) {
+      failures.push(`${label} : le plein écran a perdu ses tailles agrandies`)
+    }
+
+    if (!wide && !sameSizes) {
+      failures.push(`${label} : les tailles agrandies, qui débordent sous 440 pt, y sont gardées`)
+    }
+
+    if (!(portrait.sliceDetailSoftLimit >= 8)) {
+      failures.push(
+        `${label} : une colonne du détail ne tient que ${portrait.sliceDetailSoftLimit} caractères`
+      )
     }
   }
 }
@@ -101,5 +158,6 @@ if (failures.length) {
 
 console.log(
   `ok     géométrie de la grille et des colonnes du bas ` +
-    `(${SCREENS.length} écrans × 4 découpages, jeu ≥ ${MINIMUM_SLACK} pt)`
+    `(grand et Portrait XL, ${SCREENS.length} écrans × 4 découpages, jeu ≥ ${MINIMUM_SLACK} pt ; ` +
+    `tailles agrandies du plein écran réservées aux écrans de 440 pt)`
 )

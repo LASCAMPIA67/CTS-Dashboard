@@ -89,6 +89,32 @@ dessinées pour le banc, les symboles SF n'existant pas hors iOS. Ce mode
 ne mesure rien : une hauteur qui tient dans une image ne dit pas qu'elle
 tient sur un petit écran.
 
+## Le Portrait XL
+
+`PREVIEW_FAMILY=extraLargePortrait` dessine le très grand widget d'iOS 27.
+Apple ne publie aucune de ses tailles sur iPhone ; une seule est relevée,
+sur une capture de l'iPhone du mainteneur (écran 440 × 956) : 390 × 594 pt,
+la même largeur que le grand widget, mesuré 390 × 387 pt sur la même
+capture. C'est l'écran « Pro Max 440 ».
+
+Les hauteurs des autres écrans sont déduites par analogie, en gardant le
+même rapport de 1,535 : elles ne sont pas mesurées, et un débordement
+qu'elles annoncent n'est qu'une alerte à vérifier sur un téléphone.
+
+Ses tailles agrandies sont réservées à cet écran de 440 points, le seul
+mesuré. Dessinées le 27 novembre avec Inter, elles débordaient en largeur
+dès 428 points : pastille d'état tronquée quand une carte attend, titre de
+tranche sur ses horaires. En dessous, le Portrait XL garde les tailles du
+grand widget, qui tiennent jusqu'au SE, et n'y ajoute que ses informations
+en plus. Le banc de géométrie tient ce partage.
+
+## Une largeur que l'aperçu a sous-estimée
+
+Le 27 novembre, sur l'écran de 440 points, le libellé « Actualiser » d'un
+bouton large de 86 points s'est coupé en « Actuali… », quand l'aperçu le
+montrait entier. Pour un texte court qui doit tenir dans une largeur fixe,
+l'aperçu ne suffit pas : il faut une marge, ou une capture de l'iPhone.
+
 ## Ce qui reste à confirmer sur iPhone
 
 Tout ce qui touche à la métrique fine du texte : longueur exacte à laquelle

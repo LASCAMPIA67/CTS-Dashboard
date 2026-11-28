@@ -6,6 +6,8 @@ const LIBRARY = `${ENGINE}/pdf.min.mjs`
 const WORKER = `${ENGINE}/pdf.worker.min.mjs`
 const METADATA = `${ENGINE}/engine.json`
 
+const PDF = `${DOCS}/CTS Dashboard/Services/carte.pdf`
+
 const VALID_SIZE_KB = 400
 const TRUNCATED_SIZE_KB = 1
 
@@ -13,7 +15,10 @@ function buildWorld({
   librariesPresent = true,
   metadataWriteFails = false,
   downloadSizeKb = VALID_SIZE_KB,
-  shrinkOnMove = false
+  shrinkOnMove = false,
+  pdfSizeKb = 50,
+  pdfReadable = true,
+  webResults = []
 } = {}) {
   const disk = new Map()
   const written = []
@@ -24,6 +29,8 @@ function buildWorld({
     disk.set(LIBRARY, VALID_SIZE_KB)
     disk.set(WORKER, VALID_SIZE_KB)
   }
+
+  disk.set(PDF, pdfSizeKb)
 
   const fm = {
     joinPath: (a, b) => `${a}/${b}`,
@@ -39,6 +46,8 @@ function buildWorld({
       iCloudCalls.push(target)
     },
     fileSize: target => disk.get(target) ?? 0,
+    read: target =>
+      target === PDF && !pdfReadable ? null : { toBase64String: () => "JVBERi0xLjQ=" },
     write: (target, data) => disk.set(target, Number(data?.sizeKilobytes) || 0),
     writeString: (target, content) => {
       if (metadataWriteFails && target === METADATA) {
@@ -72,7 +81,13 @@ function buildWorld({
             return { sizeKilobytes: downloadSizeKb }
           }
         },
-        FileManager: { iCloud: () => fm, local: () => fm }
+        FileManager: { iCloud: () => fm, local: () => fm },
+        WebView: class {
+          async loadHTML() {}
+          async evaluateJavaScript() {
+            return webResults.shift()
+          }
+        }
       }
     })
 
@@ -196,6 +211,49 @@ async function attempt(world) {
   }
 }
 
+async function read(world) {
+  try {
+    return { result: await world.engine.extractText(PDF), error: null }
+  } catch (error) {
+    return { result: null, error }
+  }
+}
+
+const READY = { ok: true, code: "", error: "" }
+const CARD_TEXT = "Service EA05 du 12/08/2026 ".repeat(4)
+
+for (const [label, options, expected] of [
+  ["carte lue", { webResults: [READY, { ok: true, text: CARD_TEXT, pageCount: 2 }] }, null],
+  ["moteur muet", { webResults: [{ ok: false, code: "PDF_ENGINE_INIT_TIMEOUT", error: "délai" }] }, "PDF_ENGINE_INIT_TIMEOUT"],
+  [
+    "page illisible",
+    {
+      webResults: [
+        READY,
+        { ok: false, code: "PDF_PAGE_TEXT_EXTRACTION_FAILED", error: "page", details: { pageNumber: 2, totalPages: 3 } }
+      ]
+    },
+    "PDF_PAGE_TEXT_EXTRACTION_FAILED"
+  ],
+  ["texte trop court", { webResults: [READY, { ok: true, text: "abc", pageCount: 1 }] }, "PDF_TEXT_INSUFFICIENT"],
+  ["PDF illisible", { pdfReadable: false }, "PDF_READ_FAILED"],
+  ["PDF trop gros", { pdfSizeKb: 30000 }, "PDF_TOO_LARGE"]
+]) {
+  const { result, error } = await read(buildWorld(options))
+
+  if (!expected && (error || result?.characterCount !== CARD_TEXT.trim().length || result?.pageCount !== 2)) {
+    failures.push(`lecture d'une carte, ${label} : ${error?.message || "texte ou pages perdus"}`)
+  }
+
+  if (expected && error?.telemetryCode !== expected) {
+    failures.push(`lecture d'une carte, ${label} : ${error?.telemetryCode || "aucune erreur"} au lieu de ${expected}`)
+  }
+
+  if (expected === "PDF_PAGE_TEXT_EXTRACTION_FAILED" && !String(error?.message).includes("page 2/3")) {
+    failures.push("lecture d'une carte : la page qui a échoué n'est plus nommée dans l'erreur")
+  }
+}
+
 if (failures.length) {
   console.log("ÉCHEC  préparation du moteur PDF")
   for (const failure of failures) console.log(`         ${failure}`)
@@ -205,5 +263,5 @@ if (failures.length) {
 console.log(
   "ok     préparation du moteur PDF (métadonnées jamais bloquantes, écrites à " +
   "l’installation seulement, bibliothèques toujours contrôlées, et rangées " +
-  "sur l'appareil sans rien demander à iCloud)"
+  "sur l'appareil sans rien demander à iCloud ; lecture d'une carte et ses six issues)"
 )

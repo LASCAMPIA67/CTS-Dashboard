@@ -29,6 +29,11 @@ function createFileManager(disk) {
 }
 
 const ACCESSORY = ["accessoryRectangular", "accessoryCircular", "accessoryInline"]
+const DAY_MS = 24 * 60 * 60 * 1000
+const INDEX_PATH = "/documents/CTS Dashboard/Data/services-index.json"
+const VERSION_POLICY_PATH = "/documents/CTS Dashboard/Data/version-policy.json"
+const RUN_TRACE_PATH = "/library/CTS Dashboard/last-run.json"
+const HOME_SCREEN_SERVICE = ["large", "extraLargePortrait"]
 
 // Heure figée : sur l'horloge réelle, le résultat dépendrait de l'heure du lancement.
 const FROZEN_NOW = new Date(2026, 7, 19, 9, 0, 0)
@@ -57,6 +62,17 @@ function collectText(node) {
   return own + children.map(collectText).join("")
 }
 
+function collectActions(node) {
+  if (!node || typeof node !== "object") return []
+
+  const own = node.action ? [node.action] : []
+  const children = Array.isArray(node.children) ? node.children : []
+
+  return own.concat(children.flatMap(collectActions))
+}
+
+const stackPrototype = Object.getPrototypeOf(shim.ListWidget.prototype)
+
 function seedService(disk, today) {
   const iso = [
     today.getFullYear(),
@@ -66,7 +82,7 @@ function seedService(disk, today) {
 
   const stem = `Service_${iso}_EA05`
 
-  disk.set("/documents/CTS Dashboard/Data/services-index.json", JSON.stringify({
+  disk.set(INDEX_PATH, JSON.stringify({
     version: 2,
     updatedAt: new Date().toISOString(),
     services: [{
@@ -119,16 +135,41 @@ async function run(
     engineFails = false,
     scanLockedByWidget = false,
     serverPolicy = null,
-    serverDelayMs = 0
+    serverDelayMs = 0,
+    widgetAction = null,
+    legacyScriptable = false,
+    policyAlreadyKept = false
   } = {}
 ) {
   const disk = new Map()
   const fileManager = createFileManager(disk)
   const widgetsSet = []
   const presented = []
+  const requests = []
+  const reads = new Map()
+  const writes = []
   const runsInWidget = surface === "widget"
+  const readString = fileManager.readString
+  const writeString = fileManager.writeString
+
+  fileManager.readString = target => {
+    reads.set(target, (reads.get(target) || 0) + 1)
+    return readString(target)
+  }
+  fileManager.writeString = (target, value) => {
+    writes.push(target)
+    return writeString(target, value)
+  }
 
   if (service) seedService(disk, FROZEN_NOW)
+
+  if (policyAlreadyKept) {
+    disk.set(VERSION_POLICY_PATH, JSON.stringify({
+      version: 1,
+      receivedAt: new Date(FROZEN_NOW.getTime() - DAY_MS).toISOString(),
+      ...serverPolicy
+    }))
+  }
 
   if (scanLockedByWidget) {
     disk.set("/library/CTS Dashboard/services-scan.lock", JSON.stringify({
@@ -143,6 +184,7 @@ async function run(
     Date: FrozenDate,
     Intl,
     config: { runsInWidget, widgetFamily: runsInWidget ? family : null },
+    args: { widgetAction },
     Device: { screenSize: () => new shim.Size(430, 932), systemVersion: () => "27.0" },
     Keychain: {
       contains: () => Boolean(serverPolicy),
@@ -151,7 +193,7 @@ async function run(
       remove: () => {}
     },
     Request: class {
-      constructor(url) { this.url = String(url); this.headers = {} }
+      constructor(url) { this.url = String(url); this.headers = {}; requests.push(this.url) }
       async loadString() { throw new Error("réseau indisponible") }
       async loadJSON() {
         if (!serverPolicy) throw new Error("réseau indisponible")
@@ -177,6 +219,14 @@ async function run(
   shim.installGlobals(globals)
 
   const { sandbox, load } = moduleSpace(globals)
+  const configModule = load("CTS Config")
+  const ensureDirectories = configModule.ensureDirectories
+  let directoryChecks = 0
+
+  configModule.ensureDirectories = () => {
+    directoryChecks++
+    return ensureDirectories()
+  }
 
   if (engineFails) {
     load("CTS Widget Engine").loadContext = async () => {
@@ -191,11 +241,55 @@ async function run(
     }
   }
 
+  const setAction = stackPrototype.setAction
+
+  if (legacyScriptable) delete stackPrototype.setAction
+
   try {
     await runScript("CTS Dashboard", sandbox)
   } catch (error) {
-    failures.push(`${surface} : exception non rattrapée — ${error.message}`)
+    failures.push(`${label} : exception non rattrapée — ${error.message}`)
     return
+  } finally {
+    stackPrototype.setAction = setAction
+  }
+
+  if (widgetAction) {
+    if (widgetsSet.length || presented.length) {
+      failures.push(`${label} : l'action dessine une vignette que le rendu suivant redessine aussitôt`)
+    }
+
+    if (requests.length) {
+      failures.push(`${label} : l'action contacte le serveur, chaque toucher compterait deux fois`)
+    }
+
+    if (disk.has(RUN_TRACE_PATH)) {
+      failures.push(`${label} : l'action écrit une trace d'exécution que le Diagnostic prendrait pour un rendu`)
+    }
+
+    return
+  }
+
+  if (directoryChecks !== 1) {
+    failures.push(`${label} : le réveil vérifie ses dossiers ${directoryChecks} fois au lieu d'une`)
+  }
+
+  const indexReads = reads.get(INDEX_PATH) || 0
+
+  const expectedIndexReads = scanLockedByWidget ? 2 : 1
+
+  if (service && !engineFails && indexReads !== expectedIndexReads) {
+    failures.push(
+      `${label} : l'index des services est lu ${indexReads} fois au lieu de ${expectedIndexReads}`
+    )
+  }
+
+  if (writes.some(target => target.startsWith("/documents/") && target.endsWith("last-run.json"))) {
+    failures.push(`${label} : la trace d'exécution s'écrit encore dans iCloud`)
+  }
+
+  if (policyAlreadyKept && writes.some(target => target.startsWith(VERSION_POLICY_PATH))) {
+    failures.push(`${label} : la politique de version est réécrite alors qu'elle n'a pas changé`)
   }
 
   if (runsInWidget && !widgetsSet.length) {
@@ -220,13 +314,68 @@ async function run(
       failures.push(`${label} : la vignette porte un crédit d'auteur`)
     }
 
-    if (runsInWidget && family === "large" && !/[Aa]ctualisé à \d{2}:\d{2}/.test(words)) {
+    const servesHomeScreen = HOME_SCREEN_SERVICE.includes(family)
+
+    if (runsInWidget && servesHomeScreen && service && !engineFails && !/PROGRAMME/.test(words)) {
+      failures.push(`${label} : la tuile ${family} n'affiche pas le service du jour`)
+    }
+
+    const showsMessage = !service || engineFails
+    const dated = /[Aa]ctualisé à \d{2}:\d{2}/.test(words)
+
+    if (runsInWidget && servesHomeScreen && !dated) {
       failures.push(`${label} : la vignette ne dit pas à quelle heure elle a été calculée`)
+    }
+
+    if (runsInWidget && showsMessage && !servesHomeScreen && !ACCESSORY.includes(family) && !dated) {
+      failures.push(`${label} : le message de la tuile ${family} ne dit plus à quelle heure il a été calculé`)
+    }
+
+    const actions = collectActions(widget)
+    const expectsControl = runsInWidget && servesHomeScreen && !legacyScriptable
+
+    if (expectsControl && actions.length !== 1) {
+      failures.push(`${label} : ${actions.length} bouton(s) Actualiser au lieu d'un`)
+    }
+
+    const rows = widget.children.filter(child => child.kind === "stack")
+
+    if (expectsControl && !collectActions(rows[0]).length) {
+      failures.push(`${label} : le bouton Actualiser a quitté l'en-tête`)
+    }
+
+    if (dated && !/[Aa]ctualisé à/.test(collectText(rows.at(-1)))) {
+      failures.push(`${label} : l'heure du calcul a quitté le coin bas du widget`)
+    }
+
+    if (expectsControl && !showsMessage) {
+      const [button, pill] = rows[0].children.filter(child => child.kind === "stack").slice(-2)
+
+      if (!button?.action || rows[0].children.at(-1) !== pill) {
+        failures.push(`${label} : le bouton Actualiser n'est plus juste à gauche de la pastille d'état`)
+      }
+    }
+
+    if (/Actualiser/.test(words)) {
+      failures.push(`${label} : le bouton affiche un libellé, coupé sur l'iPhone le plus large`)
+    }
+
+    if (actions.some(action => typeof action.id !== "string" || !action.id)) {
+      failures.push(`${label} : un bouton Actualiser sans identifiant, que Scriptable refuse`)
+    }
+
+    if (!expectsControl && runsInWidget && actions.length) {
+      failures.push(
+        legacyScriptable
+          ? `${label} : un bouton Actualiser qui ne fait rien sur un Scriptable sans setAction`
+          : `${label} : un bouton Actualiser sur une tuile ${family}`
+      )
     }
 
     if (
       runsInWidget &&
-      family !== "large" &&
+      !showsMessage &&
+      !servesHomeScreen &&
       !ACCESSORY.includes(family) &&
       !/Widget grand requis/.test(words)
     ) {
@@ -313,7 +462,7 @@ async function run(
   }
 
   if (serverPolicy) {
-    const stored = JSON.parse(disk.get("/documents/CTS Dashboard/Data/version-policy.json") || "{}")
+    const stored = JSON.parse(disk.get(VERSION_POLICY_PATH) || "{}")
 
     if (stored.minimumVersion !== serverPolicy.minimumVersion) {
       failures.push(
@@ -323,7 +472,7 @@ async function run(
     }
   }
 
-  const trace = disk.get("/documents/CTS Dashboard/Data/last-run.json")
+  const trace = disk.get(RUN_TRACE_PATH)
 
   if (!trace) {
     failures.push(`${surface} : aucune trace d'exécution écrite`)
@@ -351,8 +500,21 @@ async function run(
 await run("widget")
 await run("application")
 
-for (const family of ["accessoryRectangular", "accessoryCircular", "accessoryInline", "extraLarge", "medium", "small"]) {
+for (const family of [
+  "accessoryRectangular",
+  "accessoryCircular",
+  "accessoryInline",
+  "extraLarge",
+  "extraLargePortrait",
+  "medium",
+  "small"
+]) {
   await run("widget", { family, label: `widget ${family}`, service: true })
+}
+
+for (const family of ["medium", "small"]) {
+  await run("widget", { family, label: `widget ${family} sans carte` })
+  await run("widget", { family, label: `widget ${family} en panne`, service: true, engineFails: true })
 }
 
 await run("widget", { label: "widget service", service: true })
@@ -375,6 +537,19 @@ await run("widget", {
   service: true,
   scanLockedByWidget: true
 })
+await run("widget", {
+  label: "widget, toucher Actualiser",
+  service: true,
+  serverPolicy: { latestVersion: "9.9.9", minimumVersion: "9.9.9" },
+  widgetAction: { id: "refresh" }
+})
+await run("widget", { label: "widget, Scriptable sans setAction", service: true, legacyScriptable: true })
+await run("widget", {
+  label: "widget, version déjà gardée",
+  service: true,
+  serverPolicy: { latestVersion: "1.0.0", minimumVersion: "1.0.0" },
+  policyAlreadyKept: true
+})
 
 if (failures.length) {
   console.log("ÉCHEC  exécution de CTS Dashboard")
@@ -384,6 +559,8 @@ if (failures.length) {
 
 console.log(
   "ok     exécution de CTS Dashboard " +
-  "(widget, application, 6 familles, rendu validé, jamais vide, réveils bornés, " +
-  "verrou d'analyse, heure du calcul, version reçue avec la télémétrie)"
+  "(widget, application, 7 familles, rendu validé, jamais vide, réveils bornés, " +
+  "verrou d'analyse, heure du calcul, version reçue avec la télémétrie, " +
+  "bouton Actualiser et son action, une vérification des dossiers et une lecture de l'index " +
+  "par réveil, politique de version inchangée jamais réécrite)"
 )

@@ -29,6 +29,24 @@ const TELEMETRY_CAUSES = {
   PDF_ICLOUD_DOWNLOAD_FAILED: "ICLOUD_DOWNLOAD"
 }
 
+const PDF_STAGES = new Set([
+  "source",
+  "metadata",
+  "inspection",
+  "engine",
+  "engine_install",
+  "extraction"
+])
+
+const REGISTRATION_STAGES = new Set([
+  "registration",
+  "cache",
+  "text_cache",
+  "canonicalize",
+  "index",
+  "activation"
+])
+
 const TELEMETRY_SEVERITY_WEIGHTS = {
   warning: 0,
   error: 1,
@@ -36,39 +54,31 @@ const TELEMETRY_SEVERITY_WEIGHTS = {
 }
 
 async function loadContext(currentDate = new Date()) {
-  CONFIG.ensureDirectories()
-
   const blocked = await resolveVersionBlock(currentDate)
 
   if (blocked) return blocked
 
   const resolution = await resolveServiceSource(currentDate)
-  const cleanup = await runServicesCleanup(currentDate)
-  const source = resolution.source
+  const cleanup = await runServicesCleanup(currentDate, resolution.scanResult)
 
-  if (!source) {
+  if (!resolution.source) {
     return buildMissingServiceFailure(resolution, cleanup, currentDate)
   }
 
+  return buildServiceContext(resolution, cleanup, currentDate)
+}
+
+async function buildServiceContext(resolution, cleanup, currentDate) {
   const telemetry = buildContextTelemetry(resolution, cleanup, true)
 
   try {
     await STORAGE.ensureReadable(CONFIG.files.places)
   } catch (_) {}
 
-  const normalized = SERVICE_ENGINE.normalizeService(source)
+  const normalized = SERVICE_ENGINE.normalizeService(resolution.source)
 
   if (!normalized.valid) {
-    telemetry.serviceStatus = "error"
-
-    addDiagnosticIssue(telemetry, {
-      severity: "error",
-      errorCode: "SERVICE_NORMALIZATION_FAILED",
-      module: "WidgetEngine",
-      stage: "service"
-    })
-
-    return failure("Service invalide", normalized.error, currentDate, telemetry)
+    return serviceFailure(telemetry, "SERVICE_NORMALIZATION_FAILED", normalized.error, currentDate)
   }
 
   const service = normalized.service
@@ -90,58 +100,36 @@ async function loadContext(currentDate = new Date()) {
   }
 
   const preferences = await STORAGE.loadPreferences()
-  const stats = SERVICE_ENGINE.computeStats(service)
   const displaySlice = SERVICE_ENGINE.getDisplaySlice(service, state)
 
   if (!displaySlice) {
-    telemetry.serviceStatus = "error"
-
-    addDiagnosticIssue(telemetry, {
-      severity: "error",
-      errorCode: "SERVICE_DISPLAY_SLICE_MISSING",
-      module: "WidgetEngine",
-      stage: "service"
-    })
-
-    return failure(
-      "Service invalide",
+    return serviceFailure(
+      telemetry,
+      "SERVICE_DISPLAY_SLICE_MISSING",
       "Aucune tranche ne peut être affichée.",
-      currentDate,
-      telemetry
+      currentDate
     )
   }
 
-  const serviceRefreshAfterDate = computeNextRefreshDate(service, state, currentDate)
-
-  const automaticResolution = {
-    ...resolution,
-    cleanupResult: cleanup.result,
-    cleanupError: cleanup.error,
-    cleanupTelemetryCode: cleanup.telemetryCode,
-    cleanupTelemetryStage: cleanup.telemetryStage
-  }
-
-  const switchAfterDate = computeSelectionSwitchDate(automaticResolution, currentDate)
-
-  const refreshAfterDate = computeAutomaticRefreshDate(
-    serviceRefreshAfterDate,
-    automaticResolution,
-    currentDate,
-    state
-  )
+  const refreshResolution = { ...resolution, cleanupError: cleanup.error }
 
   return {
     valid: true,
     errorTitle: "",
     errorMessage: "",
-    source,
+    source: resolution.source,
     service,
     state,
-    stats,
+    stats: SERVICE_ENGINE.computeStats(service),
     displaySlice,
     currentDate,
-    refreshAfterDate,
-    switchAfterDate,
+    refreshAfterDate: computeAutomaticRefreshDate(
+      computeNextRefreshDate(service, state, currentDate),
+      refreshResolution,
+      currentDate,
+      state
+    ),
+    switchAfterDate: computeSelectionSwitchDate(refreshResolution, currentDate),
     sourceOrigin: resolution.origin,
     serviceSelection: resolution.selection,
     servicesScan: resolution.scanResult,
@@ -155,28 +143,27 @@ async function loadContext(currentDate = new Date()) {
   }
 }
 
+function serviceFailure(telemetry, errorCode, message, currentDate) {
+  telemetry.serviceStatus = "error"
+
+  addDiagnosticIssue(telemetry, {
+    severity: "error",
+    errorCode,
+    module: "WidgetEngine",
+    stage: "service"
+  })
+
+  return failure("Service invalide", message, currentDate, telemetry)
+}
+
 async function resolveServiceSource(currentDate) {
   const scan = await runServicesScan()
-  const selection = await resolveIndexedService(currentDate)
-
-  if (selection.result?.found && selection.result.source) {
-    return {
-      source: selection.result.source,
-      origin: "services-index",
-      selection: selection.result,
-      scanResult: scan.result,
-      scanError: scan.error,
-      scanTelemetryCode: scan.telemetryCode,
-      scanTelemetryStage: scan.telemetryStage,
-      selectionError: selection.error,
-      selectionTelemetryCode: selection.telemetryCode,
-      selectionTelemetryStage: selection.telemetryStage
-    }
-  }
+  const selection = await resolveIndexedService(currentDate, scan.result?.index)
+  const found = Boolean(selection.result?.found && selection.result.source)
 
   return {
-    source: null,
-    origin: "none",
+    source: found ? selection.result.source : null,
+    origin: found ? "services-index" : "none",
     selection: selection.result,
     scanResult: scan.result,
     scanError: scan.error,
@@ -188,89 +175,70 @@ async function resolveServiceSource(currentDate) {
   }
 }
 
-async function runServicesScan() {
+async function attempt(operation, fallbackCode, fallbackStage) {
   try {
-    const maximumFiles = Math.max(1, Number(CONFIG.pdf?.maximumFilesPerRun) || 1)
-
-    const result = await SERVICES_MANAGER.scanServices({
-      maximumFiles
-    })
-
-    return {
-      result,
-      error: "",
-      telemetryCode: "",
-      telemetryStage: ""
-    }
+    return { result: await operation(), error: "", telemetryCode: "", telemetryStage: "" }
   } catch (error) {
-    const safeError = UTILS.safeError(error)
-    const telemetry = telemetryFromError(error, "SERVICES_SCAN_FAILED", "scan")
+    const telemetry = telemetryFromError(error, fallbackCode, fallbackStage)
 
     return {
       result: null,
-      error: safeError.message,
+      error: UTILS.safeError(error).message,
       telemetryCode: telemetry.code,
       telemetryStage: telemetry.stage
     }
   }
 }
 
-async function resolveIndexedService(currentDate) {
-  try {
-    const result = await SERVICES_MANAGER.resolveServiceForDate(currentDate)
+function runServicesScan() {
+  const maximumFiles = Math.max(1, Number(CONFIG.pdf?.maximumFilesPerRun) || 1)
 
-    return {
-      result,
-      error: "",
-      telemetryCode: "",
-      telemetryStage: ""
-    }
-  } catch (error) {
-    const safeError = UTILS.safeError(error)
-    const telemetry = telemetryFromError(error, "SERVICE_SELECTION_FAILED", "selection")
+  return attempt(
+    () => SERVICES_MANAGER.scanServices({ maximumFiles }),
+    "SERVICES_SCAN_FAILED",
+    "scan"
+  )
+}
 
+function resolveIndexedService(currentDate, knownIndex) {
+  return attempt(
+    () => SERVICES_MANAGER.resolveServiceForDate(currentDate, knownIndex),
+    "SERVICE_SELECTION_FAILED",
+    "selection"
+  )
+}
+
+async function runServicesCleanup(currentDate, scanResult) {
+  const outcome = await attempt(
+    () => SERVICES_CLEANER.maintainServices(currentDate, scanSnapshot(scanResult)),
+    "SERVICES_CLEANUP_FAILED",
+    "archive"
+  )
+
+  if (outcome.error) {
     return {
-      result: null,
-      error: safeError.message,
-      telemetryCode: telemetry.code,
-      telemetryStage: telemetry.stage
+      ...outcome,
+      telemetryIssues: [{ errorCode: outcome.telemetryCode, stage: outcome.telemetryStage }]
     }
+  }
+
+  const cleanupError = extractCleanupError(outcome.result)
+  const telemetryIssues = extractCleanupTelemetryIssues(outcome.result)
+  const primaryTelemetry = telemetryIssues[0] || null
+
+  return {
+    result: outcome.result,
+    error: cleanupError,
+    telemetryCode: cleanupError ? primaryTelemetry?.errorCode || "SERVICES_CLEANUP_FAILED" : "",
+    telemetryStage: cleanupError ? primaryTelemetry?.stage || "archive" : "",
+    telemetryIssues
   }
 }
 
-async function runServicesCleanup(currentDate) {
-  try {
-    const result = await SERVICES_CLEANER.maintainServices(currentDate)
-    const cleanupError = extractCleanupError(result)
-    const telemetryIssues = extractCleanupTelemetryIssues(result)
-    const primaryTelemetry = telemetryIssues[0] || null
+function scanSnapshot(scanResult) {
+  if (!scanResult || scanResult.status === "locked") return {}
 
-    return {
-      result,
-      error: cleanupError,
-      telemetryCode: cleanupError
-        ? primaryTelemetry?.errorCode || "SERVICES_CLEANUP_FAILED"
-        : "",
-      telemetryStage: cleanupError ? primaryTelemetry?.stage || "archive" : "",
-      telemetryIssues
-    }
-  } catch (error) {
-    const safeError = UTILS.safeError(error)
-    const telemetry = telemetryFromError(error, "SERVICES_CLEANUP_FAILED", "archive")
-
-    return {
-      result: null,
-      error: safeError.message,
-      telemetryCode: telemetry.code,
-      telemetryStage: telemetry.stage,
-      telemetryIssues: [
-        {
-          errorCode: telemetry.code,
-          stage: telemetry.stage
-        }
-      ]
-    }
-  }
+  return { servicesListed: true, index: scanResult.index || null }
 }
 
 function extractCleanupError(result) {
@@ -278,8 +246,9 @@ function extractCleanupError(result) {
     return ""
   }
 
-  const errors = Array.isArray(result.errors) ? result.errors : []
-  const messages = errors.map(item => String(item?.error || "").trim()).filter(Boolean)
+  const messages = arrayOf(result.errors)
+    .map(item => String(item?.error || "").trim())
+    .filter(Boolean)
 
   if (messages.length) {
     return messages.join(" · ")
@@ -293,10 +262,9 @@ function extractCleanupTelemetryIssues(result) {
     return []
   }
 
-  const errors = Array.isArray(result.errors) ? result.errors : []
   const issues = []
 
-  for (const item of errors) {
+  for (const item of arrayOf(result.errors)) {
     const issue = {
       errorCode: normalizeTelemetryCode(item?.telemetryCode, "SERVICES_CLEANUP_FAILED"),
       stage: normalizeTelemetryStage(item?.telemetryStage, "archive")
@@ -325,6 +293,14 @@ function extractCleanupTelemetryIssues(result) {
   return issues
 }
 
+function arrayOf(value) {
+  return Array.isArray(value) ? value : []
+}
+
+function detectedCount(scanResult) {
+  return Math.max(0, Number(scanResult?.detected ?? scanResult?.scanned ?? 0) || 0)
+}
+
 function buildMissingServiceFailure(resolution, cleanup, currentDate) {
   return {
     ...buildMissingServiceContext(resolution, cleanup, currentDate),
@@ -333,191 +309,219 @@ function buildMissingServiceFailure(resolution, cleanup, currentDate) {
   }
 }
 
+const MISSING_SERVICE_SCREENS = Object.freeze([
+  awaitingICloudScreen,
+  scanErrorScreen,
+  detectionErrorScreen,
+  importFailureScreen,
+  selectionErrorScreen,
+  lockedScanScreen,
+  finishedServiceScreen,
+  pendingImportScreen,
+  unusableServiceScreen
+])
+
 function buildMissingServiceContext(resolution, cleanup, currentDate) {
-  const scanResult = resolution?.scanResult
   const telemetry = buildContextTelemetry(resolution, cleanup, false)
+
+  for (const screen of MISSING_SERVICE_SCREENS) {
+    const context = screen(resolution, currentDate, telemetry)
+
+    if (context) return context
+  }
+
+  return noPdfScreen(currentDate, telemetry)
+}
+
+function awaitingICloudScreen(resolution, currentDate, telemetry) {
+  const codes = [resolution?.scanTelemetryCode, resolution?.selectionTelemetryCode]
+
+  if (!codes.includes(INDEX_AWAITING_ICLOUD_CODE)) return null
+
+  return failure(
+    "Synchronisation iCloud",
+    [
+      "La liste de tes services n’est pas encore arrivée d’iCloud sur cet iPhone.",
+      "",
+      "Le widget attend la synchronisation et réessaie tout seul."
+    ].join("\n"),
+    currentDate,
+    telemetry
+  )
+}
+
+function scanErrorScreen(resolution, currentDate, telemetry) {
   const scanError = String(resolution?.scanError || "").trim()
 
-  if (
-    [resolution?.scanTelemetryCode, resolution?.selectionTelemetryCode].includes(
-      INDEX_AWAITING_ICLOUD_CODE
-    )
-  ) {
-    return failure(
-      "Synchronisation iCloud",
-      [
-        "La liste de tes services n’est pas encore arrivée d’iCloud sur cet iPhone.",
-        "",
-        "Le widget attend la synchronisation et réessaie tout seul."
-      ].join("\n"),
-      currentDate,
-      telemetry
-    )
-  }
+  if (!scanError) return null
 
-  if (scanError) {
-    return failure(
-      "Erreur d’analyse PDF",
-      ["Le dossier Services n’a pas pu être analysé.", "", scanError].join("\n"),
-      currentDate,
-      telemetry
-    )
-  }
+  return failure(
+    "Erreur d’analyse PDF",
+    ["Le dossier Services n’a pas pu être analysé.", "", scanError].join("\n"),
+    currentDate,
+    telemetry
+  )
+}
 
-  const detectionErrors = Array.isArray(scanResult?.detectionErrors)
-    ? scanResult.detectionErrors
-    : []
+function detectionErrorScreen(resolution, currentDate, telemetry) {
+  const [first] = arrayOf(resolution?.scanResult?.detectionErrors)
 
-  if (detectionErrors.length) {
-    const first = detectionErrors[0]
-    const fileName = displayFileName(first?.fileName)
-    const error = firstUsefulError(first)
+  if (!first) return null
 
-    return failure(
-      "PDF inaccessible",
-      [
-        `${fileName} a bien été détecté dans le dossier Services,`,
-        "mais CTS Dashboard n’arrive pas à lire ce fichier.",
-        "",
-        error || "Le fichier est peut-être indisponible dans iCloud."
-      ].join("\n"),
-      currentDate,
-      telemetry
-    )
-  }
+  return failure(
+    "PDF inaccessible",
+    [
+      `${displayFileName(first?.fileName)} a bien été détecté dans le dossier Services,`,
+      "mais CTS Dashboard n’arrive pas à lire ce fichier.",
+      "",
+      firstUsefulError(first) || "Le fichier est peut-être indisponible dans iCloud."
+    ].join("\n"),
+    currentDate,
+    telemetry
+  )
+}
 
-  const currentFailures = Array.isArray(scanResult?.failed) ? scanResult.failed : []
-  const knownFailures = Array.isArray(scanResult?.knownFailures) ? scanResult.knownFailures : []
-  const failedImports = currentFailures.length ? currentFailures : knownFailures
+function importFailureScreen(resolution, currentDate, telemetry) {
+  const scanResult = resolution?.scanResult
+  const currentFailures = arrayOf(scanResult?.failed)
+  const [first] = currentFailures.length ? currentFailures : arrayOf(scanResult?.knownFailures)
 
-  if (failedImports.length) {
-    const first = failedImports[0]
-    const fileName = displayFileName(first?.detectedFileName || first?.sourceFileName)
-    const error = firstUsefulError(first)
-    const validationFailure = String(first?.status || "") === "validation-error"
+  if (!first) return null
 
-    return failure(
-      validationFailure ? "PDF HASTUS non reconnu" : "Erreur d’import PDF",
-      [
-        `${fileName} a bien été détecté dans le dossier Services.`,
-        "",
-        validationFailure
-          ? "Le PDF a été lu, mais les informations nécessaires au service n’ont pas été reconnues."
-          : "CTS Dashboard n’a pas réussi à importer ce PDF.",
-        "",
-        error
-      ]
-        .filter(value => String(value || "").length > 0)
-        .join("\n"),
-      currentDate,
-      telemetry
-    )
-  }
+  const fileName = displayFileName(first?.detectedFileName || first?.sourceFileName)
+  const validationFailure = String(first?.status || "") === "validation-error"
 
+  return failure(
+    validationFailure ? "PDF HASTUS non reconnu" : "Erreur d’import PDF",
+    [
+      `${fileName} a bien été détecté dans le dossier Services.`,
+      "",
+      validationFailure
+        ? "Le PDF a été lu, mais les informations nécessaires au service n’ont pas été reconnues."
+        : "CTS Dashboard n’a pas réussi à importer ce PDF.",
+      "",
+      firstUsefulError(first)
+    ]
+      .filter(value => String(value || "").length > 0)
+      .join("\n"),
+    currentDate,
+    telemetry
+  )
+}
+
+function selectionErrorScreen(resolution, currentDate, telemetry) {
   const selectionError = String(resolution?.selectionError || "").trim()
 
-  if (selectionError) {
-    return failure(
-      "Erreur de service",
-      [
-        "Le PDF a été analysé, mais le service ne peut pas être sélectionné.",
-        "",
-        selectionError
-      ].join("\n"),
-      currentDate,
-      telemetry
-    )
+  if (!selectionError) return null
+
+  return failure(
+    "Erreur de service",
+    [
+      "Le PDF a été analysé, mais le service ne peut pas être sélectionné.",
+      "",
+      selectionError
+    ].join("\n"),
+    currentDate,
+    telemetry
+  )
+}
+
+function lockedScanScreen(resolution, currentDate, telemetry) {
+  if (resolution?.scanResult?.status !== "locked") return null
+
+  addDiagnosticIssue(telemetry, {
+    severity: "warning",
+    errorCode: "SERVICES_SCAN_LOCKED",
+    module: "ServicesManager",
+    stage: "scan_lock"
+  })
+
+  const locked = information(
+    "Lecture en attente",
+    [
+      "Ta carte agent est déjà en cours de lecture.",
+      "",
+      "Elle s’affichera au prochain réveil du widget. Touche ce widget pour ne pas attendre."
+    ].join("\n"),
+    currentDate,
+    telemetry
+  )
+
+  return {
+    ...locked,
+    refreshAfterDate: new Date(currentDate.getTime() + PENDING_SCAN_REFRESH_MS)
   }
+}
 
-  if (scanResult?.status === "locked") {
-    addDiagnosticIssue(telemetry, {
-      severity: "warning",
-      errorCode: "SERVICES_SCAN_LOCKED",
-      module: "ServicesManager",
-      stage: "scan_lock"
-    })
+function finishedServiceScreen(resolution, currentDate, telemetry) {
+  if (String(resolution?.selection?.reason || "") !== "service-finished") return null
 
-    const locked = information(
-      "Lecture en attente",
-      [
-        "Ta carte agent est déjà en cours de lecture.",
-        "",
-        "Elle s’affichera au prochain réveil du widget. Touche ce widget pour ne pas attendre."
-      ].join("\n"),
-      currentDate,
-      telemetry
-    )
+  telemetry.serviceStatus = "not_found"
 
-    return {
-      ...locked,
-      refreshAfterDate: new Date(currentDate.getTime() + PENDING_SCAN_REFRESH_MS)
-    }
-  }
+  return information(
+    "Aucune carte agent",
+    [
+      "Ton dernier service est terminé et aucune prochaine carte agent n’est disponible.",
+      "",
+      "Dépose ta prochaine carte agent PDF dans le dossier Services."
+    ].join("\n"),
+    currentDate,
+    telemetry
+  )
+}
 
-  if (String(resolution?.selection?.reason || "") === "service-finished") {
-    telemetry.serviceStatus = "not_found"
+function pendingImportScreen(resolution, currentDate, telemetry) {
+  const waiting = Number(resolution?.scanResult?.remaining)
 
-    return information(
-      "Aucune carte agent",
-      [
-        "Ton dernier service est terminé et aucune prochaine carte agent n’est disponible.",
-        "",
-        "Dépose ta prochaine carte agent PDF dans le dossier Services."
-      ].join("\n"),
-      currentDate,
-      telemetry
-    )
-  }
+  if (!(waiting > 0)) return null
 
-  if (Number(scanResult?.remaining) > 0) {
-    telemetry.pdfStatus = "found"
-    telemetry.serviceStatus = "not_found"
+  telemetry.pdfStatus = "found"
+  telemetry.serviceStatus = "not_found"
 
-    const waiting = Number(scanResult.remaining)
+  return information(
+    "Lecture en attente",
+    [
+      waiting > 1
+        ? `${waiting} cartes agent attendent d’être lues.`
+        : "Ta carte agent n’a pas pu être lue dans le temps accordé au widget.",
+      "",
+      "Elle sera reprise automatiquement. Touche ce widget pour ne pas attendre."
+    ].join("\n"),
+    currentDate,
+    telemetry
+  )
+}
 
-    return information(
-      "Lecture en attente",
-      [
-        waiting > 1
-          ? `${waiting} cartes agent attendent d’être lues.`
-          : "Ta carte agent n’a pas pu être lue dans le temps accordé au widget.",
-        "",
-        "Elle sera reprise automatiquement. Touche ce widget pour ne pas attendre."
-      ].join("\n"),
-      currentDate,
-      telemetry
-    )
-  }
+function unusableServiceScreen(resolution, currentDate, telemetry) {
+  const detected = detectedCount(resolution?.scanResult)
 
-  const detected = Math.max(0, Number(scanResult?.detected ?? scanResult?.scanned ?? 0) || 0)
+  if (detected <= 0) return null
 
-  if (detected > 0) {
-    telemetry.pdfStatus = "found"
+  telemetry.pdfStatus = "found"
+  telemetry.serviceStatus = "not_found"
 
-    telemetry.serviceStatus = "not_found"
+  addDiagnosticIssue(telemetry, {
+    severity: "error",
+    errorCode: "SERVICE_NOT_FOUND",
+    module: "WidgetEngine",
+    stage: "service"
+  })
 
-    addDiagnosticIssue(telemetry, {
-      severity: "error",
-      errorCode: "SERVICE_NOT_FOUND",
-      module: "WidgetEngine",
-      stage: "service"
-    })
+  return failure(
+    "Aucun service exploitable",
+    [
+      `${detected} PDF${detected > 1 ? " ont" : " a"} été détecté${detected > 1 ? "s" : ""} dans Services,`,
+      "mais aucun service exploitable n’est disponible.",
+      "",
+      "Relance CTS Dashboard. Si le problème persiste, vérifie le PDF concerné."
+    ].join("\n"),
+    currentDate,
+    telemetry
+  )
+}
 
-    return failure(
-      "Aucun service exploitable",
-      [
-        `${detected} PDF${detected > 1 ? " ont" : " a"} été détecté${detected > 1 ? "s" : ""} dans Services,`,
-        "mais aucun service exploitable n’est disponible.",
-        "",
-        "Relance CTS Dashboard. Si le problème persiste, vérifie le PDF concerné."
-      ].join("\n"),
-      currentDate,
-      telemetry
-    )
-  }
-
+function noPdfScreen(currentDate, telemetry) {
   telemetry.pdfStatus = "missing"
-
   telemetry.serviceStatus = "not_found"
 
   addDiagnosticIssue(telemetry, {
@@ -546,24 +550,16 @@ function firstUsefulError(value) {
     return direct
   }
 
-  const errors = Array.isArray(value?.errors)
-    ? value.errors
-        .map(item => (typeof item === "string" ? item : item?.message || item?.error || ""))
-        .map(item => String(item || "").trim())
-        .filter(Boolean)
-    : []
+  const errors = arrayOf(value?.errors)
+    .map(item => (typeof item === "string" ? item : item?.message || item?.error || ""))
+    .map(item => String(item || "").trim())
+    .filter(Boolean)
 
   if (errors.length) {
     return errors.join(" · ")
   }
 
-  const detailsMessage = String(value?.details?.message || "").trim()
-
-  if (detailsMessage) {
-    return detailsMessage
-  }
-
-  return ""
+  return String(value?.details?.message || "").trim()
 }
 
 function displayFileName(value) {
@@ -583,103 +579,17 @@ function buildContextTelemetry(resolution, cleanup, hasSource) {
   }
 
   const scanResult = resolution?.scanResult
-  const detected = Math.max(0, Number(scanResult?.detected ?? scanResult?.scanned ?? 0) || 0)
+  const detected = detectedCount(scanResult)
+  const imported = arrayOf(scanResult?.imported)
 
   if (detected > 0) {
     telemetry.pdfStatus = "found"
   }
 
-  if (resolution?.scanError) {
-    telemetry.pdfStatus = "read_error"
-
-    addDiagnosticIssue(telemetry, {
-      severity: hasSource ? "warning" : "error",
-      errorCode: resolution.scanTelemetryCode || "SERVICES_SCAN_FAILED",
-      module: "ServicesManager",
-      stage: resolution.scanTelemetryStage || "scan"
-    })
-  }
-
-  const detectionErrors = Array.isArray(scanResult?.detectionErrors)
-    ? scanResult.detectionErrors
-    : []
-
-  for (const item of detectionErrors) {
-    telemetry.pdfStatus = "read_error"
-
-    addDiagnosticIssue(telemetry, {
-      severity: hasSource ? "warning" : "error",
-      errorCode: item?.telemetryCode || "PDF_INSPECTION_FAILED",
-      module: "ServicesManager",
-      stage: item?.telemetryStage || item?.stage || "inspection"
-    })
-  }
-
-  const imported = Array.isArray(scanResult?.imported) ? scanResult.imported : []
-
-  if (imported.length) {
-    telemetry.pdfStatus = telemetry.pdfStatus === "read_error" ? "read_error" : "found"
-
-    telemetry.parserStatus = "success"
-
-    telemetry.timings = normalizeImportTimings(imported[0]?.timings)
-  }
-
-  const failed = Array.isArray(scanResult?.failed) ? scanResult.failed : []
-
-  for (const item of failed) {
-    applyImportFailureTelemetry(telemetry, item, hasSource)
-  }
-
-  if (!failed.length && !hasSource) {
-    const knownFailures = Array.isArray(scanResult?.knownFailures)
-      ? scanResult.knownFailures
-      : []
-
-    if (knownFailures.length) {
-      applyImportFailureTelemetry(telemetry, knownFailures[0], false)
-    }
-  }
-
-  if (resolution?.selectionError) {
-    telemetry.serviceStatus = hasSource ? "found" : "error"
-
-    addDiagnosticIssue(telemetry, {
-      severity: hasSource ? "warning" : "error",
-      errorCode: resolution.selectionTelemetryCode || "SERVICE_SELECTION_FAILED",
-      module: "ServicesManager",
-      stage: resolution.selectionTelemetryStage || "selection"
-    })
-  }
-
-  if (cleanup?.result?.status === "locked") {
-    telemetry.archiveStatus = "not_run"
-  } else if (cleanup?.result) {
-    telemetry.archiveStatus = cleanup.result.success === false ? "error" : "success"
-  }
-
-  if (cleanup?.error) {
-    telemetry.archiveStatus = "error"
-
-    const cleanupIssues =
-      Array.isArray(cleanup?.telemetryIssues) && cleanup.telemetryIssues.length
-        ? cleanup.telemetryIssues
-        : [
-            {
-              errorCode: cleanup.telemetryCode || "SERVICES_CLEANUP_FAILED",
-              stage: cleanup.telemetryStage || "archive"
-            }
-          ]
-
-    for (const item of cleanupIssues) {
-      addDiagnosticIssue(telemetry, {
-        severity: "warning",
-        errorCode: item?.errorCode || "SERVICES_CLEANUP_FAILED",
-        module: "ServicesCleaner",
-        stage: item?.stage || "archive"
-      })
-    }
-  }
+  applyScanTelemetry(telemetry, resolution, hasSource)
+  applyImportTelemetry(telemetry, scanResult, hasSource)
+  applySelectionTelemetry(telemetry, resolution, hasSource)
+  applyCleanupTelemetry(telemetry, cleanup)
 
   if (!hasSource && detected <= 0 && telemetry.pdfStatus === "not_checked") {
     telemetry.pdfStatus = "missing"
@@ -697,6 +607,97 @@ function buildContextTelemetry(resolution, cleanup, hasSource) {
   return telemetry
 }
 
+function applyScanTelemetry(telemetry, resolution, hasSource) {
+  const severity = hasSource ? "warning" : "error"
+
+  if (resolution?.scanError) {
+    telemetry.pdfStatus = "read_error"
+
+    addDiagnosticIssue(telemetry, {
+      severity,
+      errorCode: resolution.scanTelemetryCode || "SERVICES_SCAN_FAILED",
+      module: "ServicesManager",
+      stage: resolution.scanTelemetryStage || "scan"
+    })
+  }
+
+  for (const item of arrayOf(resolution?.scanResult?.detectionErrors)) {
+    telemetry.pdfStatus = "read_error"
+
+    addDiagnosticIssue(telemetry, {
+      severity,
+      errorCode: item?.telemetryCode || "PDF_INSPECTION_FAILED",
+      module: "ServicesManager",
+      stage: item?.telemetryStage || item?.stage || "inspection"
+    })
+  }
+}
+
+function applyImportTelemetry(telemetry, scanResult, hasSource) {
+  const imported = arrayOf(scanResult?.imported)
+
+  if (imported.length) {
+    telemetry.pdfStatus = telemetry.pdfStatus === "read_error" ? "read_error" : "found"
+    telemetry.parserStatus = "success"
+    telemetry.timings = normalizeImportTimings(imported[0]?.timings)
+  }
+
+  const failed = arrayOf(scanResult?.failed)
+
+  for (const item of failed) {
+    applyImportFailureTelemetry(telemetry, item, hasSource)
+  }
+
+  const [knownFailure] = arrayOf(scanResult?.knownFailures)
+
+  if (!failed.length && !hasSource && knownFailure) {
+    applyImportFailureTelemetry(telemetry, knownFailure, false)
+  }
+}
+
+function applySelectionTelemetry(telemetry, resolution, hasSource) {
+  if (!resolution?.selectionError) return
+
+  telemetry.serviceStatus = hasSource ? "found" : "error"
+
+  addDiagnosticIssue(telemetry, {
+    severity: hasSource ? "warning" : "error",
+    errorCode: resolution.selectionTelemetryCode || "SERVICE_SELECTION_FAILED",
+    module: "ServicesManager",
+    stage: resolution.selectionTelemetryStage || "selection"
+  })
+}
+
+function applyCleanupTelemetry(telemetry, cleanup) {
+  if (cleanup?.result?.status === "locked") {
+    telemetry.archiveStatus = "not_run"
+  } else if (cleanup?.result) {
+    telemetry.archiveStatus = cleanup.result.success === false ? "error" : "success"
+  }
+
+  if (!cleanup?.error) return
+
+  telemetry.archiveStatus = "error"
+
+  const cleanupIssues = arrayOf(cleanup.telemetryIssues).length
+    ? cleanup.telemetryIssues
+    : [
+        {
+          errorCode: cleanup.telemetryCode || "SERVICES_CLEANUP_FAILED",
+          stage: cleanup.telemetryStage || "archive"
+        }
+      ]
+
+  for (const item of cleanupIssues) {
+    addDiagnosticIssue(telemetry, {
+      severity: "warning",
+      errorCode: item?.errorCode || "SERVICES_CLEANUP_FAILED",
+      module: "ServicesCleaner",
+      stage: item?.stage || "archive"
+    })
+  }
+}
+
 function applyImportFailureTelemetry(telemetry, item, hasSource) {
   const status = String(item?.status || "")
 
@@ -707,26 +708,7 @@ function applyImportFailureTelemetry(telemetry, item, hasSource) {
   const code = normalizeTelemetryCode(item?.telemetryCode, fallbackCode)
   const stage = normalizeTelemetryStage(item?.telemetryStage, fallbackStage)
 
-  const pdfStages = new Set([
-    "source",
-    "metadata",
-    "inspection",
-    "engine",
-    "engine_install",
-    "extraction"
-  ])
-
-  const parsedStages = new Set([
-    "validation",
-    "registration",
-    "cache",
-    "text_cache",
-    "canonicalize",
-    "index",
-    "activation"
-  ])
-
-  if (pdfStages.has(stage)) {
+  if (PDF_STAGES.has(stage)) {
     telemetry.pdfStatus = "read_error"
   } else if (telemetry.pdfStatus !== "read_error") {
     telemetry.pdfStatus = "found"
@@ -734,22 +716,13 @@ function applyImportFailureTelemetry(telemetry, item, hasSource) {
 
   if (stage === "parser") {
     telemetry.parserStatus = "error"
-  } else if (parsedStages.has(stage)) {
+  } else if (stage === "validation" || REGISTRATION_STAGES.has(stage)) {
     telemetry.parserStatus = "success"
   }
 
   if (stage === "validation") {
     telemetry.serviceStatus = hasSource ? "found" : "not_found"
-  } else if (
-    stage === "registration" ||
-    stage === "cache" ||
-    stage === "text_cache" ||
-    stage === "canonicalize" ||
-    stage === "index" ||
-    stage === "activation" ||
-    stage === "database" ||
-    stage === "import"
-  ) {
+  } else if (REGISTRATION_STAGES.has(stage) || stage === "database" || stage === "import") {
     telemetry.serviceStatus = hasSource ? "found" : "error"
   }
 

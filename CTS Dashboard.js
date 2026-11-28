@@ -18,70 +18,15 @@ const family = WIDGET_ENGINE.getWidgetFamily()
 const analytics = loadAnalyticsClient()
 const telemetryRun = createTelemetryRunSafely(analytics)
 
-await main()
+if (!args.widgetAction) await main()
 Script.complete()
 
 async function main() {
-  let context
-  let widget
-
-  try {
-    CONFIG.ensureDirectories()
-
-    registerAnalytics(analytics)
-
-    context = await WIDGET_ENGINE.loadContext(new Date())
-    applyContextTelemetrySafely(analytics, telemetryRun, context?.telemetry)
-    applyDriverTelemetrySafely(analytics, telemetryRun, context?.service?.driver)
-  } catch (error) {
-    console.warn("[Dashboard]", UTILS.errorMessage(error))
-    registerTelemetryIssueSafely(analytics, telemetryRun, {
-      severity: "fatal",
-      errorCode: "DASHBOARD_EXECUTION_FAILED",
-      module: "Dashboard",
-      stage: "startup"
-    })
-    context = {
-      valid: false,
-      errorTitle: ERROR_TITLE,
-      errorMessage: UTILS.errorMessage(error),
-      currentDate: new Date(),
-      refreshAfterDate: new Date(Date.now() + ERROR_REFRESH_MS)
-    }
-  }
+  const context = await loadContextSafely()
 
   recordRunTrace(context)
 
-  try {
-    widget = context.valid
-      ? RENDERER.createWidget(family, context)
-      : context.informational
-        ? RENDERER.createInfoWidget(
-            context.errorTitle || "Information",
-            context.errorMessage || "",
-            family,
-            context.currentDate
-          )
-        : RENDERER.createErrorWidget(
-            context.errorTitle || "Erreur",
-            context.errorMessage || ERROR_MESSAGE,
-            family,
-            context.currentDate
-          )
-    setTelemetryStageSafely(analytics, telemetryRun, "render", "success")
-  } catch (error) {
-    console.warn("[Dashboard]", UTILS.errorMessage(error))
-    setTelemetryStageSafely(analytics, telemetryRun, "render", "error")
-    registerTelemetryIssueSafely(analytics, telemetryRun, {
-      severity: "fatal",
-      errorCode: "WIDGET_RENDER_FAILED",
-      module: "Dashboard",
-      stage: "render"
-    })
-    widget = RENDERER.createErrorWidget(ERROR_TITLE, ERROR_MESSAGE, family, new Date())
-  }
-
-  widget = ensureRenderedWidget(widget)
+  const widget = ensureRenderedWidget(renderWidget(context))
 
   if (UTILS.isUsableDate(context?.refreshAfterDate)) {
     widget.refreshAfterDate = context.refreshAfterDate
@@ -103,6 +48,72 @@ async function main() {
   }
 
   markRunCommitted()
+}
+
+async function loadContextSafely() {
+  try {
+    CONFIG.ensureDirectories()
+
+    registerAnalytics(analytics)
+
+    const context = await WIDGET_ENGINE.loadContext(new Date())
+
+    applyContextTelemetrySafely(analytics, telemetryRun, context?.telemetry)
+    applyDriverTelemetrySafely(analytics, telemetryRun, context?.service?.driver)
+
+    return context
+  } catch (error) {
+    console.warn("[Dashboard]", UTILS.errorMessage(error))
+    registerTelemetryIssueSafely(analytics, telemetryRun, {
+      severity: "fatal",
+      errorCode: "DASHBOARD_EXECUTION_FAILED",
+      module: "Dashboard",
+      stage: "startup"
+    })
+
+    return {
+      valid: false,
+      errorTitle: ERROR_TITLE,
+      errorMessage: UTILS.errorMessage(error),
+      currentDate: new Date(),
+      refreshAfterDate: new Date(Date.now() + ERROR_REFRESH_MS)
+    }
+  }
+}
+
+function renderWidget(context) {
+  try {
+    const widget = context.valid
+      ? RENDERER.createWidget(family, context)
+      : context.informational
+        ? RENDERER.createInfoWidget(
+            context.errorTitle || "Information",
+            context.errorMessage || "",
+            family,
+            context.currentDate
+          )
+        : RENDERER.createErrorWidget(
+            context.errorTitle || "Erreur",
+            context.errorMessage || ERROR_MESSAGE,
+            family,
+            context.currentDate
+          )
+
+    setTelemetryStageSafely(analytics, telemetryRun, "render", "success")
+
+    return widget
+  } catch (error) {
+    console.warn("[Dashboard]", UTILS.errorMessage(error))
+    setTelemetryStageSafely(analytics, telemetryRun, "render", "error")
+    registerTelemetryIssueSafely(analytics, telemetryRun, {
+      severity: "fatal",
+      errorCode: "WIDGET_RENDER_FAILED",
+      module: "Dashboard",
+      stage: "render"
+    })
+
+    return RENDERER.createErrorWidget(ERROR_TITLE, ERROR_MESSAGE, family, new Date())
+  }
 }
 
 function ensureRenderedWidget(widget) {
@@ -182,9 +193,12 @@ function markRunCommitted() {
 
 function writeRunTrace() {
   try {
-    const fm = CONFIG.fm
+    const local = FileManager.local()
+    const directory = CONFIG.devicePath()
 
-    fm.writeString(fm.joinPath(CONFIG.paths.data, "last-run.json"), JSON.stringify(runTrace))
+    if (!local.fileExists(directory)) local.createDirectory(directory, true)
+
+    local.writeString(CONFIG.devicePath("last-run.json"), JSON.stringify(runTrace))
   } catch (error) {
     console.warn("[Dashboard]", UTILS.errorMessage(error))
   }

@@ -18,8 +18,6 @@ const CLEANUP_LOCK_NAME = "services-cleanup.lock"
 const CLEANUP_STATE_PATH = fm.joinPath(paths.data, "services-cleanup-state.json")
 
 async function maintainServices(currentDate = new Date(), options = {}) {
-  CONFIG.ensureDirectories()
-
   if (!isUsableDate(currentDate)) {
     return failureResult(
       "invalid-date",
@@ -107,169 +105,82 @@ function importIdentity(entry) {
   return String(entry?.indexedAt || entry?.importedAt || "")
 }
 
+const HOUR_MS = 60 * 60 * 1000
+
+const ARCHIVE_INDEX_WRITE = Object.freeze({
+  writeCode: "ARCHIVE_INDEX_TEMP_WRITE_FAILED",
+  commitCode: "ARCHIVE_INDEX_COMMIT_FAILED",
+  stage: "archive",
+  writeMessage: CLEANUP_WRITE_MESSAGE,
+  commitMessage: CLEANUP_COMMIT_MESSAGE
+})
+
 async function performMaintenance(currentDate, options) {
-  const index = await readIndexForCleanup()
+  const index = options.index ? copyIndex(options.index) : await readIndexForCleanup()
   const services = Array.isArray(index?.services) ? index.services : []
-
-  const archiveGraceMs = resolveNonNegativeDelay(
-    options.archiveGraceMs,
-    pdf.archiveGraceMs,
-    1 * 60 * 60 * 1000
-  )
-
-  const archiveRetentionMs = resolveNonNegativeDelay(
-    options.archiveRetentionMs,
-    pdf.archiveRetentionMs,
-    7 * 24 * 60 * 60 * 1000
-  )
-
-  const cacheGraceMs = resolveNonNegativeDelay(
-    options.cacheGraceMs,
-    pdf.cacheGraceMs,
-    60 * 1000
-  )
-
-  const residueGraceMs = resolveNonNegativeDelay(
-    options.residueGraceMs,
-    pdf.residueGraceMs,
-    60 * 60 * 1000
-  )
-
-  const missingGraceMs = resolveNonNegativeDelay(
-    options.missingGraceMs,
-    pdf.missingGraceMs,
-    60 * 60 * 1000
-  )
-
-  const missingObservationIntervalMs = resolveNonNegativeDelay(
-    options.missingObservationIntervalMs,
-    pdf.missingObservationIntervalMs,
-    5 * 60 * 1000
-  )
-
+  const delays = resolveCleanupDelays(options)
   const previousState = await loadCleanupState()
   const previousWatch = readMissingWatch(previousState)
+  const entries = await maintainEntries(services, currentDate, delays)
+  const directoryError = options.servicesListed ? null : servicesDirectoryError()
 
-  const archived = []
-  const deleted = []
-  const cacheCleared = []
-  const skipped = []
-  const errors = []
-  let indexChanged = false
+  const reconciliation = directoryError
+    ? { removed: [], watching: previousWatch, errors: [directoryError] }
+    : reconcileMissingPdfs(
+        index,
+        previousWatch,
+        currentDate,
+        delays.missingGraceMs,
+        delays.missingObservationIntervalMs
+      )
 
-  for (const entry of services) {
-    try {
-      const cleared = await clearFinishedServiceCache(entry, currentDate, cacheGraceMs)
-
-      if (cleared) {
-        cacheCleared.push(cleared)
-        indexChanged = true
-      }
-
-      const result = await maintainEntry(entry, currentDate, archiveGraceMs, archiveRetentionMs)
-
-      if (result.status === "archived") {
-        archived.push(result)
-        indexChanged = true
-      } else if (result.status === "deleted") {
-        deleted.push(result)
-        indexChanged = true
-      } else {
-        skipped.push(result)
-      }
-    } catch (error) {
-      const safeError = UTILS.safeError(error)
-      const telemetry = UTILS.telemetryFromError(error, "SERVICES_CLEANUP_FAILED", "archive")
-
-      errors.push({
-        id: String(entry?.id || ""),
-        service: String(entry?.service || ""),
-        date: String(entry?.date || ""),
-        telemetryCode: telemetry.code,
-        telemetryStage: telemetry.stage,
-        error: safeError.message
-      })
-    }
-  }
-
-  const reconciliation = reconcileMissingPdfs(
-    index,
-    previousWatch,
-    currentDate,
-    missingGraceMs,
-    missingObservationIntervalMs
-  )
-
-  if (reconciliation.removed.length) indexChanged = true
-  if (reconciliation.errors.length) errors.push(...reconciliation.errors)
-
+  const errors = [...entries.errors, ...reconciliation.errors]
   const sweeping =
     options.sweepResidue !== false && shouldSweepResidue(previousState, currentDate)
-
   const forgotten = sweeping
-    ? forgetSpentEntries(index, currentDate, archiveRetentionMs)
+    ? forgetSpentEntries(index, currentDate, delays.archiveRetentionMs)
     : []
-
-  if (forgotten.length) indexChanged = true
+  const changed = [...entries.cacheCleared, ...entries.archived, ...entries.deleted].map(
+    item => item.id
+  )
+  const removed = [...reconciliation.removed.map(item => item.id), ...forgotten]
+  const indexChanged = changed.length > 0 || removed.length > 0
 
   const currentIndex = indexChanged
     ? await writeIndexChanges(
         // La liste lue au début : la réconciliation et l'oubli ont déjà retiré des entrées d'index.services.
         { ...index, services },
-        {
-          changed: [...cacheCleared, ...archived, ...deleted].map(item => item.id),
-          removed: [...reconciliation.removed.map(item => item.id), ...forgotten]
-        },
+        { changed, removed },
         new Date().toISOString(),
-        {
-          writeCode: "ARCHIVE_INDEX_TEMP_WRITE_FAILED",
-          commitCode: "ARCHIVE_INDEX_COMMIT_FAILED",
-          stage: "archive",
-          writeMessage: CLEANUP_WRITE_MESSAGE,
-          commitMessage: CLEANUP_COMMIT_MESSAGE
-        }
+        ARCHIVE_INDEX_WRITE
       )
     : index
 
-  let residue = null
-
-  if (sweeping) {
-    residue = await sweepResidue(currentDate, residueGraceMs)
-
-    const replaced = sweepReplacedArchives(currentDate, archiveRetentionMs)
-    const orphans = sweepOrphanCaches(currentIndex, currentDate, archiveRetentionMs)
-
-    for (const fileName of replaced.removed) {
-      residue.removed.push({ fileName, kind: "replaced-archive" })
-    }
-
-    for (const fileName of orphans.removed) {
-      residue.removed.push({ fileName, kind: "orphan-cache" })
-    }
-
-    residue.errors.push(...replaced.errors, ...orphans.errors)
-  }
+  const residue = sweeping ? await sweepAllResidue(currentIndex, currentDate, delays) : null
 
   const result = {
     success: errors.length === 0,
     status:
-      archived.length || deleted.length || cacheCleared.length || reconciliation.removed.length
+      entries.archived.length ||
+      entries.deleted.length ||
+      entries.cacheCleared.length ||
+      reconciliation.removed.length
         ? "processed"
         : "idle",
     checkedAt: currentDate.toISOString(),
-    cacheGraceMs,
-    archiveGraceMs,
-    archiveRetentionMs,
-    residueGraceMs,
-    missingGraceMs,
-    archived,
-    deleted,
-    cacheCleared,
+    cacheGraceMs: delays.cacheGraceMs,
+    archiveGraceMs: delays.archiveGraceMs,
+    archiveRetentionMs: delays.archiveRetentionMs,
+    residueGraceMs: delays.residueGraceMs,
+    missingGraceMs: delays.missingGraceMs,
+    archived: entries.archived,
+    deleted: entries.deleted,
+    cacheCleared: entries.cacheCleared,
     removedServices: reconciliation.removed,
     missingWatch: reconciliation.watching,
     forgotten,
     residue,
-    skipped,
+    skipped: entries.skipped,
     errors
   }
 
@@ -286,49 +197,146 @@ async function performMaintenance(currentDate, options) {
     await saveCleanupState(result, previousState)
   }
 
-  if (reconciliation.removed.length) {
+  await logMaintenance(result)
+
+  return result
+}
+
+// Une copie : l'entretien modifie ses entrées, que la sélection du même réveil a gardées.
+function copyIndex(index) {
+  return JSON.parse(JSON.stringify(index))
+}
+
+function resolveCleanupDelays(options) {
+  return {
+    archiveGraceMs: resolveNonNegativeDelay(options.archiveGraceMs, pdf.archiveGraceMs, HOUR_MS),
+    archiveRetentionMs: resolveNonNegativeDelay(
+      options.archiveRetentionMs,
+      pdf.archiveRetentionMs,
+      7 * 24 * HOUR_MS
+    ),
+    cacheGraceMs: resolveNonNegativeDelay(options.cacheGraceMs, pdf.cacheGraceMs, 60 * 1000),
+    residueGraceMs: resolveNonNegativeDelay(options.residueGraceMs, pdf.residueGraceMs, HOUR_MS),
+    missingGraceMs: resolveNonNegativeDelay(options.missingGraceMs, pdf.missingGraceMs, HOUR_MS),
+    missingObservationIntervalMs: resolveNonNegativeDelay(
+      options.missingObservationIntervalMs,
+      pdf.missingObservationIntervalMs,
+      5 * 60 * 1000
+    )
+  }
+}
+
+async function maintainEntries(services, currentDate, delays) {
+  const outcome = { archived: [], deleted: [], cacheCleared: [], skipped: [], errors: [] }
+
+  for (const entry of services) {
     try {
-      await STORAGE.appendLog("cleanup", "Services retirés après disparition de leur PDF", {
-        removed: reconciliation.removed.map(item => ({
-          id: item.id,
-          files: item.files,
-          firstSeenAt: item.firstSeenAt
-        }))
+      const cleared = await clearFinishedServiceCache(entry, currentDate, delays.cacheGraceMs)
+
+      if (cleared) outcome.cacheCleared.push(cleared)
+
+      const result = await maintainEntry(
+        entry,
+        currentDate,
+        delays.archiveGraceMs,
+        delays.archiveRetentionMs
+      )
+
+      if (result.status === "archived") outcome.archived.push(result)
+      else if (result.status === "deleted") outcome.deleted.push(result)
+      else outcome.skipped.push(result)
+    } catch (error) {
+      const telemetry = UTILS.telemetryFromError(error, "SERVICES_CLEANUP_FAILED", "archive")
+
+      outcome.errors.push({
+        id: String(entry?.id || ""),
+        service: String(entry?.service || ""),
+        date: String(entry?.date || ""),
+        telemetryCode: telemetry.code,
+        telemetryStage: telemetry.stage,
+        error: UTILS.safeError(error).message
       })
-    } catch (_) {}
+    }
+  }
+
+  return outcome
+}
+
+function servicesDirectoryError() {
+  try {
+    fm.listContents(paths.services)
+    return null
+  } catch (error) {
+    return {
+      telemetryCode: "SERVICES_DIRECTORY_READ_FAILED",
+      telemetryStage: "removal",
+      error: UTILS.errorMessage(error)
+    }
+  }
+}
+
+async function sweepAllResidue(index, currentDate, delays) {
+  const residue = await sweepResidue(currentDate, delays.residueGraceMs)
+  const replaced = sweepReplacedArchives(currentDate, delays.archiveRetentionMs)
+  const orphans = sweepOrphanCaches(index, currentDate, delays.archiveRetentionMs)
+
+  for (const fileName of replaced.removed) {
+    residue.removed.push({ fileName, kind: "replaced-archive" })
+  }
+
+  for (const fileName of orphans.removed) {
+    residue.removed.push({ fileName, kind: "orphan-cache" })
+  }
+
+  residue.errors.push(...replaced.errors, ...orphans.errors)
+
+  return residue
+}
+
+async function logMaintenance(result) {
+  const { removedServices, residue, archived, deleted, cacheCleared, errors } = result
+
+  if (removedServices.length) {
+    await appendLogQuietly("cleanup", "Services retirés après disparition de leur PDF", {
+      removed: removedServices.map(item => ({
+        id: item.id,
+        files: item.files,
+        firstSeenAt: item.firstSeenAt
+      }))
+    })
   }
 
   if (residue && (residue.removed.length || residue.restored.length || residue.errors.length)) {
-    try {
-      await STORAGE.appendLog(
-        residue.errors.length || residue.restored.length ? "cleanup-warning" : "cleanup",
-        "Nettoyage des restes d’écriture",
-        {
-          removed: residue.removed.map(item => item.fileName),
-          restored: residue.restored.map(item => item.restoredAs),
-          preserved: residue.preserved.length,
-          errors: residue.errors
-        }
-      )
-    } catch (_) {}
+    await appendLogQuietly(
+      residue.errors.length || residue.restored.length ? "cleanup-warning" : "cleanup",
+      "Nettoyage des restes d’écriture",
+      {
+        removed: residue.removed.map(item => item.fileName),
+        restored: residue.restored.map(item => item.restoredAs),
+        preserved: residue.preserved.length,
+        errors: residue.errors
+      }
+    )
   }
 
   if (archived.length || deleted.length || cacheCleared.length || errors.length) {
-    try {
-      await STORAGE.appendLog(
-        errors.length ? "cleanup-warning" : "cleanup",
-        "Entretien automatique des PDF de services",
-        {
-          archived: archived.map(item => item.fileName),
-          deleted: deleted.map(item => item.fileName),
-          cacheCleared: cacheCleared.map(item => item.id),
-          errors
-        }
-      )
-    } catch (_) {}
+    await appendLogQuietly(
+      errors.length ? "cleanup-warning" : "cleanup",
+      "Entretien automatique des PDF de services",
+      {
+        archived: archived.map(item => item.fileName),
+        deleted: deleted.map(item => item.fileName),
+        cacheCleared: cacheCleared.map(item => item.id),
+        errors
+      }
+    )
   }
+}
 
-  return result
+async function appendLogQuietly(type, message, details) {
+  try {
+    await STORAGE.appendLog(type, message, details)
+  } catch (_) {}
 }
 
 async function maintainEntry(entry, currentDate, archiveGraceMs, archiveRetentionMs) {
@@ -718,19 +726,6 @@ function reconcileMissingPdfs(
   const removed = []
   const watching = {}
   const errors = []
-
-  try {
-    fm.listContents(paths.services)
-  } catch (error) {
-    errors.push({
-      telemetryCode: "SERVICES_DIRECTORY_READ_FAILED",
-      telemetryStage: "removal",
-      error: UTILS.errorMessage(error)
-    })
-
-    return { removed, watching: previousWatch, errors }
-  }
-
   const services = Array.isArray(index?.services) ? index.services : []
   const kept = []
 
@@ -920,13 +915,11 @@ async function performServiceRemoval(id, currentDate) {
     }
   )
 
-  try {
-    await STORAGE.appendLog(
-      deletion.failed.length ? "cleanup-warning" : "cleanup",
-      "Service retiré à la demande",
-      { id, removed: deletion.removed, failed: deletion.failed }
-    )
-  } catch (_) {}
+  await appendLogQuietly(
+    deletion.failed.length ? "cleanup-warning" : "cleanup",
+    "Service retiré à la demande",
+    { id, removed: deletion.removed, failed: deletion.failed }
+  )
 
   return {
     success: deletion.failed.length === 0,

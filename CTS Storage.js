@@ -55,6 +55,7 @@ async function readText(path, fallback = "") {
 }
 
 async function ensureReadable(path) {
+  if (fm.fileExists(path) && isDownloadedLocally(path)) return true
   if (readWithoutICloudConfirmation(path, null) !== null) return true
 
   try {
@@ -94,8 +95,6 @@ async function readJson(path, fallback = null) {
 }
 
 async function writeTextSafely(path, value) {
-  ensureDirectories()
-
   const content = String(value)
   const token = buildUniqueToken()
   const temporaryPath = `${path}.tmp-${token}`
@@ -197,6 +196,7 @@ async function loadPreferences() {
 }
 
 async function savePreferences(value) {
+  ensureDirectories()
   await writeJsonSafely(files.preferences, normalizePreferences(value))
 }
 
@@ -227,15 +227,22 @@ async function saveVersionPolicy(policy) {
   if (!policy || typeof policy !== "object" || Array.isArray(policy)) return false
 
   const minimumVersion = String(policy.minimumVersion || "").trim()
+  const latestVersion = String(policy.latestVersion || "").trim()
 
   if (!minimumVersion) return false
+
+  const stored = await loadVersionPolicy()
+
+  if (stored?.minimumVersion === minimumVersion && stored.latestVersion === latestVersion) {
+    return false
+  }
 
   await writeJsonAtomically(
     files.versionPolicy,
     {
       version: 1,
       receivedAt: new Date().toISOString(),
-      latestVersion: String(policy.latestVersion || "").trim(),
+      latestVersion,
       minimumVersion
     },
     {
@@ -478,7 +485,6 @@ function sanitizeDetails(value) {
 module.exports = {
   ensureDownloaded,
   ensureReadable,
-  readText,
   readJson,
   writeTextSafely,
   writeJsonSafely,
@@ -493,7 +499,6 @@ module.exports = {
   readCurrentIndex,
   appendLog,
   loadLog,
-  removeFileQuietly,
   uniqueArchiveFileName,
   safeModificationDate
 }

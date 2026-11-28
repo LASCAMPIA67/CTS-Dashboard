@@ -67,6 +67,7 @@ export class LinearGradient {
 
 const SYMBOL_PATHS = {
   "arrow.right": "M3 12h16M13 6l6 6-6 6",
+  "arrow.clockwise": "M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5",
   "bus.fill": "M7 3h10a3 3 0 0 1 3 3v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a3 3 0 0 1 3-3zM4 11h16M7 17v3M17 17v3M8 14h.01M16 14h.01",
   "tram.fill": "M5 4h14v12H5zM9 20l-2 2M15 20l2 2M5 10h14",
   "rectangle.3.group.fill": "M3 4h8v6H3zM13 4h8v6h-8zM3 12h18v8H3z",
@@ -142,6 +143,10 @@ class WidgetStack {
     this.backgroundGradient = null
     this.borderWidth = 0
     this.borderColor = null
+    this.action = null
+  }
+  setAction(title, options) {
+    this.action = { title, id: options?.id }
   }
   addStack() {
     const stack = new WidgetStack()

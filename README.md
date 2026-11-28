@@ -40,6 +40,8 @@ et affiche sur l'écran d'accueil ce qu'il reste à faire.
 | **Programme détaillé** | tranches, lignes, voitures, directions, dépôts, mises en ligne, durées |
 | **Retrait d'un service** | depuis le dossier `Services`, ou depuis CTS Installer |
 | **Archivage** | une heure après la fin du service, archives gardées sept jours |
+| **Actualisation** | le bouton ↻, à côté de la pastille d'état, recalcule le service sur-le-champ ; l'heure du dernier calcul se lit dans le coin en bas à droite |
+| **Widget plein écran** | sur iOS 27, le format qui occupe tout l'écran d'accueil ajoute le détail de chaque tranche, les horaires des pauses et coupures, la prise et la fin de service |
 | **Taille du texte** | un réglage « Grandes polices », 25 % plus grand |
 | **Résilience iCloud** | récupération des fichiers non encore synchronisés, avec nouvelles tentatives |
 | **Réparation** | vérification et remplacement des fichiers abîmés |
@@ -59,6 +61,21 @@ La couleur du widget dit d'un coup d'œil où en est la journée.
 | <img src="docs/images/en-service-2-tranches-pro-max.png" width="300" alt="Le widget en vert, pastille « En service » : la tranche en cours, l'heure de rentrée au dépôt et de fin de service."><br>**En service** — la tranche en cours, la rentrée au dépôt et la fin de service | <img src="docs/images/pause-2-tranches-pro-max.png" width="300" alt="Le widget en orange, pastille « Pause 3 h 28 » : la tranche suivante, son heure de reprise et sa direction."><br>**Pause** — sa durée, et la tranche qui suit |
 | <img src="docs/images/coupure-2-tranches-pro-max.png" width="300" alt="Le widget en violet, pastille « Coupure 3 h 28 » : la tranche suivante, son heure de reprise et sa direction."><br>**Coupure** — même lecture, quand la carte imprime une coupure | <img src="docs/images/service-termine-2-tranches-pro-max.png" width="300" alt="Le widget en gris, pastille « Service terminé » : la dernière tranche, la rentrée au dépôt et la fin de service."><br>**Service terminé** — la dernière tranche, la rentrée au dépôt et la fin de service |
 
+### Le widget plein écran
+
+Sur iOS 27, le widget peut occuper tout l'écran d'accueil. Il garde la
+même lecture et y ajoute ce que le grand format n'a pas la place de
+montrer : sous chaque tranche, la sortie et la rentrée au dépôt, la mise en
+ligne, la direction et la fin de service, sans répéter ce que le bandeau
+affiche déjà ; les horaires de chaque pause ou coupure ; la prise et la fin
+de service à côté du travail et de l'amplitude. Sur les plus grands
+iPhone, le texte y est aussi plus grand.
+
+<p align="center">
+  <img src="docs/images/pause-2-tranches-pro-max-440-extralargeportrait.png" width="300"
+       alt="Le widget plein écran en orange, pastille « Pause 3 h 28 » : la tranche suivante en bandeau, puis le programme avec les horaires de la pause en cours et, sous chaque tranche, la sortie et la rentrée au dépôt, la mise en ligne, la direction et la fin de service, et en bas la prise de service, le travail, l'amplitude et la fin de service.">
+</p>
+
 Les images sont dessinées hors iPhone, par le code même qui dessine le
 widget, sur un service inventé : aucune ne montre la carte d'un collègue.
 La police diffère légèrement de celle de l'iPhone, la mise en page et les
@@ -69,10 +86,10 @@ couleurs sont celles du widget.
 
 | Bloc | Ce qu'il montre |
 |---|---|
-| **En-tête** | le numéro de service, sa date, et une pastille qui dit l'état du moment |
+| **En-tête** | le numéro de service, sa date, puis en haut à droite le bouton ↻ d'actualisation et une pastille qui dit l'état du moment |
 | **Bandeau** | la tranche qui compte maintenant — à venir, en cours ou la dernière —, son début, sa fin et leurs lieux ; selon le moment, la prise de service et la sortie du dépôt, ou la rentrée au dépôt et la fin de service ; puis la mise en ligne et la direction |
 | **Programme** | chaque tranche avec sa ligne, sa voiture, ses lieux, ses horaires et sa durée, la tranche active mise en avant, et entre deux tranches la pause ou la coupure qui les sépare |
-| **Bas du widget** | **Travail**, la somme des tranches, et **Amplitude**, de la prise de service à la fin de la dernière tranche |
+| **Bas du widget** | **Travail**, la somme des tranches, et **Amplitude**, de la prise à la fin de service — qui peut suivre la fin de la dernière tranche ; en plein écran, la prise et la fin de service en plus ; dans le coin, l'heure du dernier calcul |
 
 Un service qui compte une tranche de tram montre un tram dans l'en-tête, et
 cette tranche affiche « Début exploitation » au lieu de « Mise en ligne ».
@@ -86,7 +103,8 @@ dernier arrêt desservi sinon.
 ### Compatibilité
 
 CTS Dashboard est conçu exclusivement pour **iPhone** et pour le **widget
-grand format de Scriptable**.
+grand format de Scriptable**, ainsi que pour son **format plein écran**
+sur iOS 27.
 
 | Ce qui est visé | Détail |
 |---|---|
@@ -131,7 +149,8 @@ seul et poursuit l'installation du Dashboard.
 #### 3. Ajouter le widget
 
 1. Sur l'écran d'accueil : **Modifier → Ajouter un widget**.
-2. Choisir **Scriptable**, format **grand**.
+2. Choisir **Scriptable**, format **grand** — ou, sur iOS 27, le format
+   qui occupe tout l'écran d'accueil.
 3. Configurer le widget avec **Script : CTS Dashboard** et
    **When Interacting / Open App : Run Script**.
 
